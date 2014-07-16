@@ -1,4 +1,4 @@
-The kraken-toolbelt.jar contains the following tools:
+The refinery-toolbelt.jar contains the following tools:
 
 * org.wikimedia.analytics.refinery.tools.Dump
 
