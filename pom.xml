@@ -14,6 +14,7 @@
 
   <modules>
     <module>refinery-tools</module>
+    <module>refinery-hive</module>
   </modules>
 
   <scm>
@@ -59,6 +60,10 @@
     <repository>
       <id>wmf-mirrored</id>
       <url>http://archiva.wikimedia.org/repository/mirrored/</url>
+    </repository>
+    <repository>
+      <id>wmf-releases</id>
+      <url>http://archiva.wikimedia.org/repository/releases/</url>
     </repository>
   </repositories>
 
