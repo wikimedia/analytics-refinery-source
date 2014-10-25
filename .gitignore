@@ -1,2 +1,7 @@
 # Maven output of subdirectories
 /*/target
+
+# Eclipse files
+.project
+.classpath
+.settings
