@@ -1,0 +1,19 @@
+test_description, is_pageview, uri_host, uri_path, uri_query, http_status, content_type, user_agent
+Is Pageview - Desktop, true, en.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+Is Pageview - App, true, en.wikipedia.org, /w/api.php, ?action=mobileview&sections=0,200, application/json, WikipediaApp/1.2.3
+Is Pageview – Mobile Web, true,en.m.wikipedia.org,/wiki/Bernard_Manning,-,200,text/html,rutabaga
+Is Pageview – Desktop - Serbian sr-ec, true,sr.wikipedia.org,/sr-ec/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute
+Is Pageview – Desktop - Serbian sr-el, true,sr.wikipedia.org,/sr-el/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute
+Is Pageview – Desktop - Chinese zh-cn, true,zh.wikipedia.org,/zh-cn/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-hans, true,zh.wikipedia.org,/zh-hans/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-hant, true,zh.wikipedia.org,/zh-hant/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-hk, true,zh.wikipedia.org,/zh-hk/Wikipedia:foo,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-mo, true,zh.wikipedia.org,/zh-mo/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-my, true,zh.wikipedia.org,/zh-my/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-sg, true,zh.wikipedia.org,/zh-sg/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-tw, true,zh.wikipedia.org,/zh-tw/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Not Pageview - http_status != 200, false, en.wikipedia.org, /wiki/Noppperrrrs,-,400,text/html ,turnip
+Is Not Pageview - content_type does not match, false, en.wikipedia.org, /wiki/Noppperrrrs,-,200, image/png, turnip
+Is Not Pageview - API stupidity: it outputs a 200 status code and text/html as a MIME type on certain classes of error., false, en.wikipedia.org, /w/api.php,-,200, text/html, turnip
+Is Not Pageview – App request for non-page content, false, en.wikipedia.org, /w/api.php,?action=query&format=json&titles=Foo&prop=pageimages&piprop=thumbnail&pithumbsize=96&pilimit=1    ,200, application/json, WikipediaApp/1.2.3
+Is Not Pageview – Non-App request for page content, false, en.wikipedia.org, /w/api.php,?action=mobileview&sections=0,200, application/json, TributeApp/1.2.3
