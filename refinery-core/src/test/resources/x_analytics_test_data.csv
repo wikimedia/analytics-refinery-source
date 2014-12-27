@@ -1,0 +1,5 @@
+test_description,expected_output,x_analytics,param
+Grab app Install ID,foobar,zero=621-30;appInstallID=foobar;proxy=Nokiaprod;php=zend,appInstallID
+Grab MCC code,621-30,zero=621-30;proxy=Nokiaprod;php=zend,zero
+Grab app install ID...when it's the last entry,foobar,zero=621-30;proxy=Nokiaprod;php=zend;appInstallID=foobar,appInstallID
+Grab app install ID when it doesn't exist,,zero=621-30;proxy=Nokiaprod;php=zend,appInstallID
