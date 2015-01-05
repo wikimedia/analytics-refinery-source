@@ -3,9 +3,9 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.wikimedia.analytics.refinery</groupId>
+    <groupId>0</groupId>
     <artifactId>refinery</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.4-SNAPSHOT</version>
   </parent>
 
   <artifactId>refinery-tools</artifactId>
