@@ -85,13 +85,14 @@ public class Pageview {
     /**
      * Convenience method for Using Matcher.find() to check if
      * the given regex Pattern matches the target String.
+     * Also called in the LegacyPageview class.
      *
      * @param Pattern pattern
      * @param String  target
      *
      * @return boolean
      */
-    private static boolean patternIsFound(Pattern pattern, String target) {
+    public static boolean patternIsFound(Pattern pattern, String target) {
         return pattern.matcher(target).find();
     }
 

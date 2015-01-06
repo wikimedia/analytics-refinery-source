@@ -23,7 +23,7 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestPageview {
+public class TestLegacyPageview {
 
 
     @Test
@@ -31,7 +31,7 @@ public class TestPageview {
         value = "src/test/resources/pageview_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
-    public void testIsPageview(
+    public void testIsLegacyPageview(
         String test_description,
         boolean is_pageview,
         boolean is_legacy_pageview,
@@ -46,14 +46,13 @@ public class TestPageview {
     ) {
         assertEquals(
             test_description,
-            is_pageview,
-            Pageview.isPageview(
+            is_legacy_pageview,
+            LegacyPageview.isLegacyPageview(
+                ip_address,
+                x_forwarded_for,
                 uri_host,
                 uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent
+                http_status
             )
         );
     }

@@ -24,7 +24,7 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestIsPageviewUDF {
+public class TestIsLegacyPageviewUDF {
 
 
     @Test
@@ -45,18 +45,17 @@ public class TestIsPageviewUDF {
         String content_type,
         String user_agent
     ) {
-        IsPageviewUDF udf = new IsPageviewUDF();
+        IsLegacyPageviewUDF udf = new IsLegacyPageviewUDF();
 
         assertEquals(
             test_description,
-            is_pageview,
+            is_legacy_pageview,
             udf.evaluate(
+                ip_address,
+                x_forwarded_for,
                 uri_host,
                 uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent
+                http_status
             )
         );
     }
