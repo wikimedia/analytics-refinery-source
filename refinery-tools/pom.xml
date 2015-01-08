@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>0</groupId>
+    <groupId>org.wikimedia.analytics.refinery</groupId>
     <artifactId>refinery</artifactId>
     <version>0.0.4-SNAPSHOT</version>
   </parent>
