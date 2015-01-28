@@ -1,5 +1,6 @@
 test_description, is_pageview,is_legacy_pageview,ip_address,x_forwarded_for, uri_host, uri_path, uri_query, http_status, content_type, user_agent
 Is Pageview - Desktop, true,true,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+Is Pageview – Desktop – locally cached content, true,true,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,-,304,text/html, turnip
 Is Pageview - App, true,false,174.62.175.83,-,en.wikipedia.org, /w/api.php, ?action=mobileview&sections=0,200, application/json, WikipediaApp/1.2.3
 Is Pageview – Mobile Web, true,true,174.62.175.84,-,en.m.wikipedia.org,/wiki/Bernard_Manning,-,200,text/html,rutabaga
 Is Pageview – Desktop - Serbian sr-ec, true,false,174.62.175.85,-,sr.wikipedia.org,/sr-ec/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute

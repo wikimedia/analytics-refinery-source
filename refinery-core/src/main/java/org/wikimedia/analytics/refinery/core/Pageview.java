@@ -62,6 +62,10 @@ public class Pageview {
         "text/html; charset=UTF-8"
     ));
 
+    private static final HashSet<String> httpStatusesSet = new HashSet<String>(Arrays.asList(
+        "200",
+        "304"
+    ));
 
     /**
      * All API request uriPaths will contain this
@@ -154,8 +158,8 @@ public class Pageview {
         uriHost = uriHost.toLowerCase();
 
         return (
-            // All pageviews have 200 HTTP status
-            httpStatus.equals("200")
+            // All pageviews have a 200 or 304 HTTP status
+            httpStatusesSet.contains(httpStatus)
             // check for a regular pageview contentType, or a an API contentType
             &&  (
                     (contentTypesSet.contains(contentType) && !stringContains(uriPath, uriPathAPI))
