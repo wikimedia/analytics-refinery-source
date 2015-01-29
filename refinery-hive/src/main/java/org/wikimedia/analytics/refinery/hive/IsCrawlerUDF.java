@@ -17,7 +17,7 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.Webrequests;
+import org.wikimedia.analytics.refinery.core.Webrequest;
 
 /**
  * A hive UDF to identify Wikimedia-specific crawlers,
@@ -27,7 +27,7 @@ public class IsCrawlerUDF extends UDF {
     public boolean evaluate(
         String user_agent
     ) {
-        return Webrequests.isCrawler(
+        return Webrequest.isCrawler(
              user_agent
         );
     }
