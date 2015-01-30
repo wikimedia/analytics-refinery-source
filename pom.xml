@@ -19,11 +19,10 @@
   </modules>
 
   <scm>
-    <url>scm:git:git@github.com/wikimedia/analytics-refinery-source.git</url>
-    <connection>scm:git:git@github.com/wikimedia/analytics-refinery-source.git</connection>
-    <developerConnection>scm:git:git@github.com/wikimedia/analytics-refinery-source.git</developerConnection>
+    <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
+    <connection>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</connection>
+    <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
   </scm>
-
 
   <organization>
     <name>Wikimedia Foundation</name>
@@ -226,22 +225,20 @@
             </execution>
           </executions>
         </plugin>
+
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-release-plugin</artifactId>
+          <version>2.5.1</version>
+          <configuration>
+            <tagNameFormat>v@{project.version}</tagNameFormat>
+            <autoVersionSubmodules>true</autoVersionSubmodules>
+          </configuration>
+        </plugin>
+
       </plugins>
 
-      <pluginManagement>
-        <plugins>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-release-plugin</artifactId>
-            <version>2.1</version>
-            <configuration>
-              <mavenExecutorId>forked-path</mavenExecutorId>
-              <useReleaseProfile>false</useReleaseProfile>
-              <arguments>-Psonatype-oss-release</arguments>
-            </configuration>
-          </plugin>
-        </plugins>
-      </pluginManagement>
+
     </build>
 
     <reporting>
