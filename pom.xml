@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <name>Wikimedia Analytics Refinery</name>
@@ -7,7 +8,7 @@
 
   <groupId>org.wikimedia.analytics.refinery</groupId>
   <artifactId>refinery</artifactId>
-  <version>0.0.5</version>
+  <version>0.0.5-SNAPSHOT</version>
   <packaging>pom</packaging>
 
 
@@ -21,7 +22,6 @@
     <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
     <connection>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</connection>
     <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
-    <tag>v0.0.5</tag>
   </scm>
 
   <organization>
@@ -161,7 +161,7 @@
         <configuration>
           <source>1.6</source>
           <target>1.6</target>
-          <compilerArgument />
+          <compilerArgument></compilerArgument>
         </configuration>
       </plugin>
 
