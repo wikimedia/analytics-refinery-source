@@ -15,6 +15,7 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
+import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
@@ -22,6 +23,9 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.mapred.JobConf;
+import java.io.IOException;
+
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -47,7 +51,7 @@ public class TestGeocodedDataUDF {
     }
 
     @Test
-    public void testEvaluateWithValidIPv4() throws HiveException {
+    public void testEvaluateWithValidIPv4() throws HiveException, IOException {
         //IPv4 addresses taken from Maxmind's test suite
         String ip = "81.2.69.160";
         Map<String, String> result = evaluate (ip);
@@ -64,7 +68,7 @@ public class TestGeocodedDataUDF {
     }
 
     @Test
-    public void testEvaluateWithValidIPv6() throws HiveException {
+    public void testEvaluateWithValidIPv6() throws HiveException, IOException {
         //IPv6 representation of an IPv4 address taken from Maxmind's test suite
         String ip = "::ffff:81.2.69.160";
         Map<String, String> result = evaluate (ip);
@@ -81,7 +85,7 @@ public class TestGeocodedDataUDF {
     }
 
     @Test
-    public void testEvaluateWithInvalidIP() throws HiveException {
+    public void testEvaluateWithInvalidIP() throws HiveException, IOException {
         //Invalid IP
         String ip = "-";
         Map<String, String> result = evaluate(ip);
@@ -110,14 +114,17 @@ public class TestGeocodedDataUDF {
         assertEquals("Timezone check", "Unknown", result.get("timezone"));
     }
 
-    private Map<String, String> evaluate(String ip) throws HiveException {
+    private Map<String, String> evaluate(String ip) throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
         GeocodedDataUDF geocodedDataUDF = new GeocodedDataUDF();
 
         geocodedDataUDF.initialize(initArguments);
+        geocodedDataUDF.configure(MapredContext.init(false, new JobConf()));
 
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        return (Map<String, String>)geocodedDataUDF.evaluate(args);
+        Map<String, String> result = (Map<String, String>)geocodedDataUDF.evaluate(args);
+        geocodedDataUDF.close();
+        return result;
     }
 }

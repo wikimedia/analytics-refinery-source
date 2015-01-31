@@ -29,15 +29,20 @@ import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.*;
+
 import org.apache.log4j.Logger;
 
 /**
  * Contains functions to find geo information of an IP address using Maxmind's GeoIP2
+ *
+ * TODO: Allow usage of this class without always instantiating both city and country databases.
  */
 public class Geocode {
+    // Default paths to Maxmind databases
+    public static final String DEFAULT_DATABASE_COUNTRY_PATH  = "/usr/share/GeoIP/GeoIP2-Country.mmdb";
+    public static final String DEFAULT_DATABASE_CITY_PATH     = "/usr/share/GeoIP/GeoIP2-City.mmdb";
 
-    private DatabaseReader countryDatabaseReader;
-    private DatabaseReader cityDatabaseReader;
+    static final Logger LOG = Logger.getLogger(Geocode.class.getName());
 
     //Constants to hold the keys to use in geo-coded data map
     private static final String CONTINENT = "continent";
@@ -53,21 +58,45 @@ public class Geocode {
     private static final String UNKNOWN_COUNTRY_CODE = "--";
     private static final String UNKNOWN_VALUE = "Unknown";
 
-    static final Logger LOG = Logger.getLogger(Geocode.class.getName());
+    private DatabaseReader countryDatabaseReader;
+    private DatabaseReader cityDatabaseReader;
 
+
+    /**
+     * Constructs a Geocode object with the default Maxmind 2 database paths.
+     * You can override either of the default database paths by setting
+     * the 'maxmind.database.country' and/or 'maxmind.database.city' properties.
+     */
     public Geocode() throws IOException {
-        // Default paths to Maxmind database
-        String defaultCountryDatabasePath = "/usr/share/GeoIP/GeoIP2-Country.mmdb";
-        String defaultCityDatabasePath = "/usr/share/GeoIP/GeoIP2-City.mmdb";
+        this(null, null);
+    }
 
-        String countryDatabasePath = System.getProperty("maxmind.database.country", defaultCountryDatabasePath);
-        String cityDatabasePath = System.getProperty("maxmind.database.city", defaultCityDatabasePath);
+    /**
+     * Constructs a Geocode object with the provided Maxmind 2 database paths.
+     * These are 'optional', in that you may set either one to null.  If null,
+     * the system properties 'maxmind.database.country' and 'maxmind.database.city'
+     * will be checked for paths.  If these are not set, then this will default to
+     * DEFAULT_DATABASE_PATH_COUNTRY and DEFAULT_DATABASE_PATH_CITY respectively.
+     *
+     * @param countryDatabasePath
+     *      String path to Maxmind's country database
+     * @param cityDatabasePath
+     *      String path to Maxmind's city database
+     */
+    public Geocode(String countryDatabasePath, String cityDatabasePath) throws IOException {
+        // Override database paths with System properties, if they exist
+        if (countryDatabasePath == null) {
+            countryDatabasePath = System.getProperty("maxmind.database.country", DEFAULT_DATABASE_COUNTRY_PATH);
+        }
+        if (cityDatabasePath == null) {
+            cityDatabasePath = System.getProperty("maxmind.database.city", DEFAULT_DATABASE_CITY_PATH);
+        }
 
-        LOG.info("Country Database: " + countryDatabasePath);
-        LOG.info("City database: " + cityDatabasePath);
+        LOG.info("Geocode using Maxmind country database: " + countryDatabasePath);
+        LOG.info("Geocode using Maxmind city database: "    + cityDatabasePath);
 
         countryDatabaseReader = new DatabaseReader.Builder(new File(countryDatabasePath)).build();
-        cityDatabaseReader = new DatabaseReader.Builder(new File(cityDatabasePath)).build();
+        cityDatabaseReader    = new DatabaseReader.Builder(new File(cityDatabasePath)).build();
     }
 
     /**

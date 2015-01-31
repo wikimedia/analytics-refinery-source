@@ -17,6 +17,7 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
@@ -28,6 +29,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
+import org.apache.hadoop.mapred.JobConf;
+
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.Geocode;
 
@@ -42,10 +45,12 @@ import java.util.Map;
  *   ADD JAR /path/to/refinery-hive.jar;
  *   CREATE TEMPORARY FUNCTION geocode_data as 'org.wikimedia.analytics.refinery.hive.GeocodedDataUDF';
  *   SELECT geocode_data(ip)['country'], geocode_data(ip)['city'] from webrequest where year = 2014 limit 10;
+ *
  * The above steps assume that the two required files - GeoIP2-Country.mmdb and GeoIP2-City.mmdb - are available
  * in their default path /usr/share/GeoIP. If not, then add the following steps:
- *   SET system:maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
- *   SET system:maxmind.database.city=/path/to/GeoIP2-City.mmdb;
+ *
+ *   SET maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
+ *   SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
  */
 @UDFType(deterministic = true)
 @Description(name = "geocoded_data", value = "_FUNC_(ip) - "
@@ -98,20 +103,29 @@ public class GeocodedDataUDF extends GenericUDF {
 
         argumentOI = arg1;
 
+        result = new HashMap<String, String>();
+
+        return ObjectInspectorFactory.getStandardMapObjectInspector(
+                PrimitiveObjectInspectorFactory.javaStringObjectInspector,
+                PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+    }
+
+    @Override
+    public void configure(MapredContext context) {
         if (geocode == null) {
             try {
-                geocode = new Geocode();
+                JobConf jobConf = context.getJobConf();
+                geocode = new Geocode(
+                    jobConf.getTrimmed("maxmind.database.country"),
+                    jobConf.getTrimmed("maxmind.database.city")
+                );
             } catch (IOException ex) {
                 LOG.error(ex);
                 throw new RuntimeException(ex);
             }
         }
 
-        result = new HashMap<String, String>();
-
-        return ObjectInspectorFactory.getStandardMapObjectInspector(
-                PrimitiveObjectInspectorFactory.javaStringObjectInspector,
-                PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+        super.configure(context);
     }
 
     /**
@@ -134,6 +148,8 @@ public class GeocodedDataUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
+        assert geocode != null : "Evaluate called without initializing 'geocode'";
+
         result.clear();
 
         if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
