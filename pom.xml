@@ -86,9 +86,9 @@
 
   <distributionManagement>
     <repository>
-      <id>archiva.internal</id>
+      <id>archiva.releases</id>
       <name>Internal Release Repository</name>
-      <url>http://archiva.wikimedia.org/repository/internal/</url>
+      <url>http://archiva.wikimedia.org/repository/releases/</url>
     </repository>
     <snapshotRepository>
       <id>archiva.snapshots</id>
