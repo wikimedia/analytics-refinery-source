@@ -60,13 +60,13 @@ public class Geocode {
         String defaultCountryDatabasePath = "/usr/share/GeoIP/GeoIP2-Country.mmdb";
         String defaultCityDatabasePath = "/usr/share/GeoIP/GeoIP2-City.mmdb";
 
-        String countryDatabasepath = System.getProperty("maxmind.database.country", defaultCountryDatabasePath);
+        String countryDatabasePath = System.getProperty("maxmind.database.country", defaultCountryDatabasePath);
         String cityDatabasePath = System.getProperty("maxmind.database.city", defaultCityDatabasePath);
 
-        LOG.info("Country Database: " + countryDatabasepath);
+        LOG.info("Country Database: " + countryDatabasePath);
         LOG.info("City database: " + cityDatabasePath);
 
-        countryDatabaseReader = new DatabaseReader.Builder(new File(countryDatabasepath)).build();
+        countryDatabaseReader = new DatabaseReader.Builder(new File(countryDatabasePath)).build();
         cityDatabaseReader = new DatabaseReader.Builder(new File(cityDatabasePath)).build();
     }
 
