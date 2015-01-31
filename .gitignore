@@ -1,10 +1,9 @@
-# Maven output of subdirectories
-/*/target
-
-# maven-release-plugin output
+# Maven
+target
 release.properties
+*.releaseBackup
 
-# Eclipse files
+# Eclipse
 .project
 .classpath
 .settings
