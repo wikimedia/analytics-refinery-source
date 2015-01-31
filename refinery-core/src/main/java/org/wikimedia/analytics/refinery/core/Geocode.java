@@ -82,7 +82,11 @@ public class Geocode {
             InetAddress ipAddress = InetAddress.getByName(ip);
             CountryResponse response = countryDatabaseReader.country(ipAddress);
             Country country = response.getCountry();
-            return country.getIsoCode();
+            String ret = country.getIsoCode();
+            if (ret == null) {
+                ret = UNKNOWN_COUNTRY_CODE;
+            }
+            return ret;
         } catch (UnknownHostException hEx) {
             LOG.warn(hEx);
             return UNKNOWN_COUNTRY_CODE;

@@ -96,4 +96,21 @@ public class TestGeocodedCountryUDF {
         result = (Text)geocodedCountryUDF.evaluate(args);
         assertEquals("ISO country code check", "--", result.toString());
     }
+
+    @Test
+    public void testIPWithoutIsoCode() throws HiveException {
+        ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        ObjectInspector[] initArguments = new ObjectInspector[]{value1};
+        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+
+        geocodedCountryUDF.initialize(initArguments);
+
+        String ip = "2a02:d500::"; // IP for EU
+        DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
+        Text result = (Text)geocodedCountryUDF.evaluate(args);
+        assertEquals("ISO country code check", "--", result.toString());
+
+        // Consistency trumps good style. Hence not closing the UDF, as other
+        // UDFs in this test case aren't closed either :-(
+    }
 }
