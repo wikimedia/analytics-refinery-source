@@ -52,3 +52,8 @@ see that for more info on the maven release plugin.)
 In addition to the above, there will now be release.properties that contains all the information
 needed to perform the current release.  If everything looks good, run ```mvn release:perform```
 to build and upload your artifacts to Archiva.  Note: This might take a while.
+
+If you ran ``mvn release:prepare``` and then get cold feet, you can abort the release process by running
+```mvn release:clean```.  This will remove the ```release.properties``` file and cause
+```mvn release:prepare``` to again prompt you for the to-be-released version number the
+next time you run it.
