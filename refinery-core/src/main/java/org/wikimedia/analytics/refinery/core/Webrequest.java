@@ -16,6 +16,8 @@ package org.wikimedia.analytics.refinery.core;
 
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Static functions to work withh Wikimedia webrequest data.
  */
@@ -107,5 +109,72 @@ public class Webrequest {
         }
 
         return accessMethod;
+    }
+
+    /**
+     * Classification for referers
+     * <p>
+     * <ul>
+     * <li>A referer from a WMF domain translates into “internal”.</li>
+     * <li>A referer from a non-WMF domain translates into “external".</li>
+     * <li>An empty or invalid refer translates into “unknown".</li>
+     * </ul>
+     */
+    public enum RefererClassification {
+        UNKNOWN,
+        INTERNAL,
+        EXTERNAL
+    }
+
+    /**
+     * Classifies a referer
+     *
+     * @param url The referer url to classify
+     * @return RefererClassification
+     */
+    public static RefererClassification classify(String url) {
+        if (url == null || url.isEmpty() || url.equals("-")) {
+            return RefererClassification.UNKNOWN;
+        }
+
+        String[] urlParts = StringUtils.splitPreserveAllTokens(url, '/');
+        if (urlParts == null || urlParts.length <3) {
+            return RefererClassification.UNKNOWN;
+        }
+
+        if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:")) {
+            return RefererClassification.UNKNOWN;
+        }
+
+        if (!urlParts[1].isEmpty()) {
+            return RefererClassification.UNKNOWN;
+        }
+
+        String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
+
+        if (domainParts == null || domainParts.length <2) {
+            return RefererClassification.UNKNOWN;
+        }
+
+        if (domainParts[domainParts.length-1].equals("org")) {
+            switch (domainParts[domainParts.length-2]) {
+            case "":
+                return RefererClassification.UNKNOWN;
+            case "mediawiki":
+            case "wikibooks":
+            case "wikidata":
+            case "wikinews":
+            case "wikimedia":
+            case "wikimediafoundation":
+            case "wikipedia":
+            case "wikiquote":
+            case "wikisource":
+            case "wikiversity":
+            case "wikivoyage":
+            case "wiktionary":
+                return RefererClassification.INTERNAL;
+            }
+        }
+        return RefererClassification.EXTERNAL;
     }
 }

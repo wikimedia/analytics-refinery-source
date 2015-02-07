@@ -1,3 +1,6 @@
+## v0.0.7-SNAPSHOT
+* Add Referer classifier
+
 ## v0.0.6
 * Add custom percent en-/decoders to ease URL normalization.
 * Add IpUtil class and ClientIP UDF to extract request IP given IP address and X-Forwarded-For.
