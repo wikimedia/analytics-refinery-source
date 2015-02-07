@@ -1,3 +1,6 @@
+## v0.0.6-SNAPSHOT
+* Add custom percent en-/decoders to ease URL normalization.
+
 ## v0.0.5
 * For geocoding, allow to specify the MaxMind databases that should get used.
 
