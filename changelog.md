@@ -1,3 +1,6 @@
+## v0.0.5
+* For geocoding, allow to specify the MaxMind databases that should get used.
+
 ## v0.0.4
 * Pageview definition counts 304s.
 * refinery-core now contains a LegacyPageview class with which to classify legacy pageviews from webrequest data
