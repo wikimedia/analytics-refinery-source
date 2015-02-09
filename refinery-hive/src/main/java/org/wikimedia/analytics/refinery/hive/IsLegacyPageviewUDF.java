@@ -22,7 +22,7 @@ import org.wikimedia.analytics.refinery.core.LegacyPageview;
 
 /**
  * A Hive UDF to identify what requests constitute "pageviews",
- * according to the definition at 
+ * according to the definition at
  * https://github.com/wikimedia/analytics-refinery/blob/master/oozie/pagecounts-all-sites/load/insert_hourly_pagecounts.hql
  * This is the "legacy" definition, in use by WebStatsCollector and the
  * pageviews dumps at http://dumps.wikimedia.org/other/pagecounts-ez/

@@ -1,5 +1,6 @@
 ## v0.0.7-SNAPSHOT
 * Add Referer classifier
+* Add parser for media file urls
 
 ## v0.0.6
 * Add custom percent en-/decoders to ease URL normalization.
