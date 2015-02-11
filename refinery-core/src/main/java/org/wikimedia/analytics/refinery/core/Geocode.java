@@ -188,8 +188,12 @@ public class Geocode {
 
         Location location = response.getLocation();
         if (location != null) {
-            geoData.put(LATITUDE, location.getLatitude());
-            geoData.put(LONGITUDE, location.getLongitude());
+            Double lat = location.getLatitude();
+            Double lon = location.getLongitude();
+            if (lat != null && lon != null) {
+                geoData.put(LATITUDE, lat);
+                geoData.put(LONGITUDE, lon);
+            }
             if (location.getTimeZone() != null)
                 geoData.put(TIMEZONE, location.getTimeZone());
         }
