@@ -175,7 +175,13 @@ public class Geocode {
 
         List<Subdivision> subdivisions = response.getSubdivisions();
         if (subdivisions != null && subdivisions.size() > 0) {
-            geoData.put(SUBDIVISION, subdivisions.get(0).getName());
+            Subdivision subdivision = subdivisions.get(0);
+            if (subdivision != null) {
+                String name = subdivision.getName();
+                if (name != null) {
+                    geoData.put(SUBDIVISION, name);
+                }
+            }
         }
 
         City city = response.getCity();
