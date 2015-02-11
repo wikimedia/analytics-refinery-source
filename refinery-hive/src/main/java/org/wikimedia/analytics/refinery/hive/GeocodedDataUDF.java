@@ -157,7 +157,10 @@ public class GeocodedDataUDF extends GenericUDF {
             Map<String, Object> geoDataResult = geocode.getGeocodedData(ip);
             if (geoDataResult != null) {
                 for (String field : geoDataResult.keySet()) {
-                    result.put(field, geoDataResult.get(field).toString());
+                    Object value = geoDataResult.get(field);
+                    if (value != null) {
+                        result.put(field, value.toString());
+                    }
                 }
             }
         }
