@@ -163,14 +163,21 @@ public class Geocode {
             return geoData;
 
         Continent continent = response.getContinent();
-        if (continent != null && continent.getName() != null)
-            geoData.put(CONTINENT, continent.getName());
+        if (continent != null) {
+            String name = continent.getName();
+            if (name != null) {
+                geoData.put(CONTINENT, name);
+            }
+        }
 
         Country country = response.getCountry();
-        if (country != null && country.getIsoCode() != null
-                && country.getName() != null) {
-            geoData.put(COUNTRY_CODE, country.getIsoCode());
-            geoData.put(COUNTRY, country.getName());
+        if (country != null) {
+            String name = country.getName();
+            String isoCode = country.getIsoCode();
+            if (name != null && isoCode != null) {
+                geoData.put(COUNTRY, name);
+                geoData.put(COUNTRY_CODE, isoCode);
+            }
         }
 
         List<Subdivision> subdivisions = response.getSubdivisions();
@@ -185,12 +192,20 @@ public class Geocode {
         }
 
         City city = response.getCity();
-        if (city != null && city.getName() != null)
-            geoData.put(CITY, city.getName());
+        if (city != null) {
+            String name = city.getName();
+            if (name != null) {
+                geoData.put(CITY, name);
+            }
+        }
 
         Postal postal = response.getPostal();
-        if (postal != null && postal.getCode() != null)
-            geoData.put(POSTAL_CODE, postal.getCode());
+        if (postal != null) {
+            String code = postal.getCode();
+            if (code != null) {
+                geoData.put(POSTAL_CODE, code);
+            }
+        }
 
         Location location = response.getLocation();
         if (location != null) {
