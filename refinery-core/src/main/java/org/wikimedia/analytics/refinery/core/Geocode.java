@@ -167,7 +167,8 @@ public class Geocode {
             geoData.put(CONTINENT, continent.getName());
 
         Country country = response.getCountry();
-        if (country != null && country.getIsoCode() != null) {
+        if (country != null && country.getIsoCode() != null
+                && country.getName() != null) {
             geoData.put(COUNTRY_CODE, country.getIsoCode());
             geoData.put(COUNTRY, country.getName());
         }
