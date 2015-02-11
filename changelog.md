@@ -1,5 +1,6 @@
-## v0.0.6-SNAPSHOT
+## v0.0.6
 * Add custom percent en-/decoders to ease URL normalization.
+* Add IpUtil class and ClientIP UDF to extract request IP given IP address and X-Forwarded-For.
 
 ## v0.0.5
 * For geocoding, allow to specify the MaxMind databases that should get used.
