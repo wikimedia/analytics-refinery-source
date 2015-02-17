@@ -41,7 +41,10 @@ public class PercentEncoder {
         int encodedIdx = 0;
         for (int idx = 0; idx < length; idx++) {
 
-            if (0x21 <= chars[idx] && chars[idx] <= 0x7e) {
+            if ((0x21 <= chars[idx] && chars[idx] <= 0x7e)
+                    && chars[idx] != 0x2C // Force encoding of commas to easy
+                    // importing reports into Spreatsheet programs
+                    ) {
                 // Plain nice character. No need to encode
                 encodedChars[encodedIdx++] = chars[idx];
             } else {

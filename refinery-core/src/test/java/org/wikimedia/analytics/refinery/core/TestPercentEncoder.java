@@ -54,6 +54,10 @@ public class TestPercentEncoder extends TestCase {
         assertEncoded("foo/bar", "foo/bar");
     }
 
+    public void testCommaAlone() {
+        assertEncoded("foo,bar", "foo%2Cbar");
+    }
+
     public void testEncodedUmlaut() {
         assertEncoded("fooäbar", "foo%C3%A4bar");
     }
