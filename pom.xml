@@ -7,7 +7,7 @@
 
   <groupId>org.wikimedia.analytics.refinery</groupId>
   <artifactId>refinery</artifactId>
-  <version>0.0.7</version>
+  <version>0.0.8-SNAPSHOT</version>
   <packaging>pom</packaging>
 
 
@@ -21,7 +21,7 @@
     <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
     <connection>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</connection>
     <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
-    <tag>v0.0.7</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <organization>
