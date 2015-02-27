@@ -34,9 +34,11 @@ public class Pageview {
 
     private static final Pattern uriHostProjectDomainPattern = Pattern.compile(
         "(?<!www)\\."                           // not starting with "www"
-        + "(wik(ibooks|idata|"                  // match project domains ending in .org
+        + "(wik(ibooks|"                  // match project domains ending in .org
         + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
     );
+
+    private static final String uriHostWikidataString = "www.wikidata.org";
 
     private static final Pattern uriPathPattern = Pattern.compile(
         "^(/sr(-(ec|el))?|/w(iki)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
@@ -173,6 +175,7 @@ public class Pageview {
             // or a 'project' domain, e.g. en.wikipedia.org
             &&  (
                     patternIsFound(uriHostWikimediaDomainPattern, uriHost)
+                    || stringContains(uriHost, uriHostWikidataString)
                     || patternIsFound(uriHostProjectDomainPattern, uriHost)
                 )
             // Either a pageview's uriPath will match the first pattern,

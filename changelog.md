@@ -1,5 +1,6 @@
 ## v0.0.8-SNAPSHOT
 * Stop counting edit attempts as pageviews
+* Start counting www.wikidata.org hits
 
 ## v0.0.7
 * Add Referer classifier

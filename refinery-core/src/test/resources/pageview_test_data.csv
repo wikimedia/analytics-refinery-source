@@ -13,9 +13,11 @@ Is Pageview – Desktop - Chinese zh-mo, true,false,174.62.175.91,-,zh.wikipedia
 Is Pageview – Desktop - Chinese zh-my, true,false,174.62.175.92,-,zh.wikipedia.org,/zh-my/Wikipedia:首页,-,200,text/html,Five-test plan
 Is Pageview – Desktop - Chinese zh-sg, true,false,174.62.175.93,-,zh.wikipedia.org,/zh-sg/Wikipedia:首页,-,200,text/html,Five-test plan
 Is Pageview – Desktop - Chinese zh-tw, true,false,174.62.175.94,-,zh.wikipedia.org,/zh-tw/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Wikidata, true, true,174.62.175.94,-,www.wikidata.org,/wiki/Q5651758,-,200,text/html,Five-test plan
 Is Not Pageview - http_status != 200, false,true,174.62.175.95,-, en.wikipedia.org, /wiki/Noppperrrrs,-,400,text/html ,turnip
 Is Not Pageview - content_type does not match, false,true,174.62.175.96,-, en.wikipedia.org, /wiki/Noppperrrrs,-,200, image/png, turnip
 Is Not Pageview - API stupidity: it outputs a 200 status code and text/html as a MIME type on certain classes of error., false, false,174.62.175.97,-, en.wikipedia.org, /w/api.php,-,200, text/html, turnip
 Is Not Pageview – App request for non-page content, false, false,174.62.175.98,-, en.wikipedia.org, /w/api.php,?action=query&format=json&titles=Foo&prop=pageimages&piprop=thumbnail&pithumbsize=96&pilimit=1    ,200, application/json, WikipediaApp/1.2.3
 Is Not Pageview – Non-App request for page content, false, false,174.62.175.99,-, en.wikipedia.org, /w/api.php,?action=mobileview&sections=0,200, application/json, TributeApp/1.2.3
 Is Not Pageview – edit attempt,false,true,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,?action=edit,200,text/html, turnip
+Is not pageview – non-wikidata raw domain,false, false,174.62.175.82,-,www.wikipedia.org,-,-,200,text/html, turnip
