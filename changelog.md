@@ -1,4 +1,7 @@
-## v0.0.7-SNAPSHOT
+## v0.0.8-SNAPSHOT
+* Stop counting edit attempts as pageviews
+
+## v0.0.7
 * Add Referer classifier
 * Add parser for media file urls
 * Fix some NPEs around GeocodeDataUDF

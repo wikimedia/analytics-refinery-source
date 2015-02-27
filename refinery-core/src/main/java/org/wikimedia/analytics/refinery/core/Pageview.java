@@ -54,6 +54,10 @@ public class Pageview {
         "CentralAutoLogin|MobileEditor|UserLogin|ZeroRatedMobileAccess"
     );
 
+    private static final Pattern uriQueryUnwantedActions = Pattern.compile(
+        "action=edit"
+    );
+
     private static final HashSet<String> contentTypesSet = new HashSet<String>(Arrays.asList(
         "text/html",
         "text/html; charset=iso-8859-1",
@@ -180,6 +184,9 @@ public class Pageview {
             // A pageview will not have these Special: pages in the uriPath or uriQuery
             && !patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
             && !patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
+            // Edits now come through as text/html. They should not be included.
+            // Luckily the query parameter does not seem to be localised.
+            && !patternIsFound(uriQueryUnwantedActions, uriQuery)
         );
     }
 }
