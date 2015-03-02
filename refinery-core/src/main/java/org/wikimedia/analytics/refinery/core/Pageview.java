@@ -47,7 +47,7 @@ public class Pageview {
     );
 
     private static final Pattern uriQueryPattern = Pattern.compile(
-        "\\?((cur|old)id|title)="
+        "\\?((cur|old)id|title|search)="
     );
 
     private static final Pattern uriPathUnwantedSpecialPagesPattern = Pattern.compile(
