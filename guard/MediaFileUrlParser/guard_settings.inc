@@ -17,3 +17,7 @@ echo_guard_input() {
         || true
 
 }
+
+set_guard_arguments() {
+    add_guard_argument "--failure-limit-total=50"
+}

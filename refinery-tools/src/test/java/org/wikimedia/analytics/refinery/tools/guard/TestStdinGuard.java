@@ -59,6 +59,55 @@ public class TestStdinGuard extends TestCase {
         guard.assertStderrContains("foo");
     }
 
+    public void testFailureLimitTotalBelow() {
+        List<String> lines = new LinkedList<String>();
+        lines.add("ok");
+        lines.add("fail:foo");
+        lines.add("ok");
+
+        StdinGuardShim guard = new StdinGuardShim(lines);
+        guard.doMain(new String[]{"--failure-limit-total=1"});
+
+        guard.assertStderrIsEmpty();
+
+        guard.assertExitStatus(0);
+    }
+
+    public void testFailureLimitTotalEqual() {
+        List<String> lines = new LinkedList<String>();
+        lines.add("ok");
+        lines.add("fail:foo");
+        lines.add("ok");
+        lines.add("fail:bar");
+
+        StdinGuardShim guard = new StdinGuardShim(lines);
+        guard.doMain(new String[]{"--failure-limit-total=1"});
+
+        guard.assertExitStatus(1);
+
+        guard.assertStderrContains("foo");
+        guard.assertStderrContains("bar");
+        guard.assertStderrDoesNotContain("baz");
+    }
+
+    public void testFailureLimitTotalAbove() {
+        List<String> lines = new LinkedList<String>();
+        lines.add("ok");
+        lines.add("fail:foo");
+        lines.add("ok");
+        lines.add("fail:bar");
+        lines.add("fail:baz");
+
+        StdinGuardShim guard = new StdinGuardShim(lines);
+        guard.doMain(new String[]{"--failure-limit-total=1"});
+
+        guard.assertExitStatus(1);
+
+        guard.assertStderrContains("foo");
+        guard.assertStderrContains("bar");
+        guard.assertStderrDoesNotContain("baz");
+    }
+
     public void testHelpPage() {
         List<String> lines = new LinkedList<String>();
 
@@ -139,6 +188,13 @@ public class TestStdinGuard extends TestCase {
             assertTrue("Stderr is '" + stderrStr + "', but should contain '"
                     + str + "'",
                     stderrStr.contains(str));
+        }
+
+        public void assertStderrDoesNotContain(String str) {
+            stderr.flush();
+            String stderrStr = stderrStream.toString();
+            assertFalse("Stderr is '" + stderrStr + "', but should not "
+                    + "contain '" + str + "'", stderrStr.contains(str));
         }
     }
 }

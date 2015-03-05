@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.util.LinkedList;
+import java.util.List;
 
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -40,6 +42,12 @@ public abstract class StdinGuard {
     @Option(name = "--help", aliases = {"-help", "-h", "-?"}, help = true,
             usage = "print this help screen")
     private boolean help;
+
+    @Option(name = "--failure-limit-total", metaVar="N",
+            usage = "only fail if more than N failures occur. (default: 0)")
+    private int failureLimitTotal = 0;
+
+    List<Exception> failures = new LinkedList<Exception>();
 
     protected void exit(int status) {
         System.exit(status);
@@ -63,6 +71,26 @@ public abstract class StdinGuard {
         }
     }
 
+    private void addFailure(Exception e) {
+        int failuresTotal;
+        failures.add(e);
+        failuresTotal = failures.size();
+        if (failuresTotal > failureLimitTotal) {
+            exitExceptionLimit("Total failure lines > limit ( "
+                    + failuresTotal + " > "+ failureLimitTotal + " )");
+        }
+    }
+
+    private void exitExceptionLimit(String reason) {
+        if (reason != null) {
+            stderr.println(reason);
+        }
+        for (Exception failure : failures) {
+            stderr.println(failure.getMessage());
+        }
+        exit(1);
+    }
+
     private void exitWithException(String reason, Exception e) {
         if (reason != null) {
             stderr.println(reason);
@@ -83,7 +111,7 @@ public abstract class StdinGuard {
                 try {
                     check(line);
                 } catch (GuardException te) {
-                    exitWithException(null, te);
+                    addFailure(te);
                 }
             }
         } catch (IOException e) {
