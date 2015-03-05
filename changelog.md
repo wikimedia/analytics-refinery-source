@@ -6,6 +6,7 @@
 * Make custom file ending optional for thumbnails in MediaFileUrlParser
 * Fail less hard for misrepresented urls in MediaFileUrlParser
 * Ban dash from hex digits in MediaFileUrlParser
+* Add basic guard framework
 
 ## v0.0.7
 * Add Referer classifier
