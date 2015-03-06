@@ -1,4 +1,7 @@
-## v0.0.8-SNAPSHOT
+## v0.0.9-SNAPSHOT
+
+
+## v0.0.8
 * Stop counting edit attempts as pageviews
 * Start counting www.wikidata.org hits
 * Start counting www.mediawiki.org hits
