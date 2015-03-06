@@ -66,7 +66,8 @@ public class TestStdinGuard extends TestCase {
         lines.add("ok");
 
         StdinGuardShim guard = new StdinGuardShim(lines);
-        guard.doMain(new String[]{"--failure-limit-total=1"});
+        guard.doMain(new String[]{"--failure-limit-total=1",
+                "--failure-limit-per-kind=10"});
 
         guard.assertStderrIsEmpty();
 
@@ -81,7 +82,8 @@ public class TestStdinGuard extends TestCase {
         lines.add("fail:bar");
 
         StdinGuardShim guard = new StdinGuardShim(lines);
-        guard.doMain(new String[]{"--failure-limit-total=1"});
+        guard.doMain(new String[]{"--failure-limit-total=1",
+                "--failure-limit-per-kind=10"});
 
         guard.assertExitStatus(1);
 
@@ -99,7 +101,55 @@ public class TestStdinGuard extends TestCase {
         lines.add("fail:baz");
 
         StdinGuardShim guard = new StdinGuardShim(lines);
-        guard.doMain(new String[]{"--failure-limit-total=1"});
+        guard.doMain(new String[]{"--failure-limit-total=1",
+            "--failure-limit-per-kind=10"});
+
+        guard.assertExitStatus(1);
+
+        guard.assertStderrContains("foo");
+        guard.assertStderrContains("bar");
+        guard.assertStderrDoesNotContain("baz");
+    }
+
+    public void testFailureLimitTotalMultiplePerKind() {
+        List<String> lines = new LinkedList<String>();
+        lines.add("fail:foo");
+        lines.add("fail:foo");
+        lines.add("fail:foo");
+        lines.add("fail:bar");
+        lines.add("fail:bar");
+        lines.add("fail:bar");
+        lines.add("fail:baz");
+        lines.add("fail:baz");
+        lines.add("fail:baz");
+
+        StdinGuardShim guard = new StdinGuardShim(lines);
+        guard.doMain(new String[]{"--failure-limit-total=5",
+                "--failure-limit-per-kind=10"});
+
+        guard.assertExitStatus(1);
+
+        guard.assertStderrContains("foo");
+        guard.assertStderrContains("bar");
+        guard.assertStderrDoesNotContain("baz");
+    }
+
+    public void testFailureLimitPerKind() {
+        List<String> lines = new LinkedList<String>();
+        lines.add("fail:foo");
+        lines.add("fail:bar");
+        lines.add("fail:foo");
+        lines.add("fail:bar");
+        lines.add("fail:foo");
+        lines.add("fail:bar");
+        lines.add("fail:bar");
+        lines.add("fail:baz");
+        lines.add("fail:baz");
+        lines.add("fail:baz");
+
+        StdinGuardShim guard = new StdinGuardShim(lines);
+        guard.doMain(new String[]{"--failure-limit-total=20",
+                "--failure-limit-per-kind=3"});
 
         guard.assertExitStatus(1);
 

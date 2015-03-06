@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
@@ -47,7 +49,15 @@ public abstract class StdinGuard {
             usage = "only fail if more than N failures occur. (default: 0)")
     private int failureLimitTotal = 0;
 
-    List<Exception> failures = new LinkedList<Exception>();
+    @Option(name = "--failure-limit-per-kind", metaVar="N",
+            usage = "only fail if more than N failures per kind occur. "
+                    + "(default: 0)")
+    private int failureLimitPerKind = 0;
+
+    Map<String, List<Exception>> failures = new HashMap<String,
+            List<Exception>>();
+
+    int failuresTotal = 0;
 
     protected void exit(int status) {
         System.exit(status);
@@ -72,9 +82,22 @@ public abstract class StdinGuard {
     }
 
     private void addFailure(Exception e) {
-        int failuresTotal;
-        failures.add(e);
-        failuresTotal = failures.size();
+        String kind = e.getMessage();
+        List<Exception> failuresPerKind = failures.get(kind);
+        if (failuresPerKind == null) {
+            failuresPerKind = new LinkedList<Exception>();
+            failures.put(kind, failuresPerKind);
+        }
+        failuresPerKind.add(e);
+        failuresTotal++;
+
+        int failuresPerKindCount = failuresPerKind.size();
+        if (failuresPerKindCount > failureLimitPerKind) {
+            exitExceptionLimit("Failures per kind > limit ( "
+                    + failuresPerKindCount + " > "+ failureLimitPerKind
+                    + " ) for '" + kind + "'");
+        }
+
         if (failuresTotal > failureLimitTotal) {
             exitExceptionLimit("Total failure lines > limit ( "
                     + failuresTotal + " > "+ failureLimitTotal + " )");
@@ -85,8 +108,10 @@ public abstract class StdinGuard {
         if (reason != null) {
             stderr.println(reason);
         }
-        for (Exception failure : failures) {
-            stderr.println(failure.getMessage());
+        for (List<Exception> failuresPerKind : failures.values()) {
+            for (Exception failure : failuresPerKind) {
+                stderr.println(failure.getMessage());
+            }
         }
         exit(1);
     }

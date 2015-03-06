@@ -20,4 +20,5 @@ echo_guard_input() {
 
 set_guard_arguments() {
     add_guard_argument "--failure-limit-total=50"
+    add_guard_argument "--failure-limit-per-kind=20"
 }
