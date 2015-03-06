@@ -3,6 +3,7 @@
 * Start counting www.wikidata.org hits
 * Start counting www.mediawiki.org hits
 * Consistently count search attempts
+* Make custom file ending optional for thumbnails in MediaFileUrlParser
 
 ## v0.0.7
 * Add Referer classifier

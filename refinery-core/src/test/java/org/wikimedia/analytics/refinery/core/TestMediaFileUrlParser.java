@@ -386,6 +386,18 @@ public class TestMediaFileUrlParser extends TestCase {
                 180);
     }
 
+    public void testUpperCaseOriginal() {
+        assertOriginal("/wikipedia/meta/7/74/Wikibooks-logo_sister_1x.PNG");
+    }
+
+    public void testUpperCaseThumbWithoutOwnExtension() {
+        assertImage(
+                "/wikipedia/commons/thumb/9/93/Rathaus_Wittenberg.JPG/440px-Rathaus_Wittenberg.JPG",
+                "/wikipedia/commons/9/93/Rathaus_Wittenberg.JPG",
+                440
+                );
+    }
+
     // Test uploaded media files; Specialities --------------------------------
 
     public void testMediaThumbQLow() {

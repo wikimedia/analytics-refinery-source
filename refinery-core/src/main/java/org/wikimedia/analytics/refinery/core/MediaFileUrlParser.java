@@ -82,7 +82,7 @@ public class MediaFileUrlParser {
                     + "(ogg)"                //   group 12: audio files
                     + "|(gif|jpe?g|png)"     //   group 13: images
                     + "|(webm|ogv)"          //   group 14: movies
-                + "))"
+                + "))?"
             + ")?");
 
     /**
