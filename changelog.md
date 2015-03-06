@@ -4,6 +4,7 @@
 * Start counting www.mediawiki.org hits
 * Consistently count search attempts
 * Make custom file ending optional for thumbnails in MediaFileUrlParser
+* Fail less hard for misrepresented urls in MediaFileUrlParser
 
 ## v0.0.7
 * Add Referer classifier

@@ -229,9 +229,13 @@ public class MediaFileUrlParser {
                         Integer height = parseDigitString(heightStr);
                         ret = MediaFileUrlInfo.createTranscodedToMovie(baseName, height);
                     } else {
-                        throw new AssertionError("Logic error due to"
-                                + "transcodingSpec without a suffix specific handler '"
-                                + transcodingSpec + "'");
+                        // We sometimes see urls as
+                        //   /wikipedia/commons/transcoded/b/bf/foo.ogv/foo.ogv
+                        // which would match this branch. But such requests do
+                        // not make much sense. Instead of failing hard for
+                        // them, we just signal that we could not make sense
+                        // of them.
+                        return null;
                     }
                 } else {
                     return null;

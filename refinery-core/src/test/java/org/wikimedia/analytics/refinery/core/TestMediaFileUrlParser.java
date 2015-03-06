@@ -562,6 +562,10 @@ public class TestMediaFileUrlParser extends TestCase {
                 100);
     }
 
+    public void testMistranscodedUrl() {
+        assertUnidentified("/wikipedia/commons/transcoded/b/bf/foo.ogv/foo.ogv");
+    }
+
     // Test uploaded media files; Archive -------------------------------------
 
     public void testMediaArchive() {
