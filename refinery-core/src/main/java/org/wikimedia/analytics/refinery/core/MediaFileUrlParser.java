@@ -63,7 +63,7 @@ public class MediaFileUrlParser {
             "(/[^/]*/" + wikiPattern.pattern() + ")"  // group 1: project
             + "(?:/(thumb|transcoded))?"        // group 2: Markers for transcodings
             + "(/archive|/temp)?"            // group 3: Needed to construct basename
-            + "(/([0-9-a-f])/\\5[0-9-a-f])"  // groups 4+5: Hash. Needed for backref, and to construct basename
+            + "(/([0-9a-f])/\\5[0-9a-f])"    // groups 4+5: Hash. Needed for backref, and to construct basename
             + "/(?:([12][0-9]{3}[01][0-9][0-3][0-9][0-2][0-9][0-5][0-9][0-6][0-9])(?:!|%21))?" // group 6: timestamp
             + "(([^/]*?)(?:\\.[^./]*)?)"     // group 7: the main file name
                                              // group 8: them main file name without suffix (such as ".png")

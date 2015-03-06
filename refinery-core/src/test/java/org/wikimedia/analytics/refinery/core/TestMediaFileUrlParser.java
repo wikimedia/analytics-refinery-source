@@ -289,6 +289,14 @@ public class TestMediaFileUrlParser extends TestCase {
         assertUnidentified("/wikipedia/meta/X/74/Wikibooks-logo_sister_1x.png");
     }
 
+    public void testMediaDashFirstPart() {
+        assertUnidentified("/wikipedia/meta/-/-4/Wikibooks-logo_sister_1x.png");
+    }
+
+    public void testMediaDashSecondPart() {
+        assertUnidentified("/wikipedia/meta/7/7-/Wikibooks-logo_sister_1x.png");
+    }
+
     public void testMediaNonHexSecondPart() {
         assertUnidentified("/wikipedia/meta/7/7X/Wikibooks-logo_sister_1x.png");
     }
