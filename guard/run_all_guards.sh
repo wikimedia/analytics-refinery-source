@@ -12,11 +12,13 @@ Runs all available guards.
 
 OPTIONS:
   --help          - prints this page
+  --quiet         - Only print errors
   --rebuild-jar   - rebuilds the refinery-tools jar before running guards
 
 EOF
 }
 
+VERBOSITY=1
 REBUILD_JAR=no
 
 # parse parameters
@@ -32,6 +34,9 @@ do
             print_help
             exit
             ;;
+        "--quiet" )
+            VERBOSITY=0
+            ;;
         * )
             error "Unknown argument '$1'"
     esac
@@ -42,7 +47,12 @@ done
 if [ "$REBUILD_JAR" = "yes" ]
 then
     pushd .. >/dev/null
-    mvn clean package
+    if [ "$VERBOSITY" -ge 1 ]
+    then
+        mvn clean package
+    else
+        mvn clean package &>/dev/null
+    fi
     popd >/dev/null
 fi
 
