@@ -54,7 +54,10 @@ then
     then
         mvn clean package
     else
-        mvn clean package &>/dev/null
+        if ! mvn clean package &>/dev/null
+        then
+            error "Rebuilding the jar failed."
+        fi
     fi
     popd >/dev/null
 fi
