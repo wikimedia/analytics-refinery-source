@@ -62,14 +62,17 @@ fi
 
 for GUARD_FILE_ABS in "$GUARD_MAIN_DIR_ABS"/*/run_guard.sh
 do
-    if [ -e "$GUARD_FILE_ABS" ]
+    if [ "${GUARD_FILE_ABS: -19}" != "/tools/run_guard.sh" ]
     then
-        if [ "$VERBOSITY" -ge 1 ]
+        if [ -e "$GUARD_FILE_ABS" ]
         then
-            echo "Running guard: $GUARD_FILE_ABS"
+            if [ "$VERBOSITY" -ge 1 ]
+            then
+                echo "Running guard: $GUARD_FILE_ABS"
+            fi
+            "$GUARD_FILE_ABS"
+        else
+            error "Could not find a guard to run"
         fi
-        "$GUARD_FILE_ABS"
-    else
-        error "Could not find a guard to run"
     fi
 done
