@@ -14,6 +14,7 @@ OPTIONS:
   --help          - prints this page
   --quiet         - Only print errors
   --rebuild-jar   - rebuilds the refinery-tools jar before running guards
+  --verbose       - Increase verbosity
 
 EOF
 }
@@ -36,6 +37,9 @@ do
             ;;
         "--quiet" )
             VERBOSITY=0
+            ;;
+        "--verbose" )
+            VERBOSITY=$((VERBOSITY+1))
             ;;
         * )
             error "Unknown argument '$1'"
@@ -60,6 +64,10 @@ for GUARD_FILE_ABS in "$GUARD_MAIN_DIR_ABS"/*/run_guard.sh
 do
     if [ -e "$GUARD_FILE_ABS" ]
     then
+        if [ "$VERBOSITY" -ge 1 ]
+        then
+            echo "Running guard: $GUARD_FILE_ABS"
+        fi
         "$GUARD_FILE_ABS"
     else
         error "Could not find a guard to run"
