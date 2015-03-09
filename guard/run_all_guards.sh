@@ -29,7 +29,6 @@ do
     case "$ARGUMENT" in
         "--rebuild-jar" )
             REBUILD_JAR=yes
-            shift
             ;;
         "--help" )
             print_help
