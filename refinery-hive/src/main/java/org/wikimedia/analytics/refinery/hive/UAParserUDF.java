@@ -15,9 +15,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.log4j.Logger;
-import ua_parser.*;
+import org.wikimedia.analytics.refinery.core.UAParser;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,12 +33,6 @@ import java.util.Map;
  * }
  * <p/>
  * Records are processed one by one.
- *
- * NOTE:  This UDF was original coded as part of the Kraken repository, and may have not
- * received as high of qualitiy code review as we would like.  However, it works as is,
- * and we want to make this functionality available for use.  Please also note that there
- * is currently not a process for ensuring that the dependent ua_parser package is up to date
- * with the latest user agent classification regexes.
  */
 
 @UDFType(deterministic = true)
@@ -47,8 +40,8 @@ import java.util.Map;
         + "Returns a map with browser_name, browser_major, device, os_name, os_minor, os_major keys and "
         + "the appropriate values for each of them")
 public class UAParserUDF extends GenericUDF {
-    Map<String, String> result = new HashMap<String, String>();
-    public CachingParser cachingParser;
+    private Map<String, String> emptyMap = new HashMap<String,String>();
+    private UAParser uaParser;
     private ObjectInspector argumentOI;
 
     // TODO figure out why not everything is logged to hive.log and some logging
@@ -100,15 +93,8 @@ public class UAParserUDF extends GenericUDF {
 
         }
 
-
-        try {
-            cachingParser = new CachingParser();
-        } catch (IOException e) {
-            // no recovery should be possible, log and rethrow
-            // runtime exception will be logged to stdout by default
-            Log.error(e.getMessage(), e);
-            throw new RuntimeException("Failed to instantiate CachingParser");
-        }
+        // Instantiate the UAParser
+        uaParser = new UAParser();
 
         argumentOI = arg;
         return ObjectInspectorFactory.getStandardMapObjectInspector(
@@ -116,17 +102,7 @@ public class UAParserUDF extends GenericUDF {
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector);
     }
 
-    private final String NA = "-";
 
-    private String replaceNA(String str) {
-        final String ret;
-        if (str == null || str.isEmpty() || str.equals("-")) {
-            ret = NA;
-        } else {
-            ret = str;
-        }
-        return ret;
-    }
 
     /**
      * Takes the actual arguments and returns the result.
@@ -148,57 +124,15 @@ public class UAParserUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        result.clear();
+        assert uaParser != null: "Evaluate called without initializing 'uaParser'";
 
-        UserAgent browser = null;
-        Device device = null;
-        OS os = null;
-
-        try {
-            if (arguments.length == 1
-                    && argumentOI != null && arguments[0] != null) {
-                Client c;
-                String pattern = ((StringObjectInspector) argumentOI)
-                        .getPrimitiveJavaObject(arguments[0].get());
-
-                c = cachingParser.parse(pattern);
-                if (c != null) {
-                    browser = c.userAgent;
-                    device = c.device;
-                    os = c.os;
-                }
-            }
-        } catch (Exception e) {
-            // catch it all to make sure job does not halt if one record is faulty
-            // TODO find out why this gets logged to hadoop but not to hive.log
-            Log.error(e.getMessage(), e);
+        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
+            String ua = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
+            return uaParser.getUAMap(ua);
         }
 
-        if (browser != null) {
-            result.put("browser_family", replaceNA(browser.family));
-            result.put("browser_major", replaceNA(browser.major));
-        } else {
-            result.put("browser_family", NA);
-            result.put("browser_major", NA);
-        }
-
-        if (device != null) {
-            result.put("device_family", replaceNA(device.family));
-        } else {
-            result.put("device_family", NA);
-        }
-
-        if (os != null) {
-            result.put("os_family", replaceNA(os.family));
-            result.put("os_major", replaceNA(os.major));
-            result.put("os_minor", replaceNA(os.minor));
-        } else {
-            result.put("os_family", NA);
-            result.put("os_major", NA);
-            result.put("os_minor", NA);
-        }
-
-        return result;
+        // Return an empty map in case of arguments irregularity
+        return emptyMap;
     }
 
     /**

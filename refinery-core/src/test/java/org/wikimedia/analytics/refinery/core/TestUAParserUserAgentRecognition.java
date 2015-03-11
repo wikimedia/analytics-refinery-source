@@ -1,67 +1,57 @@
-package org.wikimedia.analytics.refinery.hive;
+/**
+ * Copyright (C) 2015 Wikimedia Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-import static org.junit.Assert.*;
+package org.wikimedia.analytics.refinery.core;
+
+import junit.framework.TestCase;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
+import java.util.Map;
 
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.junit.Before;
-import org.junit.After;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
 
-public class TestUAParserUDFUserAgentRecognition {
-    ObjectInspector[] initArguments = null;
-    UAParserUDF uaParserUDF = null;
+public class TestUAParserUserAgentRecognition extends TestCase {
+
+    UAParser uaParser = null;
 
     @Before
-    public void setUp() throws HiveException {
-        ObjectInspector valueOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
-        initArguments = new ObjectInspector[]{valueOI};
-        uaParserUDF = new UAParserUDF();
-        uaParserUDF.initialize(initArguments);
-
-    }
-
-    @After
-    public void tearDown() throws HiveException {
-
-        try {
-            uaParserUDF.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
+    public void setUp() {
+        uaParser = new UAParser();
     }
 
     @Test
-    public void testHappyCase() throws HiveException {
+    public void testHappyCase() {
 
-        DeferredJavaObject ua1 = new DeferredJavaObject(
-                "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:19.0) Gecko/20100101 Firefox/19.0");
-        DeferredJavaObject ua2 = new DeferredJavaObject(
-                "Mozilla/5.0 (iPad; U; CPU OS 3_2_1 like Mac OS X; en-us) AppleWebKit/531.21.10 (KHTML, like Gecko) Mobile/7B405");
-        DeferredJavaObject ua3 = new DeferredJavaObject(
-                "Mozilla/5.0 (iPad; CPU OS 7_0_3 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11B511 Safari/9537.53");
+        String ua1 = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:19.0) Gecko/20100101 Firefox/19.0";
+        String ua2 = "Mozilla/5.0 (iPad; U; CPU OS 3_2_1 like Mac OS X; en-us) AppleWebKit/531.21.10 (KHTML, like Gecko) Mobile/7B405";
+        String ua3 = "Mozilla/5.0 (iPad; CPU OS 7_0_3 like Mac OS X) AppleWebKit/537.51.1 (KHTML, like Gecko) Version/7.0 Mobile/11B511 Safari/9537.53";
 
-
-        DeferredObject[] args1 = { ua1 };
-        HashMap<String, String> evaled = (HashMap<String, String>) uaParserUDF
-                .evaluate(args1);
+        Map<String, String> evaled = uaParser.getUAMap(ua1);
         assertEquals("OS name check", (new String("Ubuntu")),
                 evaled.get("os_family").toString());
         assertEquals("Browser name check", (new String("Firefox")),
                 evaled.get("browser_family").toString());
 
 
-        DeferredObject[] args2 = { ua2 };
-        evaled = (HashMap<String, String>) uaParserUDF
-                .evaluate(args2);
+        evaled = uaParser.getUAMap(ua2);
         assertEquals("OS name check", (new String("iOS")),
                 evaled.get("os_family").toString());
 
@@ -69,9 +59,7 @@ public class TestUAParserUDFUserAgentRecognition {
                 evaled.get("browser_family").toString());
 
 
-        DeferredObject[] args3 = { ua3 };
-        evaled = (HashMap<String, String>) uaParserUDF
-                .evaluate(args3);
+        evaled = uaParser.getUAMap(ua3);
         assertEquals("OS name check", (new String("iOS")),
                 evaled.get("os_family").toString());
         assertEquals("Browser name check", (new String("Mobile Safari")),
@@ -88,7 +76,7 @@ public class TestUAParserUDFUserAgentRecognition {
      * os: {family: "Other", major: null, minor: null, patch: null, patch_minor: null},
      * device: {family: "Other"}
      * }
-     * UDFs returns something like the following:
+     * function returns something like the following:
      * {
      * "device_family":"Other",
      * "browser_major":"-",
@@ -99,13 +87,9 @@ public class TestUAParserUDFUserAgentRecognition {
      * }
      **/
     @Test
-    public void testEmptyUA() throws HiveException {
-        DeferredJavaObject ua1 = new DeferredJavaObject("");
+    public void testEmptyUA() {
 
-        DeferredObject[] args = { ua1 };
-
-        HashMap<String, String> evaled = (HashMap<String, String>) uaParserUDF
-                .evaluate(args);
+        Map<String, String> evaled = uaParser.getUAMap("");
 
         String resultOSName = evaled.get("os_family");
         String resultBrowserName = evaled.get("browser_family");
@@ -129,7 +113,7 @@ public class TestUAParserUDFUserAgentRecognition {
      * os: {family: "Other", major: null, minor: null, patch: null, patch_minor: null},
      * device: {family: "Other"}
      * }
-     * UDFs returns something like the following:
+     * function returns something like the following:
      * {
      * "device_family":"Other",
      * "browser_major":"-",
@@ -140,14 +124,9 @@ public class TestUAParserUDFUserAgentRecognition {
      * }
      **/
     @Test
-    public void testHandlingOfNulls() throws HiveException {
+    public void testHandlingOfNulls() {
 
-        DeferredJavaObject ua1 = new DeferredJavaObject(null);
-
-        DeferredObject[] args = { ua1 };
-
-        HashMap<String, String> evaled = (HashMap<String, String>) uaParserUDF
-                .evaluate(args);
+        Map<String, String> evaled = uaParser.getUAMap(null);
 
         String resultOSName = evaled.get("os_family");
         String resultBrowserName = evaled.get("browser_family");
@@ -163,6 +142,3 @@ public class TestUAParserUDFUserAgentRecognition {
     }
 
 }
-
-
-
