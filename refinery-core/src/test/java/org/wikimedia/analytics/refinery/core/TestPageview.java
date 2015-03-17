@@ -25,7 +25,6 @@ import junitparams.mappers.CsvWithHeaderMapper;
 @RunWith(JUnitParamsRunner.class)
 public class TestPageview {
 
-
     @Test
     @FileParameters(
         value = "src/test/resources/pageview_test_data.csv",
@@ -44,10 +43,11 @@ public class TestPageview {
         String content_type,
         String user_agent
     ) {
+        PageviewDefinition legacyPageviewDefinitionInstance = PageviewDefinition.getInstance();
         assertEquals(
             test_description,
             is_pageview,
-            Pageview.isPageview(
+            legacyPageviewDefinitionInstance.isPageview(
                 uri_host,
                 uri_path,
                 uri_query,

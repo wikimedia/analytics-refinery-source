@@ -28,7 +28,8 @@ public class GetAccessMethodUDF extends UDF {
         String uri_host,
         String user_agent
     ) {
-        return Webrequest.getAccessMethod(
+        Webrequest webrequest_inst = Webrequest.getInstance();
+        return webrequest_inst.getAccessMethod(
             uri_host,
             user_agent
         );

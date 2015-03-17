@@ -21,10 +21,11 @@ public class TestWebrequest {
         boolean is_crawler,
         String user_agent
     ) {
+        Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description,
             is_crawler,
-            Webrequest.isCrawler(
+            webrequest_inst.isCrawler(
                 user_agent
             )
         );
@@ -41,10 +42,11 @@ public class TestWebrequest {
         String x_analytics,
         String param
     ) {
+        Webrequest instance = Webrequest.getInstance();
         assertEquals(
             test_description,
             expected_output,
-            Webrequest.getXAnalyticsValue(
+            instance.getXAnalyticsValue(
                 x_analytics,
                 param
             )
@@ -62,11 +64,11 @@ public class TestWebrequest {
         String uri_host,
         String user_agent
     ) {
-
+        Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description,
             expected_method,
-            Webrequest.getAccessMethod(
+            webrequest_inst.getAccessMethod(
                 uri_host,
                 user_agent
             )

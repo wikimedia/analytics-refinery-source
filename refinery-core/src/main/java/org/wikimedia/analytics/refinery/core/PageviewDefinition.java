@@ -24,45 +24,66 @@ import java.util.Arrays;
  * Static functions to work with Wikimedia webrequest data.
  * This class was orignally created while reading https://gist.github.com/Ironholds/96558613fe38dd4d1961
  */
-public class Pageview {
+public class PageviewDefinition {
 
-    private static final Pattern uriHostWikimediaDomainPattern = Pattern.compile(
+    /*
+     * Meta-methods to enable eager instantiation in a singleton-based way.
+     * in non-Java terms: you get to only create one class instance, and only
+     * when you need it, instead of always having everything (static/eager instantiation)
+     * or always generating everything anew (!singletons). So we have:
+     * (1) an instance;
+     * (2) an empty constructor (to avoid people just calling the constructor);
+     * (3) an actual getInstance method to allow for instantiation.
+     */
+    private static final PageviewDefinition instance = new PageviewDefinition();
+
+    private PageviewDefinition() {
+    }
+
+    public static PageviewDefinition getInstance(){
+        return instance;
+    }
+
+    /*
+     * Now back to the good part.
+     */
+    private final Pattern uriHostWikimediaDomainPattern = Pattern.compile(
         "(commons|meta|incubator|species)\\."   // any of these domain names
         + "((m|mobile|wap|zero)\\.)?"           // followed by an optional mobile or zero qualifier
         + "wikimedia\\.org$"                    // ending with wikimedia.org
     );
 
-    private static final Pattern uriHostProjectDomainPattern = Pattern.compile(
+    private final Pattern uriHostProjectDomainPattern = Pattern.compile(
         "(?<!www)\\."                           // not starting with "www"
         + "(wik(ibooks|"                  // match project domains ending in .org
         + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
     );
 
-    private static final Pattern uriHostOtherProjectsPattern = Pattern.compile(
+    private final Pattern uriHostOtherProjectsPattern = Pattern.compile(
         "(wikidata|mediawiki)\\.org$"
     );
 
-    private static final Pattern uriPathPattern = Pattern.compile(
+    private final Pattern uriPathPattern = Pattern.compile(
         "^(/sr(-(ec|el))?|/w(iki)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
     );
 
-    private static final Pattern uriQueryPattern = Pattern.compile(
+    private final Pattern uriQueryPattern = Pattern.compile(
         "\\?((cur|old)id|title|search)="
     );
 
-    private static final Pattern uriPathUnwantedSpecialPagesPattern = Pattern.compile(
+    private final Pattern uriPathUnwantedSpecialPagesPattern = Pattern.compile(
         "BannerRandom|CentralAutoLogin|MobileEditor|Undefined|UserLogin|ZeroRatedMobileAccess"
     );
 
-    private static final Pattern uriQueryUnwantedSpecialPagesPattern = Pattern.compile(
+    private final Pattern uriQueryUnwantedSpecialPagesPattern = Pattern.compile(
         "CentralAutoLogin|MobileEditor|UserLogin|ZeroRatedMobileAccess"
     );
 
-    private static final Pattern uriQueryUnwantedActions = Pattern.compile(
+    private final Pattern uriQueryUnwantedActions = Pattern.compile(
         "action=edit"
     );
 
-    private static final HashSet<String> contentTypesSet = new HashSet<String>(Arrays.asList(
+    private final HashSet<String> contentTypesSet = new HashSet<String>(Arrays.asList(
         "text/html",
         "text/html; charset=iso-8859-1",
         "text/html; charset=ISO-8859-1",
@@ -70,7 +91,7 @@ public class Pageview {
         "text/html; charset=UTF-8"
     ));
 
-    private static final HashSet<String> httpStatusesSet = new HashSet<String>(Arrays.asList(
+    private final HashSet<String> httpStatusesSet = new HashSet<String>(Arrays.asList(
         "200",
         "304"
     ));
@@ -78,35 +99,7 @@ public class Pageview {
     /**
      * All API request uriPaths will contain this
      */
-    private static final String uriPathAPI = "api.php";
-
-
-    /**
-     * Check if the target is contained within string.  This is
-     * just a convenience method that also makes sure that arguments are not null.
-     *
-     * @param   string    String to search in
-     * @param   target    String to search for
-     * @return  boolean
-     */
-    private static boolean stringContains(String string, String target){
-        return (target != null && string != null && string.contains(target));
-    }
-
-
-    /**
-     * Convenience method for Using Matcher.find() to check if
-     * the given regex Pattern matches the target String.
-     * Also called in the LegacyPageview class.
-     *
-     * @param Pattern pattern
-     * @param String  target
-     *
-     * @return boolean
-     */
-    public static boolean patternIsFound(Pattern pattern, String target) {
-        return pattern.matcher(target).find();
-    }
+    private final String uriPathAPI = "api.php";
 
 
     /**
@@ -119,7 +112,7 @@ public class Pageview {
      *
      * @return  boolean
      */
-    private static boolean isAppPageRequest(
+    private boolean isAppPageRequest(
         String uriPath,
         String uriQuery,
         String contentType,
@@ -131,10 +124,10 @@ public class Pageview {
         final String appPageURIQuery = "sections=0";
 
         return (
-               stringContains(uriPath,     uriPathAPI)
-            && stringContains(uriQuery,    appPageURIQuery)
-            && stringContains(contentType, appContentType)
-            && stringContains(userAgent,   appUserAgent)
+               Utilities.stringContains(uriPath,     uriPathAPI)
+            && Utilities.stringContains(uriQuery,    appPageURIQuery)
+            && Utilities.stringContains(contentType, appContentType)
+            && Utilities.stringContains(userAgent,   appUserAgent)
         );
     }
 
@@ -155,7 +148,7 @@ public class Pageview {
      *
      * @return  boolean
      */
-    public static boolean isPageview(
+    public boolean isPageview(
         String uriHost,
         String uriPath,
         String uriQuery,
@@ -170,28 +163,28 @@ public class Pageview {
             httpStatusesSet.contains(httpStatus)
             // check for a regular pageview contentType, or a an API contentType
             &&  (
-                    (contentTypesSet.contains(contentType) && !stringContains(uriPath, uriPathAPI))
+                    (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
                     || isAppPageRequest(uriPath, uriQuery, contentType, userAgent)
                 )
             // A pageview must be from either a wikimedia.org domain,
             // or a 'project' domain, e.g. en.wikipedia.org
             &&  (
-                    patternIsFound(uriHostWikimediaDomainPattern, uriHost)
-                    || patternIsFound(uriHostOtherProjectsPattern, uriHost)
-                    || patternIsFound(uriHostProjectDomainPattern, uriHost)
+                    Utilities.patternIsFound(uriHostWikimediaDomainPattern, uriHost)
+                    || Utilities.patternIsFound(uriHostOtherProjectsPattern, uriHost)
+                    || Utilities.patternIsFound(uriHostProjectDomainPattern, uriHost)
                 )
             // Either a pageview's uriPath will match the first pattern,
             // or its uriQuery will match the second
             &&  (
-                    patternIsFound(uriPathPattern, uriPath)
-                    || patternIsFound(uriQueryPattern, uriQuery)
+                    Utilities.patternIsFound(uriPathPattern, uriPath)
+                    || Utilities.patternIsFound(uriQueryPattern, uriQuery)
                 )
             // A pageview will not have these Special: pages in the uriPath or uriQuery
-            && !patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
-            && !patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
+            && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
+            && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
             // Edits now come through as text/html. They should not be included.
             // Luckily the query parameter does not seem to be localised.
-            && !patternIsFound(uriQueryUnwantedActions, uriQuery)
+            && !Utilities.patternIsFound(uriQueryUnwantedActions, uriQuery)
         );
     }
 }

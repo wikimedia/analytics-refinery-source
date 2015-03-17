@@ -28,7 +28,8 @@ public class GetXAnalyticsValueUDF extends UDF {
         String x_analytics,
         String key
     ) {
-        return Webrequest.getXAnalyticsValue(
+        Webrequest webrequest_inst = Webrequest.getInstance();
+        return webrequest_inst.getXAnalyticsValue(
             x_analytics,
             key
         );

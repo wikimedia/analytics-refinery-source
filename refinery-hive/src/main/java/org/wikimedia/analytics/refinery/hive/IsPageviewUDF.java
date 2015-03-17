@@ -17,7 +17,7 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.Pageview;
+import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 
 
 /**
@@ -57,7 +57,8 @@ public class IsPageviewUDF extends UDF {
         String contentType,
         String userAgent
     ) {
-        return Pageview.isPageview(
+        PageviewDefinition pageviewDefinitionInstance = PageviewDefinition.getInstance();
+        return pageviewDefinitionInstance.isPageview(
             uriHost,
             uriPath,
             uriQuery,

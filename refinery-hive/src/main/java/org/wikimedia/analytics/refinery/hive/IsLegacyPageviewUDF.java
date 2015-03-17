@@ -17,7 +17,7 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.LegacyPageview;
+import org.wikimedia.analytics.refinery.core.LegacyPageviewDefinition;
 
 
 /**
@@ -59,7 +59,8 @@ public class IsLegacyPageviewUDF extends UDF {
         String uriPath,
         String httpStatus
     ) {
-        return LegacyPageview.isLegacyPageview(
+        LegacyPageviewDefinition legacyPageviewDefinitionInstance = LegacyPageviewDefinition.getInstance();
+        return legacyPageviewDefinitionInstance.isLegacyPageview(
             ip,
             xForwardedFor,
             uriHost,

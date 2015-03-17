@@ -19,11 +19,30 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * Static functions to work withh Wikimedia webrequest data.
+ * Functions to work with Wikimedia webrequest data.
  */
 public class Webrequest {
 
-    /**
+    /*
+     * Meta-methods to enable eager instantiation in a singleton-based way.
+     * in non-Java terms: you get to only create one class instance, and only
+     * when you need it, instead of always having everything (static/eager instantiation)
+     * or always generating everything anew (!singletons). So we have:
+     * (1) an instance;
+     * (2) an empty constructor (to avoid people just calling the constructor);
+     * (3) an actual getInstance method to allow for instantiation.
+     */
+    private static final Webrequest instance = new Webrequest();
+
+    private Webrequest() {
+    }
+
+    public static Webrequest getInstance(){
+        return instance;
+    }
+
+    /*
+     * Now back to the good part.
      * Wikimedia-specific crawlers
      */
     private static final Pattern crawlerPattern = Pattern.compile(
@@ -53,7 +72,7 @@ public class Webrequest {
      * @param    userAgent    the user agent associated with the request.
      * @return   boolean
      */
-    public static boolean isCrawler(String userAgent) {
+    public boolean isCrawler(String userAgent) {
         return crawlerPattern.matcher(userAgent).find();
     }
 
@@ -66,7 +85,7 @@ public class Webrequest {
      * @param key the key to search for the value of.
      * @return String
      */
-    public static String getXAnalyticsValue(String xAnalytics, String key) {
+    public String getXAnalyticsValue(String xAnalytics, String key) {
 
         String value = "";
 
@@ -97,7 +116,7 @@ public class Webrequest {
      *
      * @return String
      */
-    public static String getAccessMethod(String uriHost, String userAgent) {
+    public String getAccessMethod(String uriHost, String userAgent) {
         String accessMethod = "";
 
         if(appAgentPattern.matcher(userAgent).find()){
