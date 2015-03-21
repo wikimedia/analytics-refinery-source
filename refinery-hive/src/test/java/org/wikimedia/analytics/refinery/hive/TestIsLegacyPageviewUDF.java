@@ -36,6 +36,7 @@ public class TestIsLegacyPageviewUDF {
         String test_description,
         boolean is_pageview,
         boolean is_legacy_pageview,
+        boolean is_app_pageview,
         String ip_address,
         String x_forwarded_for,
         String uri_host,

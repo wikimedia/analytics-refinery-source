@@ -101,10 +101,12 @@ public class PageviewDefinition {
      */
     private final String uriPathAPI = "api.php";
 
-
     /**
      * Given a webrequest URI path, query and user agent,
-     * returns true if we consider this an app (API) request.
+     * returns true if we consider this an app (API) pageview.
+     * Note that the logic here is /NOT COMPLETE/. It checks
+     * to see if the request is an app pageview, but not
+     * (for example) whether it actually completed.
      *
      * @param   uriPath     Path portion of the URI
      * @param   uriQuery    Query portion of the URI
@@ -112,25 +114,29 @@ public class PageviewDefinition {
      *
      * @return  boolean
      */
-    private boolean isAppPageRequest(
+    public boolean isAppPageview(
         String uriPath,
         String uriQuery,
         String contentType,
         String userAgent
     ) {
 
-        final String appContentType  = "application/json";
-        final String appUserAgent    = "WikipediaApp";
-        final String appPageURIQuery = "sections=0";
+        final String appContentType     = "application/json";
+        final String appUserAgent       = "WikipediaApp";
+        final String appPageURIQuery    = "sections=0";
+        final String iosAppPageURIQuery = "sections=all";
+        final String iosUserAgent       = "iPhone";
 
         return (
                Utilities.stringContains(uriPath,     uriPathAPI)
-            && Utilities.stringContains(uriQuery,    appPageURIQuery)
+            && (
+                    Utilities.stringContains(uriQuery, appPageURIQuery)
+                    || (Utilities.stringContains(uriQuery, iosAppPageURIQuery) && Utilities.stringContains(userAgent, iosUserAgent))
+               )
             && Utilities.stringContains(contentType, appContentType)
             && Utilities.stringContains(userAgent,   appUserAgent)
         );
     }
-
 
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
@@ -164,12 +170,12 @@ public class PageviewDefinition {
             // check for a regular pageview contentType, or a an API contentType
             &&  (
                     (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
-                    || isAppPageRequest(uriPath, uriQuery, contentType, userAgent)
+                    || isAppPageview(uriPath, uriQuery, contentType, userAgent)
                 )
             // A pageview must be from either a wikimedia.org domain,
             // or a 'project' domain, e.g. en.wikipedia.org
             &&  (
-                    Utilities.patternIsFound(uriHostWikimediaDomainPattern, uriHost)
+                    Utilities.patternIsFound(uriHostWikimediaDomainPattern,  uriHost)
                     || Utilities.patternIsFound(uriHostOtherProjectsPattern, uriHost)
                     || Utilities.patternIsFound(uriHostProjectDomainPattern, uriHost)
                 )

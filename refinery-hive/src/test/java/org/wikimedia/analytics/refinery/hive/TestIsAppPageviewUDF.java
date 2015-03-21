@@ -24,15 +24,14 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestIsPageviewUDF {
-
+public class TestIsAppPageviewUDF {
 
     @Test
     @FileParameters(
         value = "../refinery-core/src/test/resources/pageview_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
-    public void testIsPageview(
+    public void testIsAppPageview(
         String test_description,
         boolean is_pageview,
         boolean is_legacy_pageview,
@@ -46,16 +45,14 @@ public class TestIsPageviewUDF {
         String content_type,
         String user_agent
     ) {
-        IsPageviewUDF udf = new IsPageviewUDF();
+        IsAppPageviewUDF udf = new IsAppPageviewUDF();
 
         assertEquals(
             test_description,
-            is_pageview,
+            is_app_pageview,
             udf.evaluate(
-                uri_host,
                 uri_path,
                 uri_query,
-                http_status,
                 content_type,
                 user_agent
             )

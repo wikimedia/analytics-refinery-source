@@ -1,6 +1,8 @@
 ## v0.0.9-SNAPSHOT
 * Generic functions used in multiple classes now live in a single "utilities" class.
 * Not everything is static.
+* renames isAppRequest to isAppPageview (since that's what it does) and exposes
+it publicly in a new UDF.
 
 ## v0.0.8
 * Stop counting edit attempts as pageviews
