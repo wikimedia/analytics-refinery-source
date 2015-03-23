@@ -1,6 +1,8 @@
 ## v0.0.9-SNAPSHOT
 * Generic functions used in multiple classes now live in a single "utilities" class.
-* Not everything is static.
+* Pageview and LegacyPageview have been renamed to PageviewDefinition and
+  LegacyPageviewDefinition, respectively.  These also should now use the
+  singleton design pattern, rather than employing static methods everywhere.
 * renames isAppRequest to isAppPageview (since that's what it does) and exposes
 it publicly in a new UDF.
 
