@@ -15,16 +15,16 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.assertEquals;
-
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestIsPageviewUDF {
+public class TestGetProjectUDF {
 
 
     @Test
@@ -32,7 +32,7 @@ public class TestIsPageviewUDF {
         value = "../refinery-core/src/test/resources/pageview_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
-    public void testIsPageview(
+    public void testGetProject(
         String test_description,
         String project,
         boolean is_pageview,
@@ -47,19 +47,24 @@ public class TestIsPageviewUDF {
         String content_type,
         String user_agent
     ) {
-        IsPageviewUDF udf = new IsPageviewUDF();
+        GetProjectUDF udf = new GetProjectUDF();
 
         assertEquals(
             test_description,
-            is_pageview,
-            udf.evaluate(
-                uri_host,
-                uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent
-            )
+            project,
+            udf.evaluate(uri_host)
         );
     }
+
+    @Test
+    public void testGetProjectNull() {
+        GetProjectUDF udf = new GetProjectUDF();
+
+        assertEquals(
+                "Test null input to getProject",
+                "-",
+                udf.evaluate(null)
+        );
+    }
+
 }

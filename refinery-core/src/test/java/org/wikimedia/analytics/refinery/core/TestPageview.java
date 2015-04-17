@@ -32,6 +32,7 @@ public class TestPageview {
     )
     public void testIsPageview(
         String test_description,
+        String project,
         boolean is_pageview,
         boolean is_legacy_pageview,
         boolean is_app_pageview,
@@ -66,6 +67,7 @@ public class TestPageview {
     )
     public void testIsAppPageview(
         String test_description,
+        String project,
         boolean is_pageview,
         boolean is_legacy_pageview,
         boolean is_app_pageview,
@@ -83,11 +85,39 @@ public class TestPageview {
             test_description,
             is_app_pageview,
             PageviewDefinitionInstance.isAppPageview(
-                uri_path,
-                uri_query,
-                content_type,
-                user_agent
+                    uri_path,
+                    uri_query,
+                    content_type,
+                    user_agent
             )
+        );
+    }
+
+    @Test
+    @FileParameters(
+            value = "src/test/resources/pageview_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
+    )
+    public void testGetProjectFromHost(
+            String test_description,
+            String project,
+            boolean is_pageview,
+            boolean is_legacy_pageview,
+            boolean is_app_pageview,
+            String ip_address,
+            String x_forwarded_for,
+            String uri_host,
+            String uri_path,
+            String uri_query,
+            String http_status,
+            String content_type,
+            String user_agent
+    ) {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+        assertEquals(
+                test_description,
+                project,
+                PageviewDefinitionInstance.getProjectFromHost(uri_host)
         );
     }
 }

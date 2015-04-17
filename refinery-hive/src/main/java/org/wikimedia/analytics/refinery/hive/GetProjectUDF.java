@@ -22,17 +22,17 @@ import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 
 
 /**
- * A Hive UDF to classify a Wikimedia webrequest as a 'pageview'.
- * See: https://meta.wikimedia.org/wiki/Research:Page_view/Generalised_filters
- *      for information on how to classify a pageview.
+ * A Hive UDF to identify a Wikimedia webrequest pageview project.
+ * NOTE: this udf only works well if the uri_host comes from
+ * a webrequest having is_pageview = true
  *
  * <p>
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
- *   CREATE TEMPORARY FUNCTION is_pageview AS
- *     'org.wikimedia.analytics.refinery.hive.IsPageviewUDF';
+ *   CREATE TEMPORARY FUNCTION get_project AS
+ *     'org.wikimedia.analytics.refinery.hive.IdentifyProjectUDF';
  *   SELECT
- *     LOWER(uri_host) as uri_host,
+ *     get_project(uri_host) as project_qualifier,
  *     count(*) as cnt
  *   FROM
  *     wmf_raw.webrequest
@@ -44,31 +44,17 @@ import org.wikimedia.analytics.refinery.core.PageviewDefinition;
  *     AND hour=12
  *     AND is_pageview(uri_host, uri_path, uri_query, http_status, content_type, user_agent)
  *   GROUP BY
- *     LOWER(uri_host)
+ *     get_project(uri_host)
  *   ORDER BY cnt desc
  *   LIMIT 10
  *   ;
  */
-@Description(name = "is_pageview",
-        value = "_FUNC_(uri_host, uri_path, uri_query, http_status, content_type, user_agent) - Returns true if the request is a pageview",
+@Description(name = "get_project",
+        value = "_FUNC_(uri_host) - Returns the project identifier for the pageview request.",
         extended = "")
-public class IsPageviewUDF extends UDF {
-    public boolean evaluate(
-        String uriHost,
-        String uriPath,
-        String uriQuery,
-        String httpStatus,
-        String contentType,
-        String userAgent
-    ) {
+public class GetProjectUDF extends UDF {
+    public String evaluate(String uriHost) {
         PageviewDefinition pageviewDefinitionInstance = PageviewDefinition.getInstance();
-        return pageviewDefinitionInstance.isPageview(
-            uriHost,
-            uriPath,
-            uriQuery,
-            httpStatus,
-            contentType,
-            userAgent
-        );
+        return pageviewDefinitionInstance.getProjectFromHost(uriHost);
     }
 }

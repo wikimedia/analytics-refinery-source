@@ -13,3 +13,4 @@ release.properties
 *.iml
 *.ipr
 *.iws
+out/

@@ -17,84 +17,24 @@ package org.wikimedia.analytics.refinery.hive;
 import java.io.IOException;
 
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.wikimedia.analytics.refinery.core.Webrequest.RefererClassification;
 
 import junit.framework.TestCase;
+import org.wikimedia.analytics.refinery.core.Webrequest;
 
 public class TestRefererClassifierUDF extends TestCase {
-    ObjectInspector StringOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
-    ObjectInspector LongOI = PrimitiveObjectInspectorFactory.javaLongObjectInspector;
-
-    private Object callUDF(String url) throws HiveException, IOException {
-        DeferredObject urlDO = new DeferredJavaObject(url);
-        DeferredObject[] arguments = new DeferredObject[] {urlDO};
-        Object res = null;
-
-        RefererClassifierUDF udf = new RefererClassifierUDF();
-        try {
-            udf.initialize(new ObjectInspector[]{StringOI});
-            res = udf.evaluate(arguments);
-        } finally {
-            udf.close();
-        }
-        return res;
-    }
-
-    private void assertKind(String url, RefererClassification kind)
-            throws HiveException, IOException {
-        Object[] res = (Object[]) callUDF(url);
-
-        assertEquals("Result array has wrong length", 3, res.length);
-
-        assertEquals("is_unknown does not match", kind == RefererClassification.UNKNOWN, res[0]);
-        assertEquals("is_internal does not match", kind == RefererClassification.INTERNAL, res[1]);
-        assertEquals("is_external does not match", kind == RefererClassification.EXTERNAL, res[2]);
-    }
-
-    public void testInitialize() throws HiveException, IOException {
-        RefererClassifierUDF udf = new RefererClassifierUDF();
-        try {
-            udf.initialize(new ObjectInspector[]{StringOI});
-        } finally {
-            udf.close();
-        }
-    }
-
-    public void testInitializeEmpty() throws HiveException, IOException {
-        RefererClassifierUDF udf = new RefererClassifierUDF();
-        try {
-            udf.initialize(new ObjectInspector[]{});
-            fail("Initialize did not throw HiveException");
-        } catch (HiveException e) {
-        } finally {
-            udf.close();
-        }
-    }
-
-    public void testInitializeWrongType() throws HiveException, IOException {
-        RefererClassifierUDF udf = new RefererClassifierUDF();
-        try {
-            udf.initialize(new ObjectInspector[]{LongOI});
-            fail("Initialize did not throw HiveException");
-        } catch (HiveException e) {
-        } finally {
-            udf.close();
-        }
-    }
 
     public void testEvaluateUnknown() throws HiveException, IOException {
-        assertKind("foo", RefererClassification.UNKNOWN);
+        RefererClassifierUDF udf = new RefererClassifierUDF();
+        assertEquals("Unknown referer", udf.evaluate("foo"), Webrequest.REFERER_UNKNOWN);
     }
 
     public void testEvaluateInternal() throws HiveException, IOException {
-        assertKind("http://en.wikipedia.org/foo", RefererClassification.INTERNAL);
+        RefererClassifierUDF udf = new RefererClassifierUDF();
+        assertEquals("Unknown referer", udf.evaluate("http://en.wikipedia.org/foo"), Webrequest.REFERER_INTERNAL);
     }
 
     public void testEvaluateExternal() throws HiveException, IOException {
-        assertKind("http://www.google.com/", RefererClassification.EXTERNAL);
+        RefererClassifierUDF udf = new RefererClassifierUDF();
+        assertEquals("Unknown referer", udf.evaluate("http://www.google.com/"), Webrequest.REFERER_EXTERNAL);
     }
 }

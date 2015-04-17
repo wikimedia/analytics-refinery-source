@@ -42,6 +42,13 @@ public class Webrequest {
     }
 
     /*
+     * Constant string results for referer classification
+     */
+    public static final String REFERER_UNKNOWN = "unknown";
+    public static final String REFERER_INTERNAL = "internal";
+    public static final String REFERER_EXTERNAL = "external";
+
+    /*
      * Now back to the good part.
      * Wikimedia-specific crawlers
      */
@@ -54,7 +61,7 @@ public class Webrequest {
      * or some similar portal-based interface to MW.
      */
     private static final Pattern uriHostPattern = Pattern.compile(
-        "\\.(m|zero)\\."
+        "(^(m|zero|wap|mobile)\\.)|(\\.(m|zero|wap|mobile)\\.)"
     );
 
     /**
@@ -131,54 +138,39 @@ public class Webrequest {
     }
 
     /**
-     * Classification for referers
-     * <p>
-     * <ul>
-     * <li>A referer from a WMF domain translates into “internal”.</li>
-     * <li>A referer from a non-WMF domain translates into “external".</li>
-     * <li>An empty or invalid refer translates into “unknown".</li>
-     * </ul>
-     */
-    public enum RefererClassification {
-        UNKNOWN,
-        INTERNAL,
-        EXTERNAL
-    }
-
-    /**
      * Classifies a referer
      *
      * @param url The referer url to classify
      * @return RefererClassification
      */
-    public static RefererClassification classify(String url) {
+    public String classifyReferer(String url) {
         if (url == null || url.isEmpty() || url.equals("-")) {
-            return RefererClassification.UNKNOWN;
+            return REFERER_UNKNOWN;
         }
 
         String[] urlParts = StringUtils.splitPreserveAllTokens(url, '/');
         if (urlParts == null || urlParts.length <3) {
-            return RefererClassification.UNKNOWN;
+            return REFERER_UNKNOWN;
         }
 
         if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:")) {
-            return RefererClassification.UNKNOWN;
+            return REFERER_UNKNOWN;
         }
 
         if (!urlParts[1].isEmpty()) {
-            return RefererClassification.UNKNOWN;
+            return REFERER_UNKNOWN;
         }
 
         String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
 
         if (domainParts == null || domainParts.length <2) {
-            return RefererClassification.UNKNOWN;
+            return REFERER_UNKNOWN;
         }
 
         if (domainParts[domainParts.length-1].equals("org")) {
             switch (domainParts[domainParts.length-2]) {
             case "":
-                return RefererClassification.UNKNOWN;
+                return REFERER_UNKNOWN;
             case "mediawiki":
             case "wikibooks":
             case "wikidata":
@@ -191,9 +183,12 @@ public class Webrequest {
             case "wikiversity":
             case "wikivoyage":
             case "wiktionary":
-                return RefererClassification.INTERNAL;
+                return REFERER_INTERNAL;
             }
         }
-        return RefererClassification.EXTERNAL;
+        return REFERER_EXTERNAL;
     }
+
+
+
 }

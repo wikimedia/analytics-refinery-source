@@ -1,4 +1,11 @@
-## v0.0.9-SNAPSHOT
+## v0.0.10-SNAPSHOT
+* Maven now builds non-uber jars by having hadoop and hive in provided scope.
+  It also takes advantage of properties to propagate version numbers.
+* PageView Class has a function to extract project from uri.
+  Bugs have been corrected on how to handle mobile uri.
+* Referer classification now outputs a string instead of a map.
+
+## v0.0.9
 * Generic functions used in multiple classes now live in a single "utilities" class.
 * Pageview and LegacyPageview have been renamed to PageviewDefinition and
   LegacyPageviewDefinition, respectively.  These also should now use the

@@ -14,7 +14,6 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import org.wikimedia.analytics.refinery.core.Webrequest.RefererClassification;
 
 import junit.framework.TestCase;
 
@@ -22,23 +21,23 @@ public class TestWebrequestRefererClassifier extends TestCase {
 
     // Helper methods ---------------------------------------------------------
 
-    private void assertKind(final String url, final RefererClassification expected) {
-        RefererClassification actual = Webrequest.classify(url);
+    private void assertKind(final String url, final String expected) {
+        String actual = Webrequest.getInstance().classifyReferer(url);
 
         assertEquals("Identification output does not match expected",
                 expected, actual);
     }
 
     private void assertUnknown(final String url) {
-        assertKind(url, RefererClassification.UNKNOWN);
+        assertKind(url, Webrequest.REFERER_UNKNOWN);
     }
 
     private void assertInternal(final String url) {
-        assertKind(url, RefererClassification.INTERNAL);
+        assertKind(url, Webrequest.REFERER_INTERNAL);
     }
 
     private void assertExternal(final String url) {
-        assertKind(url, RefererClassification.EXTERNAL);
+        assertKind(url, Webrequest.REFERER_EXTERNAL);
     }
 
     // Test degernerate settings ----------------------------------------------

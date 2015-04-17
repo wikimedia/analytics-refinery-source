@@ -57,7 +57,6 @@ public class TestUAParserUserAgentMostPopular extends TestCase {
 
 
         // decode expected output and turn it into an object
-        System.out.println(jsonMapResult);
         Object obj = jsonParser.parse(jsonMapResult);
         JSONObject expected_ua = (JSONObject) obj;
 
