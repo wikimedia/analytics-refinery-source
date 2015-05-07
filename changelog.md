@@ -1,4 +1,4 @@
-## v0.0.10-SNAPSHOT
+## v0.0.10
 * Maven now builds non-uber jars by having hadoop and hive in provided scope.
   It also takes advantage of properties to propagate version numbers.
 * PageView Class has a function to extract project from uri.
