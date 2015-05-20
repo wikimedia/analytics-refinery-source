@@ -1,23 +1,12 @@
-import org.apache.spark.sql.Row
 import org.scalatest.FunSuite
 import org.wikimedia.analytics.refinery.job.AppSessionMetrics
+import scala.collection.immutable.HashMap
 
 
 class AppSessionSuite extends FunSuite {
 
-  test("Returns true if row has good data") {
-    val goodData = List("/page", "?query=blah", "text/xml", "some-user-agent", "blah", "blah")
-    assert(AppSessionMetrics.filterBadData(Row.fromSeq(goodData)) == true)
-  }
-
-  test("Returns false if row has empty data") {
-    val badData = List("/page", "?query=blah", "text/xml", "some-user-agent", "blah", "")
-    assert(AppSessionMetrics.filterBadData(Row.fromSeq(badData)) == false)
-
-  }
-
-  test("Timestamps that are further appart than 1800 secs belong to different sessions") {
-    // this line below  might be marked an error on inteliJ IDE, it is not a real error
+  test("Timestamps that are further apart than 1800 secs belong to different sessions") {
+    // this line below  might be marked an error on intelliJ IDE, it is not a real error
     val input: List[(String, List[Long])] = List(("02c17d16-c7a8-4e73-aa35-78076a4c20ec", List(1426556733, 1426556748, 1426556798)),
       // uuid below should have two sessions
       ("b418f244-413d-4935-8dc5-662eab516c14", List(1426556468, 1426556498, 1426559098, 1426559200)),
@@ -37,4 +26,23 @@ class AppSessionSuite extends FunSuite {
     assert(session2._2.length==2)
 
   }
+
+  test("Report date range string should be generated correctly based on the report run date and period") {
+    val datesInfo = HashMap("year" -> 2015, "month" -> 5, "day" -> 10, "periodDays" -> 10)
+    assert(AppSessionMetrics.dateRangeToString(datesInfo) == "2015-5-10 -- 2015-5-19")
+  }
+
+  test("List of parquet paths is generated correctly based on the report run date and period") {
+    val datesInfo = HashMap("year" -> 2015, "month" -> 5, "day" -> 10, "periodDays" -> 10)
+    val webrequestMobilePath = ".../webrequest_source=mobile"
+    val pathList = AppSessionMetrics.dateRangeToPathList(webrequestMobilePath, datesInfo)
+
+    //Assert the length of the list equals report period in days
+    assert(pathList.length == datesInfo("periodDays"))
+
+    //Assert the paths are being generated correctly
+    assert(pathList.head == ".../webrequest_source=mobile/year=2015/month=5/day=10")
+    assert(pathList.last == ".../webrequest_source=mobile/year=2015/month=5/day=19")
+  }
+
 }

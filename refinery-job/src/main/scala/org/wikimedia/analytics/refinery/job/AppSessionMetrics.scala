@@ -1,17 +1,13 @@
 package org.wikimedia.analytics.refinery.job
 
-import java.text.SimpleDateFormat
-
+import com.github.nscala_time.time.Imports.{LocalDate, Period}
 import com.twitter.algebird.{QTree, QTreeSemigroup}
-import org.apache.hadoop.io.compress.GzipCodec
-import org.apache.spark.SparkContext._
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.hive._
+import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
-import org.wikimedia.analytics.refinery.core.{PageviewDefinition, Webrequest}
-
-import scala.util.control.NonFatal
+import scopt.OptionParser
+import scala.collection.immutable.HashMap
 
 /**
  * This job computes the following session-related metrics for app pageviews:
@@ -24,46 +20,24 @@ import scala.util.control.NonFatal
  * Maxima
  * Quantiles List(.1, .5, .9, .99)
  *
- * Usage with spark-submit (please note that 'day' is an optional argument)
+ * Usage with spark-submit
  * spark-submit \
  * --class org.wikimedia.analytics.refinery.job.AppSessionMetrics
- * /path/to/refinery-job.jar <output-directory> <year> <month> [<day>]
+ * /path/to/refinery-job.jar
+ * -o <output-dir> -y <year> -m <month> -d <day> [-p <period-days> -w <webrequest-base-path> -n <num-partitions>]
  *
  * spark-submit \
  * --class org.wikimedia.analytics.refinery.job.AppSessionMetrics
- *  --num-executors=6 --executor-cores=2   --executor-memory=2g
- * /path/to/refinery-job.jar hdfs://analytics-hadoop/tmp/mobile-apps-sessions 2015 03 [01]
+ * --num-executors=16 --executor-cores=1   --executor-memory=2g
+ * /path/to/refinery-job.jar -h hdfs://analytics-hadoop -o /tmp/mobile-apps-sessions
+ * -y 2015 -m 3 -d 30 [-p 30 -n 8]
  *
- *
- * Note that there is 1 file created per date as it is the only way to make sure
- * reruns update the right file.
- *
- * TODO: oozification
- * TODO: mobile need to document their uuid, in x-analytics we see wmfuuid
- * https://wikitech.wikimedia.org/wiki/X-Analytics
+ * The metrics are stored in output_directory/session_metrics.tsv, and also exposed through a
+ * hive external table at wmf.mobile_apps_session_metrics
  *
  */
+
 object AppSessionMetrics {
-
-  /**
-   * Transforms a date yyyy-MM-dd'T'HH:mm:ss into a timestamp
-   * Will not be needed once timestamp column is filled by hive
-   * @param s
-   * @return
-   */
-  def getTimeFromDate(s: String): Long = {
-    try {
-      //SimpleDateFormat is not thread safe
-      val dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss")
-      dateFormat.parse(s).getTime() / 1000
-    } catch {
-      // do not break app if we cannot parse date, maybe overly cautious?
-      case NonFatal(t) => {
-        return 0
-      }
-    }
-  }
-
 
   /**
    * Quantiles
@@ -74,43 +48,9 @@ object AppSessionMetrics {
    * @return A list containing the quantile (lowBound, highBound) for each q.
    */
   def quantiles(nums: RDD[Long], qs: List[Double]): List[(Double, Double)] = {
-    val qtSemigroup = new QTreeSemigroup[Long](16)
+    val qtSemigroup = new QTreeSemigroup[Long](8)
     val sum = nums.map(QTree(_)).reduce(qtSemigroup.plus)
     qs.map(sum.quantileBounds(_))
-  }
-
-  /**
-   * Computes statistics for a metric
-   */
-  def stats(nums: RDD[Long]) = {
-    val qs = List(.1, .5, .9, .99)
-    val percentiles = quantiles(nums, qs)
-
-    Map(
-      "count" -> nums.count,
-      "min" -> nums.min,
-      "max" -> nums.max,
-      "percentile_1" -> percentiles(0),
-      "percentile_50" -> percentiles(1),
-      "percentile_90" -> percentiles(2),
-      "percentile_99" -> percentiles(3)
-    )
-
-  }
-
-  /**
-   * Given stats map returns stats ready to be printed
-   * @param stats
-   * @param statsType
-   * @param date
-   * @return String
-   */
-  def statsToString(stats: Map[String, Any], statsType: String, date: String): String = {
-
-    val outputStats = """ %s, %s, %s, %s, %s, %s, %s, %s, %s """.format(date, statsType, stats.apply("count"), stats.apply("min"), stats.apply("max"),
-      stats.apply("percentile_1"), stats.apply("percentile_50"), stats.apply("percentile_90"), stats.apply("percentile_99"))
-
-    outputStats
   }
 
   /**
@@ -125,7 +65,7 @@ object AppSessionMetrics {
    *                  session list. It is assumed to be greater than
    *                  all the previous timestamps in the session list.
    *                  So the list we are folding needs to be order max to min
-   *                  If gap amoung two pageviews is bigger than 30 mins (1800 secs)
+   *                  If gap among two pageviews is bigger than 30 mins (1800 secs)
                       is a new session
    *
    * @return The list of sessions including the new pageview timestamp.
@@ -145,104 +85,40 @@ object AppSessionMetrics {
   }
 
   /**
-   * Returns false if data on row is empty or null for any of the fields
-   * Have in mind that even query string is always full for apps pageviews
-   * looks something like: "?action=mobileview&format=json&page=Belgium&"
+   * Computes statistics for a metric
    *
-   * @param r
-   * @return
+   * @param nums RDD of values.
+   * @return Hashmap of different stats computed for a given metric
    */
-  def filterBadData(r: Row): Boolean = {
-    for (i <- 0 to r.length - 1) {
-      if (r.isNullAt(i) || r.getString(i).trim().isEmpty())
-        return false
-    }
-    return true
+  def statsPerMetric(nums: RDD[Long]) = {
+    val qs = List(.1, .5, .9, .99)
+    val percentiles = quantiles(nums, qs)
+
+    Map(
+      "count" -> nums.count,
+      "min" -> nums.min,
+      "max" -> nums.max,
+      "percentile_1" -> percentiles(0),
+      "percentile_50" -> percentiles(1),
+      "percentile_90" -> percentiles(2),
+      "percentile_99" -> percentiles(3)
+    )
   }
 
   /**
-   * Builds "where" clause like:
-   * where webrequest_source='mobile' and year=2015 and month=03 [and day=20]"
-   * Note that months and days have a leading 0
-   *
-   * Returns date for later reporting
-   *
-   * @param args
-   *
-   * @return (String: predicate, String: date)
+   * Compute stats for the different session metrics given all user sessions data
+   * @param userSessions  UserSessions is of this form:
+   *                      [(String, List[List[Long]])] =
+   *                      ((3e92cbf4-d204-4a59-a12d-dde6e337902d,List(List(1426809630),List(1426812577))),
+   *                      (bf78563d-9173-415c-ba4f-6848ab46afc3,List(List(1426810256, 1426810264))),
+   *                      (896c399c-0dc1-4835-aa66-6d619b83a76b,List(List(1426810619, 1426811555))),
+   *                      (53d91d28-158f-4dcf-8561-5a3d6e90e18e,List(List(1426810894, 1426810915)))
+   * @return List of tuples in the form of [(SessionMetricName, SessionMetricStats), ... ]
    */
-  def buildPredicate(args: Array[String]): (String, String) = {
-    //arguments need to be positional
-    //mandatory
-    val year = args(1)
-    val month = args(2)
-    val predicate = "where webrequest_source='mobile' and year="
-    if (args.length == 4) {
-      var day = args(3)
-      return (predicate + year + " and month=" + month + " and day=" + day, year + "-" + month + "-" + day)
-    } else {
-      return (predicate + year + " and month=" + month, year + "-" + month)
-    }
-  }
+  def allSessionMetricsStats(userSessions: RDD[(String, List[List[Long]])]): List[(String, Map[String, Any])] = {
 
-
-  /**
-   * Empty list of sessions
-   * To be used as zero value for the sessionize function.
-   */
-  val emptySessions = List.empty[List[Long]]
-
-
-  def main(args: Array[String]) {
-    // get spark context
-    val conf = new SparkConf().setAppName("AppSessionMetrics")
-    val sc = new SparkContext(conf)
-
-
-    @transient
-    val hc = new HiveContext(sc)
-    val (predicate, date) = buildPredicate(args)
-    val outputDirectory = args(0)
-
-    val sql = "SELECT uri_path, uri_query, content_type, user_agent, x_analytics, dt from wmf.webrequest " + predicate
-    val data = hc.sql(sql)
-
-    // compute sessions by user: (uuid, List(session1, session2, ...)
-    val userSessionsAll = data
-      //filter records with empty entries that we cannot use
-      .filter(r => filterBadData(r))
-      // filter app pageviews
-      .filter(r => PageviewDefinition.getInstance.isAppPageview(r.getString(0), r.getString(1), r.getString(2), r.getString(3)))
-      //consider only records where uuid is on x-analytics field, those are not all of them, for some uuid comes on the url
-      .filter(pv => Webrequest.getInstance.getXAnalyticsValue(pv.getString(4), "wmfuuid").trim.nonEmpty && pv.getString(5).trim.nonEmpty)
-      // map: pageview -> (uuid, timestamp)
-      .map(pv => (Webrequest.getInstance.getXAnalyticsValue(pv.getString(4), "wmfuuid"), getTimeFromDate(pv.getString(5))))
-
-
-    // lowering in 1 order of magnitude the number of partitions for this job
-    // logs list 1500 partitions for the original dataset
-    val userSessions = userSessionsAll.coalesce(100)
-      // aggregate uuid to list of sorted timestamps (uuid, timestamp)* -> (uuid, List(ts1, ts2, ts3, ...))
-      // sorting is max to min, careful here: if values are found in the same partition they need to be sorted too
-      .combineByKey(
-        List(_),
-        (l: List[Long], t: Long) => (t +: l).sorted,
-        // sort timestamps max to min
-        (l1: List[Long], l2: List[Long]) => (l1 ++ l2).sorted
-      )
-      // map: (uuid, List(ts1, ts2, ts3, ...)) -> (uuid, List(List(ts1, ts2), List(ts3), ...)
-      .map { case (uuid, listOfTimestampLists) => uuid -> listOfTimestampLists.foldLeft(emptySessions)(sessionize) }
-
-    /**
-     * UserSessions is of this form:
-     *
-     * [(String, List[List[Long]])] =
-     * ((3e92cbf4-d204-4a59-a12d-dde6e337902d,List(List(1426809630),List(1426812577))),
-     * (bf78563d-9173-415c-ba4f-6848ab46afc3,List(List(1426810256, 1426810264))),
-     * (896c399c-0dc1-4835-aa66-6d619b83a76b,List(List(1426810619, 1426811555))),
-     * (53d91d28-158f-4dcf-8561-5a3d6e90e18e,List(List(1426810894, 1426810915))),
-     */
-
+    // calculate number of sessions per user
+    val sessionsPerUser = statsPerMetric(userSessions.map(r => r._2.length.toLong))
 
     // flatten: (uuid, List(session1, session2, ...) -> session*
     // RDD[List[Long]]] =
@@ -251,64 +127,246 @@ object AppSessionMetrics {
     // List(1426810619, 1426811555), List(1426810894, 1426810915),
     val sessions = userSessions.flatMap(_._2)
 
-    // calculate number of sessions per user
-    val sessionsPerUser = userSessions.map(r => r._2.length.toLong)
-
     // calculate number of pageviews per session
-    val pageviewsPerSession = sessions.map(r => r.length.toLong)
+    val pageviewsPerSession = statsPerMetric(sessions.map(r => r.length.toLong))
 
     // calculate session length
     // sessions with only one pageview are not counted
-    val sessionLength = sessions
+    val sessionLength = statsPerMetric(sessions
       //Remove uuids with just  1 timestamp
       .filter(s => !s.isEmpty && !s.tail.isEmpty)
-      .map(r => r.last - r.head)
+      .map(r => r.last - r.head))
 
-    val statsSessionsPerUser = statsToString(stats(sessionsPerUser), "sessionsPerUser", date)
-    val statsPageviewsPerSession = statsToString(stats(pageviewsPerSession), "pageviewsPerSession", date)
-    val statsSessionLength = statsToString(stats(sessionLength), "sessionLength", date)
+    List(("SessionsPerUser", sessionsPerUser), ("PageviewsPerSession", pageviewsPerSession), ("SessionLength", sessionLength))
+  }
 
-    //println(statsSessionsPerUser)
-    val header =
-      """Date, Type, count, max, min, p_1, p_50, p_90, p99
-      """.stripMargin
-    val outputStats = """ %s,
-%s,
-%s, """.format(statsSessionsPerUser, statsPageviewsPerSession, statsSessionLength)
+  /**
+   * Given stats map returns stats ready to be printed
+   *
+   * @return A tab separated string for given metric, looks like
+   *         2015	6	2	2015-6-1 -- 2015-6-1	SessionsPerUser	1259304	1	15	(1.0,2.0)	(1.0,2.0)	(2.0,3.0)	(5.0,6.0)
+   */
+  def statsToString(stats: Map[String, Any], statsType: String, datesInfo: Map[String, Int]): String = {
+    val reportDateRange = dateRangeToString(datesInfo)
+    val outputStats = "%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s"
+      .format(datesInfo("year"), datesInfo("month"), datesInfo("day"), reportDateRange,
+        statsType, stats.apply("count"), stats.apply("min"), stats.apply("max"), stats.apply("percentile_1"),
+        stats.apply("percentile_50"), stats.apply("percentile_90"), stats.apply("percentile_99"))
+    outputStats
+  }
 
-    ////////////////////////////     Save Output       ///////////////////////////////
-    // note that spark doesn't know how to "override" a file:
-    // http://apache-spark-user-list.1001560.n3.nabble.com/How-can-I-make-Spark-1-0-saveAsTextFile-to-overwrite-existing-file-td6696.html
+  /**
+   * Makes a printable string with all the stats
+   *
+   * @param sessionStatsData List of tuples in form of [(SessionMetricName, SessionMetricStats), ...]
+   * @param datesInfo Hashmap with report date related info
+   * @return String with 1 line for every metric, separated by newline
+   */
+  def printableStats(sessionStatsData: List[(String, Map[String, Any])], datesInfo: Map[String, Int]): String = {
+    sessionStatsData.map(statsData => statsToString(statsData._2, statsData._1, datesInfo)).mkString("\n")
+  }
 
-    val uri = new java.net.URI(outputDirectory)
 
+  /**
+   * Make a report date range string given the date of report run and the number of days
+   * for which the report is being run for
+   * @param datesInfo Hashmap with report date related info in the form of
+   *                  {"year"->2015, "month"->5, "day"->30, "periodDays"->30}
+   * @return String in the form of 'yyyy-mm-dd -- yyyy-mm-dd'
+   */
+  def dateRangeToString(datesInfo: Map[String, Int]): String = {
+    //Start Date is the date of report run
+    val start = new LocalDate(datesInfo("year"), datesInfo("month"), datesInfo("day"))
+    //End date is the end of the report run period
+    val end = start.plusDays(datesInfo("periodDays") - 1)
+    val dateRange = "%d-%d-%d -- %d-%d-%d".format(start.getYear, start.getMonthOfYear, start.getDayOfMonth,
+      end.getYear, end.getMonthOfYear, end.getDayOfMonth)
+    dateRange
+  }
+
+  /**
+   * Generate list of Parquet file paths over a range of dates
+   * @param webrequestMobilePath Base path to webrequest mobile parquet data
+   * @param datesInfo Hashmap with report date related info
+   * @return List of path strings like [".../day=1", ".../day=2"]
+   */
+  def dateRangeToPathList(webrequestMobilePath: String, datesInfo: Map[String, Int]): List[String] = {
+    //Custom iterator for stepping through LocalDate objects
+    def makeDateRange(from: LocalDate, to: LocalDate, step: Period): Iterator[LocalDate] =
+      Iterator.iterate(from)(_.plus(step)).takeWhile(_.isBefore(to))
+
+    val dateStart = new LocalDate(datesInfo("year"), datesInfo("month"), datesInfo("day"))
+    val dateEnd = dateStart.plusDays(datesInfo("periodDays"))
+    val dateRange = makeDateRange(dateStart, dateEnd, new Period().withDays(1))
+    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d".format(webrequestMobilePath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
+  }
+
+  /**
+   * Fetch select columns from given list of Parquet files
+   * @param paths List of parquet file paths to load,
+   *              Like: ["hdfs://../year=2015/month=5/day=5",
+   *              "hdfs://../year=2015/month=5/day=6",...]
+   * @param sqlContext SQL Context
+   * @return DataFrame with Columns wmfuuid and time
+   */
+  def pathListToUuidDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
+    sqlContext.parquetFile(paths: _*)
+      .filter("is_pageview and x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
+      .selectExpr("x_analytics_map['wmfuuid'] as wmfuuid", "CAST(ts AS int) as ts")
+  }
+
+  /**
+   * Compute sessions by user
+   * @param userSessionsAll DataFrame with wmfuuid and timestamp colums
+   * @param numPartitions Number of partitions for the output RDD
+   * @return userSessions RDD in the form of (uuid, List(session1, session2, ...)
+   */
+  def userSessions(userSessionsAll: DataFrame, numPartitions: Int): RDD[(String, List[List[Long]])] = {
+    userSessionsAll
+      .rdd
+      .map(r => (r.getString(0), r.getInt(1).toLong))
+      // aggregate uuid to list of sorted timestamps (uuid, timestamp)* -> (uuid, List(ts1, ts2, ts3, ...))
+      // sorting is max to min, careful here: if values are found in the same partition they need to be sorted too
+      // Some of these lines may throw an error in IntelliJ but it compiles and can be ignored.
+      .combineByKey(
+        List(_),
+        (l: List[Long], t: Long) => (t +: l).sorted,
+        // sort timestamps max to min
+        (l1: List[Long], l2: List[Long]) => (l1 ++ l2).sorted,
+        numPartitions = numPartitions
+      )
+      // map: (uuid, List(ts1, ts2, ts3, ...)) -> (uuid, List(List(ts1, ts2), List(ts3), ...)
+      .map { case (uuid, listOfTimestampLists) => uuid -> listOfTimestampLists.foldLeft(emptySessions)(sessionize) }
+      .cache()
+  }
+
+  /**
+   * Save output stats to HDFS
+   */
+  def saveStats(sc: SparkContext, outputFile: String, currentStats: String, reportDateRange: String) = {
     @transient
     val hadoopConf = new org.apache.hadoop.conf.Configuration()
+    val hdfs = new Path(outputFile).getFileSystem(hadoopConf)
 
-    //parse hdfs://analytics-hadoop from hdfs://analytics-hadoop/blah/blah
-    val hdfs = org.apache.hadoop.fs.FileSystem.get(new java.net.URI(uri.getScheme().toString + "://" + uri.getHost()), hadoopConf)
+    // Convert current stats to string
+    val path = new Path(outputFile)
 
+    if (hdfs.exists(path)) {
+      // Read data file and delete records from this date range if any
+      // and convert the filtered data into a string.
+      val pastStats = sc.textFile(outputFile)
+        .filter(record => !record.contains(reportDateRange))
+        .collect.mkString("\n")
 
-    if (hdfs.exists(new org.apache.hadoop.fs.Path(outputDirectory))) {
-      // 1. read data file and delete records from this date if any
-      val pastSessionData = sc.textFile(outputDirectory).filter(record => !(record.contains(date) || record.contains("Date")))
-
-      // 2. union with records just calculated
-      val currentAndPastData = pastSessionData.union(sc.parallelize(Seq(header + outputStats))).coalesce(1, true)
+      // Concatenate with current output stats
+      val currentAndPastData = "%s\n%s".format(pastStats, currentStats)
 
       // 3. delete old file in hadoop
       try {
-        hdfs.delete(new org.apache.hadoop.fs.Path(outputDirectory), true)
+        hdfs.delete(path, true)
       } catch {
         case _: Throwable => {}
       }
-      // 4. save file
-      currentAndPastData.saveAsTextFile(outputDirectory, classOf[GzipCodec])
-
+      // Save the combined data
+      hdfs.create(path).write(currentAndPastData.getBytes)
     } else {
-      sc.parallelize(Seq(header + outputStats)).coalesce(1, true).saveAsTextFile(outputDirectory, classOf[GzipCodec])
+      //Save only current data
+      hdfs.create(path).write(currentStats.getBytes)
     }
+  }
 
+  /**
+   * Empty list of sessions
+   * To be used as zero value for the sessionize function.
+   */
+  val emptySessions = List.empty[List[Long]]
+
+  /**
+   * Config class for CLI argument parser using scopt
+   */
+  case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
+                    outputDir: String = "/wmf/data/wmf/mobile-sessions/",
+                    year: Int = 0, month: Int = 0, day: Int = 0, periodDays: Int = 30, numPartitions: Int = 16)
+
+  /**
+   * Define the command line options parser
+   */
+  val argsParser = new OptionParser[Params]("App Session Metrics") {
+    head("Mobile App Session Metrics", "")
+    note(
+      """This job computes the following session-related metrics for app pageviews:
+        |  Number of sessions per user
+        |  Number of pageviews per session
+        |  Session length (gap between first and last pageview, in milliseconds)
+        |
+        |  For each metric, the following stats are computed:
+        |  Minima
+        |  Maxima
+        |  Quantiles List(.1, .5, .9, .99)""".format().stripMargin)
+    help("help") text ("Prints this usage text")
+
+    opt[String]('w', "webrequest-base-path") optional() valueName ("<path>") action { (x, p) =>
+      p.copy(webrequestBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
+    } text ("Base path to webrequest data on hadoop. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/webrequest")
+
+    opt[String]('o', "output-dir") required() valueName ("<path>") action { (x, p) =>
+      p.copy(outputDir = if (x.endsWith("/")) x else x + "/")
+    } text ("Path to output directory")
+
+    opt[Int]('y', "year") required() action { (x, p) =>
+      p.copy(year = x)
+    } text ("Year as an integer")
+
+    opt[Int]('m', "month") required() action { (x, p) =>
+      p.copy(month = x)
+    } validate { x => if (x > 0 & x <= 12) success else failure("Invalid month")
+    } text ("Month as an integer")
+
+    opt[Int]('d', "day") required() action { (x, p) =>
+      p.copy(day = x)
+    } validate { x => if (x > 0 & x <= 31) success else failure("Invalid day")
+    } text ("Day as an integer")
+
+    opt[Int]('p', "period-days") optional() action { (x, p) =>
+      p.copy(periodDays = x)
+    } validate { x => if (x > 0 & x <= 31) success else failure("Too many days")
+    } text ("Period in days to run report for. Defaults to 30 days")
+
+    opt[Int]('n', "num-partitions") optional() action { (x, p) =>
+      p.copy(numPartitions = x)
+    } text ("Number of hash-paritions for User Sessions RDD. Defaults to 16. Specify less/more partitions based on job")
+  }
+
+  def main(args: Array[String]) {
+    argsParser.parse(args, Params()) match {
+      case Some(params) => {
+        // Initial setup - Spark, SQLContext
+        val conf = new SparkConf().setAppName("AppSessionMetrics")
+          .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+          .set("spark.kryoserializer.buffer.mb", "24")
+        val sc = new SparkContext(conf)
+        val sqlContext = new SQLContext(sc)
+        sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
+
+        // Generate a list of all parquet file paths to read given the webrequest base path,
+        // and all dates related information
+        val webrequestMobilePath = params.webrequestBasePath + "/webrequest_source=mobile"
+        // Helper hashmap with all date related information to avoid passing around lots of params
+        val datesInfo = HashMap("year" -> params.year, "month" -> params.month, "day" -> params.day, "periodDays" -> params.periodDays)
+        // List of path strings like [".../day=1", ".../day=2"]
+        val webrequestPaths = dateRangeToPathList(webrequestMobilePath, datesInfo)
+
+        // Get sessions data for all users, calculate stats for different metrics,
+        // and get the stats in a printable string format to output
+        val userSessionsData = userSessions(pathListToUuidDataframe(webrequestPaths, sqlContext), params.numPartitions)
+        val allMetricsStats = allSessionMetricsStats(userSessionsData)
+        val outputStats = printableStats(allMetricsStats, datesInfo)
+
+        //Save output to file
+        val outputFile = params.outputDir + "/session_metrics.tsv"
+        saveStats(sc, outputFile, outputStats, dateRangeToString(datesInfo))
+      }
+      case None => sys.exit(1)
+    }
   }
 }
-
