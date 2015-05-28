@@ -1,32 +1,32 @@
-test_description,project,is_pageview,is_legacy_pageview,is_app_pageview,ip_address,x_forwarded_for,uri_host,uri_path,uri_query,http_status,content_type,user_agent
-Is Pageview - Desktop,en.wikipedia,true,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
-Is Pageview – Desktop – locally cached content,en.wikipedia,true,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,-,304,text/html, turnip
-Is Pageview – App - Android,en.wikipedia,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=0,200, application/json,WikipediaApp/2.0-r-2015-01-15 (Android 4.4.2; Phone) Google Play
-is Pageview – App – iOS – old version,en.wikipedia,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=0,200, application/json,WikipediaApp/4.0.6 (iPhone OS 8.2; Phone)
-Is Pageview – App -  iOS – new version,en.wikipedia,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, application/json,WikipediaApp/4.0.6 (iPhone OS 8.2; Phone)
-Is Pageview – Mobile Web,en.wikipedia,true,true,false,174.62.175.84,-,en.m.wikipedia.org,/wiki/Bernard_Manning,-,200,text/html,rutabaga
-Is Pageview – Desktop - Serbian sr-ec,sr.wikipedia,true,false,false,174.62.175.85,-,sr.wikipedia.org,/sr-ec/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute
-Is Pageview – Desktop - Serbian sr-el,sr.wikipedia,true,false,false,174.62.175.86,-,sr.wikipedia.org,/sr-el/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute
-Is Pageview – Desktop - Chinese zh-cn,zh.wikipedia,true,false,false,174.62.175.87,-,zh.wikipedia.org,/zh-cn/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-hans,zh.wikipedia,true,false,false,174.62.175.88,-,zh.wikipedia.org,/zh-hans/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-hant,zh.wikipedia,true,false,false,174.62.175.89,-,zh.wikipedia.org,/zh-hant/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-hk,zh.wikipedia,true,false,false,174.62.175.90,-,zh.wikipedia.org,/zh-hk/Wikipedia:foo,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-mo,zh.wikipedia,true,false,false,174.62.175.91,-,zh.wikipedia.org,/zh-mo/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-my,zh.wikipedia,true,false,false,174.62.175.92,-,zh.wikipedia.org,/zh-my/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-sg,zh.wikipedia,true,false,false,174.62.175.93,-,zh.wikipedia.org,/zh-sg/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Desktop - Chinese zh-tw,zh.wikipedia,true,false,false,174.62.175.94,-,zh.wikipedia.org,/zh-tw/Wikipedia:首页,-,200,text/html,Five-test plan
-Is Pageview – Wikidata,wikidata,true,true,false,174.62.175.94,-,www.wikidata.org,/wiki/Q5651758,-,200,text/html,Five-test plan
-Is Pageview – MediaWiki,mediawiki,true,true,false,174.62.175.94,-,www.mediawiki.org,/wiki/Gerrit/git-review,-,200,text/html,Five-test plan
-Is Pageview – iOS search,en.wikipedia,true,false,false,174.62.175.94,-,en.wikipedia.org,/,?search=afdfsdfsd,200,text/html,Five-test plan
-Is Not Pageview - http_status != 200,en.wikipedia,false,true,false,174.62.175.95,-, en.wikipedia.org, /wiki/Noppperrrrs,-,400,text/html ,turnip
-Is Not Pageview - content_type does not match,en.wikipedia,false,true,false,174.62.175.96,-, en.wikipedia.org, /wiki/Noppperrrrs,-,200, image/png, turnip
-Is Not Pageview - API stupidity: it outputs a 200 status code and text/html as a MIME type on certain classes of error,en.wikipedia,false,false,false,174.62.175.97,-, en.wikipedia.org, /w/api.php,-,200, text/html, turnip
-Is Not Pageview – App request for non-page content,en.wikipedia,false,false,false,174.62.175.98,-,en.wikipedia.org,/w/api.php,?action=query&format=json&titles=Foo&prop=pageimages&piprop=thumbnail&pithumbsize=96&pilimit=1    ,200, application/json, WikipediaApp/1.2.3
-Is Not Pageview – Non-App request for page content,en.wikipedia,false, false,false,174.62.175.99,-, en.wikipedia.org, /w/api.php,?action=mobileview&sections=0,200, application/json, TributeApp/1.2.3
-Is Not Pageview – edit attempt,en.wikipedia,false,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,?action=edit,200,text/html, turnip
-Is not pageview – non-wikidata raw domain,wikipedia,false,false,false,174.62.175.82,-,www.wikipedia.org,-,-,200,text/html, turnip
-Is Not Pageview – App – Android – Refresh,en.wikipedia,false, false,false,174.62.175.82,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, application/json,WikipediaApp/2.0-r-2015-01-15 (Android 4.4.2; Phone) Google Play
-"Is Pageview - mobile - wikimediafoundation",wikimediafoundation,true,true,false,174.62.175.82,-,m.wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip
-"Is Pageview - Desktop - wikimediafoundation",wikimediafoundation,true,false,false,174.62.175.82,-,wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip
-Is Not Pageview - Desktop,test2.wikipedia, true,true,false,174.62.175.82,-,test2.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
-Is Not Pageview - Desktop,test.wikimediafoundation,true,true,false,174.62.175.82,-,test.wikimediafoundation.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+test_description,project,dialect,page_title,is_pageview,is_legacy_pageview,is_app_pageview,ip_address,x_forwarded_for,uri_host,uri_path,uri_query,http_status,content_type,user_agent
+Is Pageview - Desktop,en.wikipedia,default,Horseshoe crab,true,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe%20crab#anchor,-,200,text/html, turnip/
+Is Pageview – Desktop – locally cached content,en.wikipedia,default,Horseshoe/crab,true,true,false,174.62.175.82,-,en.wikipedia.org,/wiki/Horseshoe/crab,-,304,text/html, turnip
+Is Pageview – App - Android,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,true,false,true,174.62.175.83,-,en.wikipedia.org,/w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=0,200, application/json,WikipediaApp/2.0-r-2015-01-15 (Android 4.4.2; Phone) Google Play
+is Pageview – App – iOS – old version,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=0,200, application/json,WikipediaApp/4.0.6 (iPhone OS 8.2; Phone)
+Is Pageview – App -  iOS – new version,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,?action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, application/json,WikipediaApp/4.0.6 (iPhone OS 8.2; Phone)
+Is Pageview – Mobile Web,en.wikipedia,default,Bernard_Manning,true,true,false,174.62.175.84,-,en.m.wikipedia.org,/wiki/Bernard_Manning,-,200,text/html,rutabaga
+Is Pageview – Desktop - Serbian sr-ec,sr.wikipedia,sr-ec,Историја_Срба_пре_Немањића,true,false,false,174.62.175.85,-,sr.wikipedia.org,/sr-ec/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute
+Is Pageview – Desktop - Serbian sr-el,sr.wikipedia,sr-el,Историја_Срба_пре_Немањића,true,false,false,174.62.175.86,-,sr.wikipedia.org,/sr-el/Историја_Срба_пре_Немањића,-,200,text/html,Three-finger salute
+Is Pageview – Desktop - Chinese zh-cn,zh.wikipedia,zh-cn,Wikipedia:首页,true,false,false,174.62.175.87,-,zh.wikipedia.org,/zh-cn/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-hans,zh.wikipedia,zh-hans,Wikipedia:首页,true,false,false,174.62.175.88,-,zh.wikipedia.org,/zh-hans/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-hant,zh.wikipedia,zh-hant,Wikipedia:首页,true,false,false,174.62.175.89,-,zh.wikipedia.org,/zh-hant/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-hk,zh.wikipedia,zh-hk,Wikipedia:foo,true,false,false,174.62.175.90,-,zh.wikipedia.org,/zh-hk/Wikipedia:foo,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-mo,zh.wikipedia,zh-mo,Wikipedia:首页,true,false,false,174.62.175.91,-,zh.wikipedia.org,/zh-mo/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-my,zh.wikipedia,zh-my,Wikipedia:首页,true,false,false,174.62.175.92,-,zh.wikipedia.org,/zh-my/Wikipedia:首页,-,200,text/html,Five-test plan
+Is Pageview – Desktop - Chinese zh-sg,zh.wikipedia,zh-sg,Wikipedia:首页,true,false,false,174.62.175.93,-,zh.wikipedia.org,/zh-sg/Wikipedia:首页,-,200,text/html,Five-test plan
+"Is Pageview – Desktop - Chinese zh-tw",zh.wikipedia,default,Wikipedia:首页,true,false,false,174.62.175.94,-,zh.wikipedia.org,/zh/Wikipedia:首页,-,200,text/html,"Five-test plan"
+Is Pageview – Wikidata,wikidata,default,Q5651758,true,true,false,174.62.175.94,-,www.wikidata.org,/wiki/Q5651758,-,200,text/html,Five-test plan
+Is Pageview – MediaWiki,mediawiki,default,Gerrit/git-review,true,true,false,174.62.175.94,-,www.mediawiki.org,/wiki/Gerrit/git-review,-,200,text/html,Five-test plan
+Is Pageview – iOS search,en.wikipedia,default,-,true,false,false,174.62.175.94,-,en.wikipedia.org,/,?search=afdfsdfsd,200,text/html,Five-test plan
+Is Not Pageview - http_status != 200,en.wikipedia,-,-,false,true,false,174.62.175.95,-, en.wikipedia.org, /wiki/Noppperrrrs,-,400,text/html ,turnip
+Is Not Pageview - content_type does not match,en.wikipedia,-,-,false,true,false,174.62.175.96,-, en.wikipedia.org, /wiki/Noppperrrrs,-,200, image/png, turnip
+Is Not Pageview - API stupidity: it outputs a 200 status code and text/html as a MIME type on certain classes of error,en.wikipedia,-,-,false,false,false,174.62.175.97,-, en.wikipedia.org, /w/api.php,-,200, text/html, turnip
+Is Not Pageview – App request for non-page content,en.wikipedia,-,-,false,false,false,174.62.175.98,-,en.wikipedia.org,/w/api.php,?action=query&format=json&titles=Foo&prop=pageimages&piprop=thumbnail&pithumbsize=96&pilimit=1    ,200, application/json, WikipediaApp/1.2.3
+Is Not Pageview – Non-App request for page content,en.wikipedia,-,-,false, false,false,174.62.175.99,-,en.wikipedia.org, /w/api.php,?action=mobileview&sections=0,200, application/json, TributeApp/1.2.3
+Is Not Pageview – edit attempt,en.wikipedia,-,-,false,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,?action=edit,200,text/html, turnip
+Is not pageview – non-wikidata raw domain,wikipedia,-,-,false,false,false,174.62.175.82,-,www.wikipedia.org,-,-,200,text/html, turnip
+Is Not Pageview – App – Android – Refresh,en.wikipedia,-,-,false, false,false,174.62.175.82,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, application/json,WikipediaApp/2.0-r-2015-01-15 (Android 4.4.2; Phone) Google Play
+"Is Pageview - mobile - wikimediafoundation",wikimediafoundation,default,Horseshoe_crab,true,true,false,174.62.175.82,-,m.wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip
+"Is Pageview - Desktop - wikimediafoundation",wikimediafoundation,default,Horseshoe_crab,true,false,false,174.62.175.82,-,wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip
+Is Not Pageview - Desktop,test2.wikipedia,default,Horseshoe_crab,true,true,false,174.62.175.82,-,test2.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+Is Not Pageview - Desktop,test.wikimediafoundation,default,Horseshoe_crab,true,true,false,174.62.175.82,-,test.wikimediafoundation.org, /wiki/Horseshoe_crab,-,200,text/html, turnip

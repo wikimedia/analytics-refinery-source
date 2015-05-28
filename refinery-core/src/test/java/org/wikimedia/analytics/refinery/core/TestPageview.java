@@ -33,6 +33,8 @@ public class TestPageview {
     public void testIsPageview(
         String test_description,
         String project,
+        String dialect,
+        String page_title,
         boolean is_pageview,
         boolean is_legacy_pageview,
         boolean is_app_pageview,
@@ -68,6 +70,8 @@ public class TestPageview {
     public void testIsAppPageview(
         String test_description,
         String project,
+        String dialect,
+        String page_title,
         boolean is_pageview,
         boolean is_legacy_pageview,
         boolean is_app_pageview,
@@ -101,6 +105,8 @@ public class TestPageview {
     public void testGetProjectFromHost(
             String test_description,
             String project,
+            String dialect,
+            String page_title,
             boolean is_pageview,
             boolean is_legacy_pageview,
             boolean is_app_pageview,
@@ -120,4 +126,69 @@ public class TestPageview {
                 PageviewDefinitionInstance.getProjectFromHost(uri_host)
         );
     }
+
+    @Test
+    @FileParameters(
+            value = "src/test/resources/pageview_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
+    )
+    public void testGetDialectFromPath(
+            String test_description,
+            String project,
+            String dialect,
+            String page_title,
+            boolean is_pageview,
+            boolean is_legacy_pageview,
+            boolean is_app_pageview,
+            String ip_address,
+            String x_forwarded_for,
+            String uri_host,
+            String uri_path,
+            String uri_query,
+            String http_status,
+            String content_type,
+            String user_agent
+    ) {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+        if (is_pageview) {
+            assertEquals(
+                    test_description,
+                    dialect,
+                    PageviewDefinitionInstance.getDialectFromPath(uri_path)
+            );
+        }
+    }
+
+    @Test
+    @FileParameters(
+            value = "src/test/resources/pageview_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
+    )
+    public void testGetPageTitleFromUri(
+            String test_description,
+            String project,
+            String dialect,
+            String page_title,
+            boolean is_pageview,
+            boolean is_legacy_pageview,
+            boolean is_app_pageview,
+            String ip_address,
+            String x_forwarded_for,
+            String uri_host,
+            String uri_path,
+            String uri_query,
+            String http_status,
+            String content_type,
+            String user_agent
+    ) {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+        if (is_pageview) {
+            assertEquals(
+                    test_description,
+                    page_title,
+                    PageviewDefinitionInstance.getPageTitleFromUri(uri_path, uri_query)
+            );
+        }
+    }
+
 }

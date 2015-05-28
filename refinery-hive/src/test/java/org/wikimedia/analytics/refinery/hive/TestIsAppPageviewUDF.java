@@ -34,6 +34,8 @@ public class TestIsAppPageviewUDF {
     public void testIsAppPageview(
         String test_description,
         String project,
+        String dialect,
+        String pageTitle,
         boolean is_pageview,
         boolean is_legacy_pageview,
         boolean is_app_pageview,
