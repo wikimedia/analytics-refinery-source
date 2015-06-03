@@ -124,7 +124,7 @@ public class Webrequest {
      * @return String
      */
     public String getAccessMethod(String uriHost, String userAgent) {
-        String accessMethod = "";
+        String accessMethod;
 
         if(appAgentPattern.matcher(userAgent).find()){
             accessMethod = "mobile app";
@@ -189,6 +189,56 @@ public class Webrequest {
         return REFERER_EXTERNAL;
     }
 
+    /**
+     * Extract project information from host by lowering case, splitting
+     * and assigning projectClass, project, qualifiers and tld parts based on splits
+     * Example: normalizeHost("en.m.zero.wikipedia.org")<br/>
+     * Returns:<br/>
+     * NormalizedHostInfo(
+     * "project_class":"wikipedia",
+     * "project":"en",
+     * "qualifiers":["m", "zero"],
+     * "tld":"org",
+     * )
+     *
+     * @param uriHost The url's host
+     * @return A NormalizedHostInfo object with project_class, project, qualifiers and tld values set.
+     */
+    public NormalizedHostInfo normalizeHost(String uriHost) {
+        NormalizedHostInfo result = new NormalizedHostInfo();
+        if (uriHost == null) return result;
 
+        // Remove port if any
+        int portIdx = uriHost.indexOf(":");
+        uriHost = uriHost.substring(0, ((portIdx < 0) ? uriHost.length() : portIdx));
+
+        // Replace multiple dots by only one
+        uriHost = uriHost.replaceAll("[//.]+", ".");
+
+        // Split by the dots
+        String[] uriParts = uriHost.toLowerCase().split("\\.");
+
+        // Handle special case where TLD is numeric --> assume IP address, don't normalize
+        if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
+
+
+        if (uriParts.length > 1) {
+            // project_class and TLD normalization
+            result.setProjectClass(uriParts[uriParts.length - 2]);
+            result.setTld(uriParts[uriParts.length - 1]);
+        }
+        // project normalization
+        if ((uriParts.length > 2) && (! uriParts[0].equals("www")))
+            result.setProject(uriParts[0]);
+        // qualifiers normalization: xx.[q1.q2.q3].wikixxx.xx
+        if (uriParts.length > 3) {
+            for (int i = 1; i < uriParts.length - 2; i++) {
+                result.addQualifier(uriParts[i]);
+            }
+        }
+
+        return result;
+
+    }
 
 }

@@ -7,6 +7,8 @@ import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 
+import java.util.List;
+
 @RunWith(JUnitParamsRunner.class)
 public class TestWebrequest {
 
@@ -72,6 +74,50 @@ public class TestWebrequest {
                 uri_host,
                 user_agent
             )
+        );
+    }
+
+    private String join(List<String> l, String sep) {
+        String res = "";
+        for (int i = 0; i < l.size(); i++) {
+            res += (i == 0) ? l.get(i) : sep + l.get(i);
+        }
+        return res;
+    }
+
+    @Test
+    @FileParameters(
+            value = "../refinery-core/src/test/resources/normalize_host_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
+    )
+    public void testNormalizeHost(
+        String test_description,
+        String expectedProjectClass,
+        String expectedProject,
+        String expectedQualifiers,
+        String expectedTld,
+        String uriHost
+    ) {
+        Webrequest webrequest_inst = Webrequest.getInstance();
+        assertEquals(
+                test_description + " - Project Class",
+                expectedProjectClass,
+                webrequest_inst.normalizeHost(uriHost).getProjectClass()
+        );
+        assertEquals(
+                test_description + " - Project",
+                expectedProject,
+                webrequest_inst.normalizeHost(uriHost).getProject()
+        );
+        assertEquals(
+                test_description + " - Qualifiers",
+                expectedQualifiers,
+                join(webrequest_inst.normalizeHost(uriHost).getQualifiers(), ";")
+        );
+        assertEquals(
+                test_description + " - TLD",
+                expectedTld,
+                webrequest_inst.normalizeHost(uriHost).getTld()
         );
     }
 }

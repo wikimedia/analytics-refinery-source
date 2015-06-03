@@ -1,0 +1,12 @@
+test_description,expected_project_class,expected_project,expected_qualifiers,expected_tld,uri_host
+IP,-,-,,-,192.168.0.1
+No Dot,-,-,,-,wikipedia
+One dot capital,wikipedia,-,,org,Wikipedia.org
+One dot capital and port,wikipedia,-,,org,Wikipedia.org:80
+two dots,wikipedia,en,,org,en.wikipedia.org
+two dots capital,wikipedia,en,,org,EN..wikipedia.org
+two dots www,wikipedia,-,,org,www.wikipedia.org
+three dots,wikipedia,en,m,org,en.m.wikipedia.org
+three dots www,wikipedia,-,m,org,www.m.wikipedia.org
+three dots capital,wikipedia,en,zero,org,en.ZERO.wikipedia.org
+four dots capital,wikipedia,en,mobile;zero,org,en.Mobile.ZERO.wikipedia.org
