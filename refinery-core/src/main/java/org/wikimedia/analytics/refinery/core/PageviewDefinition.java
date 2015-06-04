@@ -21,7 +21,7 @@ import java.util.HashSet;
 import java.util.regex.Pattern;
 
 /**
- * Static functions to work with Wikimedia webrequest data.
+ * Static functions to implement the Wikimedia pageview definition.
  * This class was orignally created while reading https://gist.github.com/Ironholds/96558613fe38dd4d1961
  */
 public class PageviewDefinition {
