@@ -66,8 +66,8 @@ public class UAParser {
      * Function extracting browser, device and os information from the UA string.
      * In case the uaString is null, make it an empty String.
      * @param uaString the ua string to parse
-     * @return the ua map with browser_name, browser_major, device, os_name,
-     * os_minor, os_major keys and associated values.
+     * @return the ua map with browser_family, browser_major, device_family,
+     * os_family, os_major, os_minor, wmf_app_version keys and associated values.
      */
     public Map<String, String> getUAMap(String uaString) {
         result.clear();
@@ -113,6 +113,15 @@ public class UAParser {
             result.put("os_family", NA);
             result.put("os_major", NA);
             result.put("os_minor", NA);
+        }
+
+        String wmfAppStart = "WikipediaApp/";
+        if (uaString.startsWith(wmfAppStart)) {
+            int from = wmfAppStart.length();
+            int to = uaString.indexOf(' ', from);
+            result.put("wmf_app_version", uaString.substring(from, to));
+        } else {
+            result.put("wmf_app_version", NA);
         }
 
         return result;
