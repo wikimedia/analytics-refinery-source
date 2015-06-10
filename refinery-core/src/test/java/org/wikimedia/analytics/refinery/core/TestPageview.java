@@ -154,7 +154,7 @@ public class TestPageview {
             assertEquals(
                     test_description,
                     dialect,
-                    PageviewDefinitionInstance.getDialectFromPath(uri_path)
+                    PageviewDefinitionInstance.getLanguageVariantFromPath(uri_path)
             );
         }
     }

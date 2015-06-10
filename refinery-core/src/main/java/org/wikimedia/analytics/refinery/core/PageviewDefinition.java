@@ -110,9 +110,9 @@ public class PageviewDefinition {
      * Static values for project, dialect and article
      */
     public static final String UNKNOWN_PROJECT_VALUE = "-";
-    public static final String UNKNOWN_DIALECT_VALUE = "-";
+    public static final String UNKNOWN_LANGUAGE_VARIANT_VALUE = "-";
     public static final String UNKNOWN_PAGE_TITLE_VALUE = "-";
-    public static final String DEFAULT_DIALECT_VALUE = "default";
+    public static final String DEFAULT_LANGUAGE_VARIANT_VALUE = "default";
 
 
     /**
@@ -281,31 +281,31 @@ public class PageviewDefinition {
     }
 
     /**
-     * Identifies the dialect from a pageview uriPath
+     * Identifies the language variant from a pageview uriPath
      * NOTE: Provides correct result only if used with is_pageview = true
      *
      * @param uriPath The url's path
-     * @return The dialect name (if any)
+     * @return The language variant name (if any)
      */
-    public String getDialectFromPath(String uriPath) {
+    public String getLanguageVariantFromPath(String uriPath) {
         // Normalize uriPath
         String normPath = normalizeUriPath(uriPath);
 
-        // In case of api, unknown dialect
+        // In case of api, unknown language variant
         if (normPath.startsWith("/w/api.php"))
-            return UNKNOWN_DIALECT_VALUE;
+            return UNKNOWN_LANGUAGE_VARIANT_VALUE;
 
-        // Default wiki urls, default dialect
+        // Default wiki urls, default language variant
         if (normPath.equals("/") || normPath.equals("/wiki") || normPath.equals("/w")
                 || normPath.startsWith("/wiki/") || normPath.startsWith("/w/"))
-            return DEFAULT_DIALECT_VALUE;
+            return DEFAULT_LANGUAGE_VARIANT_VALUE;
 
-        // Special dialect case
-        // Dialect examples are zh-hans, zh-hk, or sr-rc or sr-el
-        // return  dialect value if it contains a "-"
-        // or return default dialect if it doesn't (zh alone for instance)
-        // uriPath example with dialect /zh-hant/Wikipedia:首页
-        // uriPath example with default dialect /zh/Wikipedia:首页
+        // Special language variant case
+        // LanguageVariant examples are zh-hans, zh-hk, or sr-rc or sr-el
+        // return  language variant value if it contains a "-"
+        // or return default language variant if it doesn't (zh alone for instance)
+        // uriPath example with language variant /zh-hant/Wikipedia:首页
+        // uriPath example with default language variant /zh/Wikipedia:首页
         // Manual extraction instead of regex for performance.
         int startIdx = normPath.indexOf("/");
         startIdx = (startIdx >= 0) ? (startIdx + 1) : startIdx;
@@ -316,11 +316,11 @@ public class PageviewDefinition {
             if ((middleIdx > 0) && (middleIdx < endIdx))
                 return normPath.substring(startIdx, endIdx);
             else
-                return DEFAULT_DIALECT_VALUE;
+                return DEFAULT_LANGUAGE_VARIANT_VALUE;
         }
 
-        // extraction failed, unknown dialect
-        return UNKNOWN_DIALECT_VALUE;
+        // extraction failed, unknown language variant
+        return UNKNOWN_LANGUAGE_VARIANT_VALUE;
 
     }
 
@@ -355,7 +355,7 @@ public class PageviewDefinition {
         if ((startIdx >= 0) && (startIdx < endIdx))
             return path.substring(startIdx, endIdx);
 
-        // Else assume we are in /dialect/Page_title case
+        // Else assume we are in /language_variant/Page_title case
         // for instance /zh-hant/Wikipedia:首页
         // Find second "/" in path as substring beginning
         startIdx = path.indexOf("/", path.indexOf("/") + 1);

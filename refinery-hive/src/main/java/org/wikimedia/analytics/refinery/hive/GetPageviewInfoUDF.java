@@ -35,7 +35,7 @@ import java.util.Map;
 
 /**
  * A Hive UDF to identify pageview data in a map
- * Map fields are project, dialect, article.
+ * Map fields are project, language_variant, article.
  * NOTE: this udf only works well if
  * (uri_host, uri_path, uri_query) comes from
  * a webrequest having is_pageview = true
@@ -66,12 +66,12 @@ import java.util.Map;
 @UDFType(deterministic = true)
 @Description(name = "get_pageview_info",
         value = "_FUNC_(uri_host, uri_path, uri_query) - Returns the pageview information map "
-                + "(project, dialect, article) for the pageview request.",
+                + "(project, language_variant, article) for the pageview request.",
         extended = "")
 public class GetPageviewInfoUDF extends GenericUDF {
 
     public static final String PROJECT_KEY = "project";
-    public static final String DIALECT_KEY = "dialect";
+    public static final String LANGUAGE_VARIANT_KEY = "language_variant";
     public static final String PAGE_TITLE_KEY = "page_title";
 
 
@@ -129,7 +129,7 @@ public class GetPageviewInfoUDF extends GenericUDF {
         String uriQuery = inputsOI[2].getPrimitiveJavaObject(arguments[2].get());
 
         result.put(PROJECT_KEY, pageviewDefinition.getProjectFromHost(uriHost));
-        result.put(DIALECT_KEY, pageviewDefinition.getDialectFromPath(uriPath));
+        result.put(LANGUAGE_VARIANT_KEY, pageviewDefinition.getLanguageVariantFromPath(uriPath));
         result.put(PAGE_TITLE_KEY, pageviewDefinition.getPageTitleFromUri(uriPath, uriQuery));
 
         return result;

@@ -96,7 +96,7 @@ public class TestGetPageviewInfoUDF {
             udf.close();
 
             assertEquals("Project check -" + test_description, project, result.get(GetPageviewInfoUDF.PROJECT_KEY));
-            assertEquals("Dialect check -" + test_description, dialect, result.get(GetPageviewInfoUDF.DIALECT_KEY));
+            assertEquals("Dialect check -" + test_description, dialect, result.get(GetPageviewInfoUDF.LANGUAGE_VARIANT_KEY));
             assertEquals("Page_Title check - " + test_description, pageTitle, result.get(GetPageviewInfoUDF.PAGE_TITLE_KEY));
         }
     }
@@ -120,7 +120,7 @@ public class TestGetPageviewInfoUDF {
         udf.close();
 
         assertEquals("Empty project", PageviewDefinition.UNKNOWN_PROJECT_VALUE, result.get(GetPageviewInfoUDF.PROJECT_KEY));
-        assertEquals("Empty dialect", PageviewDefinition.UNKNOWN_DIALECT_VALUE, result.get(GetPageviewInfoUDF.DIALECT_KEY));
+        assertEquals("Empty lanuage_variant", PageviewDefinition.UNKNOWN_LANGUAGE_VARIANT_VALUE, result.get(GetPageviewInfoUDF.LANGUAGE_VARIANT_KEY));
         assertEquals("Empty page_title", PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE, result.get(GetPageviewInfoUDF.PAGE_TITLE_KEY));
     }
 
