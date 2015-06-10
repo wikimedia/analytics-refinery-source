@@ -41,6 +41,10 @@ public class TestUAParserAppVersionRecognition extends TestCase {
         String ua2 = "WikipediaApp/4.1.2 (iPhone OS 8.3; Tablet)";
         Map<String, String> uaMap2 = uaParser.getUAMap(ua2);
         assertEquals("App version check", "4.1.2", uaMap2.get("wmf_app_version"));
+
+        String ua = "WikipediaApp/2.0-r-2015-04-23";
+        Map<String, String> uaMap = uaParser.getUAMap(ua);
+        assertEquals("App version check", "2.0-r-2015-04-23", uaMap.get("wmf_app_version"));
     }
 
     @Test
@@ -50,4 +54,5 @@ public class TestUAParserAppVersionRecognition extends TestCase {
         Map<String, String> uaMap = uaParser.getUAMap(ua);
         assertEquals("App version check", uaParser.NA, uaMap.get("wmf_app_version"));
     }
+
 }

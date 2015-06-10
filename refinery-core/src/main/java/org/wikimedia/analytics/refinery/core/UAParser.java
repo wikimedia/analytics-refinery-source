@@ -115,14 +115,18 @@ public class UAParser {
             result.put("os_minor", NA);
         }
 
+        // Default wmf_app_version is NA
+        String wmfAppVersion = NA;
+
         String wmfAppStart = "WikipediaApp/";
         if (uaString.startsWith(wmfAppStart)) {
             int from = wmfAppStart.length();
+            // Take the substring until either space or end of string.
             int to = uaString.indexOf(' ', from);
-            result.put("wmf_app_version", uaString.substring(from, to));
-        } else {
-            result.put("wmf_app_version", NA);
+            to = (to == -1) ? uaString.length() : to;
+            wmfAppVersion = uaString.substring(from, to);
         }
+        result.put("wmf_app_version", wmfAppVersion);
 
         return result;
     }
