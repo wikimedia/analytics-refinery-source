@@ -1,3 +1,11 @@
+## v0.0.12
+* wmf_app_version field now in map returned by UAParserUDF.
+* Added GetPageviewInfoUDF that returns a map of information about Pageviews
+  as defined by PageviewDefinition.
+* Added SearchRequestUDF for classifying search requests.
+* Added HostNormalizerUDF to normalize uri_host fields to regular WMF URIs formats.
+  This returns includes a nice map of normalized host info.
+
 ## v0.0.11
 * Build against CDH 5.4.0 packages.
 
