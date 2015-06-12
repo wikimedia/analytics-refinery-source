@@ -1,3 +1,6 @@
+## v0.0.13
+* Fix bug in Webrequest.normalizeHost when uri_host is empty string._
+
 ## v0.0.12
 * wmf_app_version field now in map returned by UAParserUDF.
 * Added GetPageviewInfoUDF that returns a map of information about Pageviews
