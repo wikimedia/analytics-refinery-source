@@ -206,7 +206,7 @@ public class Webrequest {
      */
     public NormalizedHostInfo normalizeHost(String uriHost) {
         NormalizedHostInfo result = new NormalizedHostInfo();
-        if (uriHost == null) return result;
+        if ((uriHost == null) || (uriHost.isEmpty())) return result;
 
         // Remove port if any
         int portIdx = uriHost.indexOf(":");
@@ -218,9 +218,12 @@ public class Webrequest {
         // Split by the dots
         String[] uriParts = uriHost.toLowerCase().split("\\.");
 
-        // Handle special case where TLD is numeric --> assume IP address, don't normalize
-        if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
+        // If no splitted part, return empty
+        if (uriParts.length == 0) return result;
 
+        // Handle special case where TLD is numeric --> assume IP address, don't normalize
+        // Length is > 0 because of previous check, so no error case
+        if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
 
         if (uriParts.length > 1) {
             // project_class and TLD normalization

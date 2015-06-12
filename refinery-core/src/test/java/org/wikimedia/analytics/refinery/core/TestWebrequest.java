@@ -7,6 +7,7 @@ import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(JUnitParamsRunner.class)
@@ -49,8 +50,8 @@ public class TestWebrequest {
             test_description,
             expected_output,
             instance.getXAnalyticsValue(
-                x_analytics,
-                param
+                    x_analytics,
+                    param
             )
         );
     }
@@ -71,8 +72,8 @@ public class TestWebrequest {
             test_description,
             expected_method,
             webrequest_inst.getAccessMethod(
-                uri_host,
-                user_agent
+                    uri_host,
+                    user_agent
             )
         );
     }
@@ -118,6 +119,59 @@ public class TestWebrequest {
                 test_description + " - TLD",
                 expectedTld,
                 webrequest_inst.normalizeHost(uriHost).getTld()
+        );
+    }
+
+    @Test
+    public void testNormalizeHostEmpty() {
+        Webrequest webrequest_inst = Webrequest.getInstance();
+
+        String testUriHost = null;
+
+        // Null host
+        assertEquals(
+                "Null - Project Class",
+                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+                webrequest_inst.normalizeHost(testUriHost).getProjectClass()
+        );
+        assertEquals(
+                "Null - Project",
+                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+                webrequest_inst.normalizeHost(testUriHost).getProject()
+        );
+        assertEquals(
+                "Null - Qualifiers",
+                new ArrayList<String>(),
+                webrequest_inst.normalizeHost(testUriHost).getQualifiers()
+        );
+        assertEquals(
+                "Null - TLD",
+                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+                webrequest_inst.normalizeHost(testUriHost).getTld()
+        );
+
+        testUriHost = "";
+
+        // Empty host
+        assertEquals(
+               "Empty - Project Class",
+                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+                webrequest_inst.normalizeHost(testUriHost).getProjectClass()
+        );
+        assertEquals(
+                "Empty - Project",
+                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+                webrequest_inst.normalizeHost(testUriHost).getProject()
+        );
+        assertEquals(
+                "Empty - Qualifiers",
+                new ArrayList<String>(),
+                webrequest_inst.normalizeHost(testUriHost).getQualifiers()
+        );
+        assertEquals(
+                "Empty - TLD",
+                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+                webrequest_inst.normalizeHost(testUriHost).getTld()
         );
     }
 }
