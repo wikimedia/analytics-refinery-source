@@ -4,14 +4,14 @@
     <parent>
         <groupId>org.wikimedia.analytics.refinery</groupId>
         <artifactId>refinery</artifactId>
-        <version>0.0.14-SNAPSHOT</version>
+        <version>0.0.15-SNAPSHOT</version>
     </parent>
 
     <groupId>org.wikimedia.analytics.refinery.job</groupId>
     <artifactId>refinery-job</artifactId>
     <name>Wikimedia Analytics Refinery Jobs</name>
     <packaging>jar</packaging>
-    <version>0.0.14-SNAPSHOT</version>
+    <version>0.0.15-SNAPSHOT</version>
 
     <dependencies>
 
