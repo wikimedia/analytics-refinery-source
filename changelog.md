@@ -1,5 +1,8 @@
+## v0.0.14
+* Add Spark mobile_apps sessions statistics job.
+
 ## v0.0.13
-* Fix bug in Webrequest.normalizeHost when uri_host is empty string._
+* Fix bug in Webrequest.normalizeHost when uri_host is empty string.
 
 ## v0.0.12
 * wmf_app_version field now in map returned by UAParserUDF.
