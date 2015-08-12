@@ -1,3 +1,7 @@
+## v0.0.15
+* Correct bug in PageviewDefinition ensuring correct hosts only can be flagged
+  as pageviews.
+
 ## v0.0.14
 * Add Spark mobile_apps sessions statistics job.
 
