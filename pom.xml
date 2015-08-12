@@ -17,6 +17,7 @@
     <module>refinery-hive</module>
     <module>refinery-job</module>
     <module>refinery-camus</module>
+    <module>refinery-cassandra</module>
   </modules>
 
   <scm>
