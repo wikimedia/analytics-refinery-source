@@ -1,5 +1,5 @@
 test_description,project,dialect,page_title,is_pageview,is_legacy_pageview,is_app_pageview,ip_address,x_forwarded_for,uri_host,uri_path,uri_query,http_status,content_type,user_agent
-Is Pageview - Desktop,en.wikipedia,default,Horseshoe crab,true,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe%20crab#anchor,-,200,text/html, turnip/
+Is Pageview - Desktop,en.wikipedia,default,Horseshoe_crab,true,true,false,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe%20crab#anchor,-,200,text/html, turnip/
 Is Pageview – Desktop – locally cached content,en.wikipedia,default,Horseshoe/crab,true,true,false,174.62.175.82,-,en.wikipedia.org,/wiki/Horseshoe/crab,-,304,text/html, turnip
 Is Pageview – App - Android,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,true,false,true,174.62.175.83,-,en.wikipedia.org,/w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=0,200, application/json,WikipediaApp/2.0-r-2015-01-15 (Android 4.4.2; Phone) Google Play
 is Pageview – App – iOS – old version,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=0,200, application/json,WikipediaApp/4.0.6 (iPhone OS 8.2; Phone)

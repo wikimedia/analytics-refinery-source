@@ -421,7 +421,7 @@ public class PageviewDefinition {
             pageTitle = getPageTitleFromPath(normPath);
 
         // Normalize Decoding URL percent characters (if any)
-        return PercentDecoder.decode(pageTitle);
+        return PercentDecoder.decode(pageTitle).replaceAll(" ", "_");
 
     }
 
