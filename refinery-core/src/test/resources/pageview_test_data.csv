@@ -30,4 +30,6 @@ Is Not Pageview – App – Android – Refresh,en.wikipedia,-,-,false, false,fa
 "Is Pageview - Desktop - wikimediafoundation",wikimediafoundation,default,Horseshoe_crab,true,false,false,174.62.175.82,-,wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip
 Is Not Pageview - Desktop,test2.wikipedia,default,Horseshoe_crab,false,true,false,174.62.175.82,-,test2.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
 Is Not Pageview - Desktop,test.wikimediafoundation,default,Horseshoe_crab,false,true,false,174.62.175.82,-,test.wikimediafoundation.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
-Is Not Pageview - Desktop,wrongwikipedia,default,Horseshoe_crab,false,false,false,174.62.175.82,-,wrongwikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+Is Not Pageview - Desktop - wrong host,wrongwikipedia,default,Horseshoe_crab,false,false,false,174.62.175.82,-,wrongwikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+Is Not Pageview - Desktop - wrong host,outreach.wikimedia,default,Horseshoe_crab,false,true,false,174.62.175.82,-,outreach.wikimedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
+Is Not Pageview - Desktop - wrong host,donate.wikipedia,default,Horseshoe_crab,false,true,false,174.62.175.82,-,donate.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip

@@ -48,13 +48,13 @@ public class PageviewDefinition {
      * Now back to the good part.
      */
     private final Pattern uriHostWikimediaDomainPattern = Pattern.compile(
-        "(commons|meta|incubator|species|outreach)\\."   // any of these domain names
+        "(commons|meta|incubator|species)\\."            // any of these domain names
         + "((m|mobile|wap|zero)\\.)?"                    // followed by an optional mobile or zero qualifier
         + "wikimedia\\.org$"                             // ending with wikimedia.org
     );
 
     private final Pattern uriHostProjectDomainPattern = Pattern.compile(
-        "^((?!www)(?!test)([a-zA-Z0-9-_]+)\\.)*"              // not starting with "www." or "test"
+        "^((?!www)(?!test)(?!donate)([a-zA-Z0-9-_]+)\\.)*"              // not starting with "www." or "test"
         + "(wik(ibooks|"                  // match project domains ending in .org
         + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
     );
