@@ -1,3 +1,9 @@
+## v0.0.16
+* Correct bug in PageviewDefinition removing outreach.wikimedia.org
+  and donate.wikipedia.org as pageview hosts.
+* Correct bug in page_title extraction, ensuring spaces are always
+  converted into underscores.
+
 ## v0.0.15
 * Correct bug in PageviewDefinition ensuring correct hosts only can be flagged
   as pageviews.
