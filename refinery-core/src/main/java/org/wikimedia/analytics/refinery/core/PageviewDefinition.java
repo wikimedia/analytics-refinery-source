@@ -54,8 +54,8 @@ public class PageviewDefinition {
     );
 
     private final Pattern uriHostProjectDomainPattern = Pattern.compile(
-        "^((?!www)(?!test)(?!donate)([a-zA-Z0-9-_]+)\\.)*"              // not starting with "www." or "test"
-        + "(wik(ibooks|"                  // match project domains ending in .org
+        "^((?!www)(?!test)(?!donate)(?!arbcom)([a-zA-Z0-9-_]+)\\.)*"              // not starting with "www" "test", "donate" or "arbcom"
+        + "(wik(ibooks|"                                                // match project domains ending in .org
         + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
     );
 
@@ -63,7 +63,7 @@ public class PageviewDefinition {
 
     private final Pattern uriHostOtherProjectsPattern = Pattern.compile(
         "^((?!test)([a-zA-Z0-9-_]+)\\.)*"                                          // not starting with "test"
-        + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
+        + "(wikidata|mediawiki|wikimediafoundation)\\.org$"                        // match project domains ending in .org
     );
 
     private final Pattern uriPathPattern = Pattern.compile(
