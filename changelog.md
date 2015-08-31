@@ -1,3 +1,6 @@
+## v0.0.17
+Correct bug in PageviewDefinition removing arbcom-*.wikipedia.org
+
 ## v0.0.16
 * Correct bug in PageviewDefinition removing outreach.wikimedia.org
   and donate.wikipedia.org as pageview hosts.
