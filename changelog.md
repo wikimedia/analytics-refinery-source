@@ -1,3 +1,8 @@
+## v0.0.18
+* Add scala GraphiteClient in core package.
+* Add spark job computing restbase metrics and sending them to graphite in
+  job package.
+
 ## v0.0.17
 Correct bug in PageviewDefinition removing arbcom-*.wikipedia.org
 
