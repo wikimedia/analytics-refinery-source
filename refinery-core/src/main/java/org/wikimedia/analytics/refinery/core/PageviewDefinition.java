@@ -18,6 +18,7 @@ package org.wikimedia.analytics.refinery.core;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -129,6 +130,12 @@ public class PageviewDefinition {
      * to see if the request is an app pageview, but not
      * (for example) whether it actually completed.
      *
+     * See: https://wikitech.wikimedia.org/wiki/X-Analytics#Keys
+     * for x-analytics info.
+     *
+     * Please note that requests tagged as 'preview' are not counted
+     * as pageviews.
+     *
      * @param   uriPath     Path portion of the URI
      * @param   uriQuery    Query portion of the URI
      * @param   userAgent   User-Agent of the requestor
@@ -139,7 +146,8 @@ public class PageviewDefinition {
         String uriPath,
         String uriQuery,
         String contentType,
-        String userAgent
+        String userAgent,
+        Map<String,String> xAnalyticsMap
     ) {
 
         final String appContentType     = "application/json";
@@ -147,6 +155,9 @@ public class PageviewDefinition {
         final String appPageURIQuery    = "sections=0";
         final String iosAppPageURIQuery = "sections=all";
         final String iosUserAgent       = "iPhone";
+
+        if (xAnalyticsMap.containsKey("preview"))
+            return false;
 
         return (
                Utilities.stringContains(uriPath,     uriPathAPI)
@@ -166,6 +177,12 @@ public class PageviewDefinition {
      * See: https://meta.wikimedia.org/wiki/Research:Page_view/Generalised_filters
      *      for information on how to classify a pageview.
      *
+     * See: https://wikitech.wikimedia.org/wiki/X-Analytics#Keys
+     * for x-analytics info.
+     *
+     * Please note that requests tagged as 'preview' are not counted
+     * as pageviews.
+     *
      * @param   uriHost     Hostname portion of the URI
      * @param   uriPath     Path portion of the URI
      * @param   uriQuery    Query portion of the URI
@@ -181,9 +198,13 @@ public class PageviewDefinition {
         String uriQuery,
         String httpStatus,
         String contentType,
-        String userAgent
+        String userAgent,
+        Map<String,String> xAnalyticsMap
     ) {
         uriHost = uriHost.toLowerCase();
+
+        if (xAnalyticsMap.containsKey("preview"))
+            return false;
 
         return (
             // All pageviews have a 200 or 304 HTTP status
@@ -191,7 +212,7 @@ public class PageviewDefinition {
             // check for a regular pageview contentType, or a an API contentType
             &&  (
                     (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
-                    || isAppPageview(uriPath, uriQuery, contentType, userAgent)
+                    || isAppPageview(uriPath, uriQuery, contentType, userAgent, xAnalyticsMap)
                 )
             // A pageview must be from either a wikimedia.org domain,
             // or a 'project' domain, e.g. en.wikipedia.org

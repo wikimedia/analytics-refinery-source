@@ -14,13 +14,16 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.assertEquals;
-
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestPageview {
@@ -48,6 +51,8 @@ public class TestPageview {
         String user_agent
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+        Map<String,String> xAnalyticsMap = new HashMap<String,String>();
+
         assertEquals(
             test_description,
             is_pageview,
@@ -57,7 +62,8 @@ public class TestPageview {
                 uri_query,
                 http_status,
                 content_type,
-                user_agent
+                user_agent,
+                xAnalyticsMap
             )
         );
     }
@@ -85,6 +91,8 @@ public class TestPageview {
         String user_agent
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+        Map<String,String> xAnalyticsMap = new HashMap<String,String>();
+
         assertEquals(
             test_description,
             is_app_pageview,
@@ -92,7 +100,8 @@ public class TestPageview {
                     uri_path,
                     uri_query,
                     content_type,
-                    user_agent
+                    user_agent,
+                    xAnalyticsMap
             )
         );
     }
