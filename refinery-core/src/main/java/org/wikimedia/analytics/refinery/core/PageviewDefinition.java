@@ -129,6 +129,7 @@ public class PageviewDefinition {
      * to see if the request is an app pageview, but not
      * (for example) whether it actually completed.
      *
+     *
      * @param   uriPath     Path portion of the URI
      * @param   uriQuery    Query portion of the URI
      * @param   userAgent   User-Agent of the requestor
@@ -142,11 +143,56 @@ public class PageviewDefinition {
         String userAgent
     ) {
 
+        return this.isAppPageview(
+            uriPath,
+            uriQuery,
+            contentType,
+            userAgent,
+            "");
+    }
+    /**
+     * Given a webrequest URI path, query and user agent,
+     * returns true if we consider this an app (API) pageview.
+     * Note that the logic here is /NOT COMPLETE/. It checks
+     * to see if the request is an app pageview, but not
+     * (for example) whether it actually completed.
+     *
+     * See: https://wikitech.wikimedia.org/wiki/X-Analytics#Keys
+     * for x-analytics info.
+     *
+     * Please note that requests tagged as 'preview' are not counted
+     * as pageviews.
+     *
+     * We use the raw xAnalytics header rather than x_analytics_map
+     * to make sure this function can be applied
+     * to raw data, where the parsing of x-Analytics header into
+     * a map has not yet happened.
+     *
+     * @param   uriPath     Path portion of the URI
+     * @param   uriQuery    Query portion of the URI
+     * @param   userAgent   User-Agent of the requestor
+     * @param   rawXAnalyticsHeader String that represents the x-analytics header
+     *
+     * @return  boolean
+     */
+    public boolean isAppPageview(
+        String uriPath,
+        String uriQuery,
+        String contentType,
+        String userAgent,
+        String rawXAnalyticsHeader
+    ) {
+
         final String appContentType     = "application/json";
         final String appUserAgent       = "WikipediaApp";
         final String appPageURIQuery    = "sections=0";
         final String iosAppPageURIQuery = "sections=all";
         final String iosUserAgent       = "iPhone";
+
+        Webrequest wr = Webrequest.getInstance();
+
+        if (!wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").isEmpty())
+            return false;
 
         return (
                Utilities.stringContains(uriPath,     uriPathAPI)
@@ -159,9 +205,13 @@ public class PageviewDefinition {
         );
     }
 
+
+
+
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
      * returns true if we consider this a 'pageview', false otherwise.
+     *
      * <p>
      * See: https://meta.wikimedia.org/wiki/Research:Page_view/Generalised_filters
      *      for information on how to classify a pageview.
@@ -183,35 +233,88 @@ public class PageviewDefinition {
         String contentType,
         String userAgent
     ) {
+         return this.isPageview(
+             uriHost,
+             uriPath,
+             uriQuery,
+             httpStatus,
+             contentType,
+             userAgent,
+             ""
+         );
+    }
+
+    /**
+     * Given a webrequest URI host, path, query user agent http status and content type,
+     * returns true if we consider this a 'pageview', false otherwise.
+     * <p>
+     * See: https://meta.wikimedia.org/wiki/Research:Page_view/Generalised_filters
+     *      for information on how to classify a pageview.
+     *
+     * See: https://wikitech.wikimedia.org/wiki/X-Analytics#Keys
+     * for x-analytics info.
+     *
+     * Please note that requests tagged as 'preview' are not counted
+     * as pageviews.
+     *
+     * We use the raw xAnalytics header rather than x_analytics_map
+     * to make sure this function can be applied
+     * to raw data, where the parsing of x-Analytics header into
+     * a map has not yet happened.
+     *
+     * @param   uriHost     Hostname portion of the URI
+     * @param   uriPath     Path portion of the URI
+     * @param   uriQuery    Query portion of the URI
+     * @param   httpStatus  HTTP request status code
+     * @param   contentType Content-Type of the request
+     * @param   userAgent   User-Agent of the requestor
+     * @param   rawXAnalyticsHeader string for xAnalytics header
+     *
+     * @return  boolean
+     */
+    public boolean isPageview(
+        String uriHost,
+        String uriPath,
+        String uriQuery,
+        String httpStatus,
+        String contentType,
+        String userAgent,
+        String rawXAnalyticsHeader
+    ) {
         uriHost = uriHost.toLowerCase();
+
+        Webrequest wr = Webrequest.getInstance();
+
+        if (!wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").isEmpty())
+            return false;
 
         return (
             // All pageviews have a 200 or 304 HTTP status
             httpStatusesSet.contains(httpStatus)
-            // check for a regular pageview contentType, or a an API contentType
-            &&  (
-                    (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
-                    || isAppPageview(uriPath, uriQuery, contentType, userAgent)
-                )
-            // A pageview must be from either a wikimedia.org domain,
-            // or a 'project' domain, e.g. en.wikipedia.org
-            &&  (
-                    Utilities.patternIsFound(uriHostWikimediaDomainPattern,  uriHost)
+                // check for a regular pageview contentType, or a an API contentType
+                &&  (
+                (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
+                    || isAppPageview(uriPath, uriQuery, contentType, userAgent, rawXAnalyticsHeader)
+            )
+                // A pageview must be from either a wikimedia.org domain,
+                // or a 'project' domain, e.g. en.wikipedia.org
+                &&  (
+                Utilities.patternIsFound(uriHostWikimediaDomainPattern,  uriHost)
                     || Utilities.patternIsFound(uriHostOtherProjectsPattern, uriHost)
                     || Utilities.patternIsFound(uriHostProjectDomainPattern, uriHost)
-                )
-            // Either a pageview's uriPath will match the first pattern,
-            // or its uriQuery will match the second
-            &&  (
-                    Utilities.patternIsFound(uriPathPattern, uriPath)
+            )
+                // Either a pageview's uriPath will match the first pattern,
+                // or its uriQuery will match the second
+                &&  (
+                Utilities.patternIsFound(uriPathPattern, uriPath)
                     || Utilities.patternIsFound(uriQueryPattern, uriQuery)
-                )
-            // A pageview will not have these Special: pages in the uriPath or uriQuery
-            && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
-            && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
-            // Edits now come through as text/html. They should not be included.
-            // Luckily the query parameter does not seem to be localised.
-            && !Utilities.patternIsFound(uriQueryUnwantedActions, uriQuery)
+            )
+                // A pageview will not have these Special: pages in the uriPath or uriQuery
+                && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
+                && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
+                // Edits now come through as text/html. They should not be included.
+                // Luckily the query parameter does not seem to be localised.
+                && !Utilities.patternIsFound(uriQueryUnwantedActions, uriQuery)
         );
     }
 

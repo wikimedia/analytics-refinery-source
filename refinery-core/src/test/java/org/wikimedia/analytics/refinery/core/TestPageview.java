@@ -14,13 +14,14 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.assertEquals;
-
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestPageview {
@@ -48,6 +49,7 @@ public class TestPageview {
         String user_agent
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
         assertEquals(
             test_description,
             is_pageview,
@@ -85,14 +87,15 @@ public class TestPageview {
         String user_agent
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
         assertEquals(
             test_description,
             is_app_pageview,
             PageviewDefinitionInstance.isAppPageview(
-                    uri_path,
-                    uri_query,
-                    content_type,
-                    user_agent
+                uri_path,
+                uri_query,
+                content_type,
+                user_agent
             )
         );
     }
@@ -190,5 +193,27 @@ public class TestPageview {
             );
         }
     }
+    @Test
+    public void testIsPageviewXAnalyticsPreview(
 
+    ){
+        String uri_host = "en.wikipedia";
+        String uri_path = "/wiki/Horseshoe%20crab#anchor"; ;
+        String uri_query = "-";
+        String http_status = "200";
+        String content_type = "text/html";
+        String user_agent = "turnip/";
+
+        assertTrue("Preview requests are not pageviews", PageviewDefinition.getInstance().isPageview(
+            uri_host,
+            uri_path,
+            uri_query,
+            http_status,
+            content_type,
+            user_agent,
+            "{'blah':'1','preview':'1'}"
+
+        ) == false);
+
+    }
 }
