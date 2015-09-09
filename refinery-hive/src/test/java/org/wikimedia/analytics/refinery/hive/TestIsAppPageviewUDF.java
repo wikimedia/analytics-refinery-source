@@ -15,16 +15,13 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import static org.junit.Assert.assertEquals;
+
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestIsAppPageviewUDF {
@@ -34,7 +31,7 @@ public class TestIsAppPageviewUDF {
         value = "../refinery-core/src/test/resources/pageview_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
-    public void testIsAppPageviewNoxAnalytics(
+    public void testIsAppPageview(
         String test_description,
         String project,
         String dialect,
@@ -53,17 +50,14 @@ public class TestIsAppPageviewUDF {
     ) {
         IsAppPageviewUDF udf = new IsAppPageviewUDF();
 
-        Map<String,String> xAnalyticsMap = new HashMap<String,String>();
-
         assertEquals(
             test_description,
             is_app_pageview,
-            udf.isPageview(
+            udf.evaluate(
                 uri_path,
                 uri_query,
                 content_type,
-                user_agent,
-                xAnalyticsMap
+                user_agent
             )
         );
     }
