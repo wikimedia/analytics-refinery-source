@@ -49,12 +49,23 @@ public class Webrequest {
     public static final String REFERER_EXTERNAL = "external";
 
     /*
-     * Now back to the good part.
-     * Wikimedia-specific crawlers
+     * Spiders identification pattern (obvisouly not perfect...)
+     * to be used in addition to ua-parser device_family field
+     * being identified as Spider.
      */
-    private static final Pattern crawlerPattern = Pattern.compile(
-        "(goo wikipedia|MediaWikiCrawler-Google|wikiwix-bot).*"
-    );
+    private static final Pattern spiderPattern = Pattern.compile("(?i)^(" +
+                    ".*(bot|spider|WordPress|AppEngine|AppleDictionaryService|Python-urllib|python-requests|" +
+                        "Google-HTTP-Java-Client|[Ff]acebook|[Yy]ahoo|RockPeaks).*" +
+                    "|(goo wikipedia|MediaWikiCrawler-Google|wikiwix-bot|Java/|curl|PHP/|Faraday|HTTPC|Ruby|\\.NET|" +
+                        "Python|Apache|Scrapy|PycURL|libwww|Zend|wget|nodemw|WinHttpRaw|Twisted|com\\.eusoft|Lagotto|" +
+                        "Peggo|Recuweb|check_http|Magnus|MLD|Jakarta|find-link|J\\. River|projectplan9|ADmantX|" +
+                        "httpunit|LWP|iNaturalist|WikiDemo|FSResearchIt|livedoor|Microsoft Monitoring|MediaWiki).*" +
+                    ")$");
+
+    /*
+     * WikimediaBot identification pattern 
+     */
+    private static final Pattern wikimediaBotPattern = Pattern.compile("\\bWikimediaBot\\b");
 
     /**
      * Pattern for automatically-added subdomains that indicate zero,
@@ -74,13 +85,34 @@ public class Webrequest {
     );
 
     /**
-     * Identify Wikimedia-specific crawlers; returns TRUE
-     * if the user agent matches a known crawler.
+     * Identify a bunch of spiders; returns TRUE
+     * if the user agent matches a known spider and doesn't
+     * match the WikimediaBot convention.
      * @param    userAgent    the user agent associated with the request.
      * @return   boolean
      */
+    public boolean isSpider(String userAgent) {
+        if ("-".equals(userAgent))
+            return true;
+        else
+            return spiderPattern.matcher(userAgent).find() && ! wikimediaBotPattern.matcher(userAgent).find();
+    }
+    /**
+     * Kept for backward compatibility.
+     */
+    @Deprecated
     public boolean isCrawler(String userAgent) {
-        return crawlerPattern.matcher(userAgent).find();
+        return isSpider(userAgent);
+    }
+
+    /**
+     * Identify WikimediaBot; returns TRUE
+     * if the user agent matches the WikimediaBot convention.
+     * @param    userAgent    the user agent associated with the request.
+     * @return   boolean
+     */
+    public boolean isWikimediaBot(String userAgent) {
+        return wikimediaBotPattern.matcher(userAgent).find();
     }
 
     /**

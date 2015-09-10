@@ -15,34 +15,33 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.assertEquals;
-
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
-@Deprecated
+import static org.junit.Assert.assertEquals;
+
 @RunWith(JUnitParamsRunner.class)
-public class TestIsCrawlerUDF {
+public class TestIsWikimediaBotUDF {
 
     @Test
     @FileParameters(
         value = "../refinery-core/src/test/resources/isSpider_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
-    public void testIsCrawler(
+    public void testIsWikimediaBot(
         String test_description,
-        boolean is_crawler,
-        boolean is_wikimediaBot,
+        boolean isSpider,
+        boolean isWikimediaBot,
         String user_agent
     ) {
-        IsCrawlerUDF udf = new IsCrawlerUDF();
+        IsWikimediaBotUDF udf = new IsWikimediaBotUDF();
 
         assertEquals(
             test_description,
-            is_crawler,
+            isWikimediaBot,
             udf.evaluate(
                 user_agent
             )

@@ -13,24 +13,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.wikimedia.analytics.refinery.hive;
 
-import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.Webrequest;
+import junitparams.FileParameters;
+import junitparams.JUnitParamsRunner;
+import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
-/**
- * A hive UDF to identify Wikimedia-specific crawlers,
- * which ua-parser misses (for obvious reasons)
- */
-@Deprecated
-public class IsCrawlerUDF extends UDF {
-    public boolean evaluate(
+import static org.junit.Assert.assertEquals;
+
+@RunWith(JUnitParamsRunner.class)
+public class TestIsSpiderUDF {
+
+    @Test
+    @FileParameters(
+        value = "../refinery-core/src/test/resources/isSpider_test_data.csv",
+        mapper = CsvWithHeaderMapper.class
+    )
+    public void testIsCrawler(
+        String test_description,
+        boolean isSpider,
+        boolean isWikimediaBot,
         String user_agent
     ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.isCrawler(
+        IsSpiderUDF udf = new IsSpiderUDF();
+
+        assertEquals(
+            test_description,
+            isSpider,
+            udf.evaluate(
                 user_agent
+            )
         );
     }
 }

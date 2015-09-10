@@ -13,24 +13,70 @@ import java.util.List;
 @RunWith(JUnitParamsRunner.class)
 public class TestWebrequest {
 
+    @Deprecated
     @Test
     @FileParameters(
-        value = "src/test/resources/isCrawler_test_data.csv",
+            value = "src/test/resources/isSpider_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
+    )
+
+    public void testIsCrawler(
+            String test_description,
+            boolean is_crawler,
+            boolean is_WikimediaBot,
+            String user_agent
+    ) {
+        Webrequest webrequest_inst = Webrequest.getInstance();
+        assertEquals(
+                test_description,
+                is_crawler,
+                webrequest_inst.isCrawler(
+                        user_agent
+                )
+        );
+    }
+
+    @Test
+    @FileParameters(
+        value = "src/test/resources/isSpider_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
 
-    public void testisCrawler(
+    public void testIsSpider(
         String test_description,
-        boolean is_crawler,
+        boolean isSpider,
+        boolean isWikimediaBot,
         String user_agent
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description,
-            is_crawler,
-            webrequest_inst.isCrawler(
+            isSpider,
+            webrequest_inst.isSpider(
                 user_agent
             )
+        );
+    }
+
+    @Test
+    @FileParameters(
+            value = "src/test/resources/isSpider_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
+    )
+
+    public void testIsWikimediabot(
+            String test_description,
+            boolean isSpider,
+            boolean isWikimediaBot,
+            String user_agent
+    ) {
+        Webrequest webrequest_inst = Webrequest.getInstance();
+        assertEquals(
+                test_description,
+                isWikimediaBot,
+                webrequest_inst.isWikimediaBot(
+                        user_agent
+                )
         );
     }
 

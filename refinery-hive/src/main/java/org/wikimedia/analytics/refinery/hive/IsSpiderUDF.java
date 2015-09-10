@@ -20,16 +20,15 @@ import org.apache.hadoop.hive.ql.exec.UDF;
 import org.wikimedia.analytics.refinery.core.Webrequest;
 
 /**
- * A hive UDF to identify Wikimedia-specific crawlers,
+ * A hive UDF to identify spiders,
  * which ua-parser misses (for obvious reasons)
  */
-@Deprecated
-public class IsCrawlerUDF extends UDF {
+public class IsSpiderUDF extends UDF {
     public boolean evaluate(
         String user_agent
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.isCrawler(
+        return webrequest_inst.isSpider(
                 user_agent
         );
     }

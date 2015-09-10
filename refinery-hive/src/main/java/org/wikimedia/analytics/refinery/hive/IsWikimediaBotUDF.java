@@ -20,16 +20,14 @@ import org.apache.hadoop.hive.ql.exec.UDF;
 import org.wikimedia.analytics.refinery.core.Webrequest;
 
 /**
- * A hive UDF to identify Wikimedia-specific crawlers,
- * which ua-parser misses (for obvious reasons)
+ * A hive UDF to identify WikimediaBot.
  */
-@Deprecated
-public class IsCrawlerUDF extends UDF {
+public class IsWikimediaBotUDF extends UDF {
     public boolean evaluate(
         String user_agent
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.isCrawler(
+        return webrequest_inst.isWikimediaBot(
                 user_agent
         );
     }
