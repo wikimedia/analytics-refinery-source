@@ -1,3 +1,10 @@
+## v0.0.19
+* Update regexp filtering bots and rename Webrequest.isCrawler to
+  Webrequest.isSpider for consitency.
+* Update ua-parser dependency version to a more recent one.
+* Update PageviewDefinition so that if x-analytics header includes tag preview
+  the request should not be counted as pageview.
+
 ## v0.0.18
 * Add scala GraphiteClient in core package.
 * Add spark job computing restbase metrics and sending them to graphite in
