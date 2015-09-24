@@ -26,24 +26,23 @@
             <scope>test</scope>
         </dependency>
 
-       <dependency>
+        <dependency>
             <groupId>org.wikimedia.analytics.refinery.core</groupId>
             <artifactId>refinery-core</artifactId>
         </dependency>
 
-       <dependency>
-           <groupId>org.apache.hadoop</groupId>
-           <artifactId>hadoop-client</artifactId>
-           <version>${hadoop.version}</version>
-           <scope>provided</scope>
-       </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <scope>provided</scope>
+        </dependency>
 
-       <dependency>
-           <groupId>org.apache.hadoop</groupId>
-           <artifactId>hadoop-common</artifactId>
-           <version>${hadoop.version}</version>
-           <scope>provided</scope>
-       </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client</artifactId>
+            <version>${hadoop.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
        <dependency>
            <groupId>org.apache.hive</groupId>
