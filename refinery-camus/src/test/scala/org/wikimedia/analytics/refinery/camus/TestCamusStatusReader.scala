@@ -13,7 +13,7 @@ class TestCamusStatusReader extends FlatSpec with Matchers {
   val mostRecentRunFolder = "2015-10-02-08-00-07"
   val wrongFolder = "wrong-folder"
   val fs = FileSystem.get(new Configuration)
-  val cr = new CamusStatusReader
+  val cr = new CamusStatusReader(fs)
 
   "A CamusStatusReader" should "read EtlKey values in offset-m-XXXXX sequence file" in {
 

@@ -3,20 +3,27 @@ package org.wikimedia.analytics.refinery.job
 import java.io.FileInputStream
 import java.util.Properties
 
-import com.github.nscala_time.time.Imports._
 import com.linkedin.camus.etl.kafka.CamusJob
 import com.linkedin.camus.etl.kafka.common.EtlKey
 import com.linkedin.camus.etl.kafka.mapred.{EtlInputFormat, EtlMultiOutputFormat}
 import org.apache.commons.lang.StringUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.log4j.Logger
-import org.joda.time.{DateTime, Hours}
+import org.apache.log4j.{LogManager, Logger}
+import org.joda.time.{Hours, DateTimeZone, DateTime}
 import org.wikimedia.analytics.refinery.camus.CamusStatusReader
 import scopt.OptionParser
+import com.github.nscala_time.time.Imports._
 
 /**
- * Created by jo on 9/25/15.
+ * Class marking checking camus runs based on a camus.properties file.
+ * It flags hdfs imported data for fully imported hours.
+ *
+ * command example (replace [*] with * in classpath - hack to prevent scala comment issue):
+ * java -Dlog4j.configuration=file:///home/joal/code/log4j_console.properties \
+ *      -cp "/home/joal/code/analytics-refinery-source/refinery-job/target/refinery-job-0.0.21-SNAPSHOT.jar:/usr/lib/spark/lib/[*]:/usr/lib/hadoop/[*]:/usr/lib/hadoop-hdfs/[*]:/usr/lib/hadoop/lib/[*]:/usr/share/java/[*]" \
+ *      org.wikimedia.analytics.refinery.job.CamusPartitionChecker -c /home/joal/camus.test.import.properties
+ *
  */
 object CamusPartitionChecker {
 
@@ -24,9 +31,10 @@ object CamusPartitionChecker {
   val WHITELIST_TOPICS = EtlInputFormat.KAFKA_WHITELIST_TOPIC
   val PARTITION_BASE_PATH = EtlMultiOutputFormat.ETL_DESTINATION_PATH
 
-  // Only using HDFS, no need for proper config
-  val fs = FileSystem.get(new Configuration)
-  val camusReader: CamusStatusReader = new CamusStatusReader
+
+  // Dummy values, to be set with configuration in main
+  var fs: FileSystem = FileSystem.get(new Configuration)
+  var camusReader: CamusStatusReader = new CamusStatusReader(fs)
   val props: Properties = new Properties
   val log: Logger = Logger.getLogger(CamusPartitionChecker.getClass)
 
@@ -44,7 +52,7 @@ object CamusPartitionChecker {
     val oldestNextHour = new DateTime(t1 , DateTimeZone.UTC).hourOfDay.roundCeilingCopy
     val youngestPreviousHour = new DateTime(t2, DateTimeZone.UTC).hourOfDay.roundFloorCopy
     for (h <- 0 to Hours.hoursBetween(oldestNextHour, youngestPreviousHour).getHours ) yield {
-      val fullHour = oldestNextHour + h.hours
+      val fullHour: DateTime = oldestNextHour + h.hours
       (fullHour.year.get, fullHour.monthOfYear.get, fullHour.dayOfMonth.get, fullHour.hourOfDay.get)
     }
   }
@@ -90,6 +98,7 @@ object CamusPartitionChecker {
   }
 
   def flagFullyImportedPartitions(flag: String,
+                                  dryRun: Boolean,
                                   topicsAndHours: Map[String, Seq[(Int, Int, Int, Int)]]): Unit = {
     for ((topic, hours) <- topicsAndHours) {
       for ((year, month, day, hour) <- hours) {
@@ -98,7 +107,11 @@ object CamusPartitionChecker {
         val partitionPath: Path = new Path(dir)
         if (fs.exists(partitionPath) && fs.isDirectory(partitionPath)) {
           val flagPath = new Path(s"${dir}/${flag}")
-          fs.create(flagPath)
+          if (! dryRun) {
+            fs.create(flagPath)
+            log.info(s"Flag created: ${dir}/${flag}")
+          } else
+            log.info(s"DryRun - Flag would have been created: ${dir}/${flag}")
         } else
           throw new IllegalStateException(
             s"Error on topic ${topic} - Partition folder ${partitionPath} is missing, can't be flagged.")
@@ -107,7 +120,11 @@ object CamusPartitionChecker {
   }
 
   case class Params(camusPropertiesFilePath: String = "",
-                     flag: String = "_IMPORTED")
+                    datetimeToCheck: Option[String] = None,
+                    hadoopCoreSitePath: String = "/etc/hadoop/conf/core-site.xml",
+                    hadoopHdfsSitePath: String = "/etc/hadoop/conf/hdfs-site.xml",
+                    flag: String = "_IMPORTED",
+                    dryRun: Boolean = false)
 
   val argsParser = new OptionParser[Params]("Camus Checker") {
     head("Camus partition checker", "")
@@ -119,29 +136,80 @@ object CamusPartitionChecker {
       p.copy(camusPropertiesFilePath = x)
     } text ("Camus configuration properties file path.")
 
-    opt[String]('f', "flag") optional() action { (x, p) =>
+    opt[String]('d', "datetimeToCheck") optional() valueName ("yyyy-mm-dd-HH-MM-SS") action { (x, p) =>
+      p.copy(datetimeToCheck = Some(x))
+    } text ("Datetime camus run to check (must be present in history folder) - Default to most recent run.")
+
+    opt[String]("hadoop-core-site-file") optional() valueName ("<path>") action { (x, p) =>
+      p.copy(hadoopCoreSitePath = x)
+    } text ("Hadoop core-site.xml file path for configuration.")
+
+    opt[String]("hadoop-hdfs-site-file") optional() valueName ("<path>") action { (x, p) =>
+      p.copy(hadoopHdfsSitePath = x)
+    } text ("Hadoop hdfs-site.xml file path for configuration.")
+
+    opt[String]("flag") optional() action { (x, p) =>
       p.copy(flag = x)
     } validate { f =>
       if ((! f.isEmpty) && (f.matches("_[a-zA-Z0-9-_]+"))) success else failure("Incorrect flag file name")
     } text ("Flag file to be used (defaults to '_IMPORTED'.")
+
+    opt[Unit]("dry-run") optional() action { (_, p) =>
+      p.copy(dryRun = true)
+    } text ("Only print check result and if flag files would have been created.")
+  }
+
+  def isLog4JConfigured():Boolean = {
+    if (Logger.getRootLogger.getAllAppenders.hasMoreElements)
+      return true
+    val loggers = LogManager.getCurrentLoggers
+    while (loggers.hasMoreElements)
+      if (loggers.nextElement.asInstanceOf[Logger].getAllAppenders.hasMoreElements)
+        return true
+    return false
   }
 
   def main(args: Array[String]): Unit = {
+    if (! isLog4JConfigured)
+      org.apache.log4j.BasicConfigurator.configure
+
     argsParser.parse(args, Params()) match {
       case Some (params) => {
         try {
+          log.info("Loading hadoop configuration.")
+          val conf: Configuration = new Configuration()
+          conf.addResource(new Path(params.hadoopCoreSitePath))
+          conf.addResource(new Path(params.hadoopHdfsSitePath))
+          fs = FileSystem.get(conf)
+          camusReader = new CamusStatusReader(fs)
+
           log.info("Loading camus properties file.")
           props.load(new FileInputStream(params.camusPropertiesFilePath))
 
-          log.info("Getting camus most recent run from history folder.")
-          val mostRecentCamusRun = camusReader.mostRecentRun (
-            new Path (props.getProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH)))
+          val camusPathToCheck: Path = {
+            val history_folder = props.getProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH)
+            if (params.datetimeToCheck.isEmpty) {
+              log.info("Getting camus most recent run from history folder.")
+              camusReader.mostRecentRun(new Path(history_folder))
+            } else {
+              val p = new Path(props.getProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH) + "/" + params.datetimeToCheck.get)
+              if (fs.isDirectory(p)) {
+                log.info("Set job to given datetime to check.")
+                p
+              } else {
+                log.error("The given datetime to check is not a folder in camus history.")
+                null
+              }
+            }
+          }
+          if (null == camusPathToCheck)
+            System.exit(1)
 
           log.info("Checking job correctness and computing partitions to flag as imported.")
-          val topicsAndHours = getTopicsAndHoursToFlag(mostRecentCamusRun)
+          val topicsAndHours = getTopicsAndHoursToFlag(camusPathToCheck)
 
-          log.info("Flag imported partitions.")
-          flagFullyImportedPartitions(params.flag, topicsAndHours)
+          log.info("Job is correct, flag imported partitions.")
+          flagFullyImportedPartitions(params.flag, params.dryRun, topicsAndHours)
 
           log.info("Done.")
         } catch {

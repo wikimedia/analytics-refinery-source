@@ -1,16 +1,12 @@
 package org.wikimedia.analytics.refinery.camus
 
 import com.linkedin.camus.etl.kafka.common.EtlKey
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs._
 import org.apache.hadoop.io.{NullWritable, SequenceFile, Writable, WritableComparable}
 
 
-class CamusStatusReader() {
 
-  // Only using HDFS, so no need for proper hadoop config
-  val config: Configuration = new Configuration
-  val fs: FileSystem = FileSystem.get(config)
+class CamusStatusReader(fs: FileSystem) {
 
   /**
    * Reads EtlKeys from a sequence file
@@ -18,7 +14,7 @@ class CamusStatusReader() {
    * @return the read EtlKey sequence
    */
   def readEtlKeys(path: Path): Seq[EtlKey] = {
-    val reader = new SequenceFile.Reader(fs, path, config)
+    val reader = new SequenceFile.Reader(fs, path, fs.getConf)
     val key: WritableComparable[_] = reader.getKeyClass.newInstance.asInstanceOf[WritableComparable[_]]
     val value: Writable = NullWritable.get
     // Would have liked to be fully functionnal ...

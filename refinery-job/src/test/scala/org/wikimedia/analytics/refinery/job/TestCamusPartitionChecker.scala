@@ -167,7 +167,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     // correct partition base path config
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, "/tmp/testcamus/")
 
-    CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", Map("testtopic" -> Seq((2015, 10, 2, 8))))
+    CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
 
     d.list should not be empty
     d.list.toSeq.map(_.toString()) should contain ("/tmp/testcamus/testtopic/hourly/2015/10/02/08/_TESTFLAG")
@@ -184,7 +184,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, "/tmp/testcamus/")
 
     intercept[IllegalStateException] {
-      CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", Map("testtopic" -> Seq((2015, 10, 2, 8))))
+      CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
     }
   }
 
