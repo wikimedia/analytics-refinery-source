@@ -55,7 +55,7 @@ public class Webrequest {
      */
     private static final Pattern spiderPattern = Pattern.compile("(?i)^(" +
                     ".*(bot|spider|WordPress|AppEngine|AppleDictionaryService|Python-urllib|python-requests|" +
-                        "Google-HTTP-Java-Client|[Ff]acebook|[Yy]ahoo|RockPeaks).*" +
+                        "Google-HTTP-Java-Client|[Ff]acebook|[Yy]ahoo|RockPeaks|http).*" +
                     "|(goo wikipedia|MediaWikiCrawler-Google|wikiwix-bot|Java/|curl|PHP/|Faraday|HTTPC|Ruby|\\.NET|" +
                         "Python|Apache|Scrapy|PycURL|libwww|Zend|wget|nodemw|WinHttpRaw|Twisted|com\\.eusoft|Lagotto|" +
                         "Peggo|Recuweb|check_http|Magnus|MLD|Jakarta|find-link|J\\. River|projectplan9|ADmantX|" +
