@@ -1,3 +1,7 @@
+## v0.0.20
+* Add refinery-camus module
+* Add decoders and schema registry to import mediawiki AVRO data into Hadoop
+
 ## v0.0.19
 * Update regexp filtering bots and rename Webrequest.isCrawler to
   Webrequest.isSpider for consitency.
