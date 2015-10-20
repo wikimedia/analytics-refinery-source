@@ -28,30 +28,34 @@ public class TestWebrequestRefererClassifier extends TestCase {
                 expected, actual);
     }
 
+    private void assertNone(final String url) {
+        assertKind(url, Referer.NONE.getRefLabel());
+    }
+
     private void assertUnknown(final String url) {
-        assertKind(url, Webrequest.REFERER_UNKNOWN);
+        assertKind(url, Referer.UNKNOWN.getRefLabel());
     }
 
     private void assertInternal(final String url) {
-        assertKind(url, Webrequest.REFERER_INTERNAL);
+        assertKind(url, Referer.INTERNAL.getRefLabel());
     }
 
     private void assertExternal(final String url) {
-        assertKind(url, Webrequest.REFERER_EXTERNAL);
+        assertKind(url, Referer.EXTERNAL.getRefLabel());
     }
 
     // Test degernerate settings ----------------------------------------------
 
     public void testNull() {
-        assertUnknown(null);
+        assertNone(null);
     }
 
     public void testEmpty() {
-        assertUnknown("");
+        assertNone("");
     }
 
     public void testDash() {
-        assertUnknown("-");
+        assertNone("-");
     }
 
     public void testFoo() {

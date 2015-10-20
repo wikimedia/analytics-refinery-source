@@ -42,13 +42,6 @@ public class Webrequest {
     }
 
     /*
-     * Constant string results for referer classification
-     */
-    public static final String REFERER_UNKNOWN = "unknown";
-    public static final String REFERER_INTERNAL = "internal";
-    public static final String REFERER_EXTERNAL = "external";
-
-    /*
      * Spiders identification pattern (obvisouly not perfect...)
      * to be used in addition to ua-parser device_family field
      * being identified as Spider.
@@ -177,32 +170,32 @@ public class Webrequest {
      */
     public String classifyReferer(String url) {
         if (url == null || url.isEmpty() || url.equals("-")) {
-            return REFERER_UNKNOWN;
+            return Referer.NONE.getRefLabel();
         }
 
         String[] urlParts = StringUtils.splitPreserveAllTokens(url, '/');
         if (urlParts == null || urlParts.length <3) {
-            return REFERER_UNKNOWN;
+            return Referer.UNKNOWN.getRefLabel();
         }
 
         if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:")) {
-            return REFERER_UNKNOWN;
+            return Referer.UNKNOWN.getRefLabel();
         }
 
         if (!urlParts[1].isEmpty()) {
-            return REFERER_UNKNOWN;
+            return Referer.UNKNOWN.getRefLabel();
         }
 
         String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
 
         if (domainParts == null || domainParts.length <2) {
-            return REFERER_UNKNOWN;
+            return Referer.UNKNOWN.getRefLabel();
         }
 
         if (domainParts[domainParts.length-1].equals("org")) {
             switch (domainParts[domainParts.length-2]) {
             case "":
-                return REFERER_UNKNOWN;
+                return Referer.UNKNOWN.getRefLabel();
             case "mediawiki":
             case "wikibooks":
             case "wikidata":
@@ -215,10 +208,10 @@ public class Webrequest {
             case "wikiversity":
             case "wikivoyage":
             case "wiktionary":
-                return REFERER_INTERNAL;
+                return Referer.INTERNAL.getRefLabel();
             }
         }
-        return REFERER_EXTERNAL;
+        return Referer.EXTERNAL.getRefLabel();
     }
 
     /**
