@@ -1,3 +1,7 @@
+## v0.0.21
+* Update CirrusSearchRequestSet avro schema.
+* Update CamusPartitionChecker with more parameters.
+
 ## v0.0.20
 * Add refinery-camus module
 * Add Camus decoders and schema registry to import Mediawiki Avro Binary data
