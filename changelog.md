@@ -1,3 +1,6 @@
+## v0.0.22
+* Correct CamusPartitionChecker bug.
+
 ## v0.0.21
 * Update CirrusSearchRequestSet avro schema.
 * Update CamusPartitionChecker with more parameters.
