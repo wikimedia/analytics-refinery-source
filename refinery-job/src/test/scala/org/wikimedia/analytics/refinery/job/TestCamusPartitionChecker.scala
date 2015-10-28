@@ -24,16 +24,16 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     val t1: Long = 1443428181000L // 2015-09-28T08:16:21  UTC
     val t2: Long = 1443436242000L // 2015-09-28T10:30:42  UTC
 
-    val hours = CamusPartitionChecker.hoursInBetween(t1, t2)
-    val expectedHours = Seq((2015, 9, 28, 9), (2015,9,28,10))
+    val hours = CamusPartitionChecker.finishedHoursInBetween(t1, t2)
+    val expectedHours = Seq((2015, 9, 28, 8), (2015, 9, 28, 9))
     hours should equal (expectedHours)
   }
 
-  "A CamusChecker" should "find hours no hours in between wrong timestamps" in {
+  "A CamusChecker" should "find hours no hours in between inversed timestamps" in {
     val t1: Long = 1443428181000L // 2015-09-28T10:16:21
     val t2: Long = 1443436242000L // 2015-09-28T12:30:42
 
-    val hoursEmpty = CamusPartitionChecker.hoursInBetween(t2, t1)
+    val hoursEmpty = CamusPartitionChecker.finishedHoursInBetween(t2, t1)
     hoursEmpty should equal (Seq.empty)
   }
 

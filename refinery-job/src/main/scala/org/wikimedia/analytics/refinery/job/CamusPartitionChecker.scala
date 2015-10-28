@@ -48,11 +48,11 @@ object CamusPartitionChecker {
    * @param t2 The second timestamp (youngest)
    * @return the hours having happened between t1 and t2 in format (year, month, day, hour)
    */
-  def hoursInBetween(t1: Long, t2: Long): Seq[(Int, Int, Int, Int)] = {
+  def finishedHoursInBetween(t1: Long, t2: Long): Seq[(Int, Int, Int, Int)] = {
     val oldestNextHour = new DateTime(t1 , DateTimeZone.UTC).hourOfDay.roundCeilingCopy
     val youngestPreviousHour = new DateTime(t2, DateTimeZone.UTC).hourOfDay.roundFloorCopy
     for (h <- 0 to Hours.hoursBetween(oldestNextHour, youngestPreviousHour).getHours ) yield {
-      val fullHour: DateTime = oldestNextHour + h.hours
+      val fullHour: DateTime = oldestNextHour + h.hours - 1.hours
       (fullHour.year.get, fullHour.monthOfYear.get, fullHour.dayOfMonth.get, fullHour.hourOfDay.get)
     }
   }
@@ -88,7 +88,7 @@ object CamusPartitionChecker {
             (previousTopic.matches(topicsWhitelist))) {
           if ((currentTopicsAndOldestTimes.contains(previousTopic)) &&
             (currentTopicsAndOldestTimes.get(previousTopic).get > previousTime)) {
-            val hours = hoursInBetween(previousTime, currentTopicsAndOldestTimes.get(previousTopic).get)
+            val hours = finishedHoursInBetween(previousTime, currentTopicsAndOldestTimes.get(previousTopic).get)
             map + (previousTopic -> hours)
           } else
             throw new IllegalStateException(
