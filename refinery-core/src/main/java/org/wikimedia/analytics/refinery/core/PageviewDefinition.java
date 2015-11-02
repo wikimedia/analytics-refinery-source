@@ -75,7 +75,8 @@ public class PageviewDefinition {
     );
 
     private final Pattern uriPathUnwantedSpecialPagesPattern = Pattern.compile(
-        "BannerRandom|CentralAutoLogin|MobileEditor|Undefined|UserLogin|ZeroRatedMobileAccess"
+        "BannerRandom|HideBanners|CentralAutoLogin|MobileEditor|Undefined"
+	+ "MobileMenu|BlankPage|UserLogin|ZeroRatedMobileAccess"
     );
 
     private final Pattern uriQueryUnwantedSpecialPagesPattern = Pattern.compile(

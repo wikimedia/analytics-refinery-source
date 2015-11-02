@@ -1,5 +1,6 @@
 ## v0.0.22
 * Correct CamusPartitionChecker bug.
+* Expand the prohibited URI paths in the pageview definition.
 
 ## v0.0.21
 * Update CirrusSearchRequestSet avro schema.
