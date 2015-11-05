@@ -1,0 +1,23 @@
+{
+  "namespace": "org.wikimedia.analytics.schemas",
+  "type": "record",
+  "name": "TestSchema",
+  "doc": "Logs for really important stuff.",
+  "fields": [
+    {
+        "name": "id",
+        "type": "long",
+        "default": 0
+    },
+    {
+        "name": "name",
+        "type": "string",
+        "default": ""
+    },
+    {
+        "name": "someInfo",
+        "type": {"type": "map", "values": "string"},
+        "default": {}
+    }
+  ]
+}
