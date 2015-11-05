@@ -1,8 +1,11 @@
 package org.wikimedia.analytics.refinery.camus.schemaregistry;
 
+import java.util.Properties;
+
 import org.apache.avro.Schema;
 import org.junit.Before;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 /**
@@ -18,6 +21,9 @@ public class TestKafkaTopicSchemaRegistry {
     @Before
     public void setUp() {
         registry = new KafkaTopicSchemaRegistry();
+        Properties props = new Properties();
+        props.setProperty("org.wikimedia.analytics.schemas.TestSchema.latestRev", "0");
+        registry.init(props);
     }
 
     @Test(expected = java.lang.RuntimeException.class)
@@ -28,12 +34,6 @@ public class TestKafkaTopicSchemaRegistry {
         assertNull(registry.getSchemaNameFromTopic("badTopicName"));
         registry.getLatestSchemaByTopic("badTopicName");
 
-    }
-
-    @Test
-    public void testGetCanonicalSchemaName () {
-        String schemaName = "TestSchema";
-        assertEquals(registry.getSchemaCanonicalName(schemaName), schemaFullName);
     }
 
     @Test

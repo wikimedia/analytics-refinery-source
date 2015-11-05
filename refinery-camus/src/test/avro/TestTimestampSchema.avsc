@@ -1,0 +1,48 @@
+{
+  "namespace": "org.wikimedia.analytics.schemas",
+  "type": "record",
+  "name": "TestTimestampSchema",
+  "doc": "Logs for really important stuff.",
+  "fields": [
+    {
+        "name": "name",
+        "type": "string",
+        "default": ""
+    },
+    {
+        "name": "timestamp",
+        "type": "long",
+        "doc": "default timestamp in millis"
+    },
+    {
+        "name": "timestampInSeconds",
+        "type": "long",
+        "doc": "timestamp in seconds"
+    },
+    {
+        "name": "timestampInSecondsAsInt",
+        "type": "int",
+        "doc": "timestamp in seconds"
+    },
+    {
+        "name": "timestampISO",
+        "type": "string",
+        "doc": "timestamp in ISO8601 format"
+    },
+    {
+        "name": "timestampBadISO",
+        "type": "string",
+        "doc": "timestamp in ISO8601 format but broken"
+    },
+    {
+        "name": "timestampCustom",
+        "type": "string",
+        "doc": "timestamp with a custom SimpleDateFormat"
+    },
+    {
+        "name": "timestampBadCustom",
+        "type": "string",
+        "doc": "timestamp with a custom SimpleDateFormat but broken"
+    }
+  ]
+}
