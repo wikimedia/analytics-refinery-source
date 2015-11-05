@@ -51,7 +51,6 @@
 
     <build>
         <plugins>
-
             <plugin>
                 <groupId>org.apache.avro</groupId>
                 <artifactId>avro-maven-plugin</artifactId>
@@ -122,5 +121,10 @@
                 </configuration>
             </plugin>
         </plugins>
+        <resources>
+            <resource>
+                <directory>src/main/avro</directory>
+            </resource>
+        </resources>
     </build>
 </project>
