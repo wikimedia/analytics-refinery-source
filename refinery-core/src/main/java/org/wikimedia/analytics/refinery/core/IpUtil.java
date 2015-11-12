@@ -40,7 +40,7 @@ public class IpUtil {
             "10.0.0.0/8"
     };
 
-    Set<IpAddressMatcher> ipAddressMatcherCache;
+    Set<IpAddressMatcher> trustedProxiesCache;
 
     /**
      * Constructs a IpUtil object with the default list of trusted proxies
@@ -49,7 +49,7 @@ public class IpUtil {
      * https://git.wikimedia.org/blob/operations%2Fpuppet.git/9f97e3c2c5bc012ba5c3751f13fd838a06d6528d/manifests%2Fnetwork.pp#L14
      */
     public IpUtil() {
-        ipAddressMatcherCache = new HashSet<IpAddressMatcher>();
+        trustedProxiesCache = new HashSet<IpAddressMatcher>();
 
         for (String proxyIp : trustedProxies) {
             // We directly trim proxyIp here instead of using sanitizeIp() as
@@ -58,7 +58,7 @@ public class IpUtil {
             String trimmedProxyIp = proxyIp.trim();
             try {
                 IpAddressMatcher matcher = new IpAddressMatcher(trimmedProxyIp);
-                ipAddressMatcherCache.add(matcher);
+                trustedProxiesCache.add(matcher);
             } catch (IllegalArgumentException e) {
                 // Invalid entry in trustedProxies list
                 // In this case, the user did not pass any argument to us and
@@ -152,7 +152,7 @@ public class IpUtil {
     private boolean isTrustedProxy(String ip) {
         boolean isTrusted = false;
 
-        for (IpAddressMatcher ipAddressMatcher : ipAddressMatcherCache) {
+        for (IpAddressMatcher ipAddressMatcher : trustedProxiesCache) {
             if (ipAddressMatcher.matches(ip)) {
                 // The given ip matches one of the proxies in our list
                 isTrusted = true;
