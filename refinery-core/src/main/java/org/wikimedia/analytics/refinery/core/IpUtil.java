@@ -43,6 +43,52 @@ public class IpUtil {
     Set<IpAddressMatcher> trustedProxiesCache;
 
     /**
+     * List of Wikimedia Labs subnets
+     * <p>
+     * The following list is sourced from ops/puppet.git's
+     * $all_network_subnets global variable. Specifically these were taken
+     * from manifests/network.pp at git hash bc1d7ef.
+     * @see https://phabricator.wikimedia.org/diffusion/OPUP/browse/production/manifests/network.pp
+     */
+    final String[] labsSubnets = new String[] {
+            // labs-instances1-a-eqiad
+            "10.68.0.0/24",
+            "2620:0:861:201::/64",
+            // labs-instances1-b-eqiad
+            "10.68.16.0/21",
+            "2620:0:861:202::/64",
+            // labs-instances1-c-eqiad
+            "10.68.32.0/24",
+            "2620:0:861:203::/64",
+            // labs-instances1-d-eqiad
+            "10.68.48.0/24",
+            "2620:0:861:204::/64",
+            // labs-hosts1-a-eqiad
+            "10.64.4.0/24",
+            "2620:0:861:117::/64",
+            // labs-hosts1-b-eqiad
+            "10.64.20.0/24",
+            "2620:0:861:118::/64",
+            // labs-hosts1-d-eqiad
+            "10.64.52.0/24",
+            // labs-support1-c-eqiad
+            "10.64.37.0/24",
+            "2620:0:861:119::/64"
+    };
+
+    Set<IpAddressMatcher> labsSubnetsCache;
+
+    public enum NetworkOrigin {
+        INTERNAL,
+        EXTERNAL,
+        LABS;
+
+        public String toString() {
+            return name().toLowerCase();
+        }
+    }
+
+    /**
      * Constructs a IpUtil object with the default list of trusted proxies
      * <p>
      * The default list of trusted proxies is sourced from:
@@ -50,6 +96,7 @@ public class IpUtil {
      */
     public IpUtil() {
         trustedProxiesCache = new HashSet<IpAddressMatcher>();
+        labsSubnetsCache = new HashSet<IpAddressMatcher>();
 
         for (String proxyIp : trustedProxies) {
             // We directly trim proxyIp here instead of using sanitizeIp() as
@@ -68,6 +115,11 @@ public class IpUtil {
                         + "found in the default trusted proxies list", e);
             }
 
+        }
+
+        for (String labsSubnet: labsSubnets) {
+            IpAddressMatcher matcher = new IpAddressMatcher(labsSubnet);
+            labsSubnetsCache.add(matcher);
         }
     }
 
@@ -119,6 +171,27 @@ public class IpUtil {
     }
 
     /**
+     * Gets the network origin for a given IP address.
+     * @param ip IP address
+     * @return NetworkOrigin Network that the IP belongs to (internal,
+     * external or labs)
+     */
+    public NetworkOrigin getNeworkOrigin(final String ip) {
+        final String sanitizedIp = sanitizeIp(ip);
+
+        if (sanitizedIp != null) {
+            if (isLabsHost(sanitizedIp)) {
+                return NetworkOrigin.LABS;
+
+            } else if (isTrustedProxy(sanitizedIp)) {
+                return NetworkOrigin.INTERNAL;
+            }
+        }
+
+        return NetworkOrigin.EXTERNAL;
+    }
+
+    /**
      * Trims and validates the given IP address string
      * <p>
      * Trims the input string and validates whether the resulting string is a
@@ -160,5 +233,23 @@ public class IpUtil {
             }
         }
         return isTrusted;
+    }
+
+    /**
+     * Does the given IP address belong to a Wikimedia Labs hosted instance?
+     * @param ip IP address
+     * @return Boolean {@code true} when ip matches Labs subnet, {@code false}
+     * otherwise.
+     */
+    private boolean isLabsHost(String ip) {
+        boolean isLabs = false;
+
+        for (IpAddressMatcher subnet: labsSubnetsCache) {
+            if (subnet.matches(ip)) {
+                isLabs = true;
+                break;
+            }
+        }
+        return isLabs;
     }
 }
