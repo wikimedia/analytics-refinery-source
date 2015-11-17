@@ -16,6 +16,7 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.wikimedia.analytics.refinery.core.IpUtil;
+import org.wikimedia.analytics.refinery.core.IpUtil.NetworkOrigin;
 
 import static org.junit.Assert.assertEquals;
 import org.junit.BeforeClass;
@@ -32,36 +33,36 @@ public class TestNetworkOriginUDF {
 
     @Test
     public void testEvaluateWithLabsIpv4() {
-        assertEquals(IpUtil.ORIGIN_LABS, fixture.evaluate("10.68.16.44"));
+        assertEquals(NetworkOrigin.LABS.toString(), fixture.evaluate("10.68.16.44"));
     }
 
     @Test
     public void testEvaluateWithLabsIpv6() {
-        assertEquals(IpUtil.ORIGIN_LABS, fixture.evaluate("2620:0:861:204::dead:beef"));
+        assertEquals(NetworkOrigin.LABS.toString(), fixture.evaluate("2620:0:861:204::dead:beef"));
     }
 
     @Test
     public void testEvaluateWithInternalIpv4() {
-        assertEquals(IpUtil.ORIGIN_INTERNAL, fixture.evaluate("10.64.0.162"));
+        assertEquals(NetworkOrigin.INTERNAL.toString(), fixture.evaluate("10.64.0.162"));
     }
 
     @Test
     public void testEvaluateWithInternalIpv6() {
-        assertEquals(IpUtil.ORIGIN_INTERNAL, fixture.evaluate("2620:0:861:101:46a8:42ff:fe11:686b"));
+        assertEquals(NetworkOrigin.INTERNAL.toString(), fixture.evaluate("2620:0:861:101:46a8:42ff:fe11:686b"));
     }
 
     @Test
     public void testEvaluateWithExternalIpv4() {
-        assertEquals(IpUtil.ORIGIN_EXTERNAL, fixture.evaluate("159.118.124.57"));
+        assertEquals(NetworkOrigin.EXTERNAL.toString(), fixture.evaluate("159.118.124.57"));
     }
 
     @Test
     public void testEvaluateWithExternalIpv6() {
-        assertEquals(IpUtil.ORIGIN_EXTERNAL, fixture.evaluate("2001:470:b:530:a17c:bb90:9583:7620"));
+        assertEquals(NetworkOrigin.EXTERNAL.toString(), fixture.evaluate("2001:470:b:530:a17c:bb90:9583:7620"));
     }
 
     @Test
     public void testEvaluateWithInvalidIp() {
-        assertEquals(IpUtil.ORIGIN_EXTERNAL, fixture.evaluate("xyzzy"));
+        assertEquals(NetworkOrigin.EXTERNAL.toString(), fixture.evaluate("xyzzy"));
     }
 }
