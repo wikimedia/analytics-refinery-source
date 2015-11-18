@@ -33,7 +33,7 @@ import org.wikimedia.analytics.refinery.core.IpUtil;
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
  *   CREATE TEMPORARY FUNCTION network_origin as 'org.wikimedia.analytics.refinery.hive.NetworkOriginUDF';
- *   SELECT client_ip(ip) from webrequest where year = 2015 limit 10;
+ *   SELECT network_origin(ip) from webrequest where year = 2015 limit 10;
  */
 @Description(
         name = "network_origin",
