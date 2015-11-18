@@ -98,23 +98,9 @@ public class IpUtil {
         trustedProxiesCache = new HashSet<IpAddressMatcher>();
         labsSubnetsCache = new HashSet<IpAddressMatcher>();
 
-        for (String proxyIp : trustedProxies) {
-            // We directly trim proxyIp here instead of using sanitizeIp() as
-            // it uses InetAddressValidator that fails for proxy address in
-            // CIDR notation
-            String trimmedProxyIp = proxyIp.trim();
-            try {
-                IpAddressMatcher matcher = new IpAddressMatcher(trimmedProxyIp);
-                trustedProxiesCache.add(matcher);
-            } catch (IllegalArgumentException e) {
-                // Invalid entry in trustedProxies list
-                // In this case, the user did not pass any argument to us and
-                // hence throwing an IllegalArgumentException would be confusing
-                // Wrap and throw it as a RuntimeException
-                throw new RuntimeException("Invalid entry '" + proxyIp + "' "
-                        + "found in the default trusted proxies list", e);
-            }
-
+        for (String trustedProxy: trustedProxies) {
+            IpAddressMatcher matcher = new IpAddressMatcher(trustedProxy);
+            trustedProxiesCache.add(matcher);
         }
 
         for (String labsSubnet: labsSubnets) {
