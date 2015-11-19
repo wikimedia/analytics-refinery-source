@@ -24,11 +24,11 @@ import org.wikimedia.analytics.refinery.core.IpUtil;
 /**
  * A Hive UDF to determine network origin for an IP address.
  * <p>
- * This broadly partitions all of the Internet into "internal" (originating
- * from an IP owned/leased by the Wikimedia Foundation), "external"
- * (originating from an IP not owned/leased by the Wikimedia Foundation), and
- * "labs" (subset of "internal" that has been allocated to the Wikimedia Labs
- * project).
+ * This broadly partitions all of the IPv4+IPv6 address space into "wikimedia"
+ * (originating from an IP owned/leased by the Wikimedia Foundation),
+ * "wikimedia_labs" (subset of "wikimedia" that has been allocated to the
+ * Wikimedia Labs project), and "internet" (originating from an IP not
+ * owned/leased by the Wikimedia Foundation).
  * <p>
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
@@ -38,7 +38,7 @@ import org.wikimedia.analytics.refinery.core.IpUtil;
 @Description(
         name = "network_origin",
         value = "_FUNC_(ip) - returns the network origin "
-            + "(internal, external, labs) for the given IP address",
+            + "(wikimedia, wikimedia_labs, internet) for the given IP address",
         extended = "")
 public class NetworkOriginUDF extends UDF {
 

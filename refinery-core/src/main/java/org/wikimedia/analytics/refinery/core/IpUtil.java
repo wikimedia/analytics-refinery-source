@@ -79,9 +79,9 @@ public class IpUtil {
     Set<IpAddressMatcher> labsSubnetsCache;
 
     public enum NetworkOrigin {
-        INTERNAL,
-        EXTERNAL,
-        LABS;
+        WIKIMEDIA_LABS,
+        WIKIMEDIA,
+        INTERNET;
 
         public String toString() {
             return name().toLowerCase();
@@ -173,22 +173,22 @@ public class IpUtil {
     /**
      * Gets the network origin for a given IP address.
      * @param ip IP address
-     * @return NetworkOrigin Network that the IP belongs to (internal,
-     * external or labs)
+     * @return NetworkOrigin Network that the IP belongs to (wikimedia,
+     * wikimedia labs, or internet)
      */
     public NetworkOrigin getNeworkOrigin(final String ip) {
         final String sanitizedIp = sanitizeIp(ip);
 
         if (sanitizedIp != null) {
             if (isLabsHost(sanitizedIp)) {
-                return NetworkOrigin.LABS;
+                return NetworkOrigin.WIKIMEDIA_LABS;
 
             } else if (isTrustedProxy(sanitizedIp)) {
-                return NetworkOrigin.INTERNAL;
+                return NetworkOrigin.WIKIMEDIA;
             }
         }
 
-        return NetworkOrigin.EXTERNAL;
+        return NetworkOrigin.INTERNET;
     }
 
     /**

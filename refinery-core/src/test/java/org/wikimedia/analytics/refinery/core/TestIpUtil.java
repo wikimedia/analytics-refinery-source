@@ -85,30 +85,30 @@ public class TestIpUtil extends TestCase {
     }
 
     public void testGetNeworkOriginLabsIpv4() {
-        assertEquals(NetworkOrigin.LABS, ipUtil.getNeworkOrigin("10.68.16.44"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNeworkOrigin("10.68.16.44"));
     }
 
     public void testGetNeworkOriginLabsIpv6() {
-        assertEquals(NetworkOrigin.LABS, ipUtil.getNeworkOrigin("2620:0:861:204::dead:beef"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNeworkOrigin("2620:0:861:204::dead:beef"));
     }
 
-    public void testGetNeworkOriginInternalIpv4() {
-        assertEquals(NetworkOrigin.INTERNAL, ipUtil.getNeworkOrigin("10.64.0.162"));
+    public void testGetNeworkOriginWikimediaIpv4() {
+        assertEquals(NetworkOrigin.WIKIMEDIA, ipUtil.getNeworkOrigin("10.64.0.162"));
     }
 
-    public void testGetNeworkOriginInternalIpv6() {
-        assertEquals(NetworkOrigin.INTERNAL, ipUtil.getNeworkOrigin("2620:0:861:101:46a8:42ff:fe11:686b"));
+    public void testGetNeworkOriginWikimediaIpv6() {
+        assertEquals(NetworkOrigin.WIKIMEDIA, ipUtil.getNeworkOrigin("2620:0:861:101:46a8:42ff:fe11:686b"));
     }
 
-    public void testGetNeworkOriginExternalIpv4() {
-        assertEquals(NetworkOrigin.EXTERNAL, ipUtil.getNeworkOrigin("159.118.124.57"));
+    public void testGetNeworkOriginInternetIpv4() {
+        assertEquals(NetworkOrigin.INTERNET, ipUtil.getNeworkOrigin("159.118.124.57"));
     }
 
-    public void testGetNeworkOriginExternalIpv6() {
-        assertEquals(NetworkOrigin.EXTERNAL, ipUtil.getNeworkOrigin("2001:470:b:530:a17c:bb90:9583:7620"));
+    public void testGetNeworkOriginInternetIpv6() {
+        assertEquals(NetworkOrigin.INTERNET, ipUtil.getNeworkOrigin("2001:470:b:530:a17c:bb90:9583:7620"));
     }
 
     public void testGetNeworkOriginInvalidIp() {
-        assertEquals(NetworkOrigin.EXTERNAL, ipUtil.getNeworkOrigin("xyzzy"));
+        assertEquals(NetworkOrigin.INTERNET, ipUtil.getNeworkOrigin("xyzzy"));
     }
 }

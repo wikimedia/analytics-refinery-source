@@ -33,36 +33,36 @@ public class TestNetworkOriginUDF {
 
     @Test
     public void testEvaluateWithLabsIpv4() {
-        assertEquals(NetworkOrigin.LABS.toString(), fixture.evaluate("10.68.16.44"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("10.68.16.44"));
     }
 
     @Test
     public void testEvaluateWithLabsIpv6() {
-        assertEquals(NetworkOrigin.LABS.toString(), fixture.evaluate("2620:0:861:204::dead:beef"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("2620:0:861:204::dead:beef"));
     }
 
     @Test
-    public void testEvaluateWithInternalIpv4() {
-        assertEquals(NetworkOrigin.INTERNAL.toString(), fixture.evaluate("10.64.0.162"));
+    public void testEvaluateWithWikimediaIpv4() {
+        assertEquals(NetworkOrigin.WIKIMEDIA.toString(), fixture.evaluate("10.64.0.162"));
     }
 
     @Test
-    public void testEvaluateWithInternalIpv6() {
-        assertEquals(NetworkOrigin.INTERNAL.toString(), fixture.evaluate("2620:0:861:101:46a8:42ff:fe11:686b"));
+    public void testEvaluateWithWikimediaIpv6() {
+        assertEquals(NetworkOrigin.WIKIMEDIA.toString(), fixture.evaluate("2620:0:861:101:46a8:42ff:fe11:686b"));
     }
 
     @Test
-    public void testEvaluateWithExternalIpv4() {
-        assertEquals(NetworkOrigin.EXTERNAL.toString(), fixture.evaluate("159.118.124.57"));
+    public void testEvaluateWithInternetIpv4() {
+        assertEquals(NetworkOrigin.INTERNET.toString(), fixture.evaluate("159.118.124.57"));
     }
 
     @Test
-    public void testEvaluateWithExternalIpv6() {
-        assertEquals(NetworkOrigin.EXTERNAL.toString(), fixture.evaluate("2001:470:b:530:a17c:bb90:9583:7620"));
+    public void testEvaluateWithInternetIpv6() {
+        assertEquals(NetworkOrigin.INTERNET.toString(), fixture.evaluate("2001:470:b:530:a17c:bb90:9583:7620"));
     }
 
     @Test
     public void testEvaluateWithInvalidIp() {
-        assertEquals(NetworkOrigin.EXTERNAL.toString(), fixture.evaluate("xyzzy"));
+        assertEquals(NetworkOrigin.INTERNET.toString(), fixture.evaluate("xyzzy"));
     }
 }
