@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job
 
 import java.io.File
+import java.nio.file.Files
 
 import org.apache.hadoop.fs.Path
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -15,9 +16,17 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
   val noHourRunFolder = "2015-09-29-15-20-08"
   val hourSpanRunFolder = "2015-10-02-08-00-07"
   val wrongFolder = "wrong-folder"
+  var tmpDir:File = null
 
   override def beforeEach(): Unit = {
     CamusPartitionChecker.props.clear()
+  }
+
+  override def afterEach(): Unit = {
+    if (tmpDir != null && tmpDir.exists()) {
+      val d = new Directory(tmpDir)
+      d.deleteRecursively()
+    }
   }
 
   "A CamusChecker" should "find hours in between timestamps" in {
@@ -156,32 +165,30 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
   }
 
   it should "write the file flag for a given partition hour" in {
-    val partitionFolder = "/tmp/testcamus/testtopic/hourly/2015/10/02/08"
-    val d = new Directory(new File(partitionFolder))
-    if (d.exists)
-      d.deleteRecursively()
+    tmpDir = Files.createTempDirectory("testcamus").toFile();
+    val partitionFolder = "testtopic/hourly/2015/10/02/08"
+    val d = new Directory(new File(tmpDir, partitionFolder))
     d.createDirectory()
 
     d.list shouldBe empty
 
     // correct partition base path config
-    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, "/tmp/testcamus/")
+    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, tmpDir.getAbsolutePath())
 
     CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
 
     d.list should not be empty
-    d.list.toSeq.map(_.toString()) should contain ("/tmp/testcamus/testtopic/hourly/2015/10/02/08/_TESTFLAG")
+    d.list.toSeq.map(_.toString()) should contain (tmpDir.getAbsolutePath() + "/testtopic/hourly/2015/10/02/08/_TESTFLAG")
 
   }
 
   it should "fail writing the file flag if the given partition hour folder doesn't exist" in {
-    val partitionFolder = "/tmp/testcamus/testtopic/hourly/2015/10/02/08"
-    val d = new Directory (new File(partitionFolder))
-    if (d.exists)
-      d.deleteRecursively()
+    tmpDir = Files.createTempDirectory("testcamus").toFile();
+    val partitionFolder = "testtopic/hourly/2015/10/02/08"
+    val d = new Directory (new File(tmpDir, partitionFolder))
 
     // correct partition base path config
-    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, "/tmp/testcamus/")
+    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, tmpDir.getAbsolutePath())
 
     intercept[IllegalStateException] {
       CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
