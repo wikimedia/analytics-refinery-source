@@ -92,9 +92,9 @@ public class TestAvroMessageDecoder {
         testProperties.setProperty("camus.message.timestamp.format", "unix_milliseconds");
         testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_REGISTRY_CLASS,
                 "org.wikimedia.analytics.refinery.camus.schemaregistry.KafkaTopicSchemaRegistry");
+        testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_NAMESPACE+".TestSchema.latestRev", "0");
 
         decoder.init(testProperties, "testprefix_TestSchema");
-        decoder.decode(testMessage);
     }
 
     @Test(expected = RuntimeException.class)
@@ -105,8 +105,18 @@ public class TestAvroMessageDecoder {
                 "org.wikimedia.analytics.refinery.camus.schemaregistry.KafkaTopicSchemaRegistry");
 
         decoder.init(testProperties, "testprefix_wrongschemaname");
-        decoder.decode(testMessage);
     }
+    
+    @Test(expected = RuntimeException.class)
+    public void testInitFailNoLatestRev() {
+        Properties testProperties = new Properties();
+        testProperties.setProperty("camus.message.timestamp.format", "unix_milliseconds");
+        testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_REGISTRY_CLASS,
+                "org.wikimedia.analytics.refinery.camus.schemaregistry.KafkaTopicSchemaRegistry");
+
+        decoder.init(testProperties, "testprefix_TestSchema");
+    }
+
 
     @Test
     public void testDecode() {
@@ -114,6 +124,7 @@ public class TestAvroMessageDecoder {
         testProperties.setProperty("camus.message.timestamp.format", "unix_milliseconds");
         testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_REGISTRY_CLASS,
                 "org.wikimedia.analytics.refinery.camus.schemaregistry.KafkaTopicSchemaRegistry");
+        testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_NAMESPACE+".TestSchema.latestRev", "0");
 
         decoder.init(testProperties, "testprefix_TestSchema");
 
@@ -132,6 +143,7 @@ public class TestAvroMessageDecoder {
         testProperties.setProperty("camus.message.timestamp.format", "unix_milliseconds");
         testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_REGISTRY_CLASS,
                 "org.wikimedia.analytics.refinery.camus.schemaregistry.KafkaTopicSchemaRegistry");
+        testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_NAMESPACE+".TestSchema.latestRev", "0");
 
         decoder.init(testProperties, "testprefix_TestSchema");
 

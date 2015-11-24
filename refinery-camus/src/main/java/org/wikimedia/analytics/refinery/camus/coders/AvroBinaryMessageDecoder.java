@@ -17,8 +17,6 @@ import com.linkedin.camus.coders.CamusWrapper;
 import com.linkedin.camus.coders.Message;
 import com.linkedin.camus.coders.MessageDecoder;
 import com.linkedin.camus.coders.MessageDecoderException;
-import com.linkedin.camus.schemaregistry.SchemaDetails;
-import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
 
 /**
@@ -32,19 +30,16 @@ import com.linkedin.camus.schemaregistry.SchemaRegistry;
  * The writerSchema is mandatory and will be obtained from a field in the first bytes of the message :
  * <tt>[MAGIC][LONG][AVRO BINARY]</tt>
  * <br/>
- * The targetSchema is optional and will be obtained from {@link KafkaTopicSchemaRegistry#getLatestSchemaByTopic(String)}.
+ * The targetSchema is mandatory and will be obtained from {@link KafkaTopicSchemaRegistry#getLatestSchemaByTopic(String)}.
  * </p>
  *
  * This decoder uses the following properties :
  * <ul>
- * <li><tt>camus.message.schema.default</tt>: (optional) the schema ID to use when no schema is found in the json body</li>
  * <li><tt>camus.message.timestamp.field</tt>: (default to "timestamp") the of the timestamp field</li>
  * <li><tt>camus.message.timestamp.format</tt>: (default to "unix_milliseconds") the format of the timestamp field (see {@link CamusAvroWrapper})</li>
  * </ul>
  */
 public class AvroBinaryMessageDecoder extends MessageDecoder<Message, GenericData.Record> {
-    public static final String CAMUS_SCHEMA_DEFAULT = "camus.message.schema.default";
-
     private static final Logger log = Logger.getLogger(AvroBinaryMessageDecoder.class);
 
     protected DecoderFactory decoderFactory;
@@ -52,7 +47,7 @@ public class AvroBinaryMessageDecoder extends MessageDecoder<Message, GenericDat
 
     private String timestampField;
     private String timestampFormat;
-    private String defaultSchemaId = null;
+    private Schema targetSchema;
 
     @Override
     public void init(Properties props, String topicName) {
@@ -66,7 +61,7 @@ public class AvroBinaryMessageDecoder extends MessageDecoder<Message, GenericDat
             log.info("Underlying schema registry for topic: " + topicName + " is: " + registry);
             registry.init(props);
             this.registry = registry;
-            defaultSchemaId = props.getProperty(CAMUS_SCHEMA_DEFAULT);
+            this.targetSchema = this.registry.getLatestSchemaByTopic(topicName).getSchema();
         } catch (Exception e) {
             throw new MessageDecoderException(e);
         }
@@ -82,23 +77,10 @@ public class AvroBinaryMessageDecoder extends MessageDecoder<Message, GenericDat
         try {
             MessageDecoderHelper helper = new MessageDecoderHelper(message.getPayload());
             Schema writerSchema = helper.getWriterSchema();
-            if(writerSchema == null && defaultSchemaId != null) {
-                writerSchema = registry.getSchemaByID(topicName, defaultSchemaId);
-            }
             if(writerSchema == null) {
                 throw new RuntimeException("No schema found for topic "
-                        + topicName + ": none provided in the message body. Use "
-                        + CAMUS_SCHEMA_DEFAULT + " to force a default schema.");
+                        + topicName + ": none provided in the message body.");
             }
-            SchemaDetails<Schema> targetSchemaDetails = null;
-            try {
-                targetSchemaDetails = registry.getLatestSchemaByTopic(topicName);
-            } catch(SchemaNotFoundException e) {
-                // Ignore this error, targetSchema is optional.
-            }
-            // If a target schema has been specified use it. Use writerSchema otherwize.
-            Schema targetSchema = targetSchemaDetails != null ? targetSchemaDetails.getSchema() : writerSchema;
-
             DatumReader<GenericData.Record> reader = new GenericDatumReader<GenericData.Record>(writerSchema, targetSchema);
 
             return new CamusAvroWrapper(reader.read(null,

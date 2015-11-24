@@ -22,7 +22,6 @@ public class TestMessage implements Message {
     private byte[] payload;
     private final int type;
     private long revId;
-    private final boolean includeSchemaInfo;
 
     public TestMessage(byte[] payload) {
         this(payload, 0);
@@ -32,30 +31,19 @@ public class TestMessage implements Message {
         this(payloadString, 0);
     }
     public TestMessage(byte[] payload, long revId) {
-        this(payload, revId, true);
-    }
-    public TestMessage(String payloadString, long revId) {
-        this(payloadString, revId, true);
-    }
-    public TestMessage(byte[] payload, long revId, boolean includeSchemaInfo) {
         this.payload = payload;
         this.revId = revId;
         type = AVRO_BIN;
-        this.includeSchemaInfo = includeSchemaInfo;
     }
 
-    public TestMessage(String payloadString, long revId, boolean includeSchemaInfo) {
+    public TestMessage(String payloadString, long revId) {
         this.payload = payloadString.getBytes(Charsets.UTF_8);
         this.revId = revId;
         type = AVRO_JSON;
-        this.includeSchemaInfo = includeSchemaInfo;
     }
 
     @Override
     public byte[] getPayload() {
-        if(!includeSchemaInfo) {
-            return payload;
-        }
         if(type == AVRO_BIN) {
             return getAvroBin();
         } else {
