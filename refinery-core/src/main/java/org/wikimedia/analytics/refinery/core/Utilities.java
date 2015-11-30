@@ -16,6 +16,8 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -50,4 +52,28 @@ public class Utilities {
     public static boolean patternIsFound(Pattern pattern, String target) {
         return pattern.matcher(target).find();
     }
+
+
+    /**
+     * Implementation is based on LinkedHashMap as this class
+     * has the handy ability of reordering records upon record access
+     * thus an LRU cache just needs to remove last entry.
+     * @param <K>
+     * @param <V>
+     */
+    public static class LRUCache<K, V> extends LinkedHashMap<K, V> {
+        private int cacheSize;
+
+        public LRUCache(int cacheSize) {
+            // Constructs an empty LinkedHashMap instance with the
+            // specified initial capacity, load factor and ordering mode.
+            super(16, 0.75f, true);
+            this.cacheSize = cacheSize;
+        }
+
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+        return size() >= cacheSize;
+    }
+}
+
 }

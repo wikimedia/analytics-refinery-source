@@ -63,6 +63,13 @@ public class Webrequest {
                     ")$");
 
     /*
+     * Spiders identification regexp takes a lot of computation power while there only are only
+     * a relatively small number of recurrent user_agent values (less than a million).
+     * We use a LRU cache to prevent recomputing agentType for frequently seen user agents.
+     */
+    private Utilities.LRUCache<String, Boolean> agentTypeCache = new Utilities.LRUCache<>(10000);
+
+    /*
      * WikimediaBot identification pattern 
      */
     private static final Pattern wikimediaBotPattern = Pattern.compile("\\bWikimediaBot\\b");
@@ -94,8 +101,16 @@ public class Webrequest {
     public boolean isSpider(String userAgent) {
         if ("-".equals(userAgent))
             return true;
-        else
-            return spiderPattern.matcher(userAgent).find() && ! wikimediaBotPattern.matcher(userAgent).find();
+        else {
+            if (agentTypeCache.containsKey(userAgent))
+                return agentTypeCache.get(userAgent);
+            else {
+                boolean isSpider = (spiderPattern.matcher(userAgent).find()
+                                    && !wikimediaBotPattern.matcher(userAgent).find());
+                agentTypeCache.put(userAgent, isSpider);
+                return isSpider;
+            }
+        }
     }
     /**
      * Kept for backward compatibility.
