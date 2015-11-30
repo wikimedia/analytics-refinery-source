@@ -1,3 +1,15 @@
+## v0.0.23
+* Expand the prohibited uri_paths in the Pageview definition
+* Make maven include avro schema in refinery-camus jar
+* Add a Hive UDF for network origin updating existing IP code
+* Correct CamusPartitionChecker unit test
+* Add refinery-cassandra module, containing the necessary code
+  for loading separated value data from hadoop to cassandra
+* Update refinery-camus adding support for avro messages
+* Add CirrusSearchRequestSet avro schema to refinery camus
+* Update webrequest with an LRUCache to prevent recomputing
+  agentType for recurrent user agents values
+
 ## v0.0.22
 * Correct CamusPartitionChecker bug.
 * Expand the prohibited URI paths in the pageview definition.
