@@ -3,6 +3,8 @@ package org.wikimedia.analytics.refinery.hive;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 
 /**
  * Created by nuria on 9/8/15.
@@ -47,7 +49,7 @@ public class GenericUDFHelper {
     }
 
     /**
-     * Checks argument type
+     * Checks argument category type is primitive
      *
      * @param arguments
      * @param i
@@ -59,6 +61,27 @@ public class GenericUDFHelper {
         ObjectInspector.Category oiCat = arguments[i].getCategory();
         if (oiCat != ObjectInspector.Category.PRIMITIVE) {
             throw new UDFArgumentTypeException(i, getFuncName() + " Argument should be of primitive type");
+        }
+    }
+
+    /**
+     * Checks argument type
+     *
+     * @param arguments
+     * @param i
+     *
+     * @throws UDFArgumentTypeException
+     */
+    protected void checkArgType(ObjectInspector[] arguments, int i, PrimitiveCategory type)
+            throws UDFArgumentTypeException{
+
+        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arguments[i]).getPrimitiveCategory();
+
+        if (primitiveCategory != type) {
+            throw new UDFArgumentTypeException(0,
+                "A string argument was expected for " + getFuncName() + " but an argument of type " +
+                arguments[i].getTypeName() + " was given."
+            );
         }
     }
 }

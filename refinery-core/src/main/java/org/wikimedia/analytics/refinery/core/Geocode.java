@@ -16,21 +16,21 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.*;
-
 import org.apache.log4j.Logger;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Contains functions to find geo information of an IP address using Maxmind's GeoIP2
@@ -239,5 +239,21 @@ public class Geocode {
         defaultGeoData.put(TIMEZONE, UNKNOWN_VALUE);
 
         return defaultGeoData;
+    }
+
+    /**
+     * Translate a country code into the country name
+     *
+     * @param countryCode
+     *
+     * @return String country name
+     */
+    public static String getCountryName(String countryCode) {
+            if (countryCode == null){
+                countryCode = "";
+            }
+            Locale l = new Locale("", countryCode);
+            String displayCountry = l.getDisplayCountry();
+            return displayCountry.equals(countryCode) ? UNKNOWN_VALUE : displayCountry;
     }
 }

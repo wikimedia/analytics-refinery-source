@@ -14,14 +14,11 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import java.io.IOException;
-import java.util.Map;
-
 import junit.framework.TestCase;
 import org.junit.BeforeClass;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import java.io.IOException;
+import java.util.Map;
 
 public class TestGeocode extends TestCase {
 
@@ -107,5 +104,17 @@ public class TestGeocode extends TestCase {
         assertEquals(-1, geoData.get("latitude"));
         assertEquals(-1, geoData.get("longitude"));
         assertEquals("Unknown", geoData.get("timezone"));
+    }
+
+    public void testGetKnownCountryName() {
+        assertEquals("Ireland", Geocode.getCountryName("IE"));
+    }
+
+    public void testGetUnknownCountryName() {
+        assertEquals("Unknown", Geocode.getCountryName("-"));
+        assertEquals("Unknown", Geocode.getCountryName("--"));
+        assertEquals("Unknown", Geocode.getCountryName("XX"));
+        assertEquals("Unknown", Geocode.getCountryName("XXX"));
+        assertEquals("Unknown", Geocode.getCountryName(null));
     }
 }
