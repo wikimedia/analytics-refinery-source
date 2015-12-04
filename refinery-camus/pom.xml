@@ -78,24 +78,13 @@
                 <version>1.7.7</version>
                 <executions>
                     <execution>
-                        <id>main</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>schema</goal>
-                        </goals>
-                        <configuration>
-                            <sourceDirectory>${project.basedir}/src/main/avro/</sourceDirectory>
-                            <outputDirectory>${project.basedir}/src/generated/java/</outputDirectory>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>test</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>schema</goal>
                         </goals>
                         <configuration>
-                            <sourceDirectory>${project.basedir}/src/test/avro/</sourceDirectory>
+                            <sourceDirectory>${project.basedir}/src/test/resources/avro_schema_repo</sourceDirectory>
                             <outputDirectory>${project.basedir}/src/generated/java/</outputDirectory>
                         </configuration>
                     </execution>
@@ -175,13 +164,5 @@
                 </configuration>
             </plugin>
         </plugins>
-        <resources>
-            <resource>
-                <directory>src/main/avro</directory>
-            </resource>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
     </build>
 </project>
