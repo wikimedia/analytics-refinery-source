@@ -108,6 +108,7 @@ public class TestGeocode extends TestCase {
 
     public void testGetKnownCountryName() {
         assertEquals("Ireland", Geocode.getCountryName("IE"));
+        assertEquals("Ireland", Geocode.getCountryName("ie"));
     }
 
     public void testGetUnknownCountryName() {
@@ -115,6 +116,7 @@ public class TestGeocode extends TestCase {
         assertEquals("Unknown", Geocode.getCountryName("--"));
         assertEquals("Unknown", Geocode.getCountryName("XX"));
         assertEquals("Unknown", Geocode.getCountryName("XXX"));
+        assertEquals("Unknown", Geocode.getCountryName("ct"));
         assertEquals("Unknown", Geocode.getCountryName(null));
     }
 }

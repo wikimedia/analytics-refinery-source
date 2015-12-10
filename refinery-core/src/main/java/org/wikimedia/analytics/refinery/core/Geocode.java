@@ -254,6 +254,6 @@ public class Geocode {
             }
             Locale l = new Locale("", countryCode);
             String displayCountry = l.getDisplayCountry();
-            return displayCountry.equals(countryCode) ? UNKNOWN_VALUE : displayCountry;
+            return displayCountry.equalsIgnoreCase(countryCode) ? UNKNOWN_VALUE : displayCountry;
     }
 }
