@@ -1,3 +1,8 @@
+## v0.0.24
+* Implement ArraySum UDF
+* Clean refinery-camus from unnecessary avro files
+* Add UDF that turns a country code into a name
+
 ## v0.0.23
 * Expand the prohibited uri_paths in the Pageview definition
 * Make maven include avro schema in refinery-camus jar
