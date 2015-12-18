@@ -28,9 +28,9 @@ public class LocalRepoSchemaRegistry implements SchemaRegistry<Schema>, Handler<
 
     /**
      * Default path in classpath to lookup schemas, e.g.:
-     * /avro_schema_repo/${SchemaName}/${rev}.avsc
+     * /schema_repo/avro/mediawiki/${SchemaName}/${rev}.avsc
      */
-    private static final String AVRO_SCHEMA_REPO_DEFAULT_PATH = "/avro_schema_repo";
+    private static final String AVRO_SCHEMA_REPO_DEFAULT_PATH = "/schema_repo/avro/mediawiki";
     public static final String SCHEMA_NAMESPACE = "org.wikimedia.analytics.schemas";
 
     public static final String SCHEMA_REGISTRY_CLASS = "kafka.message.coder.schema.registry.class";

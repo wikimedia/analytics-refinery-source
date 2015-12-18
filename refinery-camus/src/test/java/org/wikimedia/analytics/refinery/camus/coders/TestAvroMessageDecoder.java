@@ -49,7 +49,7 @@ public class TestAvroMessageDecoder {
     }
 
     private static byte[] getAvroBinaryPayload() throws IOException {
-        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/avro_schema_repo/TestSchema/0.avsc"));
+        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/schema_repo/avro/mediawiki/TestSchema/0.avsc"));
         GenericRecordBuilder builder = new GenericRecordBuilder(s);
         builder.set("id", 1l);
         builder.set("name", "test name");

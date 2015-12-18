@@ -237,7 +237,7 @@ public class TestAvroSchemaEvolution {
         }
     }
     private TestMessage getAvroBinaryPayloadV0() throws IOException {
-        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/avro_schema_repo/TestSchema/0.avsc"));
+        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/schema_repo/avro/mediawiki/TestSchema/0.avsc"));
         GenericRecordBuilder builder = new GenericRecordBuilder(s);
         builder.set("id", 1l);
         builder.set("name", "test name");
@@ -257,7 +257,7 @@ public class TestAvroSchemaEvolution {
     }
 
     private TestMessage getAvroBinaryPayloadV1() throws IOException {
-        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/avro_schema_repo/TestSchema/1.avsc"));
+        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/schema_repo/avro/mediawiki/TestSchema/1.avsc"));
         GenericRecordBuilder builder = new GenericRecordBuilder(s);
         builder.set("id", 1l);
         builder.set("name", "test name");
@@ -279,7 +279,7 @@ public class TestAvroSchemaEvolution {
     }
 
     private TestMessage getAvroBinaryPayloadV2() throws IOException {
-        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/avro_schema_repo/TestSchema/2.avsc"));
+        Schema s = new Schema.Parser().parse(TestAvroSchemaEvolution.class.getResourceAsStream("/schema_repo/avro/mediawiki/TestSchema/2.avsc"));
         GenericRecordBuilder builder = new GenericRecordBuilder(s);
         builder.set("id", 1l);
         builder.set("name", "test name");
