@@ -14,12 +14,12 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
-
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.wikimedia.analytics.refinery.core.Webrequest;
 
+@Deprecated
 @Description(name = "referer_classifier",
     value = "_FUNC_(url) - Returns a string with a classification of a referer (unknown, internal, external)",
     extended = "argument 0 is the url to analyze")

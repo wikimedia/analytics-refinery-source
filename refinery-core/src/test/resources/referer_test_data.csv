@@ -1,0 +1,9 @@
+test_description,referer,referer_class,is_external,search_engine
+Random internal link,https://zh.wikipedia.org/zh-tw/%E6%96%B9%E6%9D%B1%E6%98%87,internal,false,none
+Nada,-,none,false,none
+Google,https://www.google.co.id/,external (search engine),true,Google
+Yahoo,http://search.yahoo.co.jp/search?fr=slv1-necpc9&p=%E4%B8%89%E5%8F%88&ei=UTF-8,external (search engine),true,Yahoo
+Random external link,http://www.cowboom.com/product/1617241,external,false,none
+Bing,http://www.bing.com/search?q=Svengali+movie+1931&filters=ufn,external (search engine),true,Bing
+Baidu,https://www.baidu.com/link?url=,external (search engine),true,Baidu
+Yandex,http://yandex.ru/clck/jsredir?from=yandex.ru%3Bsearch%2F%3Bweb%3B%3B,external (search engine),true,Yandex
