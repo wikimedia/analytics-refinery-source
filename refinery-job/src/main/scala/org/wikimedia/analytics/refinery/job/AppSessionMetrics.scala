@@ -108,24 +108,40 @@ object AppSessionMetrics {
   /**
    * Compute stats for the different session metrics given all user sessions data
    * @param userSessions  UserSessions is of this form:
-   *                      [(String, List[List[Long]])] =
-   *                      ((3e92cbf4-d204-4a59-a12d-dde6e337902d,List(List(1426809630),List(1426812577))),
-   *                      (bf78563d-9173-415c-ba4f-6848ab46afc3,List(List(1426810256, 1426810264))),
-   *                      (896c399c-0dc1-4835-aa66-6d619b83a76b,List(List(1426810619, 1426811555))),
-   *                      (53d91d28-158f-4dcf-8561-5a3d6e90e18e,List(List(1426810894, 1426810915)))
-   * @return List of tuples in the form of [(SessionMetricName, SessionMetricStats), ... ]
+   *                      [((String, String), List[List[Long]])] = (
+   *                        ((Android, 3e92cbf4-d204-4a59-a12d-dde6e337902d), List(List(1426809630), List(1426812577))),
+   *                        ((iOS, bf78563d-9173-415c-ba4f-6848ab46afc3), List(List(1426810256, 1426810264))),
+   *                        ((Android, 896c399c-0dc1-4835-aa66-6d619b83a76b), List(List(1426810619, 1426811555))),
+   *                        ((iOS, 53d91d28-158f-4dcf-8561-5a3d6e90e18e), List(List(1426810894, 1426810915)))
+   *                      )
+   * @param osFilter      [Optional] If present, it will consider only the uuids
+   *                      that belong to the given os_family. It will also output
+   *                      this parameter as the second value of the output's tuples.
+   *                      If not present (default), it will consider all uuids and
+   *                      output null as second value in the output's tuples.
+   * @return List of tuples in the form of [(SessionMetricName, osFamily, SessionMetricStats), ... ]
    */
-  def allSessionMetricsStats(userSessions: RDD[(String, List[List[Long]])]): List[(String, Map[String, Any])] = {
+  def allSessionMetricsStats(
+    userSessions: RDD[((String, String), List[List[Long]])],
+    osFilter: String = null
+  ): List[(String, String, Map[String, Any])] = {
+
+    // Filter the wmfuuids that belong to the given os family, if necessary.
+    val filteredSessions = if (osFilter == null) {
+      userSessions
+    } else {
+      userSessions.filter(_._1._1 == osFilter)
+    }
 
     // calculate number of sessions per user
-    val sessionsPerUser = statsPerMetric(userSessions.map(r => r._2.length.toLong))
+    val sessionsPerUser = statsPerMetric(filteredSessions.map(r => r._2.length.toLong))
 
-    // flatten: (uuid, List(session1, session2, ...) -> session*
+    // flatten: (key, List(session1, session2, ...) -> session*
     // RDD[List[Long]]] =
     // List(1426810256, 1426810264),
     // List(1426811100), List(1426810253)
     // List(1426810619, 1426811555), List(1426810894, 1426810915),
-    val sessions = userSessions.flatMap(_._2)
+    val sessions = filteredSessions.flatMap(_._2)
 
     // calculate number of pageviews per session
     val pageviewsPerSession = statsPerMetric(sessions.map(r => r.length.toLong))
@@ -133,11 +149,15 @@ object AppSessionMetrics {
     // calculate session length
     // sessions with only one pageview are not counted
     val sessionLength = statsPerMetric(sessions
-      //Remove uuids with just  1 timestamp
+      //Remove keys with just 1 timestamp
       .filter(s => !s.isEmpty && !s.tail.isEmpty)
       .map(r => r.last - r.head))
 
-    List(("SessionsPerUser", sessionsPerUser), ("PageviewsPerSession", pageviewsPerSession), ("SessionLength", sessionLength))
+    List(
+      ("SessionsPerUser", osFilter, sessionsPerUser),
+      ("PageviewsPerSession", osFilter, pageviewsPerSession),
+      ("SessionLength", osFilter, sessionLength)
+    )
   }
 
   /**
@@ -145,25 +165,42 @@ object AppSessionMetrics {
    *
    * @return A tab separated string for given metric, looks like
    *         2015	6	2	2015-6-1 -- 2015-6-1	SessionsPerUser	1259304	1	15	(1.0,2.0)	(1.0,2.0)	(2.0,3.0)	(5.0,6.0)
+   *         If the data is broken down by os family, adds a corresponing column at the end.
    */
-  def statsToString(stats: Map[String, Any], statsType: String, datesInfo: Map[String, Int]): String = {
+  def statsToString(
+    stats: Map[String, Any],
+    statsType: String,
+    osFamily: String,
+    datesInfo: Map[String, Int]
+  ): String = {
     val reportDateRange = dateRangeToString(datesInfo)
-    val outputStats = "%d\t%d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s"
+    val osString = if (osFamily == null) "" else "\t" + osFamily
+    val outputStats = "%d\t%d\t%d\t%s\t%s%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s"
       .format(datesInfo("year"), datesInfo("month"), datesInfo("day"), reportDateRange,
-        statsType, stats.apply("count"), stats.apply("min"), stats.apply("max"), stats.apply("percentile_1"),
-        stats.apply("percentile_50"), stats.apply("percentile_90"), stats.apply("percentile_99"))
+        statsType, osString, stats.apply("count"), stats.apply("min"), stats.apply("max"),
+        stats.apply("percentile_1"), stats.apply("percentile_50"), stats.apply("percentile_90"),
+        stats.apply("percentile_99"))
     outputStats
   }
 
   /**
    * Makes a printable string with all the stats
    *
-   * @param sessionStatsData List of tuples in form of [(SessionMetricName, SessionMetricStats), ...]
+   * @param sessionStatsData List of tuples in form of
+   *                         [(SessionMetricName, osFamily, SessionMetricStats), ...]
    * @param datesInfo Hashmap with report date related info
    * @return String with 1 line for every metric, separated by newline
    */
-  def printableStats(sessionStatsData: List[(String, Map[String, Any])], datesInfo: Map[String, Int]): String = {
-    sessionStatsData.map(statsData => statsToString(statsData._2, statsData._1, datesInfo)).mkString("\n")
+  def printableStats(
+    sessionStatsData: List[(String, String, Map[String, Any])],
+    datesInfo: Map[String, Int]
+  ): String = {
+    sessionStatsData.map(statsData => statsToString(
+      statsData._3,
+      statsData._1,
+      statsData._2,
+      datesInfo
+    )).mkString("\n")
   }
 
 
@@ -207,25 +244,32 @@ object AppSessionMetrics {
    *              Like: ["hdfs://../year=2015/month=5/day=5",
    *              "hdfs://../year=2015/month=5/day=6",...]
    * @param sqlContext SQL Context
-   * @return DataFrame with Columns wmfuuid and time
+   * @return DataFrame with 3 columns: os_family, wmfuuid and timestamp
    */
-  def pathListToUuidDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
+  def pathListToDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
     sqlContext.parquetFile(paths: _*)
-      .filter("is_pageview and x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
-      .selectExpr("x_analytics_map['wmfuuid'] as wmfuuid", "CAST(ts AS int) as ts")
+      .filter("is_pageview and access_method = 'mobile app' and " +
+        "x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
+      .selectExpr(
+        "user_agent_map['os_family'] as os_family",
+        "x_analytics_map['wmfuuid'] as wmfuuid",
+        "CAST(ts AS int) as ts"
+      )
   }
 
   /**
    * Compute sessions by user
-   * @param userSessionsAll DataFrame with wmfuuid and timestamp colums
+   * @param userSessionsAll DataFrame with os_family, wmfuuid and timestamp colums
    * @param numPartitions Number of partitions for the output RDD
-   * @return userSessions RDD in the form of (uuid, List(session1, session2, ...)
+   * @return userSessions RDD in the form of
+   *                      ((os_family, wmfuuid), List(session1, session2, ...))
    */
-  def userSessions(userSessionsAll: DataFrame, numPartitions: Int): RDD[(String, List[List[Long]])] = {
+  def userSessions(userSessionsAll: DataFrame, numPartitions: Int): RDD[((String, String), List[List[Long]])] = {
     userSessionsAll
       .rdd
-      .map(r => (r.getString(0), r.getInt(1).toLong))
-      // aggregate uuid to list of sorted timestamps (uuid, timestamp)* -> (uuid, List(ts1, ts2, ts3, ...))
+      // format the line as: key=(os_family, wmfuuid), val=timestamp
+      .map(r => ((r.getString(0), r.getString(1)), r.getInt(2).toLong))
+      // aggregate key to list of sorted timestamps (key, timestamp)* -> (key, List(ts1, ts2, ts3, ...))
       // sorting is max to min, careful here: if values are found in the same partition they need to be sorted too
       // Some of these lines may throw an error in IntelliJ but it compiles and can be ignored.
       .combineByKey(
@@ -235,8 +279,8 @@ object AppSessionMetrics {
         (l1: List[Long], l2: List[Long]) => (l1 ++ l2).sorted,
         numPartitions = numPartitions
       )
-      // map: (uuid, List(ts1, ts2, ts3, ...)) -> (uuid, List(List(ts1, ts2), List(ts3), ...)
-      .map { case (uuid, listOfTimestampLists) => uuid -> listOfTimestampLists.foldLeft(emptySessions)(sessionize) }
+      // map: (key, List(ts1, ts2, ts3, ...)) -> (key, List(List(ts1, ts2), List(ts3), ...)
+      .map { case (key, listOfTimestampLists) => key -> listOfTimestampLists.foldLeft(emptySessions)(sessionize) }
       .cache()
   }
 
@@ -282,11 +326,17 @@ object AppSessionMetrics {
   val emptySessions = List.empty[List[Long]]
 
   /**
+   * List of os families to breakdown.
+   */
+  val osFamilies: List[String] = List("Android", "iOS")
+
+  /**
    * Config class for CLI argument parser using scopt
    */
   case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
                     outputDir: String = "/wmf/data/wmf/mobile-sessions/",
-                    year: Int = 0, month: Int = 0, day: Int = 0, periodDays: Int = 30, numPartitions: Int = 16)
+                    year: Int = 0, month: Int = 0, day: Int = 0, periodDays: Int = 30,
+                    splitByOs: Boolean = false, numPartitions: Int = 16)
 
   /**
    * Define the command line options parser
@@ -332,6 +382,10 @@ object AppSessionMetrics {
     } validate { x => if (x > 0 & x <= 31) success else failure("Too many days")
     } text ("Period in days to run report for. Defaults to 30 days")
 
+    opt[Boolean]('s', "split-by-os") optional() action { (x, p) =>
+      p.copy(splitByOs = x)
+    } text("Calculate metrics broken down by os family. Default: false")
+
     opt[Int]('n', "num-partitions") optional() action { (x, p) =>
       p.copy(numPartitions = x)
     } text ("Number of hash-paritions for User Sessions RDD. Defaults to 16. Specify less/more partitions based on job")
@@ -358,8 +412,12 @@ object AppSessionMetrics {
 
         // Get sessions data for all users, calculate stats for different metrics,
         // and get the stats in a printable string format to output
-        val userSessionsData = userSessions(pathListToUuidDataframe(webrequestPaths, sqlContext), params.numPartitions)
-        val allMetricsStats = allSessionMetricsStats(userSessionsData)
+        val userSessionsData = userSessions(pathListToDataframe(webrequestPaths, sqlContext), params.numPartitions).cache()
+        val allMetricsStats = if (params.splitByOs) {
+          osFamilies.map(allSessionMetricsStats(userSessionsData, _)).fold(List.empty)(_++_)
+        } else {
+          allSessionMetricsStats(userSessionsData)
+        }
         val outputStats = printableStats(allMetricsStats, datesInfo)
 
         //Save output to file
