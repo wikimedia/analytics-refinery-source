@@ -1,3 +1,8 @@
+## v0.0.25
+* Change/remove mobile partition use
+* Add Functions for identifying search engines as referers
+* Update avro schemas to use event-schema repo as submodule
+
 ## v0.0.24
 * Implement ArraySum UDF
 * Clean refinery-camus from unnecessary avro files
