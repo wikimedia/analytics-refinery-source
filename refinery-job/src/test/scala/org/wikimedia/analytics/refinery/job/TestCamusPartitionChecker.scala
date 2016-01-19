@@ -83,11 +83,11 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
 
     // correct Whitelist, no blacklist --> Should work, one topic in historical data needs to be left aside
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
-      "webrequest_maps,webrequest_mobile,webrequest_text,webrequest_upload,webrequest_misc")
+      "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
     val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
 
-    topicsAndHours.size should equal (5)
+    topicsAndHours.size should equal (4)
     // Some topics have hour to flag
     for ((t, o) <- topicsAndHours)
       if (! t.equals("webrequest_maps")) o.size should equal (1)
@@ -141,11 +141,11 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
 
     // correct Whitelist/blacklist config
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
-      "webrequest_maps,webrequest_mobile,webrequest_text,webrequest_upload,webrequest_misc")
+      "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
     val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
 
-    topicsAndHours.size should equal (5)
+    topicsAndHours.size should equal (4)
     // No hours to flag
     for ((t, o) <- topicsAndHours)
       o.size should equal (0)
@@ -157,7 +157,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
 
     // correct Whitelist/blacklist config
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
-      "webrequest_maps,webrequest_mobile,webrequest_text,webrequest_upload,webrequest_misc")
+      "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
     intercept[IllegalStateException] {
       CamusPartitionChecker.getTopicsAndHoursToFlag(path)

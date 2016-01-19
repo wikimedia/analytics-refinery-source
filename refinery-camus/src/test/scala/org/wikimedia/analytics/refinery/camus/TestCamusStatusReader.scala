@@ -17,16 +17,15 @@ class TestCamusStatusReader extends FlatSpec with Matchers {
 
   "A CamusStatusReader" should "read EtlKey values in offset-m-XXXXX sequence file" in {
 
-    val file: String = camusHistoryTestFolder + "/" + runFolder + "/" + "offsets-m-00001"
+    val file: String = camusHistoryTestFolder + "/" + runFolder + "/" + "offsets-m-00035"
     val path: Path = new Path(file)
 
-
     val keys = cr.readEtlKeys(path)
-    val expectedKey = new EtlKey("webrequest_mobile", "", 10, 1222082461L,1222082462L, 104667347L)
-    expectedKey.setTime(1439661130000L)
+    val expectedKey = new EtlKey("webrequest_maps", "", 1, 29811L, 29812L, 1198780952L)
+    expectedKey.setTime(1439661148000L)
     expectedKey.setServer("unknown_server")
     expectedKey.setService("unknown_service")
-
+    
     keys.size should equal (1)
     // Terrible hack because equality function returns false while objects are equal ...
     // TODO: investigate why equals method return false in that case
@@ -43,7 +42,6 @@ class TestCamusStatusReader extends FlatSpec with Matchers {
     keys.size should equal (72)
     keys.filter(_.getTopic.equals("webrequest_upload")).size should equal (12)
     keys.filter(_.getTopic.equals("webrequest_text")).size should equal (12)
-    keys.filter(_.getTopic.equals("webrequest_mobile")).size should equal (12)
     keys.filter(_.getTopic.equals("webrequest_misc")).size should equal (12)
     keys.filter(_.getTopic.equals("webrequest_maps")).size should equal (12)
   }
@@ -58,7 +56,6 @@ class TestCamusStatusReader extends FlatSpec with Matchers {
     val keys = cr.readEtlKeys(paths)
 
     keys.size should equal (36)
-    keys.filter(_.getTopic.equals("webrequest_mobile")).size should equal (12)
     keys.filter(_.getTopic.equals("webrequest_misc")).size should equal (12)
     keys.filter(_.getTopic.equals("webrequest_maps")).size should equal (12)
 

@@ -39,7 +39,7 @@ import org.wikimedia.analytics.refinery.core.LegacyPageviewDefinition;
  *   FROM
  *     wmf_raw.webrequest
  *   WHERE
- *    webrequest_source = 'mobile'
+ *    webrequest_source = 'text'
  *     AND year=2014
  *     AND month=12
  *     AND day=7
