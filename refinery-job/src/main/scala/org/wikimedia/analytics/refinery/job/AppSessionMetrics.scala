@@ -186,11 +186,11 @@ object AppSessionMetrics {
 
   /**
    * Generate list of Parquet file paths over a range of dates
-   * @param webrequestTextPath Base path to webrequest text parquet data
+   * @param webrequestMobilePath Base path to webrequest mobile parquet data
    * @param datesInfo Hashmap with report date related info
    * @return List of path strings like [".../day=1", ".../day=2"]
    */
-  def dateRangeToPathList(webrequestTextPath: String, datesInfo: Map[String, Int]): List[String] = {
+  def dateRangeToPathList(webrequestMobilePath: String, datesInfo: Map[String, Int]): List[String] = {
     //Custom iterator for stepping through LocalDate objects
     def makeDateRange(from: LocalDate, to: LocalDate, step: Period): Iterator[LocalDate] =
       Iterator.iterate(from)(_.plus(step)).takeWhile(_.isBefore(to))
@@ -198,7 +198,7 @@ object AppSessionMetrics {
     val dateStart = new LocalDate(datesInfo("year"), datesInfo("month"), datesInfo("day"))
     val dateEnd = dateStart.plusDays(datesInfo("periodDays"))
     val dateRange = makeDateRange(dateStart, dateEnd, new Period().withDays(1))
-    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d".format(webrequestTextPath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
+    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d".format(webrequestMobilePath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
   }
 
   /**
@@ -211,8 +211,7 @@ object AppSessionMetrics {
    */
   def pathListToUuidDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
     sqlContext.parquetFile(paths: _*)
-      .filter("is_pageview and access_method = 'mobile app' " +
-        "and x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
+      .filter("is_pageview and x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
       .selectExpr("x_analytics_map['wmfuuid'] as wmfuuid", "CAST(ts AS int) as ts")
   }
 
@@ -350,13 +349,12 @@ object AppSessionMetrics {
         sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
 
         // Generate a list of all parquet file paths to read given the webrequest base path,
-        // and all dates related information.  NOTE: As of January 2016,
-        // mobile web caches have been merged with text, so webrequest_source=text.
-        val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
+        // and all dates related information
+        val webrequestMobilePath = params.webrequestBasePath + "/webrequest_source=mobile"
         // Helper hashmap with all date related information to avoid passing around lots of params
         val datesInfo = HashMap("year" -> params.year, "month" -> params.month, "day" -> params.day, "periodDays" -> params.periodDays)
         // List of path strings like [".../day=1", ".../day=2"]
-        val webrequestPaths = dateRangeToPathList(webrequestTextPath, datesInfo)
+        val webrequestPaths = dateRangeToPathList(webrequestMobilePath, datesInfo)
 
         // Get sessions data for all users, calculate stats for different metrics,
         // and get the stats in a printable string format to output
