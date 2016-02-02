@@ -34,15 +34,15 @@ class AppSessionSuite extends FunSuite {
 
   test("List of parquet paths is generated correctly based on the report run date and period") {
     val datesInfo = HashMap("year" -> 2015, "month" -> 5, "day" -> 10, "periodDays" -> 10)
-    val webrequestMobilePath = ".../webrequest_source=mobile"
-    val pathList = AppSessionMetrics.dateRangeToPathList(webrequestMobilePath, datesInfo)
+    val webrequestTextPath = ".../webrequest_source=text"
+    val pathList = AppSessionMetrics.dateRangeToPathList(webrequestTextPath, datesInfo)
 
     //Assert the length of the list equals report period in days
     assert(pathList.length == datesInfo("periodDays"))
 
     //Assert the paths are being generated correctly
-    assert(pathList.head == ".../webrequest_source=mobile/year=2015/month=5/day=10")
-    assert(pathList.last == ".../webrequest_source=mobile/year=2015/month=5/day=19")
+    assert(pathList.head == ".../webrequest_source=text/year=2015/month=5/day=10")
+    assert(pathList.last == ".../webrequest_source=text/year=2015/month=5/day=19")
   }
 
 }

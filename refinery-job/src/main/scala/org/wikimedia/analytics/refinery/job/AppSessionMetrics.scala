@@ -223,11 +223,11 @@ object AppSessionMetrics {
 
   /**
    * Generate list of Parquet file paths over a range of dates
-   * @param webrequestMobilePath Base path to webrequest mobile parquet data
+   * @param webrequestTextPath Base path to webrequest text parquet data
    * @param datesInfo Hashmap with report date related info
    * @return List of path strings like [".../day=1", ".../day=2"]
    */
-  def dateRangeToPathList(webrequestMobilePath: String, datesInfo: Map[String, Int]): List[String] = {
+  def dateRangeToPathList(webrequestTextPath: String, datesInfo: Map[String, Int]): List[String] = {
     //Custom iterator for stepping through LocalDate objects
     def makeDateRange(from: LocalDate, to: LocalDate, step: Period): Iterator[LocalDate] =
       Iterator.iterate(from)(_.plus(step)).takeWhile(_.isBefore(to))
@@ -235,7 +235,7 @@ object AppSessionMetrics {
     val dateStart = new LocalDate(datesInfo("year"), datesInfo("month"), datesInfo("day"))
     val dateEnd = dateStart.plusDays(datesInfo("periodDays"))
     val dateRange = makeDateRange(dateStart, dateEnd, new Period().withDays(1))
-    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d".format(webrequestMobilePath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
+    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d".format(webrequestTextPath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
   }
 
   /**
@@ -403,12 +403,13 @@ object AppSessionMetrics {
         sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
 
         // Generate a list of all parquet file paths to read given the webrequest base path,
-        // and all dates related information
-        val webrequestMobilePath = params.webrequestBasePath + "/webrequest_source=mobile"
+        // and all dates related information.  NOTE: As of January 2016,
+        // mobile web caches have been merged with text, so webrequest_source=text.
+        val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
         // Helper hashmap with all date related information to avoid passing around lots of params
         val datesInfo = HashMap("year" -> params.year, "month" -> params.month, "day" -> params.day, "periodDays" -> params.periodDays)
         // List of path strings like [".../day=1", ".../day=2"]
-        val webrequestPaths = dateRangeToPathList(webrequestMobilePath, datesInfo)
+        val webrequestPaths = dateRangeToPathList(webrequestTextPath, datesInfo)
 
         // Get sessions data for all users, calculate stats for different metrics,
         // and get the stats in a printable string format to output
