@@ -1,3 +1,8 @@
+## v0.0.26
+* REALLY remove mobile partition use.  This was reverted and never
+  deployed in 0.0.25
+* Add split-by-os argument to AppSessionMetrics job
+
 ## v0.0.25
 * Change/remove mobile partition use
 * Add Functions for identifying search engines as referers
