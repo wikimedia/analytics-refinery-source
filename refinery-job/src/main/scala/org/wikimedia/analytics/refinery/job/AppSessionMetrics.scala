@@ -270,17 +270,14 @@ object AppSessionMetrics {
       // format the line as: key=(os_family, wmfuuid), val=timestamp
       .map(r => ((r.getString(0), r.getString(1)), r.getInt(2).toLong))
       // aggregate key to list of sorted timestamps (key, timestamp)* -> (key, List(ts1, ts2, ts3, ...))
-      // sorting is max to min, careful here: if values are found in the same partition they need to be sorted too
-      // Some of these lines may throw an error in IntelliJ but it compiles and can be ignored.
       .combineByKey(
-        List(_),
-        (l: List[Long], t: Long) => (t +: l).sorted,
+        (t: Long) => List(t),
+        (l: List[Long], t: Long) => (t +: l),
         // sort timestamps max to min
-        (l1: List[Long], l2: List[Long]) => (l1 ++ l2).sorted,
-        numPartitions = numPartitions
-      )
-      // map: (key, List(ts1, ts2, ts3, ...)) -> (key, List(List(ts1, ts2), List(ts3), ...)
-      .map { case (key, listOfTimestampLists) => key -> listOfTimestampLists.foldLeft(emptySessions)(sessionize) }
+        (l1: List[Long], l2: List[Long]) => (l1 ++ l2),
+        numPartitions = numPartitions)
+      // map: (key, List(ts1, ts2, ts3, ...)) -> sort(List(ts1, ts2, ts3, ...)) -> (key, List(List(ts1, ts2), List(ts3), ...)
+      .map { case (key, listOfTimestampLists) => key -> listOfTimestampLists.sorted.foldLeft(emptySessions)(sessionize) }
       .cache()
   }
 
