@@ -11,6 +11,7 @@ class TestCamusStatusReader extends FlatSpec with Matchers {
   val camusHistoryTestFolder = "src/test/resources/camus-test-data"
   val runFolder = "2015-08-15-17-52-01"
   val mostRecentRunFolder = "2015-10-02-08-00-07"
+  val twoMostRecentRunFolders = Seq("2015-09-29-15-20-08", "2015-10-02-08-00-07")
   val wrongFolder = "wrong-folder"
   val fs = FileSystem.get(new Configuration)
   val cr = new CamusStatusReader(fs)
@@ -84,6 +85,19 @@ class TestCamusStatusReader extends FlatSpec with Matchers {
     offsetsFilesNames should be (Seq.empty)
     val previousOffsetsFilesNames = cr.previousOffsetsFiles(path)
     previousOffsetsFilesNames should be (Seq.empty)
+  }
+
+  it should "return the most recent camus runs in a camus-history folder" in {
+    val folder: String = camusHistoryTestFolder
+    val path: Path = new Path(folder)
+
+    val mostRecentRunsPath = cr.mostRecentRuns(path, 2)
+
+    (twoMostRecentRunFolders zip mostRecentRunsPath).foreach( {
+      case (expected_path: String, path: Path) => {
+        path.getName should equal (expected_path)
+      }
+    })
   }
 
   it should "return the most recent camus run in a camus-history folder" in {

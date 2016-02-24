@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.job
 import java.io.FileInputStream
 import java.util.Properties
 
+import com.github.nscala_time.time.Imports._
 import com.linkedin.camus.etl.kafka.CamusJob
 import com.linkedin.camus.etl.kafka.common.EtlKey
 import com.linkedin.camus.etl.kafka.mapred.{EtlInputFormat, EtlMultiOutputFormat}
@@ -10,10 +11,9 @@ import org.apache.commons.lang.StringUtils
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.{LogManager, Logger}
-import org.joda.time.{Hours, DateTimeZone, DateTime}
+import org.joda.time.{DateTime, Hours}
 import org.wikimedia.analytics.refinery.camus.CamusStatusReader
 import scopt.OptionParser
-import com.github.nscala_time.time.Imports._
 
 /**
  * Class marking checking camus runs based on a camus.properties file.
@@ -121,6 +121,7 @@ object CamusPartitionChecker {
 
   case class Params(camusPropertiesFilePath: String = "",
                     datetimeToCheck: Option[String] = None,
+                    mostRecentRunsToCheck: Int = 1,
                     hadoopCoreSitePath: String = "/etc/hadoop/conf/core-site.xml",
                     hadoopHdfsSitePath: String = "/etc/hadoop/conf/hdfs-site.xml",
                     flag: String = "_IMPORTED",
@@ -129,7 +130,8 @@ object CamusPartitionChecker {
   val argsParser = new OptionParser[Params]("Camus Checker") {
     head("Camus partition checker", "")
     note(
-      "This job checked for most recent camus run correctness and flag hour partitions when fully imported.")
+      "This job checked camus runs correctness and flag hour partitions when fully imported.\n" +
+        "\tWhen dateTimeToCheck parameter is set, is overrides mostRecentRunsToCheck parameter.")
     help("help") text ("Prints this usage text")
 
     opt[String]('c', "camus-properties-file") required() valueName ("<path>") action { (x, p) =>
@@ -138,7 +140,12 @@ object CamusPartitionChecker {
 
     opt[String]('d', "datetimeToCheck") optional() valueName ("yyyy-mm-dd-HH-MM-SS") action { (x, p) =>
       p.copy(datetimeToCheck = Some(x))
-    } text ("Datetime camus run to check (must be present in history folder) - Default to most recent run.")
+    } text ("Datetime camus run to check (must be present in history folder)")
+
+    opt[Int]('n', "mostRecentRunsToCheck") optional() valueName ("<num>") action { (x, p) =>
+      p.copy(mostRecentRunsToCheck = x)
+    } validate { x => if (x > 0) success else failure("mostRecentRunsToCheck must be greater than 0")
+    } text ("Number of most recent camus runs to check (default to 1, overwritten by datetimeToCheck if set).")
 
     opt[String]("hadoop-core-site-file") optional() valueName ("<path>") action { (x, p) =>
       p.copy(hadoopCoreSitePath = x)
@@ -186,35 +193,42 @@ object CamusPartitionChecker {
           log.info("Loading camus properties file.")
           props.load(new FileInputStream(params.camusPropertiesFilePath))
 
-          val camusPathToCheck: Path = {
-            val history_folder = props.getProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH)
-            if (params.datetimeToCheck.isEmpty) {
-              log.info("Getting camus most recent run from history folder.")
-              camusReader.mostRecentRun(new Path(history_folder))
-            } else {
+          val camusPathsToCheck: Seq[Path] = {
+
+            if (params.datetimeToCheck.isDefined) {
               val p = new Path(props.getProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH) + "/" + params.datetimeToCheck.get)
               if (fs.isDirectory(p)) {
                 log.info("Set job to given datetime to check.")
-                p
+                Seq(p)
               } else {
-                log.error("The given datetime to check is not a folder in camus history.")
-                null
+                throw new IllegalArgumentException("The given datetime to check is not a folder in camus history.")
               }
+            } else {
+              log.info(s"Getting ${params.mostRecentRunsToCheck} camus most recent runs from history folder.")
+              val history_folder = props.getProperty(CamusJob.ETL_EXECUTION_HISTORY_PATH)
+              camusReader.mostRecentRuns(new Path(history_folder), params.mostRecentRunsToCheck)
             }
           }
-          if (null == camusPathToCheck)
-            System.exit(1)
-
-          log.info("Checking job correctness and computing partitions to flag as imported.")
-          val topicsAndHours = getTopicsAndHoursToFlag(camusPathToCheck)
-
-          log.info("Job is correct, flag imported partitions.")
-          flagFullyImportedPartitions(params.flag, params.dryRun, topicsAndHours)
-
-          log.info("Done.")
+          log.info(s"Working ${camusPathsToCheck.size} camus history folders.")
+          val (sucesses, errors) = camusPathsToCheck.foldLeft((0, 0))((successes_errors: (Int, Int), p: Path) => {
+            log.info(s"Checking ${p.toString}")
+            try {
+              val topicsAndHours = getTopicsAndHoursToFlag(p)
+              log.info(s"Flagging imported partitions for ${p.toString}")
+              flagFullyImportedPartitions(params.flag, params.dryRun, topicsAndHours)
+              log.info(s"Done ${p.toString}.")
+              (successes_errors._1 + 1, successes_errors._2)
+            } catch {
+              case e: IllegalStateException => {
+                log.error(s"An error occured while processing ${p}.", e)
+                (successes_errors._1, successes_errors._2 + 1)
+              }
+            }
+          })
+          log.info(s"Done  - ${sucesses} correct folders and ${errors} folders generating an error.")
         } catch {
           case e: Exception => {
-            log.error("An error occured during execution.", e)
+            log.error("A fatal error occurred during execution.", e)
             sys.exit(1)
           }
         }
