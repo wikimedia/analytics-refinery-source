@@ -1,3 +1,14 @@
+## v0.0.27
+* Implement the Wikimedia User Agent policy in setting agent type.
+* Remove WikimediaBot tagging.
+* Add ApiAction avro schema.
+* Add functions for categorizing search queries.
+* Update CamusPartitionChecker not to hard-failing on errors.
+* Add CamusPartitionChecker the possibility to rewind to last N runs
+  instead of just one.
+* Update AppSession Metrics with explicit typing and sorting improvement
+* Ensure that the schema_repo git submodules are available before packaging
+
 ## v0.0.26
 * REALLY remove mobile partition use.  This was reverted and never
   deployed in 0.0.25
