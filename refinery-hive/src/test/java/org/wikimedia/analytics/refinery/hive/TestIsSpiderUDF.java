@@ -34,7 +34,6 @@ public class TestIsSpiderUDF {
     public void testIsCrawler(
         String test_description,
         boolean isSpider,
-        boolean isWikimediaBot,
         String user_agent
     ) {
         IsSpiderUDF udf = new IsSpiderUDF();

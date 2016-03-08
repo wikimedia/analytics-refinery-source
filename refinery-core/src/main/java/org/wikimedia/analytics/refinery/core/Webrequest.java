@@ -41,10 +41,19 @@ public class Webrequest {
         return instance;
     }
 
+    /* Regex to coarsely match email addresses in the user-agent as part of spider identification,
+       as the User-Agent policy - https://meta.wikimedia.org/wiki/User-Agent_policy,
+       encourages bot developers to leave contact information in the user agent string.
+     */
+    private static final String coarseEmailPattern = "\\S+@\\S+\\.[a-zA-Z]{2,3}";
+
     /*
-     * Spiders identification pattern (obvisouly not perfect...)
+     * Spiders identification pattern (obviously not perfect...)
      * to be used in addition to ua-parser device_family field
      * being identified as Spider.
+     *
+     * Implements also the Wikimedia User-Agent policy -
+     * https://meta.wikimedia.org/wiki/User-Agent_policy
      */
     private static final Pattern spiderPattern = Pattern.compile("(?i)^(" +
                     ".*(bot|spider|WordPress|AppEngine|AppleDictionaryService|Python-urllib|python-requests|" +
@@ -52,7 +61,8 @@ public class Webrequest {
                     "|(goo wikipedia|MediaWikiCrawler-Google|wikiwix-bot|Java/|curl|PHP/|Faraday|HTTPC|Ruby|\\.NET|" +
                         "Python|Apache|Scrapy|PycURL|libwww|Zend|wget|nodemw|WinHttpRaw|Twisted|com\\.eusoft|Lagotto|" +
                         "Peggo|Recuweb|check_http|Magnus|MLD|Jakarta|find-link|J\\. River|projectplan9|ADmantX|" +
-                        "httpunit|LWP|iNaturalist|WikiDemo|FSResearchIt|livedoor|Microsoft Monitoring|MediaWiki).*" +
+                        "httpunit|LWP|iNaturalist|WikiDemo|FSResearchIt|livedoor|Microsoft Monitoring|MediaWiki|" +
+                        "User:|User_talk:|github|tools.wmflabs.org|" + coarseEmailPattern + ").*" +
                     ")$");
 
     /*
@@ -61,11 +71,6 @@ public class Webrequest {
      * We use a LRU cache to prevent recomputing agentType for frequently seen user agents.
      */
     private Utilities.LRUCache<String, Boolean> agentTypeCache = new Utilities.LRUCache<>(10000);
-
-    /*
-     * WikimediaBot identification pattern 
-     */
-    private static final Pattern wikimediaBotPattern = Pattern.compile("\\bWikimediaBot\\b");
 
     /**
      * Pattern for automatically-added subdomains that indicate zero,
@@ -86,8 +91,7 @@ public class Webrequest {
 
     /**
      * Identify a bunch of spiders; returns TRUE
-     * if the user agent matches a known spider and doesn't
-     * match the WikimediaBot convention.
+     * if the user agent matches a known spider.
      * @param    userAgent    the user agent associated with the request.
      * @return   boolean
      */
@@ -98,8 +102,7 @@ public class Webrequest {
             if (agentTypeCache.containsKey(userAgent))
                 return agentTypeCache.get(userAgent);
             else {
-                boolean isSpider = (spiderPattern.matcher(userAgent).find()
-                                    && !wikimediaBotPattern.matcher(userAgent).find());
+                boolean isSpider = spiderPattern.matcher(userAgent).find();
                 agentTypeCache.put(userAgent, isSpider);
                 return isSpider;
             }
@@ -111,16 +114,6 @@ public class Webrequest {
     @Deprecated
     public boolean isCrawler(String userAgent) {
         return isSpider(userAgent);
-    }
-
-    /**
-     * Identify WikimediaBot; returns TRUE
-     * if the user agent matches the WikimediaBot convention.
-     * @param    userAgent    the user agent associated with the request.
-     * @return   boolean
-     */
-    public boolean isWikimediaBot(String userAgent) {
-        return wikimediaBotPattern.matcher(userAgent).find();
     }
 
     /**

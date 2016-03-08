@@ -23,7 +23,6 @@ public class TestWebrequest {
     public void testIsCrawler(
             String test_description,
             boolean is_crawler,
-            boolean is_WikimediaBot,
             String user_agent
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
@@ -45,7 +44,6 @@ public class TestWebrequest {
     public void testIsSpider(
         String test_description,
         boolean isSpider,
-        boolean isWikimediaBot,
         String user_agent
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
@@ -55,28 +53,6 @@ public class TestWebrequest {
             webrequest_inst.isSpider(
                 user_agent
             )
-        );
-    }
-
-    @Test
-    @FileParameters(
-            value = "src/test/resources/isSpider_test_data.csv",
-            mapper = CsvWithHeaderMapper.class
-    )
-
-    public void testIsWikimediabot(
-            String test_description,
-            boolean isSpider,
-            boolean isWikimediaBot,
-            String user_agent
-    ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
-        assertEquals(
-                test_description,
-                isWikimediaBot,
-                webrequest_inst.isWikimediaBot(
-                        user_agent
-                )
         );
     }
 

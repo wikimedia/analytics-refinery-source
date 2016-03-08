@@ -35,7 +35,6 @@ public class TestIsCrawlerUDF {
     public void testIsCrawler(
         String test_description,
         boolean is_crawler,
-        boolean is_wikimediaBot,
         String user_agent
     ) {
         IsCrawlerUDF udf = new IsCrawlerUDF();
