@@ -211,9 +211,64 @@ public class TestPageview {
             http_status,
             content_type,
             user_agent,
-            "{'blah':'1','preview':'1'}"
+            "WMF-Last-Access=10-Jan-2016;preview=1"
 
         ) == false);
+
+    }
+
+    /**
+     * We only accept value "1" for preview header
+     */
+    @Test
+    public void testIsPageviewXAnalyticsPreviewBadHeaderValue(
+
+    ){
+        String uri_host = "en.wikipedia";
+        String uri_path = "/wiki/Horseshoe%20crab#anchor"; ;
+        String uri_query = "-";
+        String http_status = "200";
+        String content_type = "text/html";
+        String user_agent = "turnip/";
+
+        assertTrue("A bad value for preview request header should not be consider a preview", PageviewDefinition.getInstance().isPageview(
+            uri_host,
+            uri_path,
+            uri_query,
+            http_status,
+            content_type,
+            user_agent,
+            "WMF-Last-Access=10-Jan-2016;preview=BAD;pageview=1"
+
+        ) == true);
+
+    }
+
+    /**
+     * If a request comes tagged as pageview is counted as such
+     * regardless of uri_host, uri_path...
+     */
+    @Test
+    public void testIsPageviewXAnalyticsPageviewTagged(
+
+    ){
+        String uri_host = "en.wikipedia";
+        String uri_path = "blah"; ;
+        String uri_query = "-";
+        String http_status = "200";
+        String content_type = "blah";
+        String user_agent = "blah/";
+
+        assertTrue("Request tagged as pageview in x-analytics should be consider pageviews", PageviewDefinition.getInstance().isPageview(
+            uri_host,
+            uri_path,
+            uri_query,
+            http_status,
+            content_type,
+            user_agent,
+            "WMF-Last-Access=10-Jan-2016;pageview=1"
+
+        ) == true);
 
     }
 }

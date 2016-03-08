@@ -154,6 +154,10 @@ public class PageviewDefinition {
     /**
      * Given a webrequest URI path, query and user agent,
      * returns true if we consider this an app (API) pageview.
+     *
+     * If x-analytics header includes pageview=1 we do not do any further check
+     * and return true.
+     *
      * Note that the logic here is /NOT COMPLETE/. It checks
      * to see if the request is an app pageview, but not
      * (for example) whether it actually completed.
@@ -192,8 +196,12 @@ public class PageviewDefinition {
 
         Webrequest wr = Webrequest.getInstance();
 
-        if (!wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").isEmpty())
+        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").trim().equalsIgnoreCase("1"))
             return false;
+
+        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"))
+            return true;
+
 
         return (
                Utilities.stringContains(uriPath,     uriPathAPI)
@@ -248,6 +256,10 @@ public class PageviewDefinition {
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
      * returns true if we consider this a 'pageview', false otherwise.
+     *
+     * If x-analytics header includes pageview=1 we do not do any further check
+     * and return true.
+     *
      * <p>
      * See: https://meta.wikimedia.org/wiki/Research:Page_view/Generalised_filters
      *      for information on how to classify a pageview.
@@ -286,8 +298,12 @@ public class PageviewDefinition {
 
         Webrequest wr = Webrequest.getInstance();
 
-        if (!wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").isEmpty())
+        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").trim().equalsIgnoreCase("1"))
             return false;
+
+
+        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"))
+            return true;
 
         return (
             // All pageviews have a 200 or 304 HTTP status
