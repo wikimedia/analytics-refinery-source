@@ -303,7 +303,7 @@
       <hive.version>1.1.0-cdh5.5.2</hive.version>
       <scala.version>2.10.4</scala.version>
       <spark.version>1.5.0-cdh5.5.2</spark.version>
-      <camus.version>0.1.0-wmf6</camus.version>
+      <camus.version>0.1.0-wmf7</camus.version>
     </properties>
 
   </project>
