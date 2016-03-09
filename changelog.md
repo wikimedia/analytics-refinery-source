@@ -1,4 +1,5 @@
 ## v0.0.27
+* Upgrade CDH dependencies to 5.5.2
 * Implement the Wikimedia User Agent policy in setting agent type.
 * Remove WikimediaBot tagging.
 * Add ApiAction avro schema.
