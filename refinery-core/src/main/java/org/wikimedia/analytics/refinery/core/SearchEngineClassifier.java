@@ -38,7 +38,7 @@ public class SearchEngineClassifier {
     /*
      * A simple pattern for search identification
      */
-    private static final Pattern searchPattern = Pattern.compile("(\\.(baidu|bing|google)|search\\.yahoo|yandex)\\.");
+    private static final Pattern searchPattern = Pattern.compile("(\\.?(baidu|bing|google)|search\\.yahoo|yandex)\\.");
 
     /**
      * Crudely subsets a referer to just contain the domain,

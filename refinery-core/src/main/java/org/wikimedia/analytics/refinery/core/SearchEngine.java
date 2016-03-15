@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * to specify a string with spaces and symbols if needed.
  */
 public enum SearchEngine {
-    GOOGLE("Google", "\\.google\\."),
+    GOOGLE("Google", "\\.?google\\."),
     YAHOO("Yahoo", "search\\.yahoo\\."),
     BING("Bing", "\\.bing\\."),
     YANDEX("Yandex", "yandex\\."),
