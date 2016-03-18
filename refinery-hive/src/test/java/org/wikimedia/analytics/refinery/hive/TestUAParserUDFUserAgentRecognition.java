@@ -65,7 +65,7 @@ public class TestUAParserUDFUserAgentRecognition {
         assertEquals("OS name check", (new String("iOS")),
                 evaled.get("os_family").toString());
 
-        assertEquals("Browser name check", (new String("Mobile Safari")),
+        assertEquals("Browser name check", (new String("Mobile Safari UIWebView")),
                 evaled.get("browser_family").toString());
 
 
