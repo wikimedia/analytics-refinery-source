@@ -1,7 +1,9 @@
 package org.wikimedia.analytics.refinery.camus.schemaregistry;
 
 import com.linkedin.camus.schemaregistry.SchemaDetails;
+import com.linkedin.camus.schemaregistry.SchemaNotFoundException;
 import com.linkedin.camus.schemaregistry.SchemaRegistry;
+
 import org.apache.avro.Schema;
 import org.apache.commons.math3.util.Pair;
 
@@ -50,11 +52,10 @@ public class KafkaTopicSchemaRegistry implements SchemaRegistry<Schema>, Handler
     @Override
     public SchemaDetails<Schema> getLatestSchemaByTopic(String topicName) {
         String schemaName = getSchemaNameFromTopic(topicName);
-
-        String latestRev = props.getProperty(SCHEMA_NAMESPACE+"."+schemaName+".latestRev");
+        String property = SCHEMA_NAMESPACE+"."+schemaName+".latestRev";
+        String latestRev = props.getProperty(property);
         if(latestRev == null) {
-            // No latest rev provided
-            return null;
+            throw new SchemaNotFoundException("Latest revision for " + schemaName + " is not set, please set " + property + " in camus.properties");
         }
         Schema schema = this.getSchemaByID(topicName, latestRev);
 

@@ -35,7 +35,7 @@ import java.util.Properties;
  *
  * <p>
  * The writerSchema is mandatory and will be obtained from a field in the JSON body.
- * The targetSchema is optional and will be obtained from
+ * The targetSchema is mandatory and will be obtained from
  * {@link KafkaTopicSchemaRegistry#getLatestSchemaByTopic(String)}.
  * </p>
  *
@@ -43,8 +43,6 @@ import java.util.Properties;
  * <ul>
  * <li><tt>camus.message.schema.id.field</tt>: (required) the name of the
  * JSON field where the schema id can be found</li>
- * <li><tt>camus.message.schema.default</tt>: (optional) the schema ID
- * to use when no schema is found in the json body</li>
  * <li><tt>camus.message.timestamp.field</tt>: (default to "timestamp")
  * the of the timestamp field</li>
  * <li><tt>camus.message.timestamp.format</tt>: (default to "unix_milliseconds")
@@ -54,7 +52,6 @@ import java.util.Properties;
  */
 public class AvroJsonMessageDecoder extends MessageDecoder<Message, GenericData.Record> {
     public static final String CAMUS_SCHEMA_ID_FIELD = "camus.message.schema.id.field";
-    public static final String CAMUS_SCHEMA_DEFAULT = "camus.message.schema.default";
 
     public static final String DEFAULT_SCHEMA_ID_FIELD = "schemaID";
 
@@ -63,11 +60,11 @@ public class AvroJsonMessageDecoder extends MessageDecoder<Message, GenericData.
 
     protected DecoderFactory decoderFactory;
     protected SchemaRegistry<Schema> registry;
+    private Schema targetSchema;
 
     private String schemaIDField;
     private String timestampField;
     private String timestampFormat;
-    private String defaultSchemaId = null;
 
     public AvroJsonMessageDecoder() {
     }
@@ -87,8 +84,8 @@ public class AvroJsonMessageDecoder extends MessageDecoder<Message, GenericData.
             log.info("Underlying schema registry for topic: " + topicName + " is: " + registry);
             registry.init(props);
 
-            defaultSchemaId = props.getProperty(CAMUS_SCHEMA_DEFAULT);
             this.registry = registry;
+            this.targetSchema = registry.getLatestSchemaByTopic(topicName).getSchema();
         } catch (Exception e) {
             throw new MessageDecoderException(e);
         }
@@ -102,14 +99,6 @@ public class AvroJsonMessageDecoder extends MessageDecoder<Message, GenericData.
     @Override
     public CamusWrapper<GenericData.Record> decode(Message message) {
         Schema writerSchema = getProducerSchema(message.getPayload());
-        SchemaDetails<Schema> targetSchemaDetails = null;
-        try {
-            targetSchemaDetails = registry.getLatestSchemaByTopic(topicName);
-        } catch(SchemaNotFoundException e) {
-            // Ignore this error, targetSchema is optional.
-        }
-        // If a target schema has been specified use it. Use writerSchema otherwise.
-        Schema targetSchema = targetSchemaDetails != null ? targetSchemaDetails.getSchema() : writerSchema;
         try {
             DatumReader<GenericData.Record> reader = new GenericDatumReader<GenericData.Record>(writerSchema, targetSchema);
             InputStream inStream = new ByteArrayInputStream(message.getPayload(), 0, message.getPayload().length);
@@ -156,13 +145,9 @@ public class AvroJsonMessageDecoder extends MessageDecoder<Message, GenericData.
         } catch (IOException e) {
             log.warn("Parse error while extracting schema id from json body", e);
         }
-        if(schemaId == null && defaultSchemaId != null) {
-            schemaId = defaultSchemaId;
-        }
         if(schemaId == null) {
             throw new RuntimeException("No schema found for topic "
-                    + topicName + ": none provided in the json body. Use "
-                    + CAMUS_SCHEMA_DEFAULT + " to force a default schema.");
+                    + topicName + ": none provided in the json body.");
         }
         return registry.getSchemaByID(topicName, schemaId);
     }

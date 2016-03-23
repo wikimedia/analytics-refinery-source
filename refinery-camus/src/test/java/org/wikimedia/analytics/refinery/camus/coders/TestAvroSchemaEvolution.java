@@ -44,25 +44,22 @@ public class TestAvroSchemaEvolution {
     private final static int BINARY = 2;
 
     private final int type;
-    private final boolean includeSchema;
     private MessageDecoder<Message, GenericData.Record> decoder;
+    private KafkaTopicSchemaRegistry registry;
 
     @Parameters
     public static Collection<Object[]> params() throws IOException {
         return Arrays.asList(
-                new Object[]{JSON, true}, // Json with writer schema in message
-                new Object[]{JSON, false}, // Json with writer schema as a property
-                new Object[]{BINARY, true}, // Binary with writer schema in message
-                new Object[]{BINARY, false} // Binary with writer schema as a property
+                new Object[]{JSON},
+                new Object[]{BINARY}
         );
     }
 
-    public TestAvroSchemaEvolution(int type, boolean includeSchema) {
+    public TestAvroSchemaEvolution(int type) {
         this.type = type;
-        this.includeSchema = includeSchema;
     }
 
-    public Record receiveMessage(int fromVersion, int toVersion, boolean useWriterSchemaOnly) {
+    public Record receiveMessage(int fromVersion, int toVersion) {
         switch (type) {
         case JSON:
             decoder = new AvroJsonMessageDecoder();
@@ -77,71 +74,52 @@ public class TestAvroSchemaEvolution {
         testProperties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_REGISTRY_CLASS,
                 "org.wikimedia.analytics.refinery.camus.schemaregistry.KafkaTopicSchemaRegistry");
 
-        if(fromVersion != toVersion || !useWriterSchemaOnly) {
-            testProperties.setProperty("org.wikimedia.analytics.schemas.TestSchema.latestRev", String.valueOf(toVersion));
-        }
-        if(!includeSchema) {
-            testProperties.setProperty("camus.message.schema.default", String.valueOf(fromVersion));
-        }
+        testProperties.setProperty("org.wikimedia.analytics.schemas.TestSchema.latestRev", String.valueOf(toVersion));
+        registry = new KafkaTopicSchemaRegistry();
+        registry.init(testProperties);
         decoder.init(testProperties, "testprefix_TestSchema");
         return decoder.decode(getMessage(fromVersion)).getRecord();
-    }
-
-    public Record receiveMessage(int fromVersion, int toVersion) {
-        return receiveMessage(fromVersion, toVersion, false);
     }
 
     @Test
     public void testV0_V0() throws IOException {
         Record record = receiveMessage(0,0);
+        assertEquals(registry.getSchemaByID("testprefix_TestSchema", "0"), record.getSchema());
         assertV0(record);
     }
 
     @Test
     public void testV0_V1() throws IOException {
         Record record = receiveMessage(0,1);
+        assertEquals(registry.getSchemaByID("testprefix_TestSchema", "1"), record.getSchema());
         assertV0ToV1(record);
     }
 
     @Test
     public void testV0_V2() throws IOException {
         Record record = receiveMessage(0,2);
+        assertEquals(registry.getSchemaByID("testprefix_TestSchema", "2"), record.getSchema());
         assertV0ToV2(record);
     }
 
     @Test
     public void testV1_V1() throws IOException {
         Record record = receiveMessage(1,1);
+        assertEquals(registry.getSchemaByID("testprefix_TestSchema", "1"), record.getSchema());
         assertV1(record);
     }
 
     @Test
     public void testV1_V2() throws IOException {
         Record record = receiveMessage(1,2);
+        assertEquals(registry.getSchemaByID("testprefix_TestSchema", "2"), record.getSchema());
         assertV1ToV2(record);
     }
 
     @Test
     public void testV2_V2() throws IOException {
         Record record = receiveMessage(2,2);
-        assertV2(record);
-    }
-
-    @Test
-    public void testWriterSchemaOnlyV0() throws IOException {
-        Record record = receiveMessage(0,0,true);
-        assertV0(record);
-    }
-
-    @Test
-    public void testWriterSchemaOnlyV1() throws IOException {
-        Record record = receiveMessage(1,1,true);
-        assertV1(record);
-    }
-
-    @Test
-    public void testWriterSchemaOnlyV2() throws IOException {
-        Record record = receiveMessage(2,2,true);
+        assertEquals(registry.getSchemaByID("testprefix_TestSchema", "2"), record.getSchema());
         assertV2(record);
     }
 
@@ -253,7 +231,7 @@ public class TestAvroSchemaEvolution {
         writer.write(record, enc);
         enc.flush();
         baos.close();
-        return new TestMessage(baos.toByteArray(), 0, includeSchema);
+        return new TestMessage(baos.toByteArray(), 0);
     }
 
     private TestMessage getAvroBinaryPayloadV1() throws IOException {
@@ -275,7 +253,7 @@ public class TestAvroSchemaEvolution {
         writer.write(record, enc);
         enc.flush();
         baos.close();
-        return new TestMessage(baos.toByteArray(), 1, includeSchema);
+        return new TestMessage(baos.toByteArray(), 1);
     }
 
     private TestMessage getAvroBinaryPayloadV2() throws IOException {
@@ -296,7 +274,7 @@ public class TestAvroSchemaEvolution {
         writer.write(record, enc);
         enc.flush();
         baos.close();
-        return new TestMessage(baos.toByteArray(), 2, includeSchema);
+        return new TestMessage(baos.toByteArray(), 2);
     }
 
 
@@ -308,7 +286,7 @@ public class TestAvroSchemaEvolution {
         someInfo.addProperty("sub1", "val 1");
         someInfo.addProperty("sub2", "val 2");
         avroMessage.add("someInfo", someInfo);
-        return new TestMessage(new GsonBuilder().create().toJson(avroMessage), 0, includeSchema);
+        return new TestMessage(new GsonBuilder().create().toJson(avroMessage), 0);
     }
 
     private TestMessage getAvroJsonPayloadV1() {
@@ -324,7 +302,7 @@ public class TestAvroSchemaEvolution {
         JsonObject union = new JsonObject();
         union.addProperty("string", "my new union");
         avroMessage.add("newUnion", union);
-        return new TestMessage(new GsonBuilder().create().toJson(avroMessage), 1, includeSchema);
+        return new TestMessage(new GsonBuilder().create().toJson(avroMessage), 1);
     }
 
     private TestMessage getAvroJsonPayloadV2() {
@@ -339,6 +317,6 @@ public class TestAvroSchemaEvolution {
         JsonObject union = new JsonObject();
         union.addProperty("string", "my new union");
         avroMessage.add("newUnion", union);
-        return new TestMessage(new GsonBuilder().create().toJson(avroMessage), 2, includeSchema);
+        return new TestMessage(new GsonBuilder().create().toJson(avroMessage), 2);
     }
 }

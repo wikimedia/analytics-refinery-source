@@ -172,6 +172,8 @@ public class TestAvroMessageTimestamps {
         }
         properties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_REGISTRY_CLASS,
                 KafkaTopicSchemaRegistry.class.getName());
+        properties.setProperty(KafkaTopicSchemaRegistry.SCHEMA_NAMESPACE+".TestTimestampSchema.latestRev", "0");
+
         this.assertion = assertion;
         this.testName = "Test (" + assertion.getClass().getSimpleName() + ") "
                 + "decoder: " + decoderClass.getSimpleName()
