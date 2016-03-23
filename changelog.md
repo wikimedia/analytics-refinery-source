@@ -1,3 +1,14 @@
+## v0.0.28
+* Drop support for message without rev id in avro decoders and make
+  latestRev mandatory
+* Upgrade to latest UA-Parser version
+* Update mediawiki/event-schemas submodule submodule to include 3dd6ee3 "Rename
+  ApiRequest to ApiAction".
+* Google Search Engine referer detection bug fix
+* Upgrade camus-wmf dependency to camus-wmf7
+* Requests that come tagged with pageview=1 in x-analytics header
+  are considered pageviews
+
 ## v0.0.27
 * Upgrade CDH dependencies to 5.5.2
 * Implement the Wikimedia User Agent policy in setting agent type.
