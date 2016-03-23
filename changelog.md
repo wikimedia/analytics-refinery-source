@@ -1,8 +1,10 @@
 ## v0.0.28
+* Update mediawiki/event-schemas submodule to include information about
+  search results in CirrusSearchRequestSet
 * Drop support for message without rev id in avro decoders and make
   latestRev mandatory
 * Upgrade to latest UA-Parser version
-* Update mediawiki/event-schemas submodule submodule to include 3dd6ee3 "Rename
+* Update mediawiki/event-schemas submodule to include 3dd6ee3 "Rename
   ApiRequest to ApiAction".
 * Google Search Engine referer detection bug fix
 * Upgrade camus-wmf dependency to camus-wmf7
