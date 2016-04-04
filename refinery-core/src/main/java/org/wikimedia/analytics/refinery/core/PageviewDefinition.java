@@ -168,6 +168,10 @@ public class PageviewDefinition {
      * Please note that requests tagged as 'preview' are not counted
      * as pageviews.
      *
+     * We let apps decide whether a request is a pageview by tagging it as such
+     * on x-analytics header, if pageview=1 is present
+     * we do not look further at urls.
+     *
      * We use the raw xAnalytics header rather than x_analytics_map
      * to make sure this function can be applied
      * to raw data, where the parsing of x-Analytics header into
@@ -199,19 +203,20 @@ public class PageviewDefinition {
         if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").trim().equalsIgnoreCase("1"))
             return false;
 
-        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"))
-            return true;
+        boolean isTaggedPageview = (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"));
 
+        return (Utilities.stringContains(contentType, appContentType)
+                && Utilities.stringContains(userAgent,   appUserAgent)
 
-        return (
-               Utilities.stringContains(uriPath,     uriPathAPI)
-            && (
-                    Utilities.stringContains(uriQuery, appPageURIQuery)
-                    || (Utilities.stringContains(uriQuery, iosAppPageURIQuery) && Utilities.stringContains(userAgent, iosUserAgent))
+                && (isTaggedPageview ||
+                (
+                    Utilities.stringContains(uriPath, uriPathAPI) &&
+                    (Utilities.stringContains(uriQuery, appPageURIQuery)
+                     || (Utilities.stringContains(uriQuery, iosAppPageURIQuery)
+                         && Utilities.stringContains(userAgent, iosUserAgent))
+                    )
                )
-            && Utilities.stringContains(contentType, appContentType)
-            && Utilities.stringContains(userAgent,   appUserAgent)
-        );
+            ));
     }
 
 
@@ -301,9 +306,6 @@ public class PageviewDefinition {
         if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").trim().equalsIgnoreCase("1"))
             return false;
 
-
-        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"))
-            return true;
 
         return (
             // All pageviews have a 200 or 304 HTTP status
