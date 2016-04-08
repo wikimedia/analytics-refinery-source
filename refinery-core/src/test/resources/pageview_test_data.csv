@@ -34,3 +34,4 @@ Is Not Pageview - Desktop - wrong host,wrongwikipedia,default,Horseshoe_crab,fal
 Is Not Pageview - Desktop - wrong host,outreach.wikimedia,default,Horseshoe_crab,false,true,false,174.62.175.82,-,outreach.wikimedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
 Is Not Pageview - Desktop - wrong host,donate.wikipedia,default,Horseshoe_crab,false,true,false,174.62.175.82,-,donate.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip
 Is not pageview – arbcom wiki,arbcom-en.wikipedia,default,Request_for_Arbitration,false,true,false,174.62.175.82,-,arbcom-en.wikipedia.org,/wiki/Request_for_Arbitration,-,200,text/html, turnip
+Is Pageview – App -  iOS – Bug Version,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,true,false,true,174.62.175.83,-,en.wikipedia.org, /w/api.php,?action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, application/json,Wikipedia/5.0.2 (iPhone OS 8.2 Phone)
