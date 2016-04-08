@@ -197,6 +197,7 @@ public class PageviewDefinition {
         final String appPageURIQuery    = "sections=0";
         final String iosAppPageURIQuery = "sections=all";
         final String iosUserAgent       = "iPhone";
+        final String iOsAppUserAgent    = "Wikipedia/5.0.";
 
         Webrequest wr = Webrequest.getInstance();
 
@@ -206,7 +207,8 @@ public class PageviewDefinition {
         boolean isTaggedPageview = (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"));
 
         return (Utilities.stringContains(contentType, appContentType)
-                && Utilities.stringContains(userAgent,   appUserAgent)
+                && (Utilities.stringContains(userAgent,   appUserAgent)
+                    || (Utilities.stringContains(userAgent,   iOsAppUserAgent)))
 
                 && (isTaggedPageview ||
                 (
