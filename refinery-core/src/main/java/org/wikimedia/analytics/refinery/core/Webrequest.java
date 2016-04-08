@@ -86,7 +86,7 @@ public class Webrequest {
      * getAccessMethod.
      */
     private static final Pattern appAgentPattern = Pattern.compile(
-        "WikipediaApp"
+        "Wikipedia(App|/5.0.)"
     );
 
     /**
