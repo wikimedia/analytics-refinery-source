@@ -1,3 +1,10 @@
+## v0.0.30
+* Add pageview definition special case for iOs App
+* Correct CqlRecordWriter in cassandra module
+* Evaluate Pageview tagging only for apps requests
+
+## v0.0.29 [SKIPPED]
+
 ## v0.0.28
 * Update mediawiki/event-schemas submodule to include information about
   search results in CirrusSearchRequestSet
