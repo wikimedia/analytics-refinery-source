@@ -51,6 +51,8 @@ public class SearchRequest {
 
     private final String prefixSearchList = "list=prefixsearch";
 
+    private final String prefixSearchGenerator = "generator=prefixsearch";
+
     private final String searchList = "list=search";
 
     private final String geoSearchList = "list=geosearch";
@@ -77,7 +79,7 @@ public class SearchRequest {
         {
             if(Utilities.stringContains(uriQuery, queryAction))
             {
-                if(Utilities.stringContains(uriQuery, prefixSearchList))
+                if(Utilities.stringContains(uriQuery, prefixSearchList) || Utilities.stringContains(uriQuery, prefixSearchGenerator))
                 {
                     output = "prefix";
                 }
