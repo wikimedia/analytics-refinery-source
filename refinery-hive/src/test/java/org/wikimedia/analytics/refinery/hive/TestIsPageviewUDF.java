@@ -60,7 +60,6 @@ public class TestIsPageviewUDF {
         String pageTitle,
         boolean is_pageview,
         boolean is_legacy_pageview,
-        boolean is_app_pageview,
         String ip_address,
         String x_forwarded_for,
         String uri_host,
@@ -68,7 +67,8 @@ public class TestIsPageviewUDF {
         String uri_query,
         String http_status,
         String content_type,
-        String user_agent
+        String user_agent,
+        String x_analytics_header
     ){
 
         GenericUDF.DeferredJavaObject uri_host_udf = new GenericUDF.DeferredJavaObject(uri_host);
@@ -77,7 +77,7 @@ public class TestIsPageviewUDF {
         GenericUDF.DeferredJavaObject http_status_udf = new GenericUDF.DeferredJavaObject(http_status);
         GenericUDF.DeferredJavaObject content_type_udf = new GenericUDF.DeferredJavaObject(content_type);
         GenericUDF.DeferredJavaObject user_agent_udf = new GenericUDF.DeferredJavaObject(user_agent);
-        GenericUDF.DeferredJavaObject x_analytics_udf = new GenericUDF.DeferredJavaObject("");
+        GenericUDF.DeferredJavaObject x_analytics_udf = new GenericUDF.DeferredJavaObject(x_analytics_header);
 
         GenericUDF.DeferredObject[] args = {uri_host_udf, uri_path_udf, uri_query_udf,
             http_status_udf, content_type_udf, user_agent_udf, x_analytics_udf};

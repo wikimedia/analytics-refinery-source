@@ -39,7 +39,6 @@ public class TestIsLegacyPageviewUDF {
         String pageTitle,
         boolean is_pageview,
         boolean is_legacy_pageview,
-        boolean is_app_pageview,
         String ip_address,
         String x_forwarded_for,
         String uri_host,
@@ -47,7 +46,8 @@ public class TestIsLegacyPageviewUDF {
         String uri_query,
         String http_status,
         String content_type,
-        String user_agent
+        String user_agent,
+        String x_analytics_header
     ) {
         IsLegacyPageviewUDF udf = new IsLegacyPageviewUDF();
 

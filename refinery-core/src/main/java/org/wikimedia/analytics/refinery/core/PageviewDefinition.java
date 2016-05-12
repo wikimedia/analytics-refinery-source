@@ -126,34 +126,6 @@ public class PageviewDefinition {
     /**
      * Given a webrequest URI path, query and user agent,
      * returns true if we consider this an app (API) pageview.
-     * Note that the logic here is /NOT COMPLETE/. It checks
-     * to see if the request is an app pageview, but not
-     * (for example) whether it actually completed.
-     *
-     *
-     * @param   uriPath     Path portion of the URI
-     * @param   uriQuery    Query portion of the URI
-     * @param   userAgent   User-Agent of the requestor
-     *
-     * @return  boolean
-     */
-    public boolean isAppPageview(
-        String uriPath,
-        String uriQuery,
-        String contentType,
-        String userAgent
-    ) {
-
-        return this.isAppPageview(
-            uriPath,
-            uriQuery,
-            contentType,
-            userAgent,
-            "");
-    }
-    /**
-     * Given a webrequest URI path, query and user agent,
-     * returns true if we consider this an app (API) pageview.
      *
      * If x-analytics header includes pageview=1 we do not do any further check
      * and return true.
@@ -184,7 +156,7 @@ public class PageviewDefinition {
      *
      * @return  boolean
      */
-    public boolean isAppPageview(
+    private boolean isAppPageview(
         String uriPath,
         String uriQuery,
         String contentType,
@@ -222,6 +194,31 @@ public class PageviewDefinition {
     }
 
 
+    private boolean isWebPageview(
+            String uriPath,
+            String uriQuery,
+            String contentType
+    ) {
+        return (
+                // check for a regular pageview contentType, or a an API contentType
+                (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
+
+                        // Either a pageview's uriPath will match the first pattern,
+                        // or its uriQuery will match the second
+                        &&  (
+                        Utilities.patternIsFound(uriPathPattern, uriPath)
+                                || Utilities.patternIsFound(uriQueryPattern, uriQuery)
+                )
+
+                        // A pageview will not have these Special: pages in the uriPath or uriQuery
+                        && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
+                        && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
+                        // Edits now come through as text/html. They should not be included.
+                        // Luckily the query parameter does not seem to be localised.
+                        && !Utilities.patternIsFound(uriQueryUnwantedActions, uriQuery)
+        );
+
+    }
 
 
     /**
@@ -309,34 +306,20 @@ public class PageviewDefinition {
             return false;
 
 
-        return (
-            // All pageviews have a 200 or 304 HTTP status
-            httpStatusesSet.contains(httpStatus)
-                // check for a regular pageview contentType, or a an API contentType
-                &&  (
-                (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
-                    || isAppPageview(uriPath, uriQuery, contentType, userAgent, rawXAnalyticsHeader)
-            )
+        boolean successRequestForSupportedProject = httpStatusesSet.contains(httpStatus)
                 // A pageview must be from either a wikimedia.org domain,
                 // or a 'project' domain, e.g. en.wikipedia.org
-                &&  (
-                Utilities.patternIsFound(uriHostWikimediaDomainPattern,  uriHost)
-                    || Utilities.patternIsFound(uriHostOtherProjectsPattern, uriHost)
-                    || Utilities.patternIsFound(uriHostProjectDomainPattern, uriHost)
-            )
-                // Either a pageview's uriPath will match the first pattern,
-                // or its uriQuery will match the second
-                &&  (
-                Utilities.patternIsFound(uriPathPattern, uriPath)
-                    || Utilities.patternIsFound(uriQueryPattern, uriQuery)
-            )
-                // A pageview will not have these Special: pages in the uriPath or uriQuery
-                && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
-                && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
-                // Edits now come through as text/html. They should not be included.
-                // Luckily the query parameter does not seem to be localised.
-                && !Utilities.patternIsFound(uriQueryUnwantedActions, uriQuery)
-        );
+                && ( Utilities.patternIsFound(uriHostWikimediaDomainPattern,  uriHost)
+                || Utilities.patternIsFound(uriHostOtherProjectsPattern, uriHost)
+                || Utilities.patternIsFound(uriHostProjectDomainPattern, uriHost));
+
+
+      //check if it is  an app pageview if it was not a web one
+
+      return successRequestForSupportedProject
+          && (isWebPageview(uriPath, uriQuery, contentType)
+              || isAppPageview(uriPath, uriQuery, contentType, userAgent, rawXAnalyticsHeader));
+
     }
 
     /**
@@ -422,7 +405,8 @@ public class PageviewDefinition {
             return UNKNOWN_LANGUAGE_VARIANT_VALUE;
 
         // Default wiki urls, default language variant
-        if (normPath.equals("/") || normPath.equals("/wiki") || normPath.equals("/w")
+        if (normPath.equals("/") || normPath.equals("/wiki")
+                || normPath.equals("/w") || normPath.startsWith("/api/rest_v1")
                 || normPath.startsWith("/wiki/") || normPath.startsWith("/w/"))
             return DEFAULT_LANGUAGE_VARIANT_VALUE;
 
@@ -467,9 +451,16 @@ public class PageviewDefinition {
         int endIdx = path.indexOf("#");
         endIdx = (endIdx > 0)?endIdx:(path.length());
 
+        // If path contains /api/rest_v1/page/, extract substring from there
+        // for instance: /wiki/horseshoe_crab -> horseshoe_crab
+        int startIdx = path.indexOf("/api/rest_v1/page/mobile-sections-lead/") ;
+        startIdx = (startIdx >= 0) ? (startIdx + "/api/rest_v1/page/mobile-sections-lead/".length()) : startIdx;
+        if ((startIdx >= 0) && (startIdx < endIdx))
+            return path.substring(startIdx, endIdx);
+
         // If path contains /wiki/, extract substring from there
         // for instance: /wiki/horseshoe_crab -> horseshoe_crab
-        int startIdx = path.indexOf("/wiki/") ;
+        startIdx = path.indexOf("/wiki/") ;
         startIdx = (startIdx >= 0) ? (startIdx + "/wiki/".length()) : startIdx;
         if ((startIdx >= 0) && (startIdx < endIdx))
             return path.substring(startIdx, endIdx);
@@ -508,7 +499,8 @@ public class PageviewDefinition {
 
         // General case of page title in path
         boolean pathWiki = ((normPath.contains("/wiki/") && (! normPath.contains("index.")))
-                || normPath.contains("/w/index.php/"));
+                || normPath.contains("/w/index.php/")|| normPath.startsWith("/api/rest_v1/page/mobile-sections-lead/"));
+
 
         String titleQueryParam = null;
         String pageQueryParam = null;

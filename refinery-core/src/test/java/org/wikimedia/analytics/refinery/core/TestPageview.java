@@ -31,14 +31,14 @@ public class TestPageview {
         value = "src/test/resources/pageview_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
-    public void testIsPageview(
+    @Deprecated
+    public void testIsPageviewNoHeader(
         String test_description,
         String project,
         String dialect,
         String page_title,
         boolean is_pageview,
         boolean is_legacy_pageview,
-        boolean is_app_pageview,
         String ip_address,
         String x_forwarded_for,
         String uri_host,
@@ -46,57 +46,61 @@ public class TestPageview {
         String uri_query,
         String http_status,
         String content_type,
-        String user_agent
+        String user_agent,
+        String x_analytics_header
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
-
-        assertEquals(
-            test_description,
-            is_pageview,
-            PageviewDefinitionInstance.isPageview(
-                uri_host,
-                uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent
-            )
-        );
+        if (x_analytics_header.isEmpty())
+            assertEquals(
+                test_description,
+                is_pageview,
+                PageviewDefinitionInstance.isPageview(
+                    uri_host,
+                    uri_path,
+                    uri_query,
+                    http_status,
+                    content_type,
+                    user_agent
+                )
+            );
     }
 
     @Test
     @FileParameters(
-        value = "src/test/resources/pageview_test_data.csv",
-        mapper = CsvWithHeaderMapper.class
+            value = "src/test/resources/pageview_test_data.csv",
+            mapper = CsvWithHeaderMapper.class
     )
-    public void testIsAppPageview(
-        String test_description,
-        String project,
-        String dialect,
-        String page_title,
-        boolean is_pageview,
-        boolean is_legacy_pageview,
-        boolean is_app_pageview,
-        String ip_address,
-        String x_forwarded_for,
-        String uri_host,
-        String uri_path,
-        String uri_query,
-        String http_status,
-        String content_type,
-        String user_agent
+    public void testIsPageviewHeader(
+            String test_description,
+            String project,
+            String dialect,
+            String page_title,
+            boolean is_pageview,
+            boolean is_legacy_pageview,
+            String ip_address,
+            String x_forwarded_for,
+            String uri_host,
+            String uri_path,
+            String uri_query,
+            String http_status,
+            String content_type,
+            String user_agent,
+            String x_analytics_header
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         assertEquals(
-            test_description,
-            is_app_pageview,
-            PageviewDefinitionInstance.isAppPageview(
-                uri_path,
-                uri_query,
-                content_type,
-                user_agent
-            )
+                test_description,
+                is_pageview,
+                PageviewDefinitionInstance.isPageview(
+                        uri_host,
+                        uri_path,
+                        uri_query,
+                        http_status,
+                        content_type,
+                        user_agent,
+                        x_analytics_header
+                )
         );
     }
 
@@ -112,7 +116,6 @@ public class TestPageview {
             String page_title,
             boolean is_pageview,
             boolean is_legacy_pageview,
-            boolean is_app_pageview,
             String ip_address,
             String x_forwarded_for,
             String uri_host,
@@ -120,7 +123,8 @@ public class TestPageview {
             String uri_query,
             String http_status,
             String content_type,
-            String user_agent
+            String user_agent,
+            String x_analytics_header
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
         assertEquals(
@@ -142,7 +146,6 @@ public class TestPageview {
             String page_title,
             boolean is_pageview,
             boolean is_legacy_pageview,
-            boolean is_app_pageview,
             String ip_address,
             String x_forwarded_for,
             String uri_host,
@@ -150,7 +153,8 @@ public class TestPageview {
             String uri_query,
             String http_status,
             String content_type,
-            String user_agent
+            String user_agent,
+            String x_analytics_header
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
         if (is_pageview) {
@@ -174,7 +178,6 @@ public class TestPageview {
             String page_title,
             boolean is_pageview,
             boolean is_legacy_pageview,
-            boolean is_app_pageview,
             String ip_address,
             String x_forwarded_for,
             String uri_host,
@@ -182,7 +185,8 @@ public class TestPageview {
             String uri_query,
             String http_status,
             String content_type,
-            String user_agent
+            String user_agent,
+            String x_analytics_header
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
         if (is_pageview) {
@@ -193,162 +197,5 @@ public class TestPageview {
             );
         }
     }
-    @Test
-    public void testIsPageviewXAnalyticsPreview(
-
-    ){
-        String uri_host = "en.wikipedia.org";
-        String uri_path = "/wiki/Horseshoe%20crab#anchor"; ;
-        String uri_query = "-";
-        String http_status = "200";
-        String content_type = "text/html";
-        String user_agent = "Mozilla/4.0";
-
-        // first make sure this request is a pageview
-        assertTrue("Should be a pageview", PageviewDefinition.getInstance().isPageview(
-            uri_host,
-            uri_path,
-            uri_query,
-            http_status,
-            content_type,
-            user_agent,
-            "WMF-Last-Access=10-Jan-2016;"
-
-        ) == true);
-
-        //bad preview header value, still pageview
-        assertTrue("Bad preview header value, still pageview", PageviewDefinition.getInstance().isPageview(
-                uri_host,
-                uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;preview=jajaj"
-
-        ) == true);
-
-        // add preview header, we only accept "1"
-        assertTrue("Add preview header, still no pageview", PageviewDefinition.getInstance().isPageview(
-                uri_host,
-                uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;preview=1"
-
-        ) == false);
-
-
-    }
-
-
-
-    /**
-     * If a request comes tagged as pageview is not counted as such
-     * unless is a request for an app (pageview tagging is restricted to apps
-     * for now)
-     **/
-    @Test
-    public void testIsPageviewXAnalyticsPageviewTagged(
-
-    ){
-        String uri_host = "en.wikipedia.org";
-        String uri_path = "/wiki/Horseshoe%20crab#anchor"; ;
-        String uri_query = "-";
-        String http_status = "200";
-        String content_type = "text/html";
-        String user_agent = "Mozilla/4.0";
-
-       //first make sure request is a pageview
-        assertTrue("Should be a pageview", PageviewDefinition.getInstance().isPageview(
-                uri_host,
-                uri_path,
-                uri_query,
-                http_status,
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;"
-
-        ) == true);
-
-        //change something so it is not a pageview request
-        assertTrue("Should not be a pageview", PageviewDefinition.getInstance().isPageview(
-                uri_host,
-                uri_path,
-                uri_query,
-                "500",
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;"
-
-        ) == false);
-
-        //tagging it as pageview should not make this request a pageview, it is not
-        //an app request
-        assertTrue("Not a pageview,tagging it as pageview should not change anything", PageviewDefinition.getInstance().isPageview(
-            uri_host,
-            uri_path,
-            uri_query,
-                "500",
-            content_type,
-            user_agent,
-            "WMF-Last-Access=10-Jan-2016;pageview=1"
-
-        ) == false);
-
-    }
-
-    /**
-     * Apps pageviews that come tagged as 'pageview' are counted as such
-     * regardless of url
-     */
-    @Test
-    public void testIsPageviewXAnalyticsPageviewTaggedAppsPageview(
-
-    ){
-        String uri_path = "api.php"; ;
-        String uri_query = "sections=0";
-        String content_type = "application/json";
-        String user_agent = "WikipediaApp";
-
-
-
-        //first make sure this is a pageview
-        assertTrue("Should be an app pageview", PageviewDefinition.getInstance().isAppPageview(
-
-                uri_path,
-                uri_query,
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;"
-
-        ) == true);
-
-        //change something so it is not an app pageview
-        assertTrue("Not an app pageview", PageviewDefinition.getInstance().isAppPageview(
-
-                uri_path,
-                "garbage",
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;"
-
-        ) == false);
-
-        //tagging it as pageview should make it so
-        assertTrue("App request tagged as pageview in x-analytics should be a pageview regardless of url",
-                PageviewDefinition.getInstance().isAppPageview(
-                uri_path,
-                "garbage",
-                content_type,
-                user_agent,
-                "WMF-Last-Access=10-Jan-2016;pageview=1"
-
-        ) == true);
-
-    }
-
 
 }
