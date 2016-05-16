@@ -1,3 +1,8 @@
+## v0.0.31
+* Fixes Prefix API request detection
+* Refactor pageview definition for mobile apps
+* Remove IsAppPageview UDF
+
 ## v0.0.30
 * Add pageview definition special case for iOs App
 * Correct CqlRecordWriter in cassandra module
