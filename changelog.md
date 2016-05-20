@@ -1,3 +1,7 @@
+## v0.0.32 
+Test commit to README file
+
+[maven-release-plugin] prepare for next development iteration
 ## v0.0.31
 * Fixes Prefix API request detection
 * Refactor pageview definition for mobile apps
