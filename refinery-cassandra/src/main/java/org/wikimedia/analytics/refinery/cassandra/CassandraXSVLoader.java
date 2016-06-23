@@ -41,10 +41,12 @@ import java.util.*;
  * Map-Reduce job loading data into a Cassandra cluster from separated-value files.
  *
  * Usage:
- * hadoop jar /path/to/refinery-job.jar org.wikimedia.analytics.refinery.job.CassandraXSVLoader \
+ * hadoop jar /path/to/refinery-job.jar org.wikimedia.analytics.refinery.cassandra.CassandraXSVLoader \
+ *            -D mapreduce.job.user.classpath.first=true \
+ *            -D mapreduce.job.reduces=X \
  *            -D cassandra_host=your_host \
- *            -D cassandra_user=cassandra \
- *            -D cassandra_passwd=cassandra \
+ *            -D cassandra_username=aqsloader \
+ *            -D cassandra_password=cassandra \
  *            -D input_path=/path/to/xsv/file/or/folder \
  *            -D input_separator=, \
  *            -D input_fields=text_field,,int_field,double_field \
@@ -280,6 +282,9 @@ public class CassandraXSVLoader extends Configured implements Tool {
         job.setOutputKeyClass(Map.class);
         job.setOutputValueClass(List.class);
 
+        // Use cassandra cql output format
+        // This is where the actual connection and data push
+        // to cassandra is made
         job.setOutputFormatClass(CqlOutputFormat.class);
 
         ConfigHelper.setOutputColumnFamily(

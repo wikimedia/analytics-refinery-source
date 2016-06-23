@@ -10,11 +10,8 @@ import org.mockito.Mockito;
 import java.io.IOException;
 
 import static org.junit.Assert.*;
-import static org.mockito.Mockito.when;
 
-/**
- * Created by jo on 8/5/15.
- */
+
 public class TestCassandraXSVLoader {
 
     private Configuration configurationMock = Mockito.mock(Configuration.class);
