@@ -1,6 +1,5 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
@@ -23,10 +22,10 @@ object WikidataArticlePlaceholderMetrics {
   /**
     * Config class for CLI argument parser using scopt
     */
-  case class Params(dataBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/pageview_hourly",
+  case class Params(pageviewTable: String = "wmf.pageview_hourly",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
-                    namespace: String = "daily.wikidata.articleplaceholder",
+                    graphiteNamespace: String = "daily.wikidata.articleplaceholder",
                     year: Int = 0, month: Int = 0, day: Int = 0)
 
   /**
@@ -37,21 +36,21 @@ object WikidataArticlePlaceholderMetrics {
     note("This job reports ArticlePlaceholder extension traffic to graphite daily")
     help("help") text ("Prints this usage text")
 
-    opt[String]('w', "data-base-path") optional() valueName ("<path>") action { (x, p) =>
-      p.copy(dataBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-    } text ("Base path to data on hadoop. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/pageview_hourly")
+    opt[String]('t', "pageview-table") optional() valueName ("<table>") action { (x, p) =>
+      p.copy(pageviewTable = x)
+    } text ("Hive pageview table to use. Defaults to wmf.pageview_hourly")
 
     opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
       p.copy(graphiteHost = x)
     } text ("Graphite host. Defaults to localhost")
 
-    opt[Int]('p', "graphite-port") optional() valueName ("<path>") action { (x, p) =>
+    opt[Int]('p', "graphite-port") optional() valueName ("<port>") action { (x, p) =>
       p.copy(graphitePort = x)
     } text ("Graphite port. Defaults to 2003")
 
-    opt[String]('n', "namespace") optional() valueName ("<path>") action { (x, p) =>
-      p.copy(namespace = x)
-    } text ("Namespace/prefix for graphite metric. Defaults to daily.wikidata.articleplaceholder")
+    opt[String]('n', "graphite-namespace") optional() valueName ("<graphite.namespace>") action { (x, p) =>
+      p.copy(graphiteNamespace = x)
+    } text ("graphite metric namespace/prefix. Defaults to daily.wikidata.articleplaceholder")
 
     opt[Int]('y', "year") required() action { (x, p) =>
       p.copy(year = x)
@@ -73,7 +72,8 @@ object WikidataArticlePlaceholderMetrics {
     argsParser.parse(args, Params()) match {
       case Some(params) => {
         // Initial Spark setup
-        val conf = new SparkConf().setAppName("WikidataArticlePlaceholderMetrics")
+        val conf = new SparkConf().setAppName("WikidataArticlePlaceholderMetrics-%d-%d-%d".format(
+          params.year, params.month, params.day))
         val sc = new SparkContext(conf)
         val hiveContext = new HiveContext(sc)
 
@@ -81,21 +81,21 @@ object WikidataArticlePlaceholderMetrics {
   SELECT
     project,
     SUM(view_count)
-  FROM wmf.pageview_hourly
+  FROM %s
   WHERE year = %d
     AND month = %d
     AND day = %d
     AND page_title LIKE 'Special:AboutTopic%%'
     AND agent_type = 'user'
   GROUP BY project
-                  """.format(params.year, params.month, params.day)
+                  """.format(params.pageviewTable, params.year, params.month, params.day)
 
         val data = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getLong(1)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
 
         data.foreach{ case (project, count) => {
-          val metric = "%s.varnish_requests.abouttopic.user.%s".format(params.namespace, project.replace('.','_'))
+          val metric = "%s.varnish_requests.abouttopic.user.%s".format(params.graphiteNamespace, project.replace('.','_'))
           graphite.sendOnce(metric, count, time.getMillis / 1000)
         }}
 
