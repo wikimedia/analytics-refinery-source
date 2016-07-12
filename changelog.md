@@ -1,3 +1,6 @@
+## v0.0.32
+* Add WikidataArticlePlaceholderMetrics
+
 ## v0.0.31
 * Fixes Prefix API request detection
 * Refactor pageview definition for mobile apps
