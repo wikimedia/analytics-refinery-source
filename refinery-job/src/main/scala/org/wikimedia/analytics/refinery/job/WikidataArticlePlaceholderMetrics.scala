@@ -22,7 +22,7 @@ object WikidataArticlePlaceholderMetrics {
   /**
     * Config class for CLI argument parser using scopt
     */
-  case class Params(pageviewTable: String = "wmf.pageview_hourly",
+  case class Params(webrequestTable: String = "wmf.webrequest",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
                     graphiteNamespace: String = "daily.wikidata.articleplaceholder",
@@ -36,9 +36,9 @@ object WikidataArticlePlaceholderMetrics {
     note("This job reports ArticlePlaceholder extension traffic to graphite daily")
     help("help") text ("Prints this usage text")
 
-    opt[String]('t', "pageview-table") optional() valueName ("<table>") action { (x, p) =>
-      p.copy(pageviewTable = x)
-    } text ("Hive pageview table to use. Defaults to wmf.pageview_hourly")
+    opt[String]('t', "webrequest-table") optional() valueName ("<table>") action { (x, p) =>
+      p.copy(webrequestTable = x)
+    } text ("Hive webrequest table to use. Defaults to wmf.webrequest")
 
     opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
       p.copy(graphiteHost = x)
@@ -77,25 +77,29 @@ object WikidataArticlePlaceholderMetrics {
         val sc = new SparkContext(conf)
         val hiveContext = new HiveContext(sc)
 
+        // Currently limited to wikipedia as ArticlePlaceholder is only deployed to wikipedias
         val sql = """
   SELECT
-    project,
-    SUM(view_count)
+    pageview_info["project"],
+    agent_type,
+    COUNT(*)
   FROM %s
   WHERE year = %d
     AND month = %d
     AND day = %d
-    AND page_title LIKE 'Special:AboutTopic%%'
-    AND agent_type = 'user'
-  GROUP BY project
-                  """.format(params.pageviewTable, params.year, params.month, params.day)
+    AND is_pageview = TRUE
+    AND x_analytics_map["ns"] = '-1'
+    AND x_analytics_map["special"] = 'AboutTopic'
+    AND normalized_host.project_class = 'wikipedia'
+    GROUP BY pageview_info["project"], agent_type
+                  """.format(params.webrequestTable, params.year, params.month, params.day)
 
-        val data = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getLong(1)))
+        val data = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getString(0), r.getLong(1)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
 
-        data.foreach{ case (project, count) => {
-          val metric = "%s.varnish_requests.abouttopic.user.%s".format(params.graphiteNamespace, project.replace('.','_'))
+        data.foreach{ case (project, agentType, count) => {
+          val metric = "%s.varnish_requests.abouttopic.%s.%s".format(params.graphiteNamespace, agentType, project.replace('.','_'))
           graphite.sendOnce(metric, count, time.getMillis / 1000)
         }}
 
