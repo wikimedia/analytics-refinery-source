@@ -95,7 +95,7 @@ object WikidataArticlePlaceholderMetrics {
     GROUP BY pageview_info["project"], agent_type
                   """.format(params.webrequestTable, params.year, params.month, params.day)
 
-        val data = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getString(0), r.getLong(1)))
+        val data = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getLong(2)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
 
