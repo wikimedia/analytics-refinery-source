@@ -87,6 +87,7 @@ object WikidataArticlePlaceholderMetrics {
   WHERE year = %d
     AND month = %d
     AND day = %d
+    AND webrequest_source = 'text'
     AND is_pageview = TRUE
     AND x_analytics_map["ns"] = '-1'
     AND x_analytics_map["special"] = 'AboutTopic'
