@@ -1,3 +1,6 @@
+## v0.0.33
+* Correct WikidataArticlePlaceholderMetrics
+
 ## v0.0.32
 * Add WikidataArticlePlaceholderMetrics
 
