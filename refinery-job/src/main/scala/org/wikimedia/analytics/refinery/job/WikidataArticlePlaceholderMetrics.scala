@@ -14,10 +14,9 @@ import scopt.OptionParser
   * --class org.wikimedia.analytics.refinery.job.WikidataArticlePlaceholderMetrics
   * /path/to/refinery-job.jar
   * -y <year> -m <month> -d <day>
-  * [-n <namespace> -w <data-base-path> -g <graphite-host> -p <graphite-port>]
+  * [-n <namespace> -t <webrequest-table> -g <graphite-host> -p <graphite-port>]
   */
 object WikidataArticlePlaceholderMetrics {
-
 
   /**
     * Config class for CLI argument parser using scopt
