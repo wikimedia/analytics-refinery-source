@@ -68,6 +68,11 @@
             <artifactId>nscala-time_2.10</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.github.scopt</groupId>
+            <artifactId>scopt_2.10</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

@@ -1,12 +1,13 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.camus
 
 import java.io.File
 import java.nio.file.Files
 
+
 import org.apache.hadoop.fs.Path
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
-import scala.reflect.io.{Directory}
+import scala.reflect.io.Directory
 
 
 class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAfterEach {
@@ -38,7 +39,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     hours should equal (expectedHours)
   }
 
-  "A CamusChecker" should "find hours no hours in between inversed timestamps" in {
+  it should "find hours no hours in between inversed timestamps" in {
     val t1: Long = 1443428181000L // 2015-09-28T10:16:21
     val t2: Long = 1443436242000L // 2015-09-28T12:30:42
 

@@ -1,4 +1,6 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.camus
+
+
 
 import java.io.FileInputStream
 import java.util.Properties
@@ -12,8 +14,8 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.{LogManager, Logger}
 import org.joda.time.{DateTime, Hours}
-import org.wikimedia.analytics.refinery.camus.CamusStatusReader
 import scopt.OptionParser
+
 
 /**
  * Class marking checking camus runs based on a camus.properties file.
