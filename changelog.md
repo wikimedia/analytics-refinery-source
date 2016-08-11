@@ -1,3 +1,8 @@
+## v0.0.34
+* Update maven jar building in refinery (refinery-core is not uber anymore)
+* Create WikidataSpecialEntityDataMetrics
+* Fix WikidataArticlePlaceholderMetrics class doc
+
 ## v0.0.33
 * Correct WikidataArticlePlaceholderMetrics
 
