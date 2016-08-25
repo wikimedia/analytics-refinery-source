@@ -29,7 +29,8 @@ public enum SearchEngine {
     YAHOO("Yahoo", "search\\.yahoo\\."),
     BING("Bing", "\\.bing\\."),
     YANDEX("Yandex", "yandex\\."),
-    BAIDU("Baidu", "\\.baidu\\.");
+    BAIDU("Baidu", "\\.baidu\\."),
+    DDG("DuckDuckGo", "\\.?duckduckgo\\.");
 
     private final String searchEngineName;
     private final Pattern pattern;
