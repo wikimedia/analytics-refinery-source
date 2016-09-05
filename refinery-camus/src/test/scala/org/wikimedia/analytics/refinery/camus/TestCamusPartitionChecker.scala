@@ -39,9 +39,17 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     hours should equal (expectedHours)
   }
 
-  it should "find hours no hours in between inversed timestamps" in {
+  it should "find no hours in between inversed timestamps" in {
     val t1: Long = 1443428181000L // 2015-09-28T10:16:21
     val t2: Long = 1443436242000L // 2015-09-28T12:30:42
+
+    val hoursEmpty = CamusPartitionChecker.finishedHoursInBetween(t2, t1)
+    hoursEmpty should equal (Seq.empty)
+  }
+
+  it should "find hours no hours in between equal timestamps" in {
+    val t1: Long = 1443428181000L // 2015-09-28T10:16:21
+    val t2: Long = 1443428181000L // 2015-09-28T10:16:21
 
     val hoursEmpty = CamusPartitionChecker.finishedHoursInBetween(t2, t1)
     hoursEmpty should equal (Seq.empty)
@@ -112,28 +120,38 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
       else o.size should equal (0)
   }
 
-  it should "fail getting topics and hours in a camus-run folderwith incorrect whitelist" in {
+  it should "Get topics and hours in a camus-run folder with incorrect whitelist only for successful topics" in {
     val folder: String = camusHistoryTestFolder + "/" + hourSpanRunFolder
     val path: Path = new Path(folder)
 
     // everything whitelist and no blacklist (by default)
-    // --> Should fail, one topic in historical data needs to be left aside
-    intercept[IllegalStateException] {
-      CamusPartitionChecker.getTopicsAndHoursToFlag(path)
-    }
+    // --> Should return 5 topics over 6, one topic in historical data should fail
+    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+
+    topicsAndHours.size should equal (5)
+    // Some topics have hour to flag
+    for ((t, o) <- topicsAndHours)
+      if (! t.equals("webrequest_maps")) o.size should equal (1)
+      else o.size should equal (0)
+
   }
 
-  it should "fail getting topics and hours in a camus-run folder with incorrect blacklist" in {
+  it should "Get topics and hours in a camus-run folder with incorrect blacklist only for successful topics" in {
     val folder: String = camusHistoryTestFolder + "/" + hourSpanRunFolder
     val path: Path = new Path(folder)
 
     // No whitelist, incorrect blacklist
-    // --> Should fail, one topic in historical data needs to be left aside
+    // --> Should return 5 topics over 6, one topic in historical data should fail
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.BLACKLIST_TOPICS,
       ".*_test")
-    intercept[IllegalStateException] {
-      CamusPartitionChecker.getTopicsAndHoursToFlag(path)
-    }
+
+    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+
+    topicsAndHours.size should equal (5)
+    // Some topics have hour to flag
+    for ((t, o) <- topicsAndHours)
+      if (! t.equals("webrequest_maps")) o.size should equal (1)
+      else o.size should equal (0)
   }
 
   it should "get topics and hours in a camus-run folder with whitelist with no hours to flag" in {
@@ -152,7 +170,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
       o.size should equal (0)
   }
 
-  it should "fail getting topics and hours in an error camus-run folder" in {
+  it should "Get topics and hours in an error camus-run folder only for successful topics" in {
     val folder: String = camusHistoryTestFolder + "/" + failedRunFolder
     val path: Path = new Path(folder)
 
@@ -160,13 +178,16 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
       "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
-    intercept[IllegalStateException] {
-      CamusPartitionChecker.getTopicsAndHoursToFlag(path)
-    }
+    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+
+    topicsAndHours.size should equal (2)
+    // No hours to flag
+    for ((t, o) <- topicsAndHours)
+      o.size should equal (0)
   }
 
   it should "write the file flag for a given partition hour" in {
-    tmpDir = Files.createTempDirectory("testcamus").toFile();
+    tmpDir = Files.createTempDirectory("testcamus").toFile
     val partitionFolder = "testtopic/hourly/2015/10/02/08"
     val d = new Directory(new File(tmpDir, partitionFolder))
     d.createDirectory()
@@ -174,26 +195,28 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     d.list shouldBe empty
 
     // correct partition base path config
-    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, tmpDir.getAbsolutePath())
+    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, tmpDir.getAbsolutePath)
 
-    CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
+    CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", dryRun = false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
 
     d.list should not be empty
-    d.list.toSeq.map(_.toString()) should contain (tmpDir.getAbsolutePath() + "/testtopic/hourly/2015/10/02/08/_TESTFLAG")
+    d.list.toSeq.map(_.toString()) should contain (tmpDir.getAbsolutePath + "/testtopic/hourly/2015/10/02/08/_TESTFLAG")
 
   }
 
-  it should "fail writing the file flag if the given partition hour folder doesn't exist" in {
-    tmpDir = Files.createTempDirectory("testcamus").toFile();
+  it should "not write the file flag if the given partition hour folder doesn't exist" in {
+    tmpDir = Files.createTempDirectory("testcamus").toFile
     val partitionFolder = "testtopic/hourly/2015/10/02/08"
     val d = new Directory (new File(tmpDir, partitionFolder))
 
-    // correct partition base path config
-    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, tmpDir.getAbsolutePath())
+    d.exists shouldBe false
 
-    intercept[IllegalStateException] {
-      CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
-    }
+    // correct partition base path config
+    CamusPartitionChecker.props.setProperty(CamusPartitionChecker.PARTITION_BASE_PATH, tmpDir.getAbsolutePath)
+
+    CamusPartitionChecker.flagFullyImportedPartitions("_TESTFLAG", dryRun = false, Map("testtopic" -> Seq((2015, 10, 2, 8))))
+
+    d.exists shouldBe false
   }
 
 }

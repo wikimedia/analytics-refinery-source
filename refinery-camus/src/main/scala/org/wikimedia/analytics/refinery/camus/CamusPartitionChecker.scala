@@ -20,6 +20,7 @@ import scopt.OptionParser
 /**
  * Class marking checking camus runs based on a camus.properties file.
  * It flags hdfs imported data for fully imported hours.
+ * It logs to console by default.
  *
  * command example (replace [*] with * in classpath - hack to prevent scala comment issue):
  * java -Dlog4j.configuration=file:///home/joal/code/log4j_console.properties \
@@ -66,8 +67,9 @@ object CamusPartitionChecker {
       throw new IllegalArgumentException("Can't make partition directory with empty base or topic.")
   }
 
-  /** Compute complete hours imported on a camus run by topic. Throws an IllegalStateException if
-    * the camus run state is not correct (missing topics or import-time not moving)
+  /** Compute complete hours imported on a camus run by topic. Log errors if
+    * the camus run state is not correct (missing topics or import-time not moving),
+    * but doesn't prevent other topics to be processed
     * @param camusRunPath the camus run Path folder to use
     * @return a map of topic -> Seq[(year, month, day, hour)]
     */
@@ -84,19 +86,22 @@ object CamusPartitionChecker {
     val previousTopicsAndOldestTimes = camusReader.topicsAndOldestTimes(previousOffsets)
 
     previousTopicsAndOldestTimes.foldLeft(
-      Map.empty[String, Seq[(Int, Int, Int, Int)]])((map, previousTopicAndTime) => {
-        val (previousTopic, previousTime) = previousTopicAndTime
+      Map.empty[String, Seq[(Int, Int, Int, Int)]]) {
+      case (map, (previousTopic, previousTime)) => {
         if ((! previousTopic.matches(topicsBlacklist)) &&
-            (previousTopic.matches(topicsWhitelist))) {
+          (previousTopic.matches(topicsWhitelist))) {
           if ((currentTopicsAndOldestTimes.contains(previousTopic)) &&
             (currentTopicsAndOldestTimes.get(previousTopic).get > previousTime)) {
             val hours = finishedHoursInBetween(previousTime, currentTopicsAndOldestTimes.get(previousTopic).get)
             map + (previousTopic -> hours)
-          } else
-            throw new IllegalStateException(
-              s"Error on topic ${previousTopic} - New offset time is either missing, either not after the previous one")
+          } else {
+            log.error(s"Error on topic ${previousTopic} - New offset time is either missing, either not after the previous one")
+            map
+          }
         } else map
-      })
+      }
+    }
+
   }
 
   def flagFullyImportedPartitions(flag: String,
@@ -114,9 +119,9 @@ object CamusPartitionChecker {
             log.info(s"Flag created: ${dir}/${flag}")
           } else
             log.info(s"DryRun - Flag would have been created: ${dir}/${flag}")
-        } else
-          throw new IllegalStateException(
-            s"Error on topic ${topic} - Partition folder ${partitionPath} is missing, can't be flagged.")
+        } else {
+          log.error(s"Error on topic ${topic} - Partition folder ${partitionPath} is missing, can't be flagged.")
+        }
       }
     }
   }
@@ -212,22 +217,13 @@ object CamusPartitionChecker {
             }
           }
           log.info(s"Working ${camusPathsToCheck.size} camus history folders.")
-          val (sucesses, errors) = camusPathsToCheck.foldLeft((0, 0))((successes_errors: (Int, Int), p: Path) => {
+          camusPathsToCheck.foreach(p => {
             log.info(s"Checking ${p.toString}")
-            try {
-              val topicsAndHours = getTopicsAndHoursToFlag(p)
-              log.info(s"Flagging imported partitions for ${p.toString}")
-              flagFullyImportedPartitions(params.flag, params.dryRun, topicsAndHours)
-              log.info(s"Done ${p.toString}.")
-              (successes_errors._1 + 1, successes_errors._2)
-            } catch {
-              case e: IllegalStateException => {
-                log.error(s"An error occured while processing ${p}.", e)
-                (successes_errors._1, successes_errors._2 + 1)
-              }
-            }
+            val topicsAndHours = getTopicsAndHoursToFlag(p)
+            log.info(s"Flagging imported partitions for ${p.toString}")
+            flagFullyImportedPartitions(params.flag, params.dryRun, topicsAndHours)
+            log.info(s"Done ${p.toString}.")
           })
-          log.info(s"Done  - ${sucesses} correct folders and ${errors} folders generating an error.")
         } catch {
           case e: Exception => {
             log.error("A fatal error occurred during execution.", e)
