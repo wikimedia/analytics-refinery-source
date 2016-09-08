@@ -1,3 +1,8 @@
+## v0.0.35
+* Classify DuckDuckGo as a search engine
+* Make camus paritition checker continue checking other topics
+  if it encounters errors
+
 ## v0.0.34
 * Update maven jar building in refinery (refinery-core is not uber anymore)
 * Create WikidataSpecialEntityDataMetrics
