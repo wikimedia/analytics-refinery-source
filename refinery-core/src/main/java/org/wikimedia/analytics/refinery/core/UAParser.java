@@ -31,10 +31,24 @@ public class UAParser {
 
     public static final String NA = "-";
 
-    static final Logger LOG = Logger.getLogger(UAParser.class.getName());
+    private static final Logger LOG = Logger.getLogger(UAParser.class.getName());
 
-    private CachingParser cachingParser;
-    private Map<String, String> result = new HashMap<String, String>();
+    private static CachingParser cachingParser;
+
+    /*
+     * Meta-methods to enable eager instantiation in a singleton-based way.
+     * in non-Java terms: you get to only create one class instance, and only
+     * when you need it, instead of always having everything (static/eager instantiation)
+     * or always generating everything anew (!singletons). So we have:
+     * (1) an instance;
+     * (2) an empty constructor (to avoid people just calling the constructor);
+     * (3) an actual getInstance method to allow for instantiation.
+     */
+    private static final UAParser instance = new UAParser();
+
+    public static UAParser getInstance(){
+        return instance;
+    }
 
     /**
      * Function replacing null/empty string with the NA one.
@@ -70,7 +84,8 @@ public class UAParser {
      * os_family, os_major, os_minor, wmf_app_version keys and associated values.
      */
     public Map<String, String> getUAMap(String uaString) {
-        result.clear();
+        // Presetting map size to correct number of slots
+        Map<String, String> result = new HashMap<>(8);
 
         UserAgent browser = null;
         Device device = null;
