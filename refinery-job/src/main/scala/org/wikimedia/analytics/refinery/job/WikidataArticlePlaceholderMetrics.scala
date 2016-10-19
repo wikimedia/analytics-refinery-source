@@ -5,6 +5,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.core.GraphiteClient
 import scopt.OptionParser
+import scala.collection.mutable.Map;
 
 /**
   * Reports metrics for the ArticlePlaceholder extension to graphite
@@ -81,7 +82,8 @@ object WikidataArticlePlaceholderMetrics {
   SELECT
     pageview_info["project"],
     agent_type,
-    COUNT(*)
+    (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$') as from_search,
+    COUNT(1)
   FROM %s
   WHERE year = %d
     AND month = %d
@@ -91,15 +93,27 @@ object WikidataArticlePlaceholderMetrics {
     AND x_analytics_map["ns"] = '-1'
     AND x_analytics_map["special"] = 'AboutTopic'
     AND normalized_host.project_class = 'wikipedia'
-    GROUP BY pageview_info["project"], agent_type
+  GROUP BY
+    pageview_info["project"],
+    agent_type,
+    (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$')
                   """.format(params.webrequestTable, params.year, params.month, params.day)
 
-        val data = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getLong(2)))
+        val queryData = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
+        val data = Map[String, Long]()
 
-        data.foreach{ case (project, agentType, count) => {
+        queryData.foreach{ case (project, agentType, fromSearch, count) => {
           val metric = "%s.varnish_requests.abouttopic.%s.%s".format(params.graphiteNamespace, agentType, project.replace('.','_'))
+          data += data.get(metric).map(x => metric -> (x + count)).getOrElse(metric -> count)
+          if(fromSearch) {
+            val searchMetric = "%s.varnish_requests.abouttopic.search_referral.%s".format(params.graphiteNamespace, project.replace('.','_'))
+            data += data.get(searchMetric).map(x => searchMetric -> (x + count)).getOrElse(searchMetric -> count)
+          }
+        }}
+
+        data.foreach{ case (metric, count) => {
           graphite.sendOnce(metric, count, time.getMillis / 1000)
         }}
 
