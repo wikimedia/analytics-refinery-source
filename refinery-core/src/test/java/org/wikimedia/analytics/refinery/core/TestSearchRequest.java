@@ -15,103 +15,53 @@
 package org.wikimedia.analytics.refinery.core;
 
 
-import junit.framework.TestCase;
+import java.util.Arrays;
+import java.util.Collection;
 
-public class TestSearchRequest extends TestCase {
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
-    //Generic classifier assertion
-    private void assertSearchClassifier(final String uriPath, final String uriQuery, final String expected) {
+@RunWith(Parameterized.class)
+public class TestSearchRequest {
+    private final String what;
+    private final  String uriPath;
+    private final  String uriQuery;
+    private final  String expected;
+    private final boolean searchAPI;
+
+    public TestSearchRequest(String what, String uriPath, String uriQuery, String expected, boolean searchAPI) {
+        super();
+        this.what = what;
+        this.uriPath = uriPath;
+        this.uriQuery = uriQuery;
+        this.expected = expected;
+        this.searchAPI = searchAPI;
+    }
+
+    @Parameters
+    public static Collection<Object[]> getData() {
+        // Page, URI PARAMS, expected classifySearchRequest, isSearchRequest
+        return Arrays.asList(new Object[][]{
+            {"normal page", "/wiki/Foobarbaz", "", "", false},
+            {"random api", "w/api.php", "maxlag=5&format=json&meta=userinfo&action=query", "", false},
+            {"search api via list", "w/api.php", "action=query&list=search&srsearch=hosted desktop&srprop=snippet", "cirrus", true},
+            {"search api via generator", "/w/api.php", "?action=query&format=json&prop=pageterms%7Cpageimages&wbptterms=description&generator=search&gsrsearch=blah+blah&gsrnamespace=0&gsrwhat=text&gsrinfo=&gsrprop=redirecttitle&gsrlimit=12&piprop=thumbnail&pithumbsize=96&pilimit=12&continue=", "cirrus", true},
+            {"opensearch api", "/w/api.php", "action=opensearch&format=json&search=d1&namespace=0&limit=10", "open", true},
+            {"language search", "w/api.php","action=languagesearch&search=espa", "language", true},
+            {"geosearch via list", "w/api.php","action=query&list=geosearch&gsradius=10000&gscoord=13.99861|100.53008", "geo", true},
+            {"geosearch via generator", "w/api.php","?action=query&format=json&prop=coordinates%7Cpageimages%7Cpageterms&colimit=100&piprop=thumbnail&pithumbsize=320&pilimit=100&wbptterms=description&generator=geosearch&ggscoord=12.306473%7C10.254717&ggsradius=520.3277496558758&ggslimit=100&continue=", "geo", true},
+            {"prefix via list", "/w/api.php","action=query&format=json&generator=prefixsearch&list=prefixsearch&pssearch=O", "prefix", true},
+            {"prefix via generator", "w/api.php","?action=query&format=json&prop=pageprops%7Cpageprops%7Cpageimages%7Cpageterms&generator=prefixsearch&ppprop=displaytitle&piprop=thumbnail&pithumbsize=80&pilimit=15&wbptterms=description&redirects=&gpssearch=blah+blah%C4%87&gpsnamespace=0&gpslimit=15", "prefix", true},
+        });
+    }
+
+    @Test
+    public void testSearchClassifier() {
         String actual = SearchRequest.getInstance().classifySearchRequest(uriPath, uriQuery);
-
-        assertEquals("The actual output does not match the expected output",
-                expected, actual);
-    }
-
-    //Test a normal request. Expect an empty string from the search classifer.
-    public void testNoneClassify() {
-        assertSearchClassifier("/wiki/Foobarbaz", "", "");
-    }
-
-    //Test an API request lacking any of the right action=foo entries.
-    public void testAPINoActionClassify() {
-        assertSearchClassifier("w/api.php","maxlag=5&format=json&meta=userinfo&action=query", "");
-    }
-
-    //Test an API request with an acceptable action but no search entry
-    public void testAPINoSearchClassify() {
-        assertSearchClassifier("w/api.php","action=query&prop=revisions&titles=hall&rvprop=content", "");
-    }
-
-    //Test a Cirrus Search request. Expect "cirrus"
-    public void testCirrusClassify() {
-        assertSearchClassifier("w/api.php","action=query&list=search&srsearch=hosted desktop&srprop=snippet", "cirrus");
-    }
-
-    //Test a Open Search request. Expect "open"
-    public void testOpenClassify() {
-        assertSearchClassifier("w/api.php","action=opensearch&format=json&search=d1&namespace=0&limit=10", "open");
-    }
-
-    //Test a Language Search request. Expect "language"
-    public void testLanguageClassify() {
-        assertSearchClassifier("w/api.php","action=languagesearch&search=espa", "language");
-    }
-
-    //Test a Geo Search request. Expect "geo"
-    public void testGeoClassify() {
-        assertSearchClassifier("w/api.php","action=query&list=geosearch&gsradius=10000&gscoord=13.99861|100.53008", "geo");
-    }
-
-    //Test a Prefix Search request. Expect "prefix"
-    public void testPrefixClassify() {
-        assertSearchClassifier("w/api.php","action=query&format=json&generator=prefixsearch&list=prefixsearch&pssearch=O", "prefix");
-    }
-
-    //Generic boolean assertion
-    private void assertSearchBoolean(final String uriPath, final String uriQuery, final boolean expected) {
-        boolean actual = SearchRequest.getInstance().isSearchRequest(uriPath, uriQuery);
-
-        assertEquals("The actual output does not match the expected output",
-                expected, actual);
-    }
-
-    //Test a normal request. Expect false.
-    public void testNoneBoolean() {
-        assertSearchBoolean("/wiki/Foobarbaz", "", false);
-    }
-
-    //Test an API request lacking any of the right action=foo entries. Expect false.
-    public void testAPINoActionBoolean() {
-        assertSearchBoolean("w/api.php","maxlag=5&format=json&meta=userinfo&action=query", false);
-    }
-
-    //Test an API request with an acceptable action but no search entry. Expect false.
-    public void testAPINoSearchBoolean() {
-        assertSearchBoolean("w/api.php","action=query&prop=revisions&titles=hall&rvprop=content", false);
-    }
-
-    //Test a Cirrus Search request. Expect true
-    public void testCirrusBoolean() {
-        assertSearchBoolean("w/api.php","action=query&list=search&srsearch=hosted desktop&srprop=snippet", true);
-    }
-
-    //Test a Open Search request. Expect true
-    public void testOpenBoolean() {
-        assertSearchBoolean("w/api.php","action=opensearch&format=json&search=d1&namespace=0&limit=10", true);
-    }
-
-    //Test a Language Search request. Expect true
-    public void testLanguageBoolean() {
-        assertSearchBoolean("w/api.php","action=languagesearch&search=espa", true);
-    }
-
-    //Test a Geo Search request. Expect true
-    public void testGeoBoolean() {
-        assertSearchBoolean("w/api.php","action=query&list=geosearch&gsradius=10000&gscoord=13.99861|100.53008", true);
-    }
-
-    //Test a Prefix Search request. Expect true
-    public void testPrefixBoolean() {
-        assertSearchBoolean("w/api.php","action=query&format=json&generator=prefixsearch&list=prefixsearch&pssearch=O", true);
+        Assert.assertEquals(what + " (classifySearchRequest)", expected, actual);
+        Assert.assertEquals(what + " (isSearch)", searchAPI, SearchRequest.getInstance().isSearchRequest(uriPath, uriQuery));
     }
 }

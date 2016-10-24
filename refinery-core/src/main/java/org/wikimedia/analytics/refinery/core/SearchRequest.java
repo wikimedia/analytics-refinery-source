@@ -16,6 +16,8 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import java.util.regex.Pattern;
+
 /**
  * Functions to work with Wikimedia webrequest data.
  * These functions are optimised for identifying and categorising API requests using the search system.
@@ -49,13 +51,11 @@ public class SearchRequest {
 
     private final String queryAction = "action=query";
 
-    private final String prefixSearchList = "list=prefixsearch";
+    private final Pattern prefixSearch = Pattern.compile("(list|generator)=prefixsearch");
 
-    private final String prefixSearchGenerator = "generator=prefixsearch";
+    private final Pattern search = Pattern.compile("(list|generator)=search");
 
-    private final String searchList = "list=search";
-
-    private final String geoSearchList = "list=geosearch";
+    private final Pattern geoSearch = Pattern.compile("(list|generator)=geosearch");
 
     private final String apiPath = "api.php";
 
@@ -79,15 +79,15 @@ public class SearchRequest {
         {
             if(Utilities.stringContains(uriQuery, queryAction))
             {
-                if(Utilities.stringContains(uriQuery, prefixSearchList) || Utilities.stringContains(uriQuery, prefixSearchGenerator))
+                if(Utilities.patternIsFound(prefixSearch, uriQuery))
                 {
                     output = "prefix";
                 }
-                else if(Utilities.stringContains(uriQuery, searchList))
+                else if(Utilities.patternIsFound(search, uriQuery))
                 {
                     output = "cirrus";
                 }
-                else if(Utilities.stringContains(uriQuery, geoSearchList))
+                else if(Utilities.patternIsFound(geoSearch, uriQuery))
                 {
                     output = "geo";
                 }
