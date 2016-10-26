@@ -168,7 +168,7 @@ public class PageviewDefinition {
         final String appUserAgent       = "WikipediaApp";
         final String appPageURIQuery    = "sections=0";
         final String iosAppPageURIQuery = "sections=all";
-        final String iosUserAgent       = "iPhone";
+        final Pattern iosUserAgentPattern = Pattern.compile("iPhone|iOS");
         final String iOsAppUserAgent    = "Wikipedia/5.0.";
 
         Webrequest wr = Webrequest.getInstance();
@@ -187,7 +187,7 @@ public class PageviewDefinition {
                     Utilities.stringContains(uriPath, uriPathAPI) &&
                     (Utilities.stringContains(uriQuery, appPageURIQuery)
                      || (Utilities.stringContains(uriQuery, iosAppPageURIQuery)
-                         && Utilities.stringContains(userAgent, iosUserAgent))
+                         && Utilities.patternIsFound(iosUserAgentPattern, userAgent))
                     )
                )
             ));
