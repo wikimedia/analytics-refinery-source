@@ -1,3 +1,6 @@
+## v0.0.36
+* Count pageviews for more wikis, https://phabricator.wikimedia.org/T130249
+
 ## v0.0.35
 * Classify DuckDuckGo as a search engine
 * Make camus paritition checker continue checking other topics
