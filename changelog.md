@@ -1,3 +1,7 @@
+## v0.0.37
+* Modify user agent regexes to identify iOS pageviews on PageviewDefinition
+https://phabricator.wikimedia.org/T148663
+
 ## v0.0.36
 * Count pageviews for more wikis, https://phabricator.wikimedia.org/T130249
 
