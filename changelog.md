@@ -1,3 +1,7 @@
+## v0.0.38
+* WikidataArticlePlaceholderMetrics also send search referral data https://phabricator.wikimedia.org/T142955
+* Adding self-identified bot to bot regex https://phabricator.wikimedia.org/T150990
+
 ## v0.0.37
 * Modify user agent regexes to identify iOS pageviews on PageviewDefinition
 https://phabricator.wikimedia.org/T148663
