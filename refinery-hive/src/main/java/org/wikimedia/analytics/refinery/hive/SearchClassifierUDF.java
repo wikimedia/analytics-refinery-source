@@ -20,9 +20,12 @@ import org.apache.hadoop.hive.ql.exec.UDF;
 import org.wikimedia.analytics.refinery.core.SearchRequest;
 
 /**
+ * Deprecated - Use IsSearchRequestUdf
  * A hive UDF to identify in a boolean fashion whether a request
  * is a "search" request or not.
  */
+
+@Deprecated
 public class SearchClassifierUDF extends UDF {
     public String evaluate(
         String uriPath,

@@ -17,9 +17,10 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.UDF;
+import org.wikimedia.analytics.refinery.core.SearchQuery;
 
 /**
- * Deprecated - Use GetSearchQueryPropertiesUDF
  * A Hive UDF to determine the features of a Cirrus search query.
  * <p>
  * For each query, the UDF produces an array of features such as
@@ -29,16 +30,20 @@ import org.apache.hadoop.hive.ql.exec.Description;
  * <p>
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
- *   CREATE TEMPORARY FUNCTION deconstruct as 'org.wikimedia.analytics.refinery.hive.DeconstructQueryUDF';
- *   SELECT deconstruct(query_string) AS features;
+ *   CREATE TEMPORARY FUNCTION get_search_query_properties as 'org.wikimedia.analytics.refinery.hive.DeconstructQueryUDF';
+ *   SELECT get_search_query_properties(query_string) AS features;
  * <p>
  * To make the above work with wmf_raw.CirrusSearchRequestSet's
  * data structure, operate on:
  *   requests.query[SIZE(requests.query)-1] AS query_string;
  */
-@Deprecated
 @Description(
-        name = "deconstruct",
+        name = "get_search_query_properties",
         value = "_FUNC_(query_string) - returns an array of features",
         extended = "")
-public class DeconstructSearchQueryUDF extends GetSearchQueryPropertiesUDF {}
+public class GetSearchQueryPropertiesUDF extends UDF {
+    public String evaluate(String query) {
+        SearchQuery query_inst = SearchQuery.getInstance();
+        return(query_inst.deconstructSearchQuery(query));
+    }
+}

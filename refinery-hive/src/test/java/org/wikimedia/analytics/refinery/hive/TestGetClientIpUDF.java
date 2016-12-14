@@ -18,21 +18,21 @@ package org.wikimedia.analytics.refinery.hive;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class TestClientIpUDF {
+public class TestGetClientIpUDF {
 
     @Test
     public void testEvaluate() {
-        ClientIpUDF clientIpUDF = new ClientIpUDF();
+        GetClientIpUDF getClientIpUDF = new GetClientIpUDF();
         String ip  = "208.80.154.133"; //Trusted proxy
         String xff = "127.0.0.1,96.56.123.2";
-        assertEquals("96.56.123.2", clientIpUDF.evaluate(ip, xff));
+        assertEquals("96.56.123.2", getClientIpUDF.evaluate(ip, xff));
     }
 
     @Test
     public void testEvaluateWithInvalidXFF() {
-        ClientIpUDF clientIpUDF = new ClientIpUDF();
+        GetClientIpUDF getClientIpUDF = new GetClientIpUDF();
         String ip  = "208.80.154.133"; //Trusted proxy
         String xff = "127.0.0.1,%20101.209.27.230";
-        assertEquals("208.80.154.133", clientIpUDF.evaluate(ip, xff));
+        assertEquals("208.80.154.133", getClientIpUDF.evaluate(ip, xff));
     }
 }

@@ -38,7 +38,7 @@ public class TestSmartReferrerClassifierUDF {
         boolean is_external,
         String search_engine
     ) {
-        SmartReferrerClassifierUDF udf = new SmartReferrerClassifierUDF();
+        GetRefererTypeUDF udf = new GetRefererTypeUDF();
 
         assertEquals(
             test_description,

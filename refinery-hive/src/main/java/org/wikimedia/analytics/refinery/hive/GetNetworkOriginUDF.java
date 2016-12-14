@@ -17,9 +17,10 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.UDF;
+import org.wikimedia.analytics.refinery.core.IpUtil;
 
 /**
- * Deprecated - Use GetNetworkOriginUDF
  * A Hive UDF to determine network origin for an IP address.
  * <p>
  * This broadly partitions all of the IPv4+IPv6 address space into "wikimedia"
@@ -30,13 +31,21 @@ import org.apache.hadoop.hive.ql.exec.Description;
  * <p>
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
- *   CREATE TEMPORARY FUNCTION network_origin as 'org.wikimedia.analytics.refinery.hive.NetworkOriginUDF';
- *   SELECT network_origin(ip) from webrequest where year = 2015 limit 10;
+ *   CREATE TEMPORARY FUNCTION get_network_origin as 'org.wikimedia.analytics.refinery.hive.NetworkOriginUDF';
+ *   SELECT get_network_origin(ip) from webrequest where year = 2015 limit 10;
  */
-@Deprecated
 @Description(
-        name = "network_origin",
+        name = "get_network_origin",
         value = "_FUNC_(ip) - returns the network origin "
             + "(wikimedia, wikimedia_labs, internet) for the given IP address",
         extended = "")
-public class NetworkOriginUDF extends GetNetworkOriginUDF {}
+public class GetNetworkOriginUDF extends UDF {
+
+    private IpUtil ipUtil = new IpUtil();
+
+    public String evaluate(String ip) {
+        assert ipUtil != null : "Evaluate called without initializing 'ipUtil'";
+
+        return ipUtil.getNeworkOrigin(ip).toString();
+    }
+}

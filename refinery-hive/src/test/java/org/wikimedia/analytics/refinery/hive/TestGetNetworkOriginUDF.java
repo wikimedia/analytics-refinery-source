@@ -22,13 +22,13 @@ import static org.junit.Assert.assertEquals;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class TestNetworkOriginUDF {
+public class TestGetNetworkOriginUDF {
 
-    private static NetworkOriginUDF fixture;
+    private static GetNetworkOriginUDF fixture;
 
     @BeforeClass
     public static void setUp() throws RuntimeException {
-        fixture = new NetworkOriginUDF();
+        fixture = new GetNetworkOriginUDF();
     }
 
     @Test

@@ -31,23 +31,23 @@ import static org.junit.Assert.*;
 
 import java.util.Map;
 
-public class TestGeocodedDataUDF {
+public class TestGetGeoDataUDF {
 
     @Test(expected = UDFArgumentLengthException.class)
     public void testBadNumberOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector value2 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1, value2};
-        GeocodedDataUDF geocodedDataUDF = new GeocodedDataUDF();
-        geocodedDataUDF.initialize(initArguments);
+        GetGeoDataUDF getGeoDataUDF = new GetGeoDataUDF();
+        getGeoDataUDF.initialize(initArguments);
     }
 
     @Test(expected = UDFArgumentTypeException.class)
     public void testWrongTypeOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaIntObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedDataUDF geocodedDataUDF = new GeocodedDataUDF();
-        geocodedDataUDF.initialize(initArguments);
+        GetGeoDataUDF getGeoDataUDF = new GetGeoDataUDF();
+        getGeoDataUDF.initialize(initArguments);
     }
 
     @Test
@@ -117,14 +117,14 @@ public class TestGeocodedDataUDF {
     private Map<String, String> evaluate(String ip) throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedDataUDF geocodedDataUDF = new GeocodedDataUDF();
+        GetGeoDataUDF getGeoDataUDF = new GetGeoDataUDF();
 
-        geocodedDataUDF.initialize(initArguments);
-        geocodedDataUDF.configure(MapredContext.init(false, new JobConf()));
+        getGeoDataUDF.initialize(initArguments);
+        getGeoDataUDF.configure(MapredContext.init(false, new JobConf()));
 
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        Map<String, String> result = (Map<String, String>)geocodedDataUDF.evaluate(args);
-        geocodedDataUDF.close();
+        Map<String, String> result = (Map<String, String>)getGeoDataUDF.evaluate(args);
+        getGeoDataUDF.close();
         return result;
     }
 }

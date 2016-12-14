@@ -16,29 +16,11 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
-import java.io.IOException;
-
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.ql.exec.Description;
-import org.apache.hadoop.hive.ql.exec.MapredContext;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.JobConf;
-
-import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.Geocode;
 
 /**
+ * Deprecated - use GetCountryISOCodesUDF
  * A Hive UDF to lookup country codes from IP addresses.
  * <p>
  * Hive Usage:
@@ -52,83 +34,10 @@ import org.wikimedia.analytics.refinery.core.Geocode;
  *   SET maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
  *   SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
  */
+@Deprecated
 @UDFType(deterministic = true)
 @Description(
         name = "geocoded_country",
         value = "_FUNC_(ip) - returns the ISO country code that corresponds to the given IP",
         extended = "")
-public class GeocodedCountryUDF extends GenericUDF {
-
-    private final Text result = new Text();
-    private ObjectInspector argumentOI;
-    private Geocode geocode;
-
-    static final Logger LOG = Logger.getLogger(GeocodedCountryUDF.class.getName());
-
-    @Override
-    public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
-
-        if (arguments.length != 1) {
-            throw new UDFArgumentLengthException("The GeocodedCountryUDF takes an array with only 1 element as argument");
-        }
-
-        ObjectInspector arg1 = arguments[0];
-
-        if (arg1.getCategory() != Category.PRIMITIVE) {
-            throw new UDFArgumentTypeException(0,
-                    "A string argument was expected but an argument of type " + arg1.getTypeName()
-                            + " was given.");
-        }
-
-        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg1).getPrimitiveCategory();
-
-        if (primitiveCategory != PrimitiveCategory.STRING) {
-            throw new UDFArgumentTypeException(0,
-                    "A string argument was expected but an argument of type " + arg1.getTypeName()
-                            + " was given.");
-        }
-
-        //Cache the argument to be used in evaluate
-        argumentOI = arg1;
-
-        return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
-    }
-
-    @Override
-    public void configure(MapredContext context) {
-        if (geocode == null) {
-            try {
-                JobConf jobConf = context.getJobConf();
-                geocode = new Geocode(
-                    jobConf.getTrimmed("maxmind.database.country"),
-                    jobConf.getTrimmed("maxmind.database.city")
-                );
-            } catch (IOException ex) {
-                LOG.error(ex);
-                throw new RuntimeException(ex);
-            }
-        }
-
-        super.configure(context);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert geocode != null : "Evaluate called without initializing 'geocode'";
-
-        result.clear();
-
-        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
-            String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            result.set(geocode.getCountryCode(ip));
-        }
-        return result;
-    }
-
-    @Override
-    public String getDisplayString(String[] arguments) {
-        assert (arguments.length == 1);
-        return "geocoded_country(" + arguments[0] + ")";
-    }
-}
+public class GeocodedCountryUDF extends GetCountryISOCodeUDF {}

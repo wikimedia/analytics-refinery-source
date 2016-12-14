@@ -33,23 +33,23 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestHostNormalizerUDF {
+public class TestGetHostPropertiesUDF {
 
     @Test(expected = UDFArgumentLengthException.class)
     public void testBadNumberOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector value2 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1, value2};
-        HostNormalizerUDF hostNormalizerUDF = new HostNormalizerUDF();
-        hostNormalizerUDF.initialize(initArguments);
+        GetHostPropertiesUDF getHostPropertiesUDF = new GetHostPropertiesUDF();
+        getHostPropertiesUDF.initialize(initArguments);
     }
 
     @Test(expected = UDFArgumentTypeException.class)
     public void testWrongTypeOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaIntObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        HostNormalizerUDF hostNormalizerUDF = new HostNormalizerUDF();
-        hostNormalizerUDF.initialize(initArguments);
+        GetHostPropertiesUDF getHostPropertiesUDF = new GetHostPropertiesUDF();
+        getHostPropertiesUDF.initialize(initArguments);
     }
 
     public static String join(List<String> l, String sep) {
@@ -75,11 +75,11 @@ public class TestHostNormalizerUDF {
     ) throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        HostNormalizerUDF hostNormalizerUDF = new HostNormalizerUDF();
-        hostNormalizerUDF.initialize(initArguments);
+        GetHostPropertiesUDF getHostPropertiesUDF = new GetHostPropertiesUDF();
+        getHostPropertiesUDF.initialize(initArguments);
 
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(uriHost) };
-        Object[] res = (Object[]) hostNormalizerUDF.evaluate(args);
+        Object[] res = (Object[]) getHostPropertiesUDF.evaluate(args);
 
         assertEquals("Result array has wrong length", 4, res.length);
 
@@ -88,7 +88,7 @@ public class TestHostNormalizerUDF {
         assertEquals(test_description + " - Qualifiers", expectedQualifiers, join((List<String>)res[2], ";"));
         assertEquals(test_description + " - TLD", expectedTld, res[3]);
 
-        hostNormalizerUDF.close();
+        getHostPropertiesUDF.close();
     }
 
 }

@@ -25,7 +25,7 @@ import org.wikimedia.analytics.refinery.core.MediaFileUrlInfo.Classification;
 
 import junit.framework.TestCase;
 
-public class TestMediaFileUrlParserUDF extends TestCase {
+public class TestGetMediaFilePropertiesUDF extends TestCase {
     ObjectInspector StringOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
     ObjectInspector LongOI = PrimitiveObjectInspectorFactory.javaLongObjectInspector;
 
@@ -34,7 +34,7 @@ public class TestMediaFileUrlParserUDF extends TestCase {
         DeferredObject[] arguments = new DeferredObject[] {urlDO};
         Object res = null;
 
-        MediaFileUrlParserUDF udf = new MediaFileUrlParserUDF();
+        GetMediaFilePropertiesUDF udf = new GetMediaFilePropertiesUDF();
         try {
             udf.initialize(new ObjectInspector[]{StringOI});
             res = udf.evaluate(arguments);
@@ -72,7 +72,7 @@ public class TestMediaFileUrlParserUDF extends TestCase {
     }
 
     public void testInitialize() throws HiveException, IOException {
-        MediaFileUrlParserUDF udf = new MediaFileUrlParserUDF();
+        GetMediaFilePropertiesUDF udf = new GetMediaFilePropertiesUDF();
         try {
             udf.initialize(new ObjectInspector[]{StringOI});
         } finally {
@@ -81,7 +81,7 @@ public class TestMediaFileUrlParserUDF extends TestCase {
     }
 
     public void testInitializeEmpty() throws HiveException, IOException {
-        MediaFileUrlParserUDF udf = new MediaFileUrlParserUDF();
+        GetMediaFilePropertiesUDF udf = new GetMediaFilePropertiesUDF();
         try {
             udf.initialize(new ObjectInspector[]{});
             fail("Initialize did not throw HiveException");
@@ -92,7 +92,7 @@ public class TestMediaFileUrlParserUDF extends TestCase {
     }
 
     public void testInitializeWrongType() throws HiveException, IOException {
-        MediaFileUrlParserUDF udf = new MediaFileUrlParserUDF();
+        GetMediaFilePropertiesUDF udf = new GetMediaFilePropertiesUDF();
         try {
             udf.initialize(new ObjectInspector[]{LongOI});
             fail("Initialize did not throw HiveException");

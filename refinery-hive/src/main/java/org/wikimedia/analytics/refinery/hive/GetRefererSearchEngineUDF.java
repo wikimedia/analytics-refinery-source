@@ -17,17 +17,20 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 
-/**
- * Deprecated - Use GetRefererTypeUDF
- * A Hive UDF to classify whether the web request came internally,
- * externally, from a search engine, or without a referer.
- */
+import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
 
-@Deprecated
+/**
+ * A Hive UDF to identify requests that come via external search engines.
+ */
 @UDFType(deterministic = true)
-@Description(name = "referer_classify",
-        value = "_FUNC_(referer) - Returns a string with a classification of a referer - e.g. none/unknown/internal/external/external (search engine)",
+@Description(name = "get_referer_search_engine",
+        value = "_FUNC_(referer) - Returns a string with a classification of a referer (none/unknown/google/etc.)",
         extended = "argument 0 is the referer url to analyze")
-public class SmartReferrerClassifierUDF extends GetRefererTypeUDF {}
+public class GetRefererSearchEngineUDF extends UDF {
+    public String evaluate(String referer) {
+        return SearchEngineClassifier.getInstance().identifySearchEngine(referer);
+    }
+}

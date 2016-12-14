@@ -17,14 +17,14 @@ import org.junit.Test;
 
 public class TestUAParserUDFUserAgentRecognition {
     ObjectInspector[] initArguments = null;
-    UAParserUDF uaParserUDF = null;
+    GetUAPropertiesUDF getUAPropertiesUDF = null;
 
     @Before
     public void setUp() throws HiveException {
         ObjectInspector valueOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         initArguments = new ObjectInspector[]{valueOI};
-        uaParserUDF = new UAParserUDF();
-        uaParserUDF.initialize(initArguments);
+        getUAPropertiesUDF = new GetUAPropertiesUDF();
+        getUAPropertiesUDF.initialize(initArguments);
 
     }
 
@@ -32,7 +32,7 @@ public class TestUAParserUDFUserAgentRecognition {
     public void tearDown() throws HiveException {
 
         try {
-            uaParserUDF.close();
+            getUAPropertiesUDF.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -51,7 +51,7 @@ public class TestUAParserUDFUserAgentRecognition {
 
 
         DeferredObject[] args1 = { ua1 };
-        HashMap<String, String> evaled = (HashMap<String, String>) uaParserUDF
+        HashMap<String, String> evaled = (HashMap<String, String>) getUAPropertiesUDF
                 .evaluate(args1);
         assertEquals("OS name check", (new String("Ubuntu")),
                 evaled.get("os_family").toString());
@@ -60,7 +60,7 @@ public class TestUAParserUDFUserAgentRecognition {
 
 
         DeferredObject[] args2 = { ua2 };
-        evaled = (HashMap<String, String>) uaParserUDF
+        evaled = (HashMap<String, String>) getUAPropertiesUDF
                 .evaluate(args2);
         assertEquals("OS name check", (new String("iOS")),
                 evaled.get("os_family").toString());
@@ -70,7 +70,7 @@ public class TestUAParserUDFUserAgentRecognition {
 
 
         DeferredObject[] args3 = { ua3 };
-        evaled = (HashMap<String, String>) uaParserUDF
+        evaled = (HashMap<String, String>) getUAPropertiesUDF
                 .evaluate(args3);
         assertEquals("OS name check", (new String("iOS")),
                 evaled.get("os_family").toString());
@@ -104,7 +104,7 @@ public class TestUAParserUDFUserAgentRecognition {
 
         DeferredObject[] args = { ua1 };
 
-        HashMap<String, String> evaled = (HashMap<String, String>) uaParserUDF
+        HashMap<String, String> evaled = (HashMap<String, String>) getUAPropertiesUDF
                 .evaluate(args);
 
         String resultOSName = evaled.get("os_family");
@@ -146,7 +146,7 @@ public class TestUAParserUDFUserAgentRecognition {
 
         DeferredObject[] args = { ua1 };
 
-        HashMap<String, String> evaled = (HashMap<String, String>) uaParserUDF
+        HashMap<String, String> evaled = (HashMap<String, String>) getUAPropertiesUDF
                 .evaluate(args);
 
         String resultOSName = evaled.get("os_family");

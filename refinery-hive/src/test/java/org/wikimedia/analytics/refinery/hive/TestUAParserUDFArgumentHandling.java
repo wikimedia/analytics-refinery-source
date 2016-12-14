@@ -18,8 +18,8 @@ public class TestUAParserUDFArgumentHandling {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector value2 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1, value2};
-        UAParserUDF uaParserUDF = new UAParserUDF();
-        uaParserUDF.initialize(initArguments);
+        GetUAPropertiesUDF getUAPropertiesUDF = new GetUAPropertiesUDF();
+        getUAPropertiesUDF.initialize(initArguments);
 
     }
 
@@ -28,8 +28,8 @@ public class TestUAParserUDFArgumentHandling {
 
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaIntObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        UAParserUDF uaParserUDF = new UAParserUDF();
-        uaParserUDF.initialize(initArguments);
+        GetUAPropertiesUDF getUAPropertiesUDF = new GetUAPropertiesUDF();
+        getUAPropertiesUDF.initialize(initArguments);
 
     }
 

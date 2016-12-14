@@ -30,96 +30,96 @@ import java.io.IOException;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class TestGeocodedCountryUDF {
+public class TestGetCountryISOCodeUDF {
 
     @Test(expected = UDFArgumentLengthException.class)
     public void testBadNumberOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector value2 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1, value2};
-        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
-        geocodedCountryUDF.initialize(initArguments);
+        getCountryISOCodeUDF.initialize(initArguments);
     }
 
     @Test(expected = UDFArgumentTypeException.class)
     public void testWrongTypeOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaIntObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
-        geocodedCountryUDF.initialize(initArguments);
+        getCountryISOCodeUDF.initialize(initArguments);
     }
 
     @Test
     public void testEvaluateWithValidIPv4() throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
-        geocodedCountryUDF.initialize(initArguments);
-        geocodedCountryUDF.configure(MapredContext.init(false, new JobConf()));
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
 
         //IPv4 addresses taken from Maxmind's test suite
         String ip = "81.2.69.160";
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        Text result = (Text)geocodedCountryUDF.evaluate(args);
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "GB", result.toString());
-        geocodedCountryUDF.close();
+        getCountryISOCodeUDF.close();
     }
 
     @Test
     public void testEvaluateWithValidIPv6() throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
-        geocodedCountryUDF.initialize(initArguments);
-        geocodedCountryUDF.configure(MapredContext.init(false, new JobConf()));
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
 
         //IPv6 representation of an IPv4 address taken from Maxmind's test suite
         String ip = "::ffff:81.2.69.160";
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        Text result = (Text)geocodedCountryUDF.evaluate(args);
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "GB", result.toString());
-        geocodedCountryUDF.close();
+        getCountryISOCodeUDF.close();
     }
 
     @Test
     public void testEvaluateWithInvalidIP() throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
-        geocodedCountryUDF.initialize(initArguments);
-        geocodedCountryUDF.configure(MapredContext.init(false, new JobConf()));
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
 
         //Invalid IPv4 addresses
         String ip = "-";
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        Text result = (Text)geocodedCountryUDF.evaluate(args);
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "--", result.toString());
 
         ip = null;
         args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        result = (Text)geocodedCountryUDF.evaluate(args);
+        result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "--", result.toString());
-        geocodedCountryUDF.close();
+        getCountryISOCodeUDF.close();
     }
 
     @Test
     public void testIPWithoutIsoCode() throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        GeocodedCountryUDF geocodedCountryUDF = new GeocodedCountryUDF();
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
-        geocodedCountryUDF.initialize(initArguments);
-        geocodedCountryUDF.configure(MapredContext.init(false, new JobConf()));
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
 
         String ip = "2a02:d500::"; // IP for EU
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
-        Text result = (Text)geocodedCountryUDF.evaluate(args);
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "--", result.toString());
-        geocodedCountryUDF.close();
+        getCountryISOCodeUDF.close();
     }
 }

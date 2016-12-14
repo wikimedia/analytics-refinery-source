@@ -23,20 +23,20 @@ import junit.framework.TestCase;
 import org.wikimedia.analytics.refinery.core.Referer;
 
 @Deprecated
-public class TestRefererClassifierUDF extends TestCase {
+public class TestGetRefererTypeUDF extends TestCase {
 
     public void testEvaluateUnknown() throws HiveException, IOException {
-        RefererClassifierUDF udf = new RefererClassifierUDF();
+        GetRefererTypeUDF udf = new GetRefererTypeUDF();
         assertEquals("Unknown referer", udf.evaluate("foo"), Referer.UNKNOWN.getRefLabel());
     }
 
     public void testEvaluateInternal() throws HiveException, IOException {
-        RefererClassifierUDF udf = new RefererClassifierUDF();
+        GetRefererTypeUDF udf = new GetRefererTypeUDF();
         assertEquals("Unknown referer", udf.evaluate("http://en.wikipedia.org/foo"), Referer.INTERNAL.getRefLabel());
     }
 
     public void testEvaluateExternal() throws HiveException, IOException {
-        RefererClassifierUDF udf = new RefererClassifierUDF();
-        assertEquals("Unknown referer", udf.evaluate("http://www.google.com/"), Referer.EXTERNAL.getRefLabel());
+        GetRefererTypeUDF udf = new GetRefererTypeUDF();
+        assertEquals("Unknown referer", udf.evaluate("http://www.google.com/"), Referer.SEARCH_ENGINE.getRefLabel());
     }
 }

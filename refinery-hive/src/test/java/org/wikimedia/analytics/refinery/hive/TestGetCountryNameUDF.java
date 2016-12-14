@@ -31,53 +31,53 @@ import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
 
-public class TestCountryNameUDF {
+public class TestGetCountryNameUDF {
 
     @Test(expected = UDFArgumentLengthException.class)
     public void testBadNumberOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector value2 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1, value2};
-        CountryNameUDF countryNameUDF = new CountryNameUDF();
+        GetCountryNameUDF getCountryNameUDF = new GetCountryNameUDF();
 
-        countryNameUDF.initialize(initArguments);
+        getCountryNameUDF.initialize(initArguments);
     }
 
     @Test(expected = UDFArgumentTypeException.class)
     public void testWrongTypeOfArguments() throws HiveException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaIntObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        CountryNameUDF countryNameUDF = new CountryNameUDF();
+        GetCountryNameUDF getCountryNameUDF = new GetCountryNameUDF();
 
-        countryNameUDF.initialize(initArguments);
+        getCountryNameUDF.initialize(initArguments);
     }
 
     @Test
     public void testEvaluateWithValidCountryCode() throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        CountryNameUDF countryNameUDF = new CountryNameUDF();
+        GetCountryNameUDF getCountryNameUDF = new GetCountryNameUDF();
 
-        countryNameUDF.initialize(initArguments);
-        countryNameUDF.configure(MapredContext.init(false, new JobConf()));
+        getCountryNameUDF.initialize(initArguments);
+        getCountryNameUDF.configure(MapredContext.init(false, new JobConf()));
 
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject("IE") };
-        Text result = (Text)countryNameUDF.evaluate(args);
+        Text result = (Text)getCountryNameUDF.evaluate(args);
         assertEquals("ISO valid country code check", "Ireland", result.toString());
-        countryNameUDF.close();
+        getCountryNameUDF.close();
     }
 
     @Test
     public void testEvaluateWithInvalidCountryCode() throws HiveException, IOException {
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-        CountryNameUDF countryNameUDF = new CountryNameUDF();
+        GetCountryNameUDF getCountryNameUDF = new GetCountryNameUDF();
 
-        countryNameUDF.initialize(initArguments);
-        countryNameUDF.configure(MapredContext.init(false, new JobConf()));
+        getCountryNameUDF.initialize(initArguments);
+        getCountryNameUDF.configure(MapredContext.init(false, new JobConf()));
 
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject("--") };
-        Text result = (Text)countryNameUDF.evaluate(args);
+        Text result = (Text)getCountryNameUDF.evaluate(args);
         assertEquals("ISO invalid country code check", "Unknown", result.toString());
     }
 

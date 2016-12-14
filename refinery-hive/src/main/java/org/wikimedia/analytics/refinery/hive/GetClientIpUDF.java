@@ -17,20 +17,30 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.UDF;
+
+import org.wikimedia.analytics.refinery.core.IpUtil;
 
 /**
- * Deprecated - Use GetClientIpUDF
  * A Hive UDF to determine client IP given the source IP and X-Forwarded-For header.
  * <p>
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
- *   CREATE TEMPORARY FUNCTION client_ip as 'org.wikimedia.analytics.refinery.hive.ClientIpUDF';
- *   SELECT client_ip(ip, x_forwarded_for) from webrequest where year = 2015 limit 10;
+ *   CREATE TEMPORARY FUNCTION get_client_ip as 'org.wikimedia.analytics.refinery.hive.GetClientIpUDF';
+ *   SELECT get_client_ip(ip, x_forwarded_for) from webrequest where year = 2015 limit 10;
  */
-@Deprecated
 @Description(
-        name = "client_ip",
+        name = "get_client_ip",
         value = "_FUNC_(ip, xff) - returns the client IP given the source IP and X-Forwarded-For " +
                 "header",
         extended = "")
-public class ClientIpUDF extends GetClientIpUDF {}
+public class GetClientIpUDF extends UDF {
+
+    private IpUtil ipUtil = new IpUtil();
+
+    public String evaluate(String ip, String xff) {
+        assert ipUtil != null : "Evaluate called without initializing 'ipUtil'";
+
+        return ipUtil.getClientIp(ip, xff);
+    }
+}

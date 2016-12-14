@@ -17,19 +17,10 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.apache.hadoop.io.Text;
-import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.Geocode;
 
 /**
+ * Deprecated - Use GetCountryNameUDF
  * A Hive UDF to lookup country name from country code.
  * <p>
  * Hive Usage:
@@ -40,51 +31,10 @@ import org.wikimedia.analytics.refinery.core.Geocode;
  * NOTE: If this UDF receives a bad country code or null it returns "Unknown" as the country name
  * NOTE: This does not depend on MaxMind
  */
+@Deprecated
 @UDFType(deterministic = true)
 @Description(
         name = "country_name",
         value = "_FUNC_(country_code) - returns the ISO country name that corresponds to the given country code",
         extended = "")
-public class CountryNameUDF extends GenericUDF {
-
-    private final Text result = new Text();
-    private StringObjectInspector argumentOI;
-
-    static final Logger LOG = Logger.getLogger(CountryNameUDF.class.getName());
-
-    /**
-     * Checks arguments size is 1
-     *
-     * @param arguments
-     * @return
-     * @throws UDFArgumentException
-     */
-    @Override
-    public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
-
-        GenericUDFHelper argsHelper = new GenericUDFHelper();
-        argsHelper.checkArgsSize(arguments, 1, 1);
-        argsHelper.checkArgPrimitive(arguments, 0);
-        argsHelper.checkArgType(arguments, 0, PrimitiveCategory.STRING);
-
-        //Cache the argument to be used in evaluate
-        argumentOI = (StringObjectInspector) arguments[0];
-
-        return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        result.clear();
-        String countryCode = argumentOI.getPrimitiveJavaObject(arguments[0].get());
-        result.set(Geocode.getCountryName(countryCode));
-        return result;
-    }
-
-    @Override
-    public String getDisplayString(String[] arguments) {
-        assert (arguments.length == 1);
-        return "country_name(" + arguments[0] + ")";
-    }
-}
+public class CountryNameUDF extends GetCountryNameUDF {}

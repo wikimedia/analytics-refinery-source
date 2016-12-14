@@ -15,9 +15,17 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.UDF;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
+import org.wikimedia.analytics.refinery.core.Webrequest;
 
-@Deprecated
-@Description(name = "referer_classifier",
-    value = "_FUNC_(url) - Returns a string with a classification of a referer (unknown, internal, external)",
-    extended = "argument 0 is the url to analyze")
-public class RefererClassifierUDF extends GetRefererTypeUDF {}
+@Description(name = "get_referer_type",
+        value = "_FUNC_(url) - Returns a string with a classification of a referer (unknown, internal, external)",
+        extended = "argument 0 is the url to analyze")
+public class GetRefererTypeUDF extends UDF {
+
+    public String evaluate(String referer) {
+        return SearchEngineClassifier.getInstance().refererClassify(referer);
+    }
+}

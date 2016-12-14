@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2015 Wikimedia Foundation
+ * Copyright (C) 2014  Wikimedia Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.wikimedia.analytics.refinery.hive;
 
 import org.junit.Test;
@@ -25,25 +24,28 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestDeconstructSearchQueryUDF {
+public class TestGetRefererSearchEngineUDF {
 
     @Test
     @FileParameters(
-            value = "../refinery-core/src/test/resources/search_query_categorizer_test_data.csv",
-            mapper = CsvWithHeaderMapper.class
+        value = "../refinery-core/src/test/resources/referer_test_data.csv",
+        mapper = CsvWithHeaderMapper.class
     )
-    public void testQueryClassify(
-            String test_description,
-            String query,
-            String expected_output
+    public void testRefererClassify(
+        String test_description,
+        String referer,
+        String referer_class,
+        boolean is_external,
+        String search_engine
     ) {
-        DeconstructSearchQueryUDF udf = new DeconstructSearchQueryUDF();
+        GetRefererSearchEngineUDF udf = new GetRefererSearchEngineUDF();
 
         assertEquals(
-                test_description,
-                expected_output,
-                udf.evaluate(query)
+            test_description,
+            search_engine,
+            udf.evaluate(
+                referer
+            )
         );
     }
-
 }

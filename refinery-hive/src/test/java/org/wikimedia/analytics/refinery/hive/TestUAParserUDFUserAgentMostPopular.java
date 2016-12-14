@@ -32,15 +32,15 @@ import static org.junit.Assert.assertEquals;
 @RunWith(JUnitParamsRunner.class)
 public class TestUAParserUDFUserAgentMostPopular {
     ObjectInspector[] initArguments = null;
-    UAParserUDF uaParserUDF = null;
+    GetUAPropertiesUDF getUAPropertiesUDF = null;
     JSONParser parser = null;
 
     @Before
     public void setUp() throws HiveException {
         ObjectInspector valueOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         initArguments = new ObjectInspector[]{valueOI};
-        uaParserUDF = new UAParserUDF();
-        uaParserUDF.initialize(initArguments);
+        getUAPropertiesUDF = new GetUAPropertiesUDF();
+        getUAPropertiesUDF.initialize(initArguments);
         parser = new JSONParser();
 
     }
@@ -49,7 +49,7 @@ public class TestUAParserUDFUserAgentMostPopular {
     public void tearDown() throws HiveException {
 
         try {
-            uaParserUDF.close();
+            getUAPropertiesUDF.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -73,7 +73,7 @@ public class TestUAParserUDFUserAgentMostPopular {
         JSONObject expected_ua = (JSONObject) obj;
 
         DeferredObject[] args1 = {ua};
-        HashMap<String, String> computed_ua = (HashMap<String, String>) uaParserUDF
+        HashMap<String, String> computed_ua = (HashMap<String, String>) getUAPropertiesUDF
                 .evaluate(args1);
 
         assertEquals("OS name check", expected_ua.get("os_family"),
