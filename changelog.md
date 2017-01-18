@@ -1,3 +1,7 @@
+## v0.0.39
+* Standarize UDF Naming:  https://phabricator.wikimedia.org/T120131
+* Lucene Stemmer UDF https://phabricator.wikimedia.org/T148811
+
 ## v0.0.38
 * WikidataArticlePlaceholderMetrics also send search referral data https://phabricator.wikimedia.org/T142955
 * Adding self-identified bot to bot regex https://phabricator.wikimedia.org/T150990
