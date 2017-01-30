@@ -84,6 +84,14 @@ public class PageviewDefinition {
     );
 
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
+        /**
+         * This action-pattern is used with [[Utilities.patternIsFound]] function,
+         * and therefore it covers all three cases of interest:
+         *  - action=edit
+         *  - veaction=edit
+         *  - veaction=editsource
+         *  Let's be careful if any of those change.
+         */
         "action=edit"
     );
 
