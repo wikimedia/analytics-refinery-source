@@ -1,3 +1,7 @@
+## v0.0.40
+
+* Add comment to action=edit filter in pageview definition: https://phabricator.wikimedia.org/T156629
+
 ## v0.0.39
 * Standarize UDF Naming:  https://phabricator.wikimedia.org/T120131
 * Lucene Stemmer UDF https://phabricator.wikimedia.org/T148811
