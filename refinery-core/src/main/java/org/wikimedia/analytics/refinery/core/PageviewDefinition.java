@@ -92,7 +92,12 @@ public class PageviewDefinition {
          *  - veaction=editsource
          *  Let's be careful if any of those change.
          */
-        "action=edit"
+        "action=edit" +
+        /**
+         * This action-pattern is included in 2017-02-0X. It removes actions like "previews" from
+         * being counted as pageviews.
+         */
+        "|action=submit"
     );
 
     private final HashSet<String> contentTypesSet = new HashSet<String>(Arrays.asList(
