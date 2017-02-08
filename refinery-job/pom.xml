@@ -47,6 +47,25 @@
         </dependency>
 
         <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-streaming-kafka_2.10</artifactId>
+            <version>${spark.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-streaming_2.10</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netaporter</groupId>
+            <artifactId>scala-uri_2.10</artifactId>
+            <version>0.4.16</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.twitter</groupId>
             <artifactId>algebird-core_2.10</artifactId>
             <version>0.10.2</version>
