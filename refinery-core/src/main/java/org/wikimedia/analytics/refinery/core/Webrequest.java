@@ -63,7 +63,7 @@ public class Webrequest {
                         "Python|Apache|Scrapy|PycURL|libwww|Zend|wget|nodemw|WinHttpRaw|Twisted|com\\.eusoft|Lagotto|" +
                         "Peggo|Recuweb|check_http|Magnus|MLD|Jakarta|find-link|J\\. River|projectplan9|ADmantX|" +
                         "httpunit|LWP|iNaturalist|WikiDemo|FSResearchIt|livedoor|Microsoft Monitoring|MediaWiki|" +
-                        "User:|User_talk:|github|tools.wmflabs.org|Blackboard Safeassign|" + coarseEmailPattern + ").*" +
+                        "User:|User_talk:|github|tools.wmflabs.org|Blackboard Safeassign|Damn Small XSS|" + coarseEmailPattern + ").*" +
                     ")$");
 
     /*
