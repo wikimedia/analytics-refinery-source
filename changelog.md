@@ -1,3 +1,9 @@
+## v0.0.41
+
+* Update pageview definition to remove previews https://phabricator.wikimedia.org/T156628
+* Add spark streaming job for banner impressions https://phabricator.wikimedia.org/T155141
+* Add DSXS (self-identified bot) to bot regex https://phabricator.wikimedia.org/T157528
+
 ## v0.0.40
 
 * Add comment to action=edit filter in pageview definition: https://phabricator.wikimedia.org/T156629
