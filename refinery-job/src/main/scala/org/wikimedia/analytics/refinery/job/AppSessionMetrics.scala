@@ -235,7 +235,7 @@ object AppSessionMetrics {
     val dateStart = new LocalDate(datesInfo("year"), datesInfo("month"), datesInfo("day"))
     val dateEnd = dateStart.plusDays(datesInfo("periodDays"))
     val dateRange = makeDateRange(dateStart, dateEnd, new Period().withDays(1))
-    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d".format(webrequestTextPath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
+    dateRange.toList.map(dt => "%s/year=%d/month=%d/day=%d/*".format(webrequestTextPath, dt.getYear, dt.getMonthOfYear, dt.getDayOfMonth))
   }
 
   /**
@@ -247,7 +247,7 @@ object AppSessionMetrics {
    * @return DataFrame with 3 columns: os_family, wmfuuid and timestamp
    */
   def pathListToDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
-    sqlContext.parquetFile(paths: _*)
+    sqlContext.read.parquet(paths: _*)
       .filter("is_pageview and access_method = 'mobile app' and " +
         "x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
       .selectExpr(

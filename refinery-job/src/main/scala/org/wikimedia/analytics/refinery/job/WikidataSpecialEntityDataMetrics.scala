@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.core.GraphiteClient
@@ -21,7 +21,7 @@ object WikidataSpecialEntityDataMetrics {
   /**
     * Config class for CLI argument parser using scopt
     */
-  case class Params(webrequestTable: String = "wmf.webrequest",
+  case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
                     graphiteNamespace: String = "daily.wikidata.entitydata",
@@ -35,9 +35,9 @@ object WikidataSpecialEntityDataMetrics {
     note("This job reports use of the wikidata Special:EntityData page to graphite daily")
     help("help") text ("Prints this usage text")
 
-    opt[String]('t', "webrequest-table") optional() valueName ("<table>") action { (x, p) =>
-      p.copy(webrequestTable = x)
-    } text ("Hive webrequest table to use. Defaults to wmf.webrequest")
+    opt[String]('t', "webrequest-base-path") optional() valueName ("<path>") action { (x, p) =>
+      p.copy(webrequestBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
+    } text ("Path to the webrequest data in HDFS. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/webrequest")
 
     opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
       p.copy(graphiteHost = x)
@@ -74,7 +74,13 @@ object WikidataSpecialEntityDataMetrics {
         val conf = new SparkConf().setAppName("WikidataSpecialEntityDataMetrics-%d-%d-%d".format(
           params.year, params.month, params.day))
         val sc = new SparkContext(conf)
-        val hiveContext = new HiveContext(sc)
+        val sqlContext = new SQLContext(sc)
+
+        val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
+        val parquetPath = "%s/year=%d/month=%d/day=%d/*".format(webrequestTextPath, params.year, params.month, params.day)
+        val temporaryTable = "temporaryTable"
+
+        sqlContext.read.parquet(parquetPath).registerTempTable(temporaryTable)
 
         val sql = """
   SELECT
@@ -82,16 +88,15 @@ object WikidataSpecialEntityDataMetrics {
     agent_type,
     content_type
   FROM %s
-  WHERE year = %d
-    AND month = %d
-    AND day = %d
-    AND http_status = 200
+  WHERE http_status = 200
     AND normalized_host.project_class = 'wikidata'
     AND uri_path rlike '^/wiki/Special:EntityData/.*$'
-    GROUP BY agent_type, content_type
-                  """.format(params.webrequestTable, params.year, params.month, params.day)
+    GROUP BY
+      agent_type,
+      content_type
+                  """.format(temporaryTable)
 
-        val data = hiveContext.sql(sql).collect().map(r => (r.getLong(0), r.getString(1), r.getString(2)))
+        val data = sqlContext.sql(sql).collect().map(r => (r.getLong(0), r.getString(1), r.getString(2)))
 
         val metrics = data.foldLeft(Map.empty[String, Long])((acc, v) => {
           v match {

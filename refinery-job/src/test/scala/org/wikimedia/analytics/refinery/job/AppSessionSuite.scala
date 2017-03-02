@@ -41,8 +41,8 @@ class AppSessionSuite extends FunSuite {
     assert(pathList.length == datesInfo("periodDays"))
 
     //Assert the paths are being generated correctly
-    assert(pathList.head == ".../webrequest_source=text/year=2015/month=5/day=10")
-    assert(pathList.last == ".../webrequest_source=text/year=2015/month=5/day=19")
+    assert(pathList.head == ".../webrequest_source=text/year=2015/month=5/day=10/*")
+    assert(pathList.last == ".../webrequest_source=text/year=2015/month=5/day=19/*")
   }
 
 }

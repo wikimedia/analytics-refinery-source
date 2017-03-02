@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.core.GraphiteClient
@@ -22,7 +22,7 @@ object WikidataArticlePlaceholderMetrics {
   /**
     * Config class for CLI argument parser using scopt
     */
-  case class Params(webrequestTable: String = "wmf.webrequest",
+  case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
                     graphiteNamespace: String = "daily.wikidata.articleplaceholder",
@@ -36,9 +36,9 @@ object WikidataArticlePlaceholderMetrics {
     note("This job reports ArticlePlaceholder extension traffic to graphite daily")
     help("help") text ("Prints this usage text")
 
-    opt[String]('t', "webrequest-table") optional() valueName ("<table>") action { (x, p) =>
-      p.copy(webrequestTable = x)
-    } text ("Hive webrequest table to use. Defaults to wmf.webrequest")
+    opt[String]('t', "webrequest-base-path") optional() valueName ("<path>") action { (x, p) =>
+      p.copy(webrequestBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
+    } text ("Path to the webrequest data in HDFS. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/webrequest")
 
     opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
       p.copy(graphiteHost = x)
@@ -75,7 +75,13 @@ object WikidataArticlePlaceholderMetrics {
         val conf = new SparkConf().setAppName("WikidataArticlePlaceholderMetrics-%d-%d-%d".format(
           params.year, params.month, params.day))
         val sc = new SparkContext(conf)
-        val hiveContext = new HiveContext(sc)
+        val sqlContext = new SQLContext(sc)
+
+        val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
+        val parquetPath = "%s/year=%d/month=%d/day=%d/*".format(webrequestTextPath, params.year, params.month, params.day)
+        val temporaryTable = "temporaryTable"
+
+        sqlContext.read.parquet(parquetPath).registerTempTable(temporaryTable)
 
         // Currently limited to wikipedia as ArticlePlaceholder is only deployed to wikipedias
         val sql = """
@@ -85,11 +91,7 @@ object WikidataArticlePlaceholderMetrics {
     (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$') as from_search,
     COUNT(1)
   FROM %s
-  WHERE year = %d
-    AND month = %d
-    AND day = %d
-    AND webrequest_source = 'text'
-    AND is_pageview = TRUE
+  WHERE is_pageview = TRUE
     AND x_analytics_map["ns"] = '-1'
     AND x_analytics_map["special"] = 'AboutTopic'
     AND normalized_host.project_class = 'wikipedia'
@@ -97,9 +99,9 @@ object WikidataArticlePlaceholderMetrics {
     pageview_info["project"],
     agent_type,
     (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$')
-                  """.format(params.webrequestTable, params.year, params.month, params.day)
+                  """.format(temporaryTable)
 
-        val queryData = hiveContext.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
+        val queryData = sqlContext.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
         val data = Map[String, Long]()
