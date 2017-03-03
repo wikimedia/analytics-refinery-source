@@ -1,3 +1,12 @@
+## v0.0.42
+
+* Upgrade hadoop, hive and spark version after CDH upgrade.
+  Hadoop and hive just have very minor upgrades, spark has a
+  more import one (from 1.5.0 to 1.6.0.)
+* Change the three spark jobs in refinery-job to have them
+  working with the new installation (this new installation
+  has a bug preventing using HiveContext in oozie).
+
 ## v0.0.41
 
 * Update pageview definition to remove previews https://phabricator.wikimedia.org/T156628
