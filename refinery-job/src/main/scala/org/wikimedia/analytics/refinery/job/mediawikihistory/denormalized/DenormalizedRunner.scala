@@ -25,7 +25,7 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
   import org.apache.log4j.Logger
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.MediawikiEvent$
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.MediawikiEvent
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
