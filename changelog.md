@@ -1,3 +1,9 @@
+## v0.0.43
+
+* Add mediawiki history spark jobs to refinery-job
+* Add spark job to aggregate historical projectviews
+* Do not filter test[2].wikipedia.org from pageviews
+
 ## v0.0.42
 
 * Upgrade hadoop, hive and spark version after CDH upgrade.
