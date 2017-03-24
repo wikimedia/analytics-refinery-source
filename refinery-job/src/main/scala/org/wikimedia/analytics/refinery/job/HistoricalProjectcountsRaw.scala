@@ -80,7 +80,8 @@ object HistoricalProjectcountsRaw {
                     dataLine match {
                         case dataLineRE(domainAbbrev, viewCount) =>
                             Seq((
-                                (year.toInt, month.toInt, day.toInt, hour.toInt, domainAbbrev),
+                                (year.toInt, month.toInt, day.toInt, hour.toInt,
+                                    domainAbbrev.toLowerCase),
                                 viewCount.toLong
                             ))
                         case _ =>
