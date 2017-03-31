@@ -16,8 +16,6 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import java.util.regex.Pattern;
-
 /**
  * Functions to work with Wikimedia webrequest data.
  * These functions are optimised for identifying and categorising API requests using the search system.
@@ -43,23 +41,6 @@ public class SearchRequest {
     }
 
     /**
-     * ♪ Now back to the good part! ♪
-     */
-    private final String openSearchAction = "action=opensearch";
-
-    private final String languageSearchAction = "action=languagesearch";
-
-    private final String queryAction = "action=query";
-
-    private final Pattern prefixSearch = Pattern.compile("(list|generator)=prefixsearch");
-
-    private final Pattern search = Pattern.compile("(list|generator)=search");
-
-    private final Pattern geoSearch = Pattern.compile("(list|generator)=geosearch");
-
-    private final String apiPath = "api.php";
-
-    /**
      * Given a uriPath and uriHost, detect what type of search request
      * a request is. If it doesn't match any, return an empty string
      *
@@ -72,37 +53,15 @@ public class SearchRequest {
         String uriPath,
         String uriQuery
     ) {
-
-        String output = "";
-
-        if(Utilities.stringContains(uriPath, apiPath))
-        {
-            if(Utilities.stringContains(uriQuery, queryAction))
-            {
-                if(Utilities.patternIsFound(prefixSearch, uriQuery))
-                {
-                    output = "prefix";
+        if (uriQuery != null && Utilities.stringContains(uriPath, "api.php")) {
+            for (SearchRequestApiRegex api : SearchRequestApiRegex.values()) {
+                if (api.getPattern().matcher(uriQuery).find()) {
+                    return api.getLabel();
                 }
-                else if(Utilities.patternIsFound(search, uriQuery))
-                {
-                    output = "cirrus";
-                }
-                else if(Utilities.patternIsFound(geoSearch, uriQuery))
-                {
-                    output = "geo";
-                }
-            }
-            else if(Utilities.stringContains(uriQuery, openSearchAction))
-            {
-                output = "open";
-            }
-            else if(Utilities.stringContains(uriQuery, languageSearchAction))
-            {
-                output = "language";
             }
         }
 
-        return output;
+        return ""; // If none of the patterns are found.
     }
 
     /**
