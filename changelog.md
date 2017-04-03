@@ -1,3 +1,7 @@
+## v0.0.44
+
+* Update mediawiki history jobs to overwrite result folders
+
 ## v0.0.43
 
 * Add mediawiki history spark jobs to refinery-job
