@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{SaveMode, SQLContext}
 
 
 /**
@@ -260,7 +260,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
     // Write history
     val pageHistoryDf = sqlContext.createDataFrame(pageHistoryRdd.map(_.toRow), PageState.schema)
     sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
-    pageHistoryDf.write.parquet(outputPath)
+    pageHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"Page history reconstruction results written")
 
     // Write errors (if path provided)
@@ -276,7 +276,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
           StructField("event", StringType, nullable = false)
         ))
       )
-      errorDf.write.format("csv").option("sep", "\t").save(errorsPath.get)
+      errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath.get)
       log.info(s"Page history reconstruction errors written")
     } else {
       log.info("Page history unmatched events: " + unmatchedEvents.left.get.toString)

@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{SaveMode, SQLContext}
 
 import scala.reflect.ClassTag
 
@@ -314,7 +314,7 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
         MediawikiEvent.schema)
 
     sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
-    denormalizedMediawikiEventsDf.write.parquet(outputPath)
+    denormalizedMediawikiEventsDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
 
     log.info(s"Denormalized MW Events jobs done")
 

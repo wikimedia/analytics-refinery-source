@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{SaveMode, SQLContext}
 
 /**
   * This class defines the functions for the user history reconstruction process.
@@ -249,7 +249,7 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
     val userHistoryDf =
       sqlContext.createDataFrame(userHistoryRdd.map(_.toRow), UserState.schema)
     sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
-    userHistoryDf.write.parquet(outputPath)
+    userHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"User history reconstruction results written")
 
     val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty).cache()
@@ -266,7 +266,7 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
           StructField("event", StringType, nullable = false)
         ))
       )
-      errorDf.write.format("csv").option("sep", "\t").save(errorsPath.get)
+      errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath.get)
       log.info(s"User history reconstruction errors written")
     } else {
       log.info("Unmatched user history events: " + unmatchedEvents.left.get.toString)
