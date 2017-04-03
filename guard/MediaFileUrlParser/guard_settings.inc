@@ -1,21 +1,18 @@
 echo_guard_input() {
-    local TSV_FILE_ABS="/a/squid/archive/sampled/sampled-1000.tsv.log-$(date +'%Y%m%d').gz"
+    local hive_query="
+SELECT
+    CONCAT('https://', uri_host, uri_path)
+FROM
+    wmf.webrequest TABLESAMPLE(BUCKET 1 OUT OF 64)
+WHERE
+    uri_host = 'upload.wikimedia.org' AND
+    uri_path NOT RLIKE '(monitoring/backend|robots.txt|crossdomain.xml|.{1000,})$' AND
+    (http_status = 200 or http_status = 206) AND
+    webrequest_source='upload' AND $(date +'year=%Y AND month=%m AND day=%d AND hour=0');
+"
 
-    if [ ! -f "$TSV_FILE_ABS" ]
-    then
-        error "The input TSV file '$TSV_FILE_ABS' does not exist"
-    fi
 
-    zcat /a/squid/archive/sampled/sampled-1000.tsv.log-$(date +'%Y%m%d').gz \
-        | cut -f 6,9 \
-        | cut -f 2- -d / \
-        | grep '^\(200\|206\)' \
-        | cut -f 2 \
-        | grep '^https\?://upload.wikimedia.org/' \
-        | cut -f 1 -d ? \
-        | grep -v 'https\?://upload.wikimedia.org/\(\|monitoring/backend\|robots.txt\|crossdomain.xml\|.\{1000,\}\)$' \
-        || true
-
+    beeline --silent=true --fastConnect=true  --showHeader=false -e "$hive_query" || true
 }
 
 set_guard_arguments() {
