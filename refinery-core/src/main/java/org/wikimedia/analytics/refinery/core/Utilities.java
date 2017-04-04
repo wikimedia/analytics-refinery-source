@@ -16,8 +16,15 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.regex.Pattern;
 
 /**
@@ -108,5 +115,37 @@ public class Utilities {
 
 
 }
+
+
+    public static void sendEmail(
+        String smtpHost,
+        String smtpPort,
+        String fromEmail,
+        String[] toEmails,
+        String subject,
+        String body
+    ) {
+        Properties props = new Properties();
+        props.put("mail.smtp.host", smtpHost);
+        props.put("mail.smtp.auth", "false");
+        props.put("mail.smtp.port", smtpPort);
+
+        Session session = Session.getDefaultInstance(props);
+
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(fromEmail));
+            for (String email : toEmails) {
+                message.addRecipient(Message.RecipientType.TO, new InternetAddress(email));
+            }
+            message.setSubject(subject);
+            message.setText(body);
+
+            Transport.send(message);
+        }
+        catch (MessagingException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
 }
