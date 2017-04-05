@@ -222,16 +222,20 @@ object DenormalizedRevisionsBuilder extends Serializable {
   }
 
   /**
-    * Checks if ts2 occurs within one day of ts1.
-    *
-    * @param ts1 The first timestamp
-    * @param ts2 The second timestamp
-    * @return true if (ts2 - ts1) < 1 day or (ts1 = ts2 = None), false otherwise
-    */
-  def isWithinADay(ts1: Option[String], ts2: Option[String]): Boolean = (ts1, ts2) match {
-    case (Some(t1), Some(t2)) => timestampParser.parseDateTime(t2) < timestampParser.parseDateTime(t1) + 1.days
-    case (None, None) => true
-    case _ => false
+    * Returns the number of seconds elapsed between the revision's creation and
+    * its revert.
+  **/
+
+  def getTimestampDifference(
+                              revertTimestamp: Option[String],
+                              revisionTimestamp: Option[String]
+                            ): Option[Long] = (revertTimestamp, revisionTimestamp) match {
+    case (Some(t1), Some(t2)) => {
+      val revertTimestampMs = timestampParser.parseMillis(t1)
+      val revisionTimestampMs = timestampParser.parseMillis(t2)
+      Option((revertTimestampMs - revisionTimestampMs) / 1000)
+    }
+    case _ => None
   }
 
   /**
@@ -260,15 +264,15 @@ object DenormalizedRevisionsBuilder extends Serializable {
         // Worked revision is reverting and also reverted as part of a different wider revert
         val revertingTimestamp = reverts.head._1._1
         val revertingRevisionId = reverts.head._1._2
-        val isProductive = Some(! isWithinADay(revision.eventTimestamp, revertingTimestamp))
-        revision.isIdentityRevert.isIdentityReverted(revertingTimestamp, revertingRevisionId, isProductive)
+        val revisionTimeToRevert = getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+        revision.isIdentityRevert.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
       }
     } else {
       // Worked revision is reverted
       val revertingTimestamp = reverts.head._1._1
       val revertingRevisionId = reverts.head._1._2
-      val isProductive = Some(! isWithinADay(revision.eventTimestamp, revertingTimestamp))
-      revision.isIdentityReverted(revertingTimestamp, revertingRevisionId, isProductive)
+      val revisionTimeToRevert = getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+      revision.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
     }
   }
 
