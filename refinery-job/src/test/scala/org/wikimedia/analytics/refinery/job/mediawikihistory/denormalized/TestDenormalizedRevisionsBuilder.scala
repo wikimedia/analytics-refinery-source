@@ -282,7 +282,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(false))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      res.revisionDetails.revFirstIdentityRevertTimestamp should equal(None)
+      res.revisionDetails.revTimeToIdentityRevert should equal(None)
     })
   }
 
@@ -300,7 +300,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(false))
       res.revisionDetails.revIsIdentityReverted should equal(Some(true))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(2L))
-      res.revisionDetails.revFirstIdentityRevertTimestamp should equal(Some("19710101000000"))
+      res.revisionDetails.revTimeToIdentityRevert should equal(Some(31536000))
     })
     endReverts.size should equal(1)
   }
@@ -319,7 +319,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      res.revisionDetails.revFirstIdentityRevertTimestamp should equal(None)
+      res.revisionDetails.revTimeToIdentityRevert should equal(None)
     })
     endReverts.size should equal(0)
   }
@@ -339,7 +339,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      res.revisionDetails.revFirstIdentityRevertTimestamp should equal(None)
+      res.revisionDetails.revTimeToIdentityRevert should equal(None)
     })
     endReverts.size should equal(1)
   }
@@ -360,8 +360,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(true))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(4L))
-      res.revisionDetails.revFirstIdentityRevertTimestamp should equal(Some("19700101100000"))
-      res.revisionDetails.revIsProductive should equal(Some(false))
+      res.revisionDetails.revTimeToIdentityRevert should equal(Some(36000))
     })
     endReverts.size should equal(1)
   }
@@ -413,7 +412,7 @@ with SharedSparkContext {
       r.revisionDetails.revIsIdentityRevert should equal(Some(false))
       r.revisionDetails.revIsIdentityReverted should equal(Some(false))
       r.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      r.revisionDetails.revFirstIdentityRevertTimestamp should equal(None)
+      r.revisionDetails.revTimeToIdentityRevert should equal(None)
     })
   }
 
@@ -432,10 +431,10 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db       time        revId pageId sha1 revert reverted revertId    revertTs",
+      "db       time        revId pageId sha1 revert reverted revertId    timeToRevert",
       "w0   19700101000000    1      1     s1  false   false   None         None ",
       "w1   19700101000000    1      1     s1  false   false   None         None ",
-      "w1   19700102000000    2      1     s2  false   true     3      19700103000000  ",
+      "w1   19700102000000    2      1     s2  false   true     3           86400  ",
       "w1   19700103000000    3      1     s1  true   false    None         None "
     )
 
@@ -461,9 +460,9 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db        time       revId pageId sha1 revert reverted revertId     revertTs",
+      "db        time       revId pageId sha1 revert reverted revertId     timeToRevert",
       "w1   19700101000000    1      1     s1  false   false   None          None",
-      "w1   19700102000000    2      1     s2  false   true     3        19700103000000",
+      "w1   19700102000000    2      1     s2  false   true     3            86400",
       "w2   19700103000000    3      1     s1  false   false    None         None"
     )
 
@@ -493,9 +492,9 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db        time       revId pageId sha1 revert reverted revertId     revertTs",
+      "db        time       revId pageId sha1 revert reverted revertId     timeToRevert",
       "w1   19700101000000    1      1     s1  false   false   None          None",
-      "w1   19700102000000    2      1     s2  false   true     3        19700103000000",
+      "w1   19700102000000    2      1     s2  false   true     3        86400",
       "w1   19700103000000    3      1     s1  true   false    None         None"
     )
 
@@ -535,16 +534,16 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db        time       revId pageId sha1 revert reverted revertId     revertTs",
+      "db        time       revId pageId sha1 revert reverted revertId     timeToRevert",
       "w0   19700101000000    1      1     s1  false   false   None          None",
 
       "w1   19700101000000    1      1     s1  false   false   None          None",
-      "w1   19700102000000    2      1     s2  false  true      6       19700106000000",
-      "w1   19700103000000    3      1     s3  false  true      4       19700104000000",
-      "w1   19700104000000    4      1     s2  true   true      6       19700106000000",
-      "w1   19700105000000    5      1     s5  false  true      6       19700106000000",
-      "w1   19700106000000    6      1     s1  true   true      8       19700108000000",
-      "w1   19700107000000    7      1     s7  false  true      8       19700108000000",
+      "w1   19700102000000    2      1     s2  false  true      6       345600",
+      "w1   19700103000000    3      1     s3  false  true      4       86400",
+      "w1   19700104000000    4      1     s2  true   true      6       172800",
+      "w1   19700105000000    5      1     s5  false  true      6       86400",
+      "w1   19700106000000    6      1     s1  true   true      8       172800",
+      "w1   19700107000000    7      1     s7  false  true      8       86400",
       "w1   19700108000000    8      1     s3  true   false    None         None",
       "w1   19700109000000    9      1     s9  false  false    None         None",
 

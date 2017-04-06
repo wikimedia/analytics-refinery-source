@@ -36,8 +36,7 @@ object TestHistoryEventHelpers {
                           revDeletedTimestamp: Option[String] = None,
                           revIsIdentityReverted: Option[Boolean] = None,
                           revFirstIdentityRevertingRevisionId: Option[Long] = None,
-                          revFirstIdentityRevertTimestamp: Option[String] = None,
-                          revIsProductive: Option[Boolean] = Some(true),
+                          revTimeToIdentityRevert: Option[Long] = None,
                           revIsIdentityRevert: Option[Boolean] = None
                         )(
                           headerLine: String,
@@ -61,8 +60,7 @@ object TestHistoryEventHelpers {
           case "deleteTime" | "revDeletedTimestamp" => ("revDeletedTimestamp" -> string(v))
           case "isReverted" | "reverted" | "revIsIdentityReverted" => ("revIsIdentityReverted" -> boolean(v))
           case "revertId" | "revFirstIdentityRevertingRevisionId" => ("revFirstIdentityRevertingRevisionId" -> long(v))
-          case "revertTs" | "revFirstIdentityRevertTimestamp" => ("revFirstIdentityRevertTimestamp" -> string(v))
-          case "productive" | "revIsProductive" => ("revIsProductive" -> boolean(v))
+          case "timeToRevert" | "revTimeToIdentityRevert" => ("revTimeToIdentityRevert" -> long(v))
           case "isRevert" | "revert" | "revIsIdentityRevert" => ("revIsIdentityRevert" -> boolean(v))
 
         }
@@ -92,8 +90,7 @@ object TestHistoryEventHelpers {
           revDeletedTimestamp = valueMap.getOrElse("revDeletedTimestamp", revDeletedTimestamp).asInstanceOf[Option[String]],
           revIsIdentityReverted = valueMap.getOrElse("revIsIdentityReverted", revIsIdentityReverted).asInstanceOf[Option[Boolean]],
           revFirstIdentityRevertingRevisionId = valueMap.getOrElse("revFirstIdentityRevertingRevisionId", revFirstIdentityRevertingRevisionId).asInstanceOf[Option[Long]],
-          revFirstIdentityRevertTimestamp = valueMap.getOrElse("revFirstIdentityRevertTimestamp", revFirstIdentityRevertTimestamp).asInstanceOf[Option[String]],
-          revIsProductive = valueMap.getOrElse("revIsProductive", revIsProductive).asInstanceOf[Option[Boolean]],
+          revTimeToIdentityRevert = valueMap.getOrElse("revTimeToIdentityRevert", revTimeToIdentityRevert).asInstanceOf[Option[Long]],
           revIsIdentityRevert = valueMap.getOrElse("revIsIdentityRevert", revIsIdentityRevert).asInstanceOf[Option[Boolean]]
         )
       )
