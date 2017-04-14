@@ -36,7 +36,7 @@ trait HasPartitionKey {
 case class PartitionKey(db: String, id: Long, year: Int)
   extends Ordered[PartitionKey] {
   override def compare(that: PartitionKey): Int =
-    (this.db, this.id, this.year) compare (that.db, that.id, that.year)
+    implicitly[Ordering[(String, Long, Int)]].compare((this.db, this.id, this.year), (that.db, that.id, that.year))
 }
 
 
@@ -60,7 +60,9 @@ case class StateKey(partitionKey: PartitionKey,
     val partitionComp = this.partitionKey.compare(that.partitionKey)
     if (partitionComp == 0) {
       // No option comparator defined for Timestamp, so we use the Long one using getTime
-      (this.startTimestamp.map(_.getTime), this.endTimestamp.map(_.getTime)) compare (that.startTimestamp.map(_.getTime), that.endTimestamp.map(_.getTime))
+      implicitly[Ordering[(Option[Long], Option[Long])]].compare(
+        (this.startTimestamp.map(_.getTime), this.endTimestamp.map(_.getTime)),
+        (that.startTimestamp.map(_.getTime), that.endTimestamp.map(_.getTime)))
     }
     else partitionComp
   }
@@ -87,10 +89,35 @@ case class MediawikiEventKey(partitionKey: PartitionKey,
   override def compare(that: MediawikiEventKey): Int = {
     val partitionComp = this.partitionKey.compare(that.partitionKey)
     if (partitionComp == 0)
-      (this.timestamp.map(_.getTime), this.sortingId) compare (that.timestamp.map(_.getTime), that.sortingId)
+    // No option comparator defined for Timestamp, so we use the Long one using getTime
+      implicitly[Ordering[(Option[Long], Option[Long])]].compare(
+        (this.timestamp.map(_.getTime), this.sortingId),
+        (that.timestamp.map(_.getTime), that.sortingId))
     else partitionComp
   }
 }
+
+
+/**
+  * Key used to prepare reverts and group revisions by partition and sha1.
+  *
+  * This class overrides compare in order to be used with groupBy
+  *
+  * @param partitionKey The revision partition key
+  * @param sha1 The revision sha1
+  */
+case class RevertKey(partitionKey: PartitionKey,
+                     sha1: Option[String])
+  extends Ordered[RevertKey]
+  with HasPartitionKey {
+  override def compare(that: RevertKey): Int = {
+    val partitionComp = this.partitionKey.compare(that.partitionKey)
+    if (partitionComp == 0)
+      implicitly[Ordering[Option[String]]].compare(this.sha1, that.sha1)
+    else partitionComp
+  }
+}
+
 
 
 /**

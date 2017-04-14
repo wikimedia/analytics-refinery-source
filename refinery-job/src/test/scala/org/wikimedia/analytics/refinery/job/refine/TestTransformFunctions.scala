@@ -1,13 +1,9 @@
 package org.wikimedia.analytics.refinery.job.refine
 
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import org.scalatest.{FlatSpec, Matchers}
+
 import scala.collection.immutable.ListMap
-
-import com.holdenkarau.spark.testing.SharedSparkContext
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
-import org.apache.spark.sql.SQLContext
-
-import org.wikimedia.analytics.refinery.core.HivePartition
-
 
 
 /**
@@ -27,7 +23,7 @@ case class TestData(
 )
 
 class TestTransformFunctions extends FlatSpec
-    with Matchers with BeforeAndAfterEach with SharedSparkContext {
+    with Matchers with DataFrameSuiteBase {
 
     val data1 = TestData()
     val data2 = TestData(uuid="b0f7848f973f5e90ac531055b45bfeba")
@@ -37,26 +33,20 @@ class TestTransformFunctions extends FlatSpec
         "my_db", "my_table", "/path/to/table", ListMap("year" -> "2018")
     )
 
-    var sqlContext: SQLContext = null
-
-    override def beforeEach(): Unit = {
-        sqlContext = new SQLContext(sc)
-    }
-
     it should "deduplicate_eventlogging based on uuid" in {
-        val df = sqlContext.createDataFrame(sc.parallelize(Seq(data1, data1, data2)))
+        val df = spark.createDataFrame(sc.parallelize(Seq(data1, data1, data2)))
         val transformedDf = deduplicate_eventlogging(df, partition)
         transformedDf.count should equal(2)
     }
 
     it should "deduplicate_eventbus based on meta.id" in {
-        val df = sqlContext.createDataFrame(sc.parallelize(Seq(data1, data3, data3)))
+        val df = spark.createDataFrame(sc.parallelize(Seq(data1, data3, data3)))
         val transformedDf = deduplicate_eventbus(df, partition)
         transformedDf.count should equal(2)
     }
 
     it should "geocode_ip `ip` field" in {
-        val df = sqlContext.createDataFrame(sc.parallelize(Seq(data1)))
+        val df = spark.createDataFrame(sc.parallelize(Seq(data1)))
         val transformedDf = geocode_ip(df, partition)
         transformedDf.columns.contains("geocoded_data") should equal(true)
 

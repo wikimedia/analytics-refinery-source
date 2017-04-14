@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.job.connectors.{GraphiteMessage, GraphiteClient}
 import scopt.OptionParser
@@ -79,10 +78,10 @@ object APIsVarnishRequests {
 
   }
 
-  def countAPIsURIs(parquetData: DataFrame, sqlContext: SQLContext): (Long, Long) = {
+  def countAPIsURIs(parquetData: DataFrame, spark: SparkSession): (Long, Long) = {
 
-    parquetData.registerTempTable("tmp_apis")
-    val row = sqlContext.sql(
+    parquetData.createOrReplaceTempView("tmp_apis")
+    val row = spark.sql(
       """
         |SELECT
         |  SUM(CASE WHEN uri_path like '/api/rest_v1%' THEN 1 ELSE 0 END) as restbase_requests,
@@ -96,10 +95,10 @@ object APIsVarnishRequests {
     argsParser.parse(args, Params()) match {
       case Some(params) => {
         // Initial Spark setup
-        val conf = new SparkConf().setAppName("APIsVarnishRequests")
-        val sc = new SparkContext(conf)
-        val sqlContext = new SQLContext(sc)
-        sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
+        val spark = SparkSession.builder()
+          .appName("APIsVarnishRequests")
+          .config("spark.sql.parquet.compression.codec", "snappy")
+          .getOrCreate()
 
         // Define the path to load data in Parquet format
         val parquetDataPath = "%s/webrequest_source=text/year=%d/month=%d/day=%d/hour=%d"
@@ -109,7 +108,7 @@ object APIsVarnishRequests {
         val graphiteTimestamp = new DateTime(params.year, params.month, params.day, params.hour, 0).getMillis / 1000
         val restbaseMetric = "%s.varnish_requests".format(params.restbaseNamespace)
         val mwAPIMetric = "%s.varnish_requests".format(params.mwAPINamespace)
-        val (restbaseRequests, mwAPIRequests) = countAPIsURIs(sqlContext.read.parquet(parquetDataPath), sqlContext)
+        val (restbaseRequests, mwAPIRequests) = countAPIsURIs(spark.read.parquet(parquetDataPath), spark)
 
         // Send to graphite
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)

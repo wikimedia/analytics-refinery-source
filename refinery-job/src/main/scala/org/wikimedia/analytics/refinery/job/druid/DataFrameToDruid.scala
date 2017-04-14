@@ -1,27 +1,22 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.druid
 
 import java.io.InputStream
 
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.http.client.HttpClient
-import org.apache.http.client.methods.HttpGet
-import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.methods.{HttpGet, HttpPost}
 import org.apache.http.entity.StringEntity
-import org.apache.http.impl.client.DefaultHttpClient
-import org.apache.http.impl.client.LaxRedirectStrategy
+import org.apache.http.impl.client.{DefaultHttpClient, LaxRedirectStrategy}
 import org.apache.log4j.LogManager
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.types.{IntegerType, LongType, FloatType, DoubleType}
+import org.apache.spark.sql.types.{DoubleType, FloatType, IntegerType, LongType}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.joda.time.DateTime
-import scala.util.parsing.json.JSON
+
+import scala.io.Source
 import scala.util.Random
-import scala.io.Source;
+import scala.util.parsing.json.JSON
 
 /**
  * Ingestion status enumeration object
@@ -47,9 +42,9 @@ object DataFrameToDruid {
     val EventCountMetricName = "eventCount"
 
     // Constant: Template to build Druid ingestion specs.
-    val stream: InputStream = getClass().getResourceAsStream("/ingestion_spec_template.json");
+    val stream: InputStream = getClass.getResourceAsStream("/ingestion_spec_template.json")
 
-    val IngestionSpecTemplate: String = Source.fromInputStream(stream).getLines.mkString;
+    val IngestionSpecTemplate: String = Source.fromInputStream(stream).getLines.mkString
 }
 /**
  * DataFrame to Druid transaction class
@@ -116,24 +111,24 @@ object DataFrameToDruid {
  *     httpClientOver  Optional HttpClient instance (only for testing purposes).
  */
 class DataFrameToDruid(
-    sc: SparkContext,
-    dataSource: String,
-    inputDf: DataFrame,
-    dimensions: Seq[String],
-    metrics: Seq[String],
-    intervals: Seq[(DateTime, DateTime)],
-    timestampColumn: String,
-    timestampFormat: String,
-    segmentGranularity: String,
-    queryGranularity: String,
-    numShards: Int,
-    reduceMemory: String,
-    hadoopQueue: String,
-    druidHost: String,
-    druidPort: String,
-    checkInterval: Int = 10000,
-    tempFilePathOver: String = null.asInstanceOf[String],
-    httpClientOver: HttpClient = null.asInstanceOf[HttpClient]
+                        spark: SparkSession,
+                        dataSource: String,
+                        inputDf: DataFrame,
+                        dimensions: Seq[String],
+                        metrics: Seq[String],
+                        intervals: Seq[(DateTime, DateTime)],
+                        timestampColumn: String,
+                        timestampFormat: String,
+                        segmentGranularity: String,
+                        queryGranularity: String,
+                        numShards: Int,
+                        reduceMemory: String,
+                        hadoopQueue: String,
+                        druidHost: String,
+                        druidPort: String,
+                        checkInterval: Int = 10000,
+                        tempFilePathOver: String = null.asInstanceOf[String],
+                        httpClientOver: HttpClient = null.asInstanceOf[HttpClient]
 ) {
     private val log = LogManager.getLogger("DataFrameToDruid")
 
@@ -141,7 +136,7 @@ class DataFrameToDruid(
     private val tempFilePath: String = if (tempFilePathOver != null) tempFilePathOver else {
         val randomId = Random.alphanumeric.take(5).mkString("")
         val timestamp = DateTime.now.toString("yyyyMMddHHmmss")
-        s"/tmp/DataFrameToDruid/${dataSource}/${timestamp}/${randomId}"
+        s"/tmp/DataFrameToDruid/$dataSource/$timestamp/$randomId"
     }
 
     // Add the event count to the DataFrame.
@@ -149,12 +144,12 @@ class DataFrameToDruid(
     private val metricsWithCount = metrics :+ DataFrameToDruid.EventCountMetricName
 
     // Initialize Druid ingestion spec.
-    log.info(s"Creating ingestion spec for ${dataSource}.")
-    private var ingestionSpec: String = createIngestionSpec()
+    log.info(s"Creating ingestion spec for $dataSource.")
+    private val ingestionSpec: String = createIngestionSpec()
     log.info(ingestionSpec)
 
     // Create a runnable that will execute the ingestion when launched.
-    private val statusUpdater: Thread = getStatusUpdater()
+    private val statusUpdater: Thread = getStatusUpdater
 
     // Instance variables: need to be modified after constructor.
     private var ingestionStatus: IngestionStatus.Value = IngestionStatus.Initial
@@ -185,13 +180,15 @@ class DataFrameToDruid(
         if (ingestionStatus == IngestionStatus.Initial) {
             userCallback = callback
 
-            log.info(s"Writing temporary file for ${dataSource}.")
-            inputDfWithCount.write.json(tempFilePath)
+            log.info(s"Writing temporary file for $dataSource.")
+            inputDfWithCount
+              .write
+              .json(tempFilePath)
 
-            log.info(s"Launching indexation task for ${dataSource}.")
-            druidTaskId = sendIngestionRequest()
-            log.info(s"Indexation task for ${dataSource} launched successfully. " +
-                     s"Task ID: ${druidTaskId}")
+            log.info(s"Launching indexation task for $dataSource.")
+            druidTaskId = sendIngestionRequest
+            log.info(s"Indexation task for $dataSource launched successfully. " +
+                     s"Task ID: $druidTaskId")
             ingestionStatus = IngestionStatus.Loading
             statusUpdater.start()
         } else {
@@ -242,7 +239,7 @@ class DataFrameToDruid(
             .replace("{{TIMESTAMP_FORMAT}}", timestampFormat)
             .replace("{{TIMESTAMP_COLUMN}}", timestampColumn)
             .replace("{{METRICS}}", formatMetrics())
-            .replace("{{NUM_SHARDS}}", numShards.toString())
+            .replace("{{NUM_SHARDS}}", numShards.toString)
             .replace("{{REDUCE_MEMORY}}", reduceMemory)
             .replace("{{HADOOP_QUEUE}}", hadoopQueue)
     }
@@ -272,7 +269,7 @@ class DataFrameToDruid(
                 case IntegerType | LongType => "longSum"
                 case FloatType | DoubleType => "doubleSum"
             }
-            s"""{\"name\": \"${field}\", \"fieldName\": \"${field}\", \"type\": \"${fieldType}\"}"""
+            s"""{\"name\": \"$field\", \"fieldName\": \"$field\", \"type\": \"$fieldType\"}"""
         })
         "[" + formattedMetrics.mkString(", ") + "]"
     }
@@ -280,7 +277,7 @@ class DataFrameToDruid(
     // Returns a thread that keeps polling Druid to check the status of the
     // indexation task and updates the ingestionStatus var accordingly.
     // When the task is finished, executes finalizations.
-    private def getStatusUpdater(): Thread = {
+    private def getStatusUpdater: Thread = {
         new Thread(
             new Runnable {
                 def run() {
@@ -289,8 +286,8 @@ class DataFrameToDruid(
                     } else {
                         while (ingestionStatus == IngestionStatus.Loading) {
                             Thread.sleep(checkInterval)
-                            log.info(s"Checking status of task ${druidTaskId} for ${dataSource}.")
-                            ingestionStatus = getDruidTaskStatus() match {
+                            log.info(s"Checking status of task $druidTaskId for $dataSource.")
+                            ingestionStatus = getDruidTaskStatus match {
                                 case "RUNNING" => IngestionStatus.Loading
                                 case "SUCCESS" => IngestionStatus.Done
                                 case "FAILED" | "ERROR" => IngestionStatus.Error
@@ -305,15 +302,15 @@ class DataFrameToDruid(
 
     // Sends an http post request to Druid to trigger ingestion.
     // Returns the Druid task id.
-    private def sendIngestionRequest(): String = {
-        val url = s"http://${druidHost}:${druidPort}${DataFrameToDruid.LaunchTaskPath}"
+    private def sendIngestionRequest: String = {
+        val url = s"http://$druidHost:$druidPort${DataFrameToDruid.LaunchTaskPath}"
         val post = new HttpPost(url)
         post.addHeader("Content-type", "application/json")
         post.setEntity(new StringEntity(ingestionSpec))
         val response = httpClient.execute(post)
-        val statusCode = response.getStatusLine().getStatusCode()
+        val statusCode = response.getStatusLine.getStatusCode
         if (statusCode == 200) {
-            val contentStream = response.getEntity().getContent()
+            val contentStream = response.getEntity.getContent
             val responseStr = IOUtils.toString(contentStream)
             val responseObj = JSON.parseFull(responseStr).get.asInstanceOf[Map[String, Any]]
             responseObj("task").asInstanceOf[String]
@@ -322,14 +319,14 @@ class DataFrameToDruid(
 
     // Sends an http get request to Druid to check the ingestion task.
     // Returns the resulting task status.
-    private def getDruidTaskStatus(): String = {
+    private def getDruidTaskStatus: String = {
         val path = DataFrameToDruid.CheckTaskPath.replace("{{DRUID_TASK_ID}}", druidTaskId)
-        val url = s"http://${druidHost}:${druidPort}${path}"
+        val url = s"http://$druidHost:$druidPort$path"
         val get = new HttpGet(url)
         val response = httpClient.execute(get)
-        val statusCode = response.getStatusLine().getStatusCode()
+        val statusCode = response.getStatusLine.getStatusCode
         if (statusCode == 200) {
-            val contentStream = response.getEntity().getContent()
+            val contentStream = response.getEntity.getContent
             val responseStr = IOUtils.toString(contentStream)
             val responseObj = JSON.parseFull(responseStr).get.asInstanceOf[Map[String, Any]]
             val statusObj = responseObj("status").asInstanceOf[Map[String, Any]]
@@ -342,12 +339,12 @@ class DataFrameToDruid(
     private def conclude(): Unit = {
         ingestionStatus match {
             case IngestionStatus.Done => log.info(
-                s"Druid ingestion task ${druidTaskId} for ${dataSource} succeeded.")
+                s"Druid ingestion task $druidTaskId for $dataSource succeeded.")
             case IngestionStatus.Error => log.error(
-                s"Druid ingestion task ${druidTaskId} for ${dataSource} failed.")
+                s"Druid ingestion task $druidTaskId for $dataSource failed.")
         }
         val path = new Path(tempFilePath)
-        val fs = FileSystem.get(sc.hadoopConfiguration)
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
         if (fs.exists(path)) fs.delete(path, true)
         if (userCallback.isDefined) userCallback.get(ingestionStatus)
     }

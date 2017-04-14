@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 
 
 /**
@@ -14,7 +13,7 @@ import org.apache.spark.sql.SQLContext
   * It returns the [[UserState]] RDD of joined results of every partition and either
   * the errors found on the way, or their count.
   */
-class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
+class UserHistoryBuilder(spark: SparkSession) extends Serializable {
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
@@ -23,7 +22,6 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
   import java.sql.Timestamp
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner
-
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -461,7 +459,7 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
     log.info(s"User history building jobs starting")
 
     val partitioner = new SubgraphPartitioner[UserHistoryBuilder.KEY, UserEvent, UserState](
-      sqlContext, UserHistoryBuilder.UserRowKeyFormat)
+      spark, UserHistoryBuilder.UserRowKeyFormat)
     val subgraphs = partitioner.run(events, states)
 
     log.info(s"Processing partitioned user histories")

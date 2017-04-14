@@ -1,16 +1,12 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
-import org.apache.log4j.LogManager
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.{SparkSession, DataFrame}
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.job.refine.SparkSQLHiveExtensions._
 
 import scala.util.control.Exception.{allCatch, ignoring}
-
-import SparkSQLHiveExtensions._
 
 // Import implicit StructType and StructField conversions.
 // This allows us use these types with an extendend API
@@ -56,7 +52,7 @@ object DataFrameToHive extends LogHelper {
       * Creates or alters tableName in Hive to match any changes in the DataFrame schema
       * and then inserts the data into the table.
       *
-      * @param hiveContext        Spark HiveContext
+      * @param spark              SparkSession
       *
       * @param inputDf            Input DataFrame
       *
@@ -75,7 +71,7 @@ object DataFrameToHive extends LogHelper {
       *                           columns that was inserted into the Hive Table.
       */
     def apply(
-        hiveContext: HiveContext,
+        spark: SparkSession,
         inputDf: DataFrame,
         partition: HivePartition,
         doneCallback: () => Unit,
@@ -83,7 +79,7 @@ object DataFrameToHive extends LogHelper {
     ): DataFrame = {
 
         // Set this so we can partition by fields in the DataFrame.
-        hiveContext.setConf("hive.exec.dynamic.partition.mode", "nonstrict")
+        spark.conf.set("hive.exec.dynamic.partition.mode", "nonstrict")
 
         // Keep number of partitions  to reset it after DataFrame API changes it
         // Since the spark context is used accross multiple jobs, we don't want
@@ -121,19 +117,18 @@ object DataFrameToHive extends LogHelper {
             // When comparing and running DDL statements, all fields will be lowercased and
             // made nullable.
             prepareHiveTable(
-                hiveContext,
+                spark,
                 df.schema,
                 partition.tableName,
                 partition.location,
                 partitionNames
             )
         } catch {
-            case e: IllegalStateException => {
+            case e: IllegalStateException =>
                 log.fatal(
                     s"""Failed preparing Hive table ${partition.tableName} with
                        |input schema:\n${df.schema.treeString}""".stripMargin, e)
                 throw e
-            }
         }
 
         // Now convert the df so that it matches the schema that the
@@ -143,24 +138,23 @@ object DataFrameToHive extends LogHelper {
 
         // Merge (and normalize) the table schema with the df schema.
         // This is the schema that we need df to look like for successful insertion into Hive.
-        val compatibleSchema = hiveContext.table(partition.tableName).schema.merge(df.schema)
+        val compatibleSchema = spark.table(partition.tableName).schema.merge(df.schema)
 
         // Recursively convert the df to match the Hive compatible schema.
         val outputDf = df.convertToSchema(compatibleSchema)
 
         log.info(
-            s"""Inserting into `${partition.tableName}` DataFrame with schema:\n
+            s"""Inserting into ${partition.tableName} DataFrame with schema:\n
                |${outputDf.schema.treeString} for partition $partition""".stripMargin
         )
 
         // Insert data into Hive table.
         outputDf.write.mode("overwrite")
-            .partitionBy(partitionNames:_*)
             .insertInto(partition.tableName)
 
         log.info(
-            s"Finished inserting into `${partition.tableName}` DataFrame, " +
-            s"wrote to external location ${hivePartitionPath(hiveContext, partition)}."
+            s"Finished inserting into ${partition.tableName} DataFrame, " +
+            s"wrote to external location ${hivePartitionPath(spark, partition)}."
         )
 
         // call doneCallback
@@ -176,7 +170,7 @@ object DataFrameToHive extends LogHelper {
       * not already in the Hive table.  If any fields change types, this will throw an
       * exception.
       *
-      * @param hiveContext      Spark HiveContext
+      * @param spark            SparkSession
       *
       * @param newSchema        Spark schema representing the schema of the
       *                         table to be created or altered.
@@ -191,14 +185,14 @@ object DataFrameToHive extends LogHelper {
       * @return
       */
     def prepareHiveTable(
-        hiveContext: HiveContext,
+        spark: SparkSession,
         newSchema: StructType,
         tableName: String,
         locationPath: String = "",
         partitionNames: Seq[String] = Seq.empty
     ): Boolean = {
         val ddlStatements = getDDLStatements(
-            hiveContext, newSchema, tableName, locationPath, partitionNames
+            spark, newSchema, tableName, locationPath, partitionNames
         )
 
         // CREATE or ALTER the Hive table if we have a change to make.
@@ -206,11 +200,11 @@ object DataFrameToHive extends LogHelper {
             ddlStatements.foreach { (s) =>
                 log.info(s"Running Hive DDL statement:\n$s")
                 ignoring(classOf[AlreadyExistsException]) {
-                    hiveContext.sql(s)
+                    spark.sql(s)
                 }
             }
             // Refresh Spark's metadata about this Hive table.
-            hiveContext.refreshTable(tableName)
+            spark.catalog.refreshTable(tableName)
             true
         }
         else
@@ -224,7 +218,7 @@ object DataFrameToHive extends LogHelper {
       * Else, if tableName does exist, it will return a Seq of Hive ALTER TABLE statements
       * required to update the table schema to match any new fields found in newSchema.
       *
-      * @param hiveContext      Spark HiveContext
+      * @param spark            SparkSession
       *
       * @param newSchema        Spark schema representing the schema of the
       *                         table to be created or altered.
@@ -239,22 +233,22 @@ object DataFrameToHive extends LogHelper {
       * @return
       */
     def getDDLStatements(
-        hiveContext: HiveContext,
+        spark: SparkSession,
         newSchema: StructType,
         tableName: String,
         locationPath: String = "",
         partitionNames: Seq[String] = Seq.empty
     ): Iterable[String] = {
         // If the Hive table doesn't exist, get CREATE DDL to create it like newSchema.
-        if (!hiveTableExists(hiveContext, tableName)) {
+        if (!hiveTableExists(spark, tableName)) {
             Seq(newSchema.hiveCreateDDL(tableName, locationPath, partitionNames))
         }
         // Else get ALTER DDL statements to alter the existing table to add fields from new Schema.
         else {
-            val tableSchema = hiveContext.table(tableName).schema
+            val tableSchema = spark.table(tableName).schema
             val alterDDLs = tableSchema.hiveAlterDDL(tableName, newSchema)
             if (alterDDLs.nonEmpty) {
-                log.info(s"""Found difference in schemas for Hive table `$tableName`
+                log.info(s"""Found difference in schemas for Hive table $tableName
                             |Table schema:\n${tableSchema.treeString}
                             |Input schema:\n${newSchema.treeString}""".stripMargin
                 )
@@ -268,14 +262,14 @@ object DataFrameToHive extends LogHelper {
     /**
       * Returns true if the fully qualified tableName exists in Hive, else false.
       *
-      * @param hiveContext Spark HiveContext
+      * @param spark       SparkSession
       *
       * @param tableName   Fully qualified Hive table name
       *
       * @return
       */
-    def hiveTableExists(hiveContext: HiveContext, tableName: String): Boolean = {
-        allCatch.opt(hiveContext.table(tableName)) match {
+    def hiveTableExists(spark: SparkSession, tableName: String): Boolean = {
+        allCatch.opt(spark.table(tableName)) match {
             case Some(_) => true
             case _       => false
         }
@@ -308,7 +302,7 @@ object DataFrameToHive extends LogHelper {
     }
 
     def normalizeDataFrame(df: DataFrame, lowerCaseTopLevel: Boolean = false): DataFrame = {
-        df.sqlContext.createDataFrame(df.rdd, df.schema.normalize(lowerCaseTopLevel))
+        df.sparkSession.createDataFrame(df.rdd, df.schema.normalize(lowerCaseTopLevel))
     }
 
 
@@ -316,31 +310,31 @@ object DataFrameToHive extends LogHelper {
       * Runs a DESCRIBE FORMATTED query and extracts path to a
       * Hive table partition.
       *
-      * @param hiveContext  HiveContext
+      * @param spark        SparkSession
       * @param partition    HivePartition
       * @return
       */
     def hivePartitionPath(
-        hiveContext: HiveContext,
+        spark: SparkSession,
         partition: HivePartition
     ): String = {
-        var q = s"DESCRIBE FORMATTED `${partition.tableName}`"
+        var q = s"DESCRIBE FORMATTED ${partition.tableName}"
         if (partition.nonEmpty) {
             q += s" PARTITION (${partition.hiveQL})"
         }
 
         // This query will return a human readable block of text about
         // this table (partition).  We need to parse out the Location information.
-        val locationLine: Option[String] = hiveContext.sql(q)
+        val locationLine: Option[String] = spark.sql(q)
             .collect()
             // Each line is a Row[String], map it to Seq of Strings
             .map(_.toString())
             // Find the line with "Location:"
-            .find(_.startsWith("[Location:"))
+            .find(_.startsWith("[Location"))
 
         // If we found Location in the string, then extract just the location path.
         if (locationLine.isDefined) {
-            locationLine.get.filterNot("[]".toSet).trim.split("\\s+").last
+            locationLine.get.filterNot("[]".toSet).trim.split(",").last
         }
         // Else throw an Exception.  This shouldn't happen, as the Hive query
         // will fail earlier if if the partition doesn't exist.

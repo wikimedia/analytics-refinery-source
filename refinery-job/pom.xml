@@ -19,6 +19,25 @@
             <artifactId>refinery-core</artifactId>
         </dependency>
 
+        <!--
+             adding explicit dep for snappy and netty otherwise
+             spark assumes is on the java.library.path
+             see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
+        -->
+        <!-- https://mvnrepository.com/artifact/org.xerial.snappy/snappy-java -->
+        <dependency>
+            <groupId>org.xerial.snappy</groupId>
+            <artifactId>snappy-java</artifactId>
+            <version>1.1.2.5</version>
+             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.17.Final</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
@@ -32,40 +51,76 @@
             </exclusions>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-hdfs
+             Explicitly needed to use DataFrameSuiteBase (tests with SparkSession)
+        -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs</artifactId>
+            <version>${hadoop.version}</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <!-- javax.servlet in hadoop-common is older than the one in spark -->
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <dependency>
             <!--
                 Explicit dependency before any spark related dependency
-                to circumvent version mismatch (2.4.0 vs 2.4.4)
+                to circumvent version mismatch
             -->
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.4.4</version>
+            <version>2.6.5</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.10</artifactId>
+            <artifactId>spark-core_2.11</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-hive_2.10</artifactId>
+            <artifactId>spark-hive_2.11</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.10</artifactId>
+            <artifactId>spark-sql_2.11</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-streaming-kafka-0-8_2.11</artifactId>
+            <version>${spark.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-streaming_2.11</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netaporter</groupId>
+            <artifactId>scala-uri_2.11</artifactId>
+            <version>0.4.16</version>
         </dependency>
 
         <dependency>
             <groupId>com.twitter</groupId>
-            <artifactId>algebird-core_2.10</artifactId>
+            <artifactId>algebird-core_2.11</artifactId>
             <version>0.10.2</version>
         </dependency>
 
@@ -77,7 +132,7 @@
 
         <dependency>
             <groupId>com.github.scopt</groupId>
-            <artifactId>scopt_2.10</artifactId>
+            <artifactId>scopt_2.11</artifactId>
             <version>3.3.0</version>
         </dependency>
 
@@ -89,44 +144,38 @@
 
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.10</artifactId>
+            <artifactId>scalatest_2.11</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>com.github.nscala-time</groupId>
-            <artifactId>nscala-time_2.10</artifactId>
+            <artifactId>nscala-time_2.11</artifactId>
         </dependency>
 
         <dependency>
             <groupId>com.databricks</groupId>
-            <artifactId>spark-avro_2.10</artifactId>
-            <version>2.0.1</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.databricks</groupId>
-            <artifactId>spark-csv_2.10</artifactId>
-            <version>1.5.0</version>
+            <artifactId>spark-avro_2.11</artifactId>
+            <version>3.2.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-graphx_2.10</artifactId>
-            <version>1.6.0</version>
+            <artifactId>spark-graphx_2.11</artifactId>
+            <version>${spark.version}</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/graphframes/graphframes -->
         <dependency>
             <groupId>graphframes</groupId>
             <artifactId>graphframes</artifactId>
-            <version>0.3.0-spark1.6-s_2.10</version>
+            <version>0.5.0-spark2.1-s_2.11</version>
         </dependency>
 
         <dependency>
             <groupId>com.holdenkarau</groupId>
-            <artifactId>spark-testing-base_2.10</artifactId>
-            <version>1.6.0_0.4.7</version>
+            <artifactId>spark-testing-base_2.11</artifactId>
+            <version>2.3.0_0.9.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -134,6 +183,42 @@
           <groupId>org.yaml</groupId>
           <artifactId>snakeyaml</artifactId>
           <version>1.18</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scalamock</groupId>
+            <artifactId>scalamock-scalatest-support_2.11</artifactId>
+            <version>3.4.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.druid</groupId>
+            <artifactId>tranquility-spark_2.11</artifactId>
+            <version>0.8.2</version>
+            <exclusions>
+                <!-- Excluded for dependicy conflict with spark -->
+                <exclusion>
+                    <groupId>org.apache.derby</groupId>
+                    <artifactId>derby</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!--
+        Force commons-lang3 version to prevent a bug in JSON date parsing in Spark
+        -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.5</version>
         </dependency>
     </dependencies>
 
@@ -144,6 +229,12 @@
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
                 <version>2.15.2</version>
+                <configuration>
+                    <args>
+                        <arg>-deprecation</arg>
+                        <arg>-feature</arg>
+                    </args>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
