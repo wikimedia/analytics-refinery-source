@@ -1,14 +1,13 @@
 package org.wikimedia.analytics.refinery.job
 
+import org.apache.spark.sql.SparkSession
+
 object ClickstreamBuilder {
 
-  import org.apache.spark.sql.hive.HiveContext
   import org.apache.spark.SparkConf
   import org.apache.spark.sql.SaveMode
-  import org.apache.spark.SparkContext
   import scopt.OptionParser
   import org.apache.spark.rdd.RDD
-  import org.apache.spark.sql.SQLContext
 
   case class PageInfo(
                        wikiDb: String,
@@ -70,12 +69,12 @@ object ClickstreamBuilder {
     * @return A map[hostname -> dbname]
     */
   def prepareProjectToWikiMap(
-                               sqlContext: SQLContext,
+                               spark: SparkSession,
                                projectNamespaceTable: String,
                                snapshot: String,
                                wikiList: Seq[String]
                              ): Map[String, String] = {
-    sqlContext.sql(
+    spark.sql(
       s"""
          |SELECT DISTINCT
          |  hostname,
@@ -94,12 +93,12 @@ object ClickstreamBuilder {
     * @return A RDD of PageInfo data augmented with fake pages for each wiki
     */
   def preparePages(
-                    sqlContext: SQLContext,
+                    spark: SparkSession,
                     pageTable: String,
                     snapshot: String,
                     wikiList: Seq[String]
                   ): RDD[PageInfo] = {
-    sqlContext.sql(s"""
+    spark.sql(s"""
                       |SELECT
                       |  wiki_db,
                       |  page_id,
@@ -125,7 +124,7 @@ object ClickstreamBuilder {
       // insert rows for our special prev pages this will let us work with ids
       // instead of titles later, which is much less error prone
       union(
-        sqlContext.sparkContext.parallelize(wikiList.flatMap(wiki => Seq(
+        spark.sparkContext.parallelize(wikiList.flatMap(wiki => Seq(
           PageInfo(wiki, -1L, "other-empty", 0, pageIsRedirect = false),
           PageInfo(wiki, -2L, "other-internal",0, pageIsRedirect = false),
           PageInfo(wiki, -3L, "other-external",0, pageIsRedirect = false),
@@ -139,14 +138,14 @@ object ClickstreamBuilder {
     * @return A RDD of redirect data
     */
   def prepareRedirects(
-                        sqlContext: SQLContext,
+                        spark: SparkSession,
                         redirectTable: String,
                         snapshot: String,
                         wikiList: Seq[String],
                         pagesPerPageId: RDD[((String, Long), String)],
                         perTitleAndNamespacePages: RDD[((String, String, Long), Long)]
                       ): RDD[Redirect] = {
-    sqlContext.sql(
+    spark.sql(
       s"""
          |SELECT
          |  wiki_db,
@@ -189,7 +188,7 @@ object ClickstreamBuilder {
     * @return A RDD of pagelinks data.
     */
   def preparePagelinks(
-                        sqlContext: SQLContext,
+                        spark: SparkSession,
                         pagelinksTable: String,
                         snapshot: String,
                         wikiList: Seq[String],
@@ -197,7 +196,7 @@ object ClickstreamBuilder {
                         pagesPerTitleAndNamespace: RDD[((String, String, Long), Long)],
                         redirects: RDD[Redirect]
                       ): RDD[PageLink] = {
-    sqlContext.sql(
+    spark.sql(
       s"""
          |SELECT
          |  wiki_db,
@@ -236,7 +235,7 @@ object ClickstreamBuilder {
     * @return A RDD of clickstream data.
     */
   def prepareClickstream(
-                          sqlContext: SQLContext,
+                          spark: SparkSession,
                           webrequestTable: String,
                           year: Int,
                           month: Int,
@@ -256,7 +255,7 @@ object ClickstreamBuilder {
       .cache()
     val pagesPerPageId = pages.keyBy(p => (p.wikiDb, p.pageId)).cache()
 
-    sqlContext.sql(
+    spark.sql(
       s"""
          |SELECT
          |  CONCAT(pageview_info['project'], '.org') AS project,
@@ -483,11 +482,11 @@ object ClickstreamBuilder {
         .set("spark.hadoop.mapred.output.compression.codec", "org.apache.hadoop.io.compress.GzipCodec")
         .set("spark.hadoop.mapred.output.compression.type", "BLOCK")
 
-      val sqlContext = new HiveContext(new SparkContext(conf))
+      val spark = SparkSession.builder().config(conf).enableHiveSupport().getOrCreate()
 
-      import sqlContext.implicits._
+      import spark.implicits._
 
-      val projectToWikiMap = prepareProjectToWikiMap(sqlContext, params.projectNamespaceTable, params.snapshot, params.wikiList)
+      val projectToWikiMap = prepareProjectToWikiMap(spark, params.projectNamespaceTable, params.snapshot, params.wikiList)
       val domainList = projectToWikiMap.keys.toList
       val domainAndMobileList = domainList.flatMap(p => {
         val firstDotIndex = p.indexOf('.')
@@ -498,14 +497,14 @@ object ClickstreamBuilder {
       val outputFolder = params.outputBasePath
 
       // Reused RDDs
-      val pages = preparePages(sqlContext, params.pageTable, params.snapshot, params.wikiList).cache()
+      val pages = preparePages(spark, params.pageTable, params.snapshot, params.wikiList).cache()
       val pagesPerPageId = pages.map(p => ((p.wikiDb, p.pageId), p.pageTitle)).cache()
       val pagesPerTitleAndNamespace = pages.map(p => ((p.wikiDb, p.pageTitle, p.pageNamespace), p.pageId)).cache()
 
-      val redirects = prepareRedirects(sqlContext, params.redirectTable, params.snapshot, params.wikiList, pagesPerPageId, pagesPerTitleAndNamespace).cache()
-      val pageLinks = preparePagelinks(sqlContext, params.pagelinksTable, params.snapshot, params.wikiList, pagesPerPageId, pagesPerTitleAndNamespace, redirects).cache()
+      val redirects = prepareRedirects(spark, params.redirectTable, params.snapshot, params.wikiList, pagesPerPageId, pagesPerTitleAndNamespace).cache()
+      val pageLinks = preparePagelinks(spark, params.pagelinksTable, params.snapshot, params.wikiList, pagesPerPageId, pagesPerTitleAndNamespace, redirects).cache()
 
-      prepareClickstream(sqlContext, params.webrequestTable, params.year, params.month, params.day, params.hour,
+      prepareClickstream(spark, params.webrequestTable, params.year, params.month, params.day, params.hour,
         domainAndMobileList, projectList, projectToWikiMap, pages, pagesPerTitleAndNamespace, redirects, pageLinks).
         map(c => (c.wikiDb, c.toTSVLine)).
         repartition(params.outputFilesParts).

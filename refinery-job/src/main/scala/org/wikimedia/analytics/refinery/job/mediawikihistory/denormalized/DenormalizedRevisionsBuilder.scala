@@ -1,6 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 /**
   * This file defines the functions for revisions-enrichment.
@@ -25,7 +24,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
   import java.sql.Timestamp
   // Implicit needed to sort by timestamps
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
-
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   import scala.annotation.tailrec
 
   // Mutable ordered set to manage reverts by timestamp
@@ -190,13 +189,13 @@ object DenormalizedRevisionsBuilder extends Serializable {
       .filter(_.pageDetails.pageId.getOrElse(-1L) > 0L) // remove invalid pageIds
       .map(r =>
           // Key: ((wikiDb, pageId), revSha1)
-          ((DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r).partitionKey, r.revisionDetails.revTextSha1),
+          (RevertKey(DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r).partitionKey, r.revisionDetails.revTextSha1),
           // Value: (revTimestamp, revId)
           (r.eventTimestamp, r.revisionDetails.revId)))
       .groupByKey() // Same pageId and sha1
       .flatMap {
         // revInfoIterator contains all revisions (timestamp, id) for any given pageId sha1
-        case ((partitionKey, sha1), revInfoIterator) =>
+        case (revertKey, revInfoIterator) =>
           // First revision with a given sha1 is the base, others are reverts to the base
           val (baseRevision, reverts) = {
             // We assume there will not be so many reverting events per page for this sort to fail
@@ -213,7 +212,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
             // Generate one revert-list event by year to be zipped with revisions-by-year
             yearsSpanned.map(y => {
               (
-                MediawikiEventKey(partitionKey.copy(year = y), baseRevision._1, baseRevision._2),
+                MediawikiEventKey(revertKey.partitionKey.copy(year = y), baseRevision._1, baseRevision._2),
                 reverts
                 )
             })

@@ -1,13 +1,12 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone, _}
+import com.github.nscala_time.time.Imports.{DateTime, _}
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.SparkContext
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.HivePartition
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
@@ -309,13 +308,13 @@ case class RefineTarget(
       *
       * Kinda hacky, but should work! :)
       *
-      * @param sc SparkContext
+      * @param spark SparkSession
       *
       * @return One of "parquet", "sequence_json", "json", "empty" (if inputPath is empty, or
       *         default to "text" if could format not be inferred.
       */
-    def inferInputFormat(sc: SparkContext): String = {
-        sc.textFile(inputPath.toString).take(1) match {
+    def inferInputFormat(spark: SparkSession): String = {
+        spark.sparkContext.textFile(inputPath.toString).take(1) match {
             case first if first.isEmpty                => "empty"
             case first if first.head.startsWith("PAR") => "parquet"
             case first if first.head.startsWith("SEQ") => "sequence_json"
@@ -327,7 +326,7 @@ case class RefineTarget(
     /**
       * Reads inputPath into a DataFrame.
       *
-      * @param sqlContext   SQL Context
+      * @param spark        SparkSession
       *
       * @param schema       If given, the DataFrame will be created with this schema.
       *                     Otherwise, it will be inferred from the data.  Note that
@@ -344,35 +343,35 @@ case class RefineTarget(
       * @return
       */
     def inputDataFrame(
-        sqlContext: SQLContext,
+        spark: SparkSession,
         schema: Option[StructType] = None,
         inputFormat: Option[String] = None
     ): DataFrame = {
         // If we have a schema, then use it to read data,
         // else just infer schemas while reading.
         val dfReader = if (schema.isDefined) {
-            sqlContext.read.schema(schema.get)
+            spark.read.schema(schema.get)
         }
         else {
-            sqlContext.read
+            spark.read
         }
 
 
-
+        // import spark implicits for dataset/dataframe conversion
+        import spark.implicits._
         // Read inputPath either as JSON, SequenceFile JSON, or Parquet, based
         // provided value of inputFormat, or inferred from first line in inputPath.
-        inputFormat.getOrElse(inferInputFormat(sqlContext.sparkContext)) match {
-            case "empty"         => {
-                if (schema.isDefined) sqlContext.createDataFrame(sqlContext.sparkContext.emptyRDD[Row], schema.get)
-                else sqlContext.emptyDataFrame
-            }
+        inputFormat.getOrElse(inferInputFormat(spark)) match {
+            case "empty"         =>
+                if (schema.isDefined) spark.createDataFrame(spark.sparkContext.emptyRDD[Row], schema.get)
+                else spark.emptyDataFrame
             case "text"          => dfReader.text(inputPath.toString)
             // Expect data to be text JSON
             case "json"          => dfReader.json(inputPath.toString)
             // Expect data to be SequenceFiles with JSON strings as values.
-            case "sequence_json" => dfReader.json(
-                sqlContext.sparkContext.sequenceFile[Long, String](inputPath.toString).map(t => t._2)
-            )
+            case "sequence_json" => dfReader.json(spark.createDataset[String](
+                spark.sparkContext.sequenceFile[Long, String](inputPath.toString).map(t => t._2)
+            ))
             // Expect data to be in Parquet format
             case "parquet"       => dfReader.parquet(inputPath.toString)
         }

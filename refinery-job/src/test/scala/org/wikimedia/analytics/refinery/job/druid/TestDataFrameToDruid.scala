@@ -1,28 +1,25 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.druid
 
-import com.holdenkarau.spark.testing.SharedSparkContext
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.fs.FileSystem
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.http.ProtocolVersion
 import org.apache.http.client.HttpClient
-import org.apache.http.client.methods.{HttpGet, HttpPost, HttpUriRequest}
+import org.apache.http.client.methods.{HttpPost, HttpUriRequest}
 import org.apache.http.entity.StringEntity
 import org.apache.http.message.BasicHttpResponse
-import org.apache.http.ProtocolVersion
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.types.{StructType, StringType, IntegerType, LongType, DoubleType}
+import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructType}
+import org.apache.spark.sql.{DataFrame, Row}
 import org.joda.time.DateTime
 import org.scalamock.scalatest.MockFactory
-import org.scalatest.{FlatSpec, Matchers, BeforeAndAfterEach}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+
 import scala.util.parsing.json.JSON
 
 
 class TestDataFrameToDruid extends FlatSpec
-    with Matchers with BeforeAndAfterEach with SharedSparkContext with MockFactory {
+    with Matchers with BeforeAndAfterEach with DataFrameSuiteBase with MockFactory {
 
     val testTempFile = "file:///tmp/TestDataFrameToDruid"
     var httpClientMock: HttpClient = null.asInstanceOf[HttpClient]
@@ -40,7 +37,7 @@ class TestDataFrameToDruid extends FlatSpec
         // Allows paths with escaped dots for when they are part of the field name.
         val pathElements = jsonPath.replace("\\.", "_").split("\\.").map(_.replace("_", "."))
         val pathValue = pathElements.foldLeft(jsonObject.asInstanceOf[Any])((j, p) => {
-            j.asInstanceOf[Map[String, Any]](p).asInstanceOf[Any]
+            j.asInstanceOf[Map[String, Any]](p)
         })
         assert(pathValue.asInstanceOf[T] == expectedValue)
     }
@@ -48,7 +45,7 @@ class TestDataFrameToDruid extends FlatSpec
     // Creates a DataFrameToDruid instance with testing defaults.
     def createDftd(): DataFrameToDruid = {
         new DataFrameToDruid(
-            sc = sc,
+            spark = spark,
             dataSource = "test",
             inputDf = testDf,
             dimensions = Seq("event_category", "event_action", "wiki"),
@@ -82,7 +79,6 @@ class TestDataFrameToDruid extends FlatSpec
 
     override def beforeEach(): Unit = {
         // Create schema and data to be used in tests.
-        val sqlContext = new SQLContext(sc)
         val testSchema: StructType = (new StructType)
             .add("event_category", StringType)
             .add("event_action", StringType)
@@ -95,7 +91,7 @@ class TestDataFrameToDruid extends FlatSpec
             Row("cat1", "read", 30.0, 3L, "enwiki"),
             Row("cat3", "read", 40.0, 4L, "enwiki")
         ))
-        testDf = sqlContext.createDataFrame(testRDD, testSchema)
+        testDf = spark.createDataFrame(testRDD, testSchema)
 
         // Mock HttpClient to be injected into DataFrameToDuid.
         // Its behavior will be defined in each test.
@@ -114,10 +110,10 @@ class TestDataFrameToDruid extends FlatSpec
         inSequence {
             // Should recevie an ingestion request; checks method and url, returns ingestion task id.
             (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
-                val uri = request.getURI()
-                assert(uri.getHost() == "test.druid.host")
-                assert(uri.getPort() == 8090)
-                assert(uri.getPath() == "/druid/indexer/v1/task")
+                val uri = request.getURI
+                assert(uri.getHost == "test.druid.host")
+                assert(uri.getPort == 8090)
+                assert(uri.getPath == "/druid/indexer/v1/task")
                 createHttpResponse(200, """{"task": "test-task-1"}""")
             }
             // Should receive a status request; returns succeeded.
@@ -132,7 +128,7 @@ class TestDataFrameToDruid extends FlatSpec
         inSequence {
             // Should recevie an ingestion request; checks spec, returns ingestion task id.
             (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
-                val contentStream = request.asInstanceOf[HttpPost].getEntity().getContent()
+                val contentStream = request.asInstanceOf[HttpPost].getEntity.getContent
                 val spec = IOUtils.toString(contentStream)
 
                 assertJson(spec, "spec.ioConfig.inputSpec.paths", testTempFile)
@@ -167,8 +163,7 @@ class TestDataFrameToDruid extends FlatSpec
         inSequence {
             // Should recevie an ingestion request; checks data, returns ingestion task id.
             (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
-                val sqlContext = new SQLContext(sc)
-                val inputDf = sqlContext.read.json(testTempFile)
+                val inputDf = spark.read.json(testTempFile)
                 val expectedDf = testDf.withColumn("eventCount", lit(1L))
                 assert(inputDf.intersect(expectedDf).take(1).isEmpty)
                 createHttpResponse(200, """{"task": "test-task-1"}""")
@@ -189,11 +184,11 @@ class TestDataFrameToDruid extends FlatSpec
             )
             // Should receive a status request; checks method and url, returns succeeded.
             (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
-                val uri = request.getURI()
-                assert(uri.getHost() == "test.druid.host")
-                assert(uri.getPort() == 8090)
-                assert(uri.getPath() == "/druid/indexer/v1/task/test-task-1/status")
-                assert(request.getMethod() == "GET")
+                val uri = request.getURI
+                assert(uri.getHost == "test.druid.host")
+                assert(uri.getPort == 8090)
+                assert(uri.getPath == "/druid/indexer/v1/task/test-task-1/status")
+                assert(request.getMethod == "GET")
                 createHttpResponse(200, """{"status": {"status": "SUCCEEDED"}}""")
             }
         }

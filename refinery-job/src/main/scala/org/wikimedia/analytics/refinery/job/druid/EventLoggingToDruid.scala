@@ -1,15 +1,11 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.job.druid
 
 import org.apache.log4j.LogManager
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.types.{IntegerType, LongType, FloatType, DoubleType, StructField, StructType}
+import org.apache.spark.sql.types.{DoubleType, FloatType, IntegerType, LongType, StructField, StructType}
+import org.apache.spark.sql.{Column, SparkSession}
 import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
-import org.wikimedia.analytics.refinery.core.{DataFrameToDruid, IngestionStatus}
 import scopt.OptionParser
 
 
@@ -132,7 +128,7 @@ object EventLoggingToDruid {
         }.text("Number of shards for Druid ingestion. Default: 2.")
 
         opt[Int]('x', "reduce-memory").optional().valueName("<N>").action { (x, p) =>
-            p.copy(reduceMemory = x.toString())
+            p.copy(reduceMemory = x.toString)
         }.text("Memory to be used by Hadoop for reduce operations. Default: 8192.")
 
         opt[String]('h', "hadoop-queue").optional().valueName("<N>").action { (x, p) =>
@@ -144,7 +140,7 @@ object EventLoggingToDruid {
         }.text("Druid host to load the data to. Default: druid1001.eqiad.wmnet.")
 
         opt[Int]('p', "druid-port").optional().valueName("<port>").action { (x, p) =>
-            p.copy(druidPort = x.toString())
+            p.copy(druidPort = x.toString)
         }.text("Druid port to load the data to. Default: 8090.")
 
         opt[Unit]('n', "dry-run").optional().action { (x, p) =>
@@ -178,21 +174,19 @@ object EventLoggingToDruid {
         log.info(s"Starting process for ${params.database}_${params.table}.")
         log.info(s"Querying Hive for intervals: " + Seq((params.startDate, params.endDate)).toString())
 
-        // Initialize sqlContext.
-        val sc = new SparkContext(new SparkConf())
-        val hiveContext = new HiveContext(sc)
-        val sqlContext = hiveContext.asInstanceOf[SQLContext]
+        // Initialize SparkSession.
+        val spark = SparkSession.builder().enableHiveSupport().appName("EventLoggingToDruid").getOrCreate()
 
         // Get data already filtered by time range.
         val comparisonFormat = "yyyyMMddHH"
         val comparisonStartDate = params.startDate.toString(comparisonFormat)
         val comparisonEndDate = params.endDate.toString(comparisonFormat)
         val concatTimestamp = "CONCAT(year, LPAD(month, 2, '0'), LPAD(day, 2, '0'), LPAD(hour, 2, '0'))"
-        val df = sqlContext.sql(s"""
+        val df = spark.sql(s"""
             SELECT *
             FROM ${params.database}.${params.table}
-            WHERE ${concatTimestamp} >= ${comparisonStartDate}
-            AND ${concatTimestamp} < ${comparisonEndDate}
+            WHERE $concatTimestamp >= $comparisonStartDate
+            AND $concatTimestamp < $comparisonEndDate
         """)
 
         log.info("Preparing dimensions and metrics.")
@@ -218,7 +212,7 @@ object EventLoggingToDruid {
             // Execute loading process.
             log.info("Launching DataFrameToDruid process.")
             val dftd = new DataFrameToDruid(
-                sc = sc,
+                spark = spark,
                 dataSource = s"${params.database}_${params.table}",
                 inputDf = finalDf,
                 dimensions = dimensionFields,
@@ -237,7 +231,7 @@ object EventLoggingToDruid {
             log.info("Done.")
 
             // Return whether the process was successful.
-            (dftd.status() == IngestionStatus.Done)
+            dftd.status() == IngestionStatus.Done
         }
     }
 
@@ -247,7 +241,7 @@ object EventLoggingToDruid {
         val capsuleCaseMap = capsuleFields.map(f => (f.toLowerCase(), f)).toMap
 
         schema.fields.flatMap(field => {
-            val columnName = if (prefix == null) field.name else (prefix + "." + field.name)
+            val columnName = if (prefix == null) field.name else prefix + "." + field.name
             val columnAlias = columnName.split("\\.").map(n => capsuleCaseMap.getOrElse(n, n)).mkString("_")
 
             field.dataType match {
@@ -263,13 +257,13 @@ object EventLoggingToDruid {
             .union(blacklistedHiveFields)
         val fieldNames = schema.fields.map(f => f.name)
         val withPrefix = "([^_]*)_.*".r
-        fieldNames.filter(f => (
+        fieldNames.filter(f =>
             !blacklistNames.contains(f) &&
             (f match {
                 case withPrefix(prefix) => !blacklistNames.contains(prefix)
                 case _ => true
             })
-        )).map(col(_))
+        ).map(col)
     }
 
     def getDimensionsAndMetrics(

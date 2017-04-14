@@ -1,18 +1,16 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import scopt.OptionParser
-
-import scala.util.{Success, Try}
-import scala.util.matching.Regex
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
-import org.joda.time.format.DateTimeFormatter
 import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.DataFrame
-import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Utilities}
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.joda.time.format.DateTimeFormatter
+import org.wikimedia.analytics.refinery.core.Utilities
+import scopt.OptionParser
+
+import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.forkjoin.ForkJoinPool
+import scala.util.matching.Regex
+import scala.util.{Success, Try}
 
 
 // TODO: support append vs overwrite?
@@ -37,7 +35,7 @@ object Refine extends LogHelper {
         outputBasePath: String                     = "",
         // This is a ugly trick facilitating launching jobs
         // Shall be removed when using a properties configuration file
-        hiveContext: HiveContext                   = new HiveContext(new SparkContext(new SparkConf())),
+        spark: SparkSession                        = SparkSession.builder().enableHiveSupport().getOrCreate(),
         databaseName: String                       = "default",
         sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime                    = DateTime.now,
@@ -91,10 +89,9 @@ object Refine extends LogHelper {
                 // it in a anonymous function that has the signature expected by
                 // DataFrameToHive's transformFunction parameter.
                 val wrapperFn: TransformFunction = {
-                    case (df, hp) => {
+                    case (df, hp) =>
                         log.debug(s"Applying ${transformMirror.receiver} to $hp")
                         transformMirror(df, hp).asInstanceOf[DataFrame]
-                    }
                 }
                 wrapperFn
             }
@@ -298,7 +295,7 @@ object Refine extends LogHelper {
     def apply(
         inputBasePath: String,
         outputBasePath: String,
-        hiveContext: HiveContext,
+        spark: SparkSession,
         databaseName: String                       = "default",
         sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime                    = DateTime.now,
@@ -318,10 +315,9 @@ object Refine extends LogHelper {
         fromEmail: String                          = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
         toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
     ): Boolean = {
-        // Initial setup
-        val sc = hiveContext.sparkContext
-        val fs = FileSystem.get(sc.hadoopConfiguration)
-        hiveContext.setConf("spark.sql.parquet.compression.codec", compressionCodec)
+        // Initial setup - Spark Conf and Hadoop FileSystem
+        spark.conf.set("spark.sql.parquet.compression.codec", compressionCodec)
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
         // Ensure that inputPathPatternCaptureGroups contains "table", as this is needed
         // to determine the Hive table name we will refine into.
@@ -402,17 +398,17 @@ object Refine extends LogHelper {
         // Loop over the inputs in parallel and refine them to
         // their Hive table partitions.  jobStatuses should be a
         // iterable of Trys as Success/Failures.
-        val jobStatusesByTable = targetsByTable.map { case (table, tableTargets) => {
+        val jobStatusesByTable = targetsByTable.map { case (table, tableTargets) =>
             // We need tableTargets to run in serial instead of parallel.  When a table does
             // not yet exist, we want the first target here to issue a CREATE, while the
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!dryRun)
-                table -> refineTargets(hiveContext, tableTargets.seq, transformFunctions)
+                table -> refineTargets(spark, tableTargets.seq, transformFunctions)
             // If --dry-run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
-        }}
+        }
 
         // Log successes and failures.
         val successesByTable = jobStatusesByTable.map(t => t._1 -> t._2.filter(_.isSuccess))
@@ -472,12 +468,12 @@ object Refine extends LogHelper {
     /**
       * Given a Seq of RefineTargets, this runs DataFrameToHive on each one.
       *
-      * @param hiveContext HiveContext
+      * @param spark       SparkSession
       * @param targets     Seq of RefineTargets to refine
       * @return
       */
     def refineTargets(
-        hiveContext: HiveContext,
+        spark: SparkSession,
         targets: Seq[RefineTarget],
         transformFunctions: Seq[TransformFunction]
     ): Seq[Try[RefineTarget]] = {
@@ -486,8 +482,8 @@ object Refine extends LogHelper {
 
             try {
                 val insertedDf = DataFrameToHive(
-                    hiveContext,
-                    target.inputDataFrame(hiveContext),
+                    spark,
+                    target.inputDataFrame(spark),
                     target.partition,
                     () => target.writeDoneFlag(),
                     transformFunctions
@@ -502,11 +498,10 @@ object Refine extends LogHelper {
                 target.success(recordCount)
             }
             catch {
-                case e: Exception => {
+                case e: Exception =>
                     log.error(s"Failed refinement of dataset $target.", e)
                     target.writeFailureFlag()
                     target.failure(e)
-                }
             }
         })
     }

@@ -1,10 +1,10 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import java.util.UUID
-
-import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion
+import org.apache.log4j.LogManager
+import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.types._
+import java.util.UUID
 
 
 
@@ -151,7 +151,7 @@ object SparkSQLHiveExtensions extends LogHelper {
 
                 // If Spark can handle type coercion from candidate -> original, then
                 // return the type it will use.
-                val tightest = HiveTypeCoercion.findTightestCommonTypeOfTwo(original, candidate)
+                val tightest = TypeCoercion.findTightestCommonType(original, candidate)
                 if (tightest.isDefined) {
                     log.debug(s"HiveTypeCoercion is possible, choosing type ${tightest.get} for ($original, $candidate)")
                     tightest.get
@@ -273,7 +273,7 @@ object SparkSQLHiveExtensions extends LogHelper {
                     fieldsByName(name) match {
                         // If all field types for this name are structs, then we attempt
                         // to recursively merge them.
-                        case fields if fields.forall(_.isStructType) => {
+                        case fields if fields.forall(_.isStructType) =>
                             val mergedStruct = fields
                                 // Map each StructField to its StructType DataType
                                 .map(_.dataType.asInstanceOf[StructType])
@@ -288,10 +288,10 @@ object SparkSQLHiveExtensions extends LogHelper {
                                 )
 
                             // Convert the StructType back into a StructField with this field name.
-                            StructField(name, mergedStruct, nullable=true)
-                        }
-                        case fields => {
-                            // Find the tightest common type for this field. If there is there is only
+                            StructField(name, mergedStruct, nullable = true)
+
+                        case fields =>
+                            // Find the tightest common type for Hive. If there is there is only
                             // one field for this name, this will return that field's type.
                             // If there are multiple fields, this will try to find a common
                             // type that can be cast.  E.g. if we are given an LongType
@@ -318,7 +318,6 @@ object SparkSQLHiveExtensions extends LogHelper {
                                 )
                             }
                             fields.head
-                         }
                     }
                 }
             )
@@ -425,7 +424,7 @@ object SparkSQLHiveExtensions extends LogHelper {
 
             val locationClause = if (locationPath.nonEmpty) s"\nLOCATION '$locationPath'" else ""
 
-            s"""CREATE$externalClause TABLE `$tableName` (
+            s"""CREATE$externalClause TABLE $tableName (
                |$columnsClause
                |)
                |$partitionClause
@@ -486,7 +485,7 @@ object SparkSQLHiveExtensions extends LogHelper {
 
                 // Generate the ADD COLUMNS statement to add all new COLUMNS
                 val addStatements: Option[String] = if (tableModifications.contains("add")) {
-                    Option(s"""ALTER TABLE `$tableName`
+                    Option(s"""ALTER TABLE $tableName
                        |ADD COLUMNS (
                        |${StructType(tableModifications("add")).hiveColumnsDDL()}
                        |)""".stripMargin
@@ -500,7 +499,7 @@ object SparkSQLHiveExtensions extends LogHelper {
                 val changeStatements: Seq[String] = tableModifications
                     .getOrElse("change", Seq.empty[StructField])
                     .map { f =>
-                        s"""ALTER TABLE `$tableName`
+                        s"""ALTER TABLE $tableName
                             |CHANGE COLUMN `${f.name}` ${f.hiveColumnDDL}""".stripMargin
                     }
 
@@ -629,18 +628,18 @@ object SparkSQLHiveExtensions extends LogHelper {
 
             // Convert using generated SQL over registered temporary table
             // Warning: SQL Generated schema needs to be made nullable
-            df.registerTempTable(tableName)
+            df.createOrReplaceTempView(tableName)
             val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema, schema)} FROM $tableName"
             log.debug(s"Converting DataFrame using SQL query:\n${sqlQuery}")
             df.sqlContext.sql(sqlQuery).makeNullable().repartition(partitionNumber)
         }
 
         def makeNullable(): DataFrame = {
-            df.sqlContext.createDataFrame(df.rdd, df.schema.makeNullable())
+            df.sparkSession.createDataFrame(df.rdd, df.schema.makeNullable())
         }
 
         def normalize(): DataFrame = {
-            df.sqlContext.createDataFrame(df.rdd, df.schema.normalize())
+            df.sparkSession.createDataFrame(df.rdd, df.schema.normalize())
         }
     }
 }
