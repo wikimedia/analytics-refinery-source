@@ -51,7 +51,7 @@ case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revDeletedTimestamp: Option[String] = None,
                                          revIsIdentityReverted: Option[Boolean] = None,
                                          revFirstIdentityRevertingRevisionId: Option[Long] = None,
-                                         revTimeToIdentityRevert: Option[Long] = None,
+                                         revSecondsToIdentityRevert: Option[Long] = None,
                                          revIsIdentityRevert: Option[Boolean] = None)
 
 case class MediawikiEvent(
@@ -119,7 +119,7 @@ case class MediawikiEvent(
     revisionDetails.revDeletedTimestamp.orNull,
     revisionDetails.revIsIdentityReverted.orNull,
     revisionDetails.revFirstIdentityRevertingRevisionId.orNull,
-    revisionDetails.revTimeToIdentityRevert.orNull,
+    revisionDetails.revSecondsToIdentityRevert.orNull,
     revisionDetails.revIsIdentityRevert.orNull
   )
   def textBytesDiff(value: Option[Long]) = this.copy(revisionDetails = this.revisionDetails.copy(revTextBytesDiff = value))
@@ -133,7 +133,7 @@ case class MediawikiEvent(
                         ) = this.copy(revisionDetails = this.revisionDetails.copy(
     revIsIdentityReverted = Some(true),
     revFirstIdentityRevertingRevisionId = revertingRevisionId,
-    revTimeToIdentityRevert = revTimeToRevert))
+    revSecondsToIdentityRevert = revTimeToRevert))
   def updateEventUserDetails(userState: UserState) = this.copy(
     eventUserDetails = this.eventUserDetails.copy(
       userId = Some(userState.userId),
@@ -220,7 +220,7 @@ object MediawikiEvent {
       StructField("revision_deleted_timestamp", StringType, nullable = true),
       StructField("revision_is_identity_reverted", BooleanType, nullable = true),
       StructField("revision_first_identity_reverting_revision_id", LongType, nullable = true),
-      StructField("revision_time_to_identity_revert", LongType, nullable = true),
+      StructField("revision_seconds_to_identity_revert", LongType, nullable = true),
       StructField("revision_is_identity_revert", BooleanType, nullable = true)
     )
   )
@@ -286,7 +286,7 @@ object MediawikiEvent {
       revContentFormat = Option(row.getString(12)),
       revIsDeleted = Some(false),
       revIsIdentityReverted = Some(false),
-      revTimeToIdentityRevert = None,
+      revSecondsToIdentityRevert = None,
       revIsIdentityRevert = Some(false)
       // revDeletedTimestamp: NA
       // revRevertedTimestamp: need self join
@@ -357,7 +357,7 @@ object MediawikiEvent {
       revIsDeleted = Option(true),
       revDeletedTimestamp = Option("TBD"), // Hack to prevent having to join with pageStates 2 times
       revIsIdentityReverted = Some(false),
-      revTimeToIdentityRevert = None,
+      revSecondsToIdentityRevert = None,
       revIsIdentityRevert = Some(false)
       // revRevertedTimestamp: need self join
     )

@@ -282,7 +282,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(false))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      res.revisionDetails.revTimeToIdentityRevert should equal(None)
+      res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
   }
 
@@ -300,7 +300,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(false))
       res.revisionDetails.revIsIdentityReverted should equal(Some(true))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(2L))
-      res.revisionDetails.revTimeToIdentityRevert should equal(Some(31536000))
+      res.revisionDetails.revSecondsToIdentityRevert should equal(Some(31536000))
     })
     endReverts.size should equal(1)
   }
@@ -319,7 +319,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      res.revisionDetails.revTimeToIdentityRevert should equal(None)
+      res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
     endReverts.size should equal(0)
   }
@@ -339,7 +339,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      res.revisionDetails.revTimeToIdentityRevert should equal(None)
+      res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
     endReverts.size should equal(1)
   }
@@ -360,7 +360,7 @@ with SharedSparkContext {
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(true))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(4L))
-      res.revisionDetails.revTimeToIdentityRevert should equal(Some(36000))
+      res.revisionDetails.revSecondsToIdentityRevert should equal(Some(36000))
     })
     endReverts.size should equal(1)
   }
@@ -412,7 +412,7 @@ with SharedSparkContext {
       r.revisionDetails.revIsIdentityRevert should equal(Some(false))
       r.revisionDetails.revIsIdentityReverted should equal(Some(false))
       r.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
-      r.revisionDetails.revTimeToIdentityRevert should equal(None)
+      r.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
   }
 
@@ -431,7 +431,7 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db       time        revId pageId sha1 revert reverted revertId    timeToRevert",
+      "db       time        revId pageId sha1 revert reverted revertId    secondsToRevert",
       "w0   19700101000000    1      1     s1  false   false   None         None ",
       "w1   19700101000000    1      1     s1  false   false   None         None ",
       "w1   19700102000000    2      1     s2  false   true     3           86400  ",
@@ -460,7 +460,7 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db        time       revId pageId sha1 revert reverted revertId     timeToRevert",
+      "db        time       revId pageId sha1 revert reverted revertId     secondsToRevert",
       "w1   19700101000000    1      1     s1  false   false   None          None",
       "w1   19700102000000    2      1     s2  false   true     3            86400",
       "w2   19700103000000    3      1     s1  false   false    None         None"
@@ -492,7 +492,7 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db        time       revId pageId sha1 revert reverted revertId     timeToRevert",
+      "db        time       revId pageId sha1 revert reverted revertId     secondsToRevert",
       "w1   19700101000000    1      1     s1  false   false   None          None",
       "w1   19700102000000    2      1     s2  false   true     3        86400",
       "w1   19700103000000    3      1     s1  true   false    None         None"
@@ -534,7 +534,7 @@ with SharedSparkContext {
     )
 
     val expectedResults = revisionMwEventSet()(
-      "db        time       revId pageId sha1 revert reverted revertId     timeToRevert",
+      "db        time       revId pageId sha1 revert reverted revertId     secondsToRevert",
       "w0   19700101000000    1      1     s1  false   false   None          None",
 
       "w1   19700101000000    1      1     s1  false   false   None          None",

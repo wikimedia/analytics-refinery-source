@@ -36,7 +36,7 @@ object TestHistoryEventHelpers {
                           revDeletedTimestamp: Option[String] = None,
                           revIsIdentityReverted: Option[Boolean] = None,
                           revFirstIdentityRevertingRevisionId: Option[Long] = None,
-                          revTimeToIdentityRevert: Option[Long] = None,
+                          revSecondsToIdentityRevert: Option[Long] = None,
                           revIsIdentityRevert: Option[Boolean] = None
                         )(
                           headerLine: String,
@@ -60,7 +60,7 @@ object TestHistoryEventHelpers {
           case "deleteTime" | "revDeletedTimestamp" => ("revDeletedTimestamp" -> string(v))
           case "isReverted" | "reverted" | "revIsIdentityReverted" => ("revIsIdentityReverted" -> boolean(v))
           case "revertId" | "revFirstIdentityRevertingRevisionId" => ("revFirstIdentityRevertingRevisionId" -> long(v))
-          case "timeToRevert" | "revTimeToIdentityRevert" => ("revTimeToIdentityRevert" -> long(v))
+          case "secondsToRevert" | "revSecondsToIdentityRevert" => ("revSecondsToIdentityRevert" -> long(v))
           case "isRevert" | "revert" | "revIsIdentityRevert" => ("revIsIdentityRevert" -> boolean(v))
 
         }
@@ -90,7 +90,7 @@ object TestHistoryEventHelpers {
           revDeletedTimestamp = valueMap.getOrElse("revDeletedTimestamp", revDeletedTimestamp).asInstanceOf[Option[String]],
           revIsIdentityReverted = valueMap.getOrElse("revIsIdentityReverted", revIsIdentityReverted).asInstanceOf[Option[Boolean]],
           revFirstIdentityRevertingRevisionId = valueMap.getOrElse("revFirstIdentityRevertingRevisionId", revFirstIdentityRevertingRevisionId).asInstanceOf[Option[Long]],
-          revTimeToIdentityRevert = valueMap.getOrElse("revTimeToIdentityRevert", revTimeToIdentityRevert).asInstanceOf[Option[Long]],
+          revSecondsToIdentityRevert = valueMap.getOrElse("revSecondsToIdentityRevert", revSecondsToIdentityRevert).asInstanceOf[Option[Long]],
           revIsIdentityRevert = valueMap.getOrElse("revIsIdentityRevert", revIsIdentityRevert).asInstanceOf[Option[Boolean]]
         )
       )
