@@ -1,3 +1,9 @@
+## v0.0.45
+
+* Remove is_productive
+* Add revision_seconds_to_identity_revert
+* Update guards with Hive query
+
 ## v0.0.44
 
 * Update mediawiki history jobs to overwrite result folders
