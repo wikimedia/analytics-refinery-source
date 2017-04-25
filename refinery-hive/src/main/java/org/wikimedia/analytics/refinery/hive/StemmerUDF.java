@@ -125,6 +125,9 @@ public class StemmerUDF extends GenericUDF {
         analyzersCache.put("bg", new BulgarianAnalyzer());
         analyzersCache.put("br", new BrazilianAnalyzer());
         analyzersCache.put("ca", new CatalanAnalyzer());
+        // wikis use cs for Czech, Lucene uses cz;
+        // support both since cz is not used for anything else
+        analyzersCache.put("cs", new CzechAnalyzer());
         analyzersCache.put("cz", new CzechAnalyzer());
         analyzersCache.put("da", new DanishAnalyzer());
         analyzersCache.put("de", new GermanAnalyzer());
