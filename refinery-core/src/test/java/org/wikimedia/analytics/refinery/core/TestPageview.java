@@ -19,6 +19,7 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
 import static org.junit.Assert.assertEquals;
 
