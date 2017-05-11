@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
-import org.wikimedia.analytics.refinery.core.WebrequestData;
+import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
 
 /**

@@ -84,7 +84,17 @@
             <groupId>com.github.nscala-time</groupId>
             <artifactId>nscala-time_2.10</artifactId>
         </dependency>
-
+        <!-- https://mvnrepository.com/artifact/com.google.guava/guava -->
+        <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>12.0</version>
+            </dependency>
+        <dependency>
+            <groupId>org.reflections</groupId>
+            <artifactId>reflections</artifactId>
+            <version>0.9.7</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -131,6 +141,10 @@
                         <maxmind.database.country>${project.build.testOutputDirectory}/GeoIP2-Country-Test.mmdb</maxmind.database.country>
                         <maxmind.database.city>${project.build.testOutputDirectory}/GeoIP2-City-Test.mmdb</maxmind.database.city>
                     </systemPropertyVariables>
+                    <forkCount>1</forkCount>
+                    <includes>
+                        <include>**/Test*.java</include>
+                    </includes>
                 </configuration>
             </plugin>
 

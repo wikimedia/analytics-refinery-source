@@ -16,6 +16,8 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
+
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
