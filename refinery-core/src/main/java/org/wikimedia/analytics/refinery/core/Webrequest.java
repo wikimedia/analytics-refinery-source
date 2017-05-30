@@ -98,6 +98,12 @@ public class Webrequest {
      */
     private Utilities.LRUCache<String, Boolean> agentTypeCache = new Utilities.LRUCache<>(10000);
 
+
+    /**
+     * Used to speed up "normalization of hosts"
+     */
+    private Utilities.LRUCache<String, Object> normalizedHostCache = new Utilities.LRUCache<>(5000);
+
     /**
      * Pattern for automatically-added subdomains that indicate zero,
      * or some similar portal-based interface to MW.
@@ -237,41 +243,50 @@ public class Webrequest {
      * @return A NormalizedHostInfo object with project_class, project, qualifiers and tld values set.
      */
     public NormalizedHostInfo normalizeHost(String uriHost) {
+
+        // use LRU cache to not repeat computations
         NormalizedHostInfo result = new NormalizedHostInfo();
+
         if ((uriHost == null) || (uriHost.isEmpty())) return result;
 
-        // Remove port if any
-        int portIdx = uriHost.indexOf(":");
-        uriHost = uriHost.substring(0, ((portIdx < 0) ? uriHost.length() : portIdx));
+        if (normalizedHostCache.containsKey(uriHost.toLowerCase())){
 
-        // Replace multiple dots by only one
-        uriHost = uriHost.replaceAll("[//.]+", ".");
+            result = (NormalizedHostInfo)normalizedHostCache.get(uriHost.toLowerCase());
 
-        // Split by the dots
-        String[] uriParts = uriHost.toLowerCase().split("\\.");
+        }  else {
+            // Remove port if any
+            int portIdx = uriHost.indexOf(":");
+            uriHost = uriHost.substring(0, ((portIdx < 0) ? uriHost.length() : portIdx));
 
-        // If no splitted part, return empty
-        if (uriParts.length == 0) return result;
+            // Replace multiple dots by only one
+            uriHost = uriHost.replaceAll("[//.]+", ".");
 
-        // Handle special case where TLD is numeric --> assume IP address, don't normalize
-        // Length is > 0 because of previous check, so no error case
-        if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
+            // Split by the dots
+            String[] uriParts = uriHost.toLowerCase().split("\\.");
 
-        if (uriParts.length > 1) {
-            // project_class and TLD normalization
-            result.setProjectClass(uriParts[uriParts.length - 2]);
-            result.setTld(uriParts[uriParts.length - 1]);
-        }
-        // project normalization
-        if ((uriParts.length > 2) && (! uriParts[0].equals("www")))
-            result.setProject(uriParts[0]);
-        // qualifiers normalization: xx.[q1.q2.q3].wikixxx.xx
-        if (uriParts.length > 3) {
-            for (int i = 1; i < uriParts.length - 2; i++) {
-                result.addQualifier(uriParts[i]);
+            // If no splitted part, return empty
+            if (uriParts.length == 0) return result;
+
+            // Handle special case where TLD is numeric --> assume IP address, don't normalize
+            // Length is > 0 because of previous check, so no error case
+            if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
+
+            if (uriParts.length > 1) {
+                // project_class and TLD normalization
+                result.setProjectClass(uriParts[uriParts.length - 2]);
+                result.setTld(uriParts[uriParts.length - 1]);
             }
+            // project normalization
+            if ((uriParts.length > 2) && (!uriParts[0].equals("www")))
+                result.setProject(uriParts[0]);
+            // qualifiers normalization: xx.[q1.q2.q3].wikixxx.xx
+            if (uriParts.length > 3) {
+                for (int i = 1; i < uriParts.length - 2; i++) {
+                    result.addQualifier(uriParts[i]);
+                }
+            }
+            normalizedHostCache.put(uriHost.toLowerCase(),result);
         }
-
         return result;
 
     }
