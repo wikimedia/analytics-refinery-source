@@ -1,14 +1,15 @@
 package org.wikimedia.analytics.refinery.core;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.assertEquals;
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestWebrequest {
@@ -67,13 +68,13 @@ public class TestWebrequest {
         String x_analytics,
         String param
     ) {
-        Webrequest instance = Webrequest.getInstance();
+
         assertEquals(
             test_description,
             expected_output,
-            instance.getXAnalyticsValue(
-                    x_analytics,
-                    param
+            Utilities.getValueForKey(
+                x_analytics,
+                param
             )
         );
     }

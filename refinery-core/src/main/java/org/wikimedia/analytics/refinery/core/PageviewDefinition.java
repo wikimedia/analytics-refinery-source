@@ -18,6 +18,7 @@ package org.wikimedia.analytics.refinery.core;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -37,12 +38,34 @@ public class PageviewDefinition {
      */
     private static final PageviewDefinition instance = new PageviewDefinition();
 
-    private PageviewDefinition() {
-    }
+    private PageviewDefinition() {}
 
     public static PageviewDefinition getInstance(){
         return instance;
     }
+
+    public static final Set<String> URI_PORTIONS_TO_REMOVE = new HashSet<String>(Arrays.asList(
+        "m",
+        "mobile",
+        "wap",
+        "zero",
+        "www",
+        "download"
+    ));
+
+    /**
+     * Static values for project, dialect and article
+     */
+    public static final String UNKNOWN_PROJECT_VALUE = "-";
+    public static final String UNKNOWN_LANGUAGE_VARIANT_VALUE = "-";
+    public static final String UNKNOWN_PAGE_TITLE_VALUE = "-";
+    public static final String DEFAULT_LANGUAGE_VARIANT_VALUE = "default";
+
+    /**
+     * All API request uriPaths will contain this
+     */
+    public static final String URI_PATH_API = "api.php";
+
 
     /*
      * Now back to the good part.
@@ -100,41 +123,7 @@ public class PageviewDefinition {
         "|action=submit"
     );
 
-    private final HashSet<String> contentTypesSet = new HashSet<String>(Arrays.asList(
-        "text/html",
-        "text/html; charset=iso-8859-1",
-        "text/html; charset=ISO-8859-1",
-        "text/html; charset=utf-8",
-        "text/html; charset=UTF-8"
-    ));
 
-    private final HashSet<String> httpStatusesSet = new HashSet<String>(Arrays.asList(
-        "200",
-        "304"
-    ));
-
-    private final HashSet<String> uriPortionsToRemove = new HashSet<String>(Arrays.asList(
-            "m",
-            "mobile",
-            "wap",
-            "zero",
-            "www",
-            "download"
-    ));
-
-    /**
-     * Static values for project, dialect and article
-     */
-    public static final String UNKNOWN_PROJECT_VALUE = "-";
-    public static final String UNKNOWN_LANGUAGE_VARIANT_VALUE = "-";
-    public static final String UNKNOWN_PAGE_TITLE_VALUE = "-";
-    public static final String DEFAULT_LANGUAGE_VARIANT_VALUE = "default";
-
-
-    /**
-     * All API request uriPaths will contain this
-     */
-    private final String uriPathAPI = "api.php";
 
     /**
      * Given a webrequest URI path, query and user agent,
@@ -162,20 +151,11 @@ public class PageviewDefinition {
      * to raw data, where the parsing of x-Analytics header into
      * a map has not yet happened.
      *
-     * @param   uriPath     Path portion of the URI
-     * @param   uriQuery    Query portion of the URI
-     * @param   userAgent   User-Agent of the requestor
-     * @param   rawXAnalyticsHeader String that represents the x-analytics header
+     * @param   data   WebrequestData object
      *
      * @return  boolean
      */
-    private boolean isAppPageview(
-        String uriPath,
-        String uriQuery,
-        String contentType,
-        String userAgent,
-        String rawXAnalyticsHeader
-    ) {
+    private boolean isAppPageview(WebrequestData data) {
 
         final String appContentType     = "application/json";
         final String appUserAgent       = "WikipediaApp";
@@ -184,91 +164,52 @@ public class PageviewDefinition {
         final Pattern iosUserAgentPattern = Pattern.compile("iPhone|iOS");
         final String iOsAppUserAgent    = "Wikipedia/5.0.";
 
-        Webrequest wr = Webrequest.getInstance();
 
-        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").trim().equalsIgnoreCase("1"))
+        if (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim().equalsIgnoreCase("1"))
             return false;
 
-        boolean isTaggedPageview = (wr.getXAnalyticsValue(rawXAnalyticsHeader,"pageview").trim().equalsIgnoreCase("1"));
+        boolean isTaggedPageview = (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "pageview").trim().equalsIgnoreCase("1"));
 
-        return (Utilities.stringContains(contentType, appContentType)
-                && (Utilities.stringContains(userAgent,   appUserAgent)
-                    || (Utilities.stringContains(userAgent,   iOsAppUserAgent)))
+        return (Utilities.stringContains(data.getContentType(), appContentType)
+                && (Utilities.stringContains(data.getUserAgent(),   appUserAgent)
+                    || (Utilities.stringContains(data.getUserAgent(),   iOsAppUserAgent)))
 
                 && (isTaggedPageview ||
                 (
-                    Utilities.stringContains(uriPath, uriPathAPI) &&
-                    (Utilities.stringContains(uriQuery, appPageURIQuery)
-                     || (Utilities.stringContains(uriQuery, iosAppPageURIQuery)
-                         && Utilities.patternIsFound(iosUserAgentPattern, userAgent))
+                    Utilities.stringContains(data.getUriPath(), PageviewDefinition.URI_PATH_API) &&
+                    (Utilities.stringContains(data.getUriQuery(), appPageURIQuery)
+                     || (Utilities.stringContains(data.getUriQuery(), iosAppPageURIQuery)
+                         && Utilities.patternIsFound(iosUserAgentPattern, data.getUserAgent()))
                     )
                )
             ));
     }
 
 
-    private boolean isWebPageview(
-            String uriPath,
-            String uriQuery,
-            String contentType
-    ) {
+    private boolean isWebPageview(WebrequestData data) {
         return (
                 // check for a regular pageview contentType, or a an API contentType
-                (contentTypesSet.contains(contentType) && !Utilities.stringContains(uriPath, uriPathAPI))
+                (Webrequest.isTextHTMLContentType(data.getContentType()) &&
+                     !Utilities.stringContains(data.getUriPath(), PageviewDefinition.URI_PATH_API))
 
                         // Either a pageview's uriPath will match the first pattern,
                         // or its uriQuery will match the second
                         &&  (
-                        Utilities.patternIsFound(uriPathPattern, uriPath)
-                                || Utilities.patternIsFound(uriQueryPattern, uriQuery)
+                        Utilities.patternIsFound(uriPathPattern, data.getUriPath())
+                                || Utilities.patternIsFound(uriQueryPattern, data.getUriQuery())
                 )
 
                         // A pageview will not have these Special: pages in the uriPath or uriQuery
-                        && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, uriPath)
-                        && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, uriQuery)
+                        && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, data.getUriPath())
+                        && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, data.getUriQuery())
                         // Edits now come through as text/html. They should not be included.
                         // Luckily the query parameter does not seem to be localised.
-                        && !Utilities.patternIsFound(uriQueryUnwantedActions, uriQuery)
+                        && !Utilities.patternIsFound(uriQueryUnwantedActions, data.getUriQuery())
         );
 
     }
 
 
-    /**
-     * Given a webrequest URI host, path, query user agent http status and content type,
-     * returns true if we consider this a 'pageview', false otherwise.
-     *
-     * <p>
-     * See: https://meta.wikimedia.org/wiki/Research:Page_view/Generalised_filters
-     *      for information on how to classify a pageview.
-     *
-     * @param   uriHost     Hostname portion of the URI
-     * @param   uriPath     Path portion of the URI
-     * @param   uriQuery    Query portion of the URI
-     * @param   httpStatus  HTTP request status code
-     * @param   contentType Content-Type of the request
-     * @param   userAgent   User-Agent of the requestor
-     *
-     * @return  boolean
-     */
-    public boolean isPageview(
-        String uriHost,
-        String uriPath,
-        String uriQuery,
-        String httpStatus,
-        String contentType,
-        String userAgent
-    ) {
-         return this.isPageview(
-             uriHost,
-             uriPath,
-             uriQuery,
-             httpStatus,
-             contentType,
-             userAgent,
-             ""
-         );
-    }
 
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
@@ -292,46 +233,29 @@ public class PageviewDefinition {
      * to raw data, where the parsing of x-Analytics header into
      * a map has not yet happened.
      *
-     * @param   uriHost     Hostname portion of the URI
-     * @param   uriPath     Path portion of the URI
-     * @param   uriQuery    Query portion of the URI
-     * @param   httpStatus  HTTP request status code
-     * @param   contentType Content-Type of the request
-     * @param   userAgent   User-Agent of the requestor
-     * @param   rawXAnalyticsHeader string for xAnalytics header
+     * @param  data
      *
      * @return  boolean
      */
-    public boolean isPageview(
-        String uriHost,
-        String uriPath,
-        String uriQuery,
-        String httpStatus,
-        String contentType,
-        String userAgent,
-        String rawXAnalyticsHeader
-    ) {
-        uriHost = uriHost.toLowerCase();
+    public boolean isPageview(WebrequestData data) {
 
-        Webrequest wr = Webrequest.getInstance();
-
-        if (wr.getXAnalyticsValue(rawXAnalyticsHeader,"preview").trim().equalsIgnoreCase("1"))
+        if (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim().equalsIgnoreCase("1"))
             return false;
 
 
-        boolean successRequestForSupportedProject = httpStatusesSet.contains(httpStatus)
+        boolean successRequestForSupportedProject = Webrequest.isSuccess(data.getHttpStatus())
                 // A pageview must be from either a wikimedia.org domain,
                 // or a 'project' domain, e.g. en.wikipedia.org
-                && ( Utilities.patternIsFound(uriHostWikimediaDomainPattern,  uriHost)
-                || Utilities.patternIsFound(uriHostOtherProjectsPattern, uriHost)
-                || Utilities.patternIsFound(uriHostProjectDomainPattern, uriHost));
+                && ( Utilities.patternIsFound(uriHostWikimediaDomainPattern,  data.getUriHost())
+                || Utilities.patternIsFound(uriHostOtherProjectsPattern, data.getUriHost())
+                || Utilities.patternIsFound(uriHostProjectDomainPattern, data.getUriHost()));
 
 
       //check if it is  an app pageview if it was not a web one
 
       return successRequestForSupportedProject
-          && (isWebPageview(uriPath, uriQuery, contentType)
-              || isAppPageview(uriPath, uriQuery, contentType, userAgent, rawXAnalyticsHeader));
+          && (isWebPageview(data)
+              || isAppPageview(data));
 
     }
 
@@ -343,7 +267,7 @@ public class PageviewDefinition {
      * @return The project identifier in format [xxx.]xxxx (en.wikipedia or wikisource for instance)
      */
     public String getProjectFromHost(String uriHost) {
-        if (uriHost == null) return UNKNOWN_PROJECT_VALUE;
+        if (uriHost == null) return PageviewDefinition.UNKNOWN_PROJECT_VALUE;
         String[] uri_parts = uriHost.toLowerCase().split("\\.");
         switch (uri_parts.length) {
             // case wikixxx.org
@@ -351,24 +275,24 @@ public class PageviewDefinition {
                 return uri_parts[0];
             //case xx.wikixxx.org - Remove unwanted parts
             case 3:
-                if (uriPortionsToRemove.contains(uri_parts[0]))
+                if (PageviewDefinition.URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
                     return uri_parts[1];
                 else
                     return uri_parts[0] + "." + uri_parts[1];
             //xx.[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
             case 4:
-                if (uriPortionsToRemove.contains(uri_parts[0]))
+                if (PageviewDefinition.URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
                     return uri_parts[2];
                 else
                     return uri_parts[0] + "." + uri_parts[2];
             //xx.[m|mobile|wap|zero].[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
             case 5:
-                if (uriPortionsToRemove.contains(uri_parts[0]))
+                if (PageviewDefinition.URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
                     return uri_parts[3];
                 else
                     return uri_parts[0] + "." + uri_parts[3];
             default:
-                return UNKNOWN_PROJECT_VALUE;
+                return PageviewDefinition.UNKNOWN_PROJECT_VALUE;
         }
     }
 
@@ -415,13 +339,13 @@ public class PageviewDefinition {
 
         // In case of api, unknown language variant
         if (normPath.startsWith("/w/api.php"))
-            return UNKNOWN_LANGUAGE_VARIANT_VALUE;
+            return PageviewDefinition.UNKNOWN_LANGUAGE_VARIANT_VALUE;
 
         // Default wiki urls, default language variant
         if (normPath.equals("/") || normPath.equals("/wiki")
                 || normPath.equals("/w") || normPath.startsWith("/api/rest_v1")
                 || normPath.startsWith("/wiki/") || normPath.startsWith("/w/"))
-            return DEFAULT_LANGUAGE_VARIANT_VALUE;
+            return PageviewDefinition.DEFAULT_LANGUAGE_VARIANT_VALUE;
 
         // Special language variant case
         // LanguageVariant examples are zh-hans, zh-hk, or sr-rc or sr-el
@@ -439,11 +363,11 @@ public class PageviewDefinition {
             if ((middleIdx > 0) && (middleIdx < endIdx))
                 return normPath.substring(startIdx, endIdx);
             else
-                return DEFAULT_LANGUAGE_VARIANT_VALUE;
+                return PageviewDefinition.DEFAULT_LANGUAGE_VARIANT_VALUE;
         }
 
         // extraction failed, unknown language variant
-        return UNKNOWN_LANGUAGE_VARIANT_VALUE;
+        return PageviewDefinition.UNKNOWN_LANGUAGE_VARIANT_VALUE;
 
     }
 
@@ -494,7 +418,7 @@ public class PageviewDefinition {
             return path.substring(startIdx, endIdx);
 
         //Case not covered, return unknown value
-        return UNKNOWN_PAGE_TITLE_VALUE;
+        return PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
     }
 
     /**
@@ -536,7 +460,7 @@ public class PageviewDefinition {
                 break;
         }
 
-        String pageTitle = UNKNOWN_PAGE_TITLE_VALUE;
+        String pageTitle = PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
 
         // Depending on case, extract page title from path or query parameter
 
@@ -551,6 +475,48 @@ public class PageviewDefinition {
 
         // Normalize Decoding URL percent characters (if any)
         return PercentDecoder.decode(pageTitle).replaceAll(" ", "_");
+
+    }
+
+    /**
+     * Encapsulates the logic to identify redirects requests (301, 302, 307)
+     * to a request that will be considered a pageview.
+     *
+     * For example a request to http://es.wikipedia.org/SomePage made by a mobile device
+     * will be redirecteded to http://es.m.wikipedia.org/SomePage
+     *
+     * Cookies on *.wikimedia.org domain will be set on the 1st request, the redirect
+     * Cookies on es.m.wikipedia will be set on teh 2nd (200) request
+     *
+     * The only difference between a "redirect to pageview"
+     * and a "pageview" is that http code is not 200
+     * and that content-type header might not be set.
+     *
+     * @param  data  WebrequestData object
+     * @return boolean
+     */
+    public boolean isRedirectToPageview(WebrequestData data) {
+        //we check first whether this is a redirect
+
+        if (Webrequest.isRedirect(data.getHttpStatus()) &&
+            (Webrequest.isTextHTMLContentType(data.getContentType()) ||
+                data.getContentType().trim().equals("-"))
+            ){
+
+            // if the criteria for redirect is met see if everything else
+            // mets criteria for a pageview
+            // we "swap" the contentType and http status code of the data passed
+            // in, we already stablished those are one of a redirect
+
+            WebrequestData fakeData = new WebrequestData(data.getUriHost(),
+                data.getUriPath(), data.getUriQuery(), "200",
+                "text/html", data.getUserAgent(), data.getRawXAnalyticsHeader());
+
+            return isPageview(fakeData);
+
+        }   else {
+            return false;
+        }
 
     }
 

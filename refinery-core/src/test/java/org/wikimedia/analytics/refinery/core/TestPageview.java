@@ -21,7 +21,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestPageview {
@@ -50,18 +49,19 @@ public class TestPageview {
         String x_analytics_header
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        WebrequestData webrequest = new WebrequestData(uri_host,
+            uri_path,
+            uri_query,
+            http_status,
+            content_type,
+            user_agent, "") ;
+
         if (x_analytics_header.isEmpty())
             assertEquals(
                 test_description,
                 is_pageview,
-                PageviewDefinitionInstance.isPageview(
-                    uri_host,
-                    uri_path,
-                    uri_query,
-                    http_status,
-                    content_type,
-                    user_agent
-                )
+                PageviewDefinitionInstance.isPageview(webrequest)
             );
     }
 
@@ -89,18 +89,18 @@ public class TestPageview {
     ) {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
+        WebrequestData webrequest = new WebrequestData(uri_host,
+            uri_path,
+            uri_query,
+            http_status,
+            content_type,
+            user_agent,
+            x_analytics_header) ;
+
         assertEquals(
                 test_description,
                 is_pageview,
-                PageviewDefinitionInstance.isPageview(
-                        uri_host,
-                        uri_path,
-                        uri_query,
-                        http_status,
-                        content_type,
-                        user_agent,
-                        x_analytics_header
-                )
+                PageviewDefinitionInstance.isPageview(webrequest)
         );
     }
 
@@ -196,6 +196,42 @@ public class TestPageview {
                     PageviewDefinitionInstance.getPageTitleFromUri(uri_path, uri_query)
             );
         }
+    }
+
+    @Test
+    public void testIsRedirectToPageview() {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        WebrequestData webrequest = new WebrequestData("en.wikipedia.org",
+            "/wiki/SomePage",
+            "",
+            "302",
+            "text/html",
+            "some",
+            "some") ;
+
+        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
+        assertEquals(true, PageviewDefinitionInstance.isRedirectToPageview(webrequest));
+
+
+    }
+
+    @Test
+    public void testIsRedirectToPageviewNoContentType() {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        WebrequestData webrequest = new WebrequestData("en.wikipedia.org",
+            "/wiki/SomePage",
+            "",
+            "302",
+            "-",
+            "some",
+            "some") ;
+
+        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
+        assertEquals(true, PageviewDefinitionInstance.isRedirectToPageview(webrequest));
+
+
     }
 
 }

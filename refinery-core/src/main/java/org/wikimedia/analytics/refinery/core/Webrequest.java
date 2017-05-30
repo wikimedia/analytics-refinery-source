@@ -14,9 +14,12 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import java.util.regex.Pattern;
-
 import org.apache.commons.lang3.StringUtils;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 
 /**
@@ -41,6 +44,28 @@ public class Webrequest {
     public static Webrequest getInstance(){
         return instance;
     }
+
+    public static final Set<String> SUCCESS_HTTP_STATUSES = new HashSet<String>(Arrays.asList(
+        "200",
+        "304"
+    ));
+
+    public static final Set<String> REDIRECT_HTTP_STATUSES = new HashSet<String>(Arrays.asList(
+        "301",
+        "302",
+        "307"
+    ));
+
+    public static final Set<String> TEXT_HTML_CONTENT_TYPES = new HashSet<String>(Arrays.asList(
+        "text/html",
+        "text/html; charset=iso-8859-1",
+        "text/html; charset=ISO-8859-1",
+        "text/html; charset=utf-8",
+        "text/html; charset=UTF-8"
+    ));
+
+
+
 
     /* Regex to coarsely match email addresses in the user-agent as part of spider identification,
        as the User-Agent policy - https://meta.wikimedia.org/wiki/User-Agent_policy,
@@ -117,34 +142,7 @@ public class Webrequest {
         return isSpider(userAgent);
     }
 
-    /**
-     * Given an x_analytics field and the name of a key, return the
-     * value associated with said key, or an empty string if the key
-     * is not found.
-     *
-     * @param xAnalytics the x_analytics field entry.
-     * @param key the key to search for the value of.
-     * @return String
-     */
-    public String getXAnalyticsValue(String xAnalytics, String key) {
 
-        String value = "";
-
-        int keyIndex = xAnalytics.indexOf(key);
-        if(keyIndex == -1){
-            return value;
-        }
-
-        int delimiterIndex = xAnalytics.indexOf(";", keyIndex);
-        if(delimiterIndex == -1){
-            value = xAnalytics.substring(keyIndex + key.length() + 1);
-        } else {
-            value = xAnalytics.substring(keyIndex + key.length() + 1, delimiterIndex);
-        }
-
-        //Done
-        return value;
-    }
     /**
      * Determines the method used for accessing the site - mobile web,
      * desktop, or app. If the user agent is an app agent, it's
@@ -278,4 +276,17 @@ public class Webrequest {
 
     }
 
+
+    public static boolean isSuccess(String httpStatus) {
+        return   SUCCESS_HTTP_STATUSES.contains(httpStatus);
+
+    }
+
+    public static boolean isRedirect(String httpStatus){
+         return REDIRECT_HTTP_STATUSES.contains(httpStatus);
+    }
+
+    public static boolean isTextHTMLContentType(String contentType){
+        return  TEXT_HTML_CONTENT_TYPES.contains(contentType);
+    }
 }

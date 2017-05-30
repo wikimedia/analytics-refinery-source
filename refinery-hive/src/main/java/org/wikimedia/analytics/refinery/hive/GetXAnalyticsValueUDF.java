@@ -17,7 +17,7 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.Webrequest;
+import org.wikimedia.analytics.refinery.core.Utilities;
 
 /**
  * A hive UDF to extract values from the x_analytics field, which is param=value
@@ -28,8 +28,7 @@ public class GetXAnalyticsValueUDF extends UDF {
         String x_analytics,
         String key
     ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.getXAnalyticsValue(
+        return Utilities.getValueForKey(
             x_analytics,
             key
         );

@@ -53,6 +53,37 @@ public class Utilities {
         return pattern.matcher(target).find();
     }
 
+    /**
+     * Given a String in the form:
+     * key=value;key=value
+     *
+     *  return the
+     * value associated with said key, or an empty string if the key
+     * is not found.
+     *
+     * @param text string with key value pairs separated by ";"
+     * @param key the key to search for the value of.
+     * @return String
+     */
+    public static String getValueForKey(String text, String key) {
+
+        String value = "";
+
+        int keyIndex = text.indexOf(key);
+        if(keyIndex == -1){
+            return value;
+        }
+
+        int delimiterIndex = text.indexOf(";", keyIndex);
+        if(delimiterIndex == -1){
+            value = text.substring(keyIndex + key.length() + 1);
+        } else {
+            value = text.substring(keyIndex + key.length() + 1, delimiterIndex);
+        }
+
+        //Done
+        return value;
+    }
 
     /**
      * Implementation is based on LinkedHashMap as this class
@@ -74,6 +105,8 @@ public class Utilities {
     protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
         return size() >= cacheSize;
     }
+
+
 }
 
 }

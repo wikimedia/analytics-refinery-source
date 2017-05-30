@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
+import org.wikimedia.analytics.refinery.core.WebrequestData;
 
 
 /**
@@ -66,11 +67,11 @@ import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 @UDFType(deterministic = true)
 public class IsPageviewUDF extends GenericUDF {
 
-    private ObjectInspector[] argumentsOI;
+    protected ObjectInspector[] argumentsOI;
 
-    private  boolean checkForXAnalytics = false;
-    private int maxArguments = 7;
-    private int minArguments = 6;
+    protected  boolean checkForXAnalytics = false;
+    protected int maxArguments = 7;
+    protected int minArguments = 6;
 
 
 
@@ -127,7 +128,9 @@ public class IsPageviewUDF extends GenericUDF {
             rawXAnalyticsHeader = PrimitiveObjectInspectorUtils.getString(
                 arguments[6].get(), (PrimitiveObjectInspector) argumentsOI[6]);
         }
-        return PageviewDefinition.getInstance().isPageview(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
+
+        WebrequestData webrequestData = new WebrequestData(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
+        return PageviewDefinition.getInstance().isPageview(webrequestData);
 
     }
 
