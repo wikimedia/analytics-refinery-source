@@ -1,3 +1,9 @@
+## v0.0.46
+
+* Memoize host normalization
+* Refactor PageviewDefinition to add RedirectToPageviewUDF
+* Support Wiki Abbreviation for Czech (cs vs cz)
+
 ## v0.0.45
 
 * Remove is_productive
