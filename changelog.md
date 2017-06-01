@@ -1,8 +1,8 @@
 ## v0.0.46
 
-* Add small cache to avoid repeating normalization of hosts
+* Add small cache to avoid repeating normalization in Webrequest.normalizeHost
 * Refactor PageviewDefinition to add RedirectToPageviewUDF
-* Add support for both cs and cz as Wiki Abbreviations for Czech
+* Add support for both cs and cz as Czech Wiki Abbreviations to StemmerUDF
 
 ## v0.0.45
 
