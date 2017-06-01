@@ -1,14 +1,14 @@
 ## v0.0.46
 
-* Memoize host normalization
+* Add small cache to avoid repeating normalization of hosts
 * Refactor PageviewDefinition to add RedirectToPageviewUDF
-* Support Wiki Abbreviation for Czech (cs vs cz)
+* Add support for both cs and cz as Wiki Abbreviations for Czech
 
 ## v0.0.45
 
-* Remove is_productive
-* Add revision_seconds_to_identity_revert
-* Update guards with Hive query
+* Remove is_productive and update time to revert from MediaWiki history denormalizer
+* Add revision_seconds_to_identity_revert to MediaWiki history denormalizer
+* Use hive query instead of parsing non existent sampled TSV files for guard settings
 
 ## v0.0.44
 
