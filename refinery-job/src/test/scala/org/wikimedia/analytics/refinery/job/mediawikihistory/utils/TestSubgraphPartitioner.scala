@@ -35,7 +35,8 @@ class TestSubgraphPartitioner
   var subgraphPartitioner = null.asInstanceOf[SubgraphPartitioner[String, EventTest, StateTest]]
 
   override def beforeEach(): Unit = {
-    sc.setCheckpointDir("/tmp/unittest/refinery-source/refinery-job/TestSubgraphPartitioner")
+    val username = System.getProperty("user.name")
+    sc.setCheckpointDir(s"/tmp/${username}/unittest/refinery-source/refinery-job/TestSubgraphPartitioner")
     val sqlContext = new SQLContext(sc)
     sqlContext.sql("SET spark.sql.shuffle.partitions=2")
     subgraphPartitioner = new SubgraphPartitioner[String, EventTest, StateTest](sqlContext, StringRowKeyFormat)
