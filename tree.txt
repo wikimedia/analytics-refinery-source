@@ -1,0 +1,1101 @@
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for org.wikimedia.analytics.refinery.camus:refinery-camus:jar:0.0.46-SNAPSHOT
+[WARNING] 'build.plugins.plugin.version' for org.codehaus.mojo:exec-maven-plugin is missing. @ org.wikimedia.analytics.refinery.camus:refinery-camus:[unknown-version], /workplace/analytics/refinery/source/refinery-camus/pom.xml, line 187, column 21
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Build Order:
+[INFO] 
+[INFO] Wikimedia Analytics Refinery
+[INFO] Wikimedia Analytics Refinery Core
+[INFO] Wikimedia Analytics Refinery Tools
+[INFO] Wikimedia Analytics Refinery Hive
+[INFO] Wikimedia Analytics Refinery Jobs
+[INFO] Wikimedia Analytics Refinery Camus
+[INFO] Wikimedia Analytics Refinery Cassandra
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery ---
+[INFO] org.wikimedia.analytics.refinery:refinery:pom:0.0.46-SNAPSHOT
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery Core 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery-core ---
+[INFO] org.wikimedia.analytics.refinery.core:refinery-core:jar:0.0.46-SNAPSHOT
+[INFO] +- org.apache.hadoop:hadoop-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-annotations:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- commons-cli:commons-cli:jar:1.2:provided
+[INFO] |  +- org.apache.commons:commons-math3:jar:3.1.1:provided
+[INFO] |  +- xmlenc:xmlenc:jar:0.52:provided
+[INFO] |  +- commons-httpclient:commons-httpclient:jar:3.1:provided
+[INFO] |  +- commons-codec:commons-codec:jar:1.4:provided
+[INFO] |  +- commons-io:commons-io:jar:2.4:provided
+[INFO] |  +- commons-net:commons-net:jar:3.1:provided
+[INFO] |  +- commons-collections:commons-collections:jar:3.2.2:compile
+[INFO] |  +- javax.servlet:servlet-api:jar:2.5:provided
+[INFO] |  +- org.mortbay.jetty:jetty:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- org.mortbay.jetty:jetty-util:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- com.sun.jersey:jersey-core:jar:1.9:provided
+[INFO] |  +- com.sun.jersey:jersey-json:jar:1.9:provided
+[INFO] |  |  +- org.codehaus.jettison:jettison:jar:1.1:provided
+[INFO] |  |  +- com.sun.xml.bind:jaxb-impl:jar:2.2.3-1:provided
+[INFO] |  |  |  \- javax.xml.bind:jaxb-api:jar:2.2.2:provided
+[INFO] |  |  |     +- javax.xml.stream:stax-api:jar:1.0-2:provided
+[INFO] |  |  |     \- javax.activation:activation:jar:1.1:provided
+[INFO] |  |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.8.3:provided
+[INFO] |  |  \- org.codehaus.jackson:jackson-xc:jar:1.8.3:provided
+[INFO] |  +- com.sun.jersey:jersey-server:jar:1.9:provided
+[INFO] |  |  \- asm:asm:jar:3.1:provided
+[INFO] |  +- tomcat:jasper-compiler:jar:5.5.23:provided
+[INFO] |  +- tomcat:jasper-runtime:jar:5.5.23:provided
+[INFO] |  +- javax.servlet.jsp:jsp-api:jar:2.1:provided
+[INFO] |  +- commons-el:commons-el:jar:1.0:provided
+[INFO] |  +- commons-logging:commons-logging:jar:1.1.3:compile
+[INFO] |  +- log4j:log4j:jar:1.2.17:provided
+[INFO] |  +- net.java.dev.jets3t:jets3t:jar:0.9.0:provided
+[INFO] |  |  +- org.apache.httpcomponents:httpclient:jar:4.1.2:compile
+[INFO] |  |  +- org.apache.httpcomponents:httpcore:jar:4.1.2:compile
+[INFO] |  |  \- com.jamesmurty.utils:java-xmlbuilder:jar:0.4:provided
+[INFO] |  +- commons-lang:commons-lang:jar:2.6:provided
+[INFO] |  +- commons-configuration:commons-configuration:jar:1.6:provided
+[INFO] |  |  \- commons-beanutils:commons-beanutils-core:jar:1.8.0:provided
+[INFO] |  +- org.slf4j:slf4j-api:jar:1.7.5:provided
+[INFO] |  +- org.slf4j:slf4j-log4j12:jar:1.7.5:provided
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.8.8:provided
+[INFO] |  +- org.codehaus.jackson:jackson-mapper-asl:jar:1.8.8:provided
+[INFO] |  +- org.apache.avro:avro:jar:1.7.6-cdh5.10.0:provided
+[INFO] |  |  +- com.thoughtworks.paranamer:paranamer:jar:2.3:provided
+[INFO] |  |  \- org.xerial.snappy:snappy-java:jar:1.0.4.1:provided
+[INFO] |  +- com.google.protobuf:protobuf-java:jar:2.5.0:provided
+[INFO] |  +- com.google.code.gson:gson:jar:2.2.4:provided
+[INFO] |  +- org.apache.hadoop:hadoop-auth:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.directory.server:apacheds-kerberos-codec:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.server:apacheds-i18n:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.api:api-asn1-api:jar:1.0.0-M20:provided
+[INFO] |  |  |  \- org.apache.directory.api:api-util:jar:1.0.0-M20:provided
+[INFO] |  |  \- org.apache.curator:curator-framework:jar:2.7.1:provided
+[INFO] |  +- com.jcraft:jsch:jar:0.1.42:provided
+[INFO] |  +- org.apache.curator:curator-client:jar:2.7.1:provided
+[INFO] |  +- org.apache.curator:curator-recipes:jar:2.7.1:provided
+[INFO] |  +- com.google.code.findbugs:jsr305:jar:3.0.0:compile
+[INFO] |  +- org.apache.htrace:htrace-core4:jar:4.0.1-incubating:provided
+[INFO] |  +- org.apache.zookeeper:zookeeper:jar:3.4.5-cdh5.10.0:provided
+[INFO] |  \- org.apache.commons:commons-compress:jar:1.4.1:provided
+[INFO] |     \- org.tukaani:xz:jar:1.0:provided
+[INFO] +- com.maxmind.geoip2:geoip2:jar:2.1.0:compile
+[INFO] |  +- com.maxmind.db:maxmind-db:jar:1.0.0:compile
+[INFO] |  \- com.google.http-client:google-http-client:jar:1.19.0:compile
+[INFO] +- commons-validator:commons-validator:jar:1.4.1:compile
+[INFO] |  +- commons-beanutils:commons-beanutils:jar:1.8.3:compile
+[INFO] |  \- commons-digester:commons-digester:jar:1.8.1:compile
+[INFO] +- org.springframework.security:spring-security-web:jar:3.2.5.RELEASE:compile
+[INFO] |  +- aopalliance:aopalliance:jar:1.0:compile
+[INFO] |  +- org.springframework.security:spring-security-core:jar:3.2.5.RELEASE:compile
+[INFO] |  |  \- org.springframework:spring-aop:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.springframework:spring-beans:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.springframework:spring-context:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.springframework:spring-core:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.springframework:spring-expression:jar:3.2.8.RELEASE:compile
+[INFO] |  \- org.springframework:spring-web:jar:3.2.8.RELEASE:compile
+[INFO] +- junit:junit:jar:4.11:test
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO] +- pl.pragmatists:JUnitParams:jar:1.0.3:test
+[INFO] +- org.apache.commons:commons-lang3:jar:3.3.2:compile
+[INFO] +- ua_parser:ua-parser:jar:1.3.0-wmf3:compile
+[INFO] |  \- org.yaml:snakeyaml:jar:1.10:compile
+[INFO] +- com.googlecode.json-simple:json-simple:jar:1.1.1:compile
+[INFO] +- com.fasterxml.jackson.core:jackson-databind:jar:2.2.3:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.2.3:compile
+[INFO] |  \- com.fasterxml.jackson.core:jackson-core:jar:2.2.3:compile
+[INFO] +- org.scala-lang:scala-library:jar:2.10.4:provided
+[INFO] +- org.scalatest:scalatest_2.10:jar:2.2.4:test
+[INFO] |  \- org.scala-lang:scala-reflect:jar:2.10.4:test
+[INFO] +- com.github.nscala-time:nscala-time_2.10:jar:2.0.0:compile
+[INFO] |  +- joda-time:joda-time:jar:2.7:compile
+[INFO] |  \- org.joda:joda-convert:jar:1.2:compile
+[INFO] +- com.google.guava:guava:jar:12.0:compile
+[INFO] \- org.reflections:reflections:jar:0.9.7:compile
+[INFO]    +- javassist:javassist:jar:3.12.1.GA:compile
+[INFO]    \- dom4j:dom4j:jar:1.6.1:compile
+[INFO]       \- xml-apis:xml-apis:jar:1.0.b2:compile
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery Tools 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+Downloading: https://archiva.wikimedia.org/repository/releases/org/wikimedia/analytics/refinery/core/refinery-core/0.0.46-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/mirrored/org/wikimedia/analytics/refinery/core/refinery-core/0.0.46-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/mirrored/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-mirrored has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery-tools ---
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/mirrored/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-mirrored has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[INFO] org.wikimedia.analytics.refinery:refinery-tools:jar:0.0.46-SNAPSHOT
+[INFO] +- org.apache.hadoop:hadoop-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-annotations:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- commons-cli:commons-cli:jar:1.2:provided
+[INFO] |  +- org.apache.commons:commons-math3:jar:3.1.1:provided
+[INFO] |  +- xmlenc:xmlenc:jar:0.52:provided
+[INFO] |  +- commons-httpclient:commons-httpclient:jar:3.1:provided
+[INFO] |  +- commons-codec:commons-codec:jar:1.4:provided
+[INFO] |  +- commons-io:commons-io:jar:2.4:provided
+[INFO] |  +- commons-net:commons-net:jar:3.1:provided
+[INFO] |  +- commons-collections:commons-collections:jar:3.2.2:compile
+[INFO] |  +- javax.servlet:servlet-api:jar:2.5:provided
+[INFO] |  +- org.mortbay.jetty:jetty:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- org.mortbay.jetty:jetty-util:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- com.sun.jersey:jersey-core:jar:1.9:provided
+[INFO] |  +- com.sun.jersey:jersey-json:jar:1.9:provided
+[INFO] |  |  +- org.codehaus.jettison:jettison:jar:1.1:provided
+[INFO] |  |  +- com.sun.xml.bind:jaxb-impl:jar:2.2.3-1:provided
+[INFO] |  |  |  \- javax.xml.bind:jaxb-api:jar:2.2.2:provided
+[INFO] |  |  |     +- javax.xml.stream:stax-api:jar:1.0-2:provided
+[INFO] |  |  |     \- javax.activation:activation:jar:1.1:provided
+[INFO] |  |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.8.3:provided
+[INFO] |  |  \- org.codehaus.jackson:jackson-xc:jar:1.8.3:provided
+[INFO] |  +- com.sun.jersey:jersey-server:jar:1.9:provided
+[INFO] |  |  \- asm:asm:jar:3.1:provided
+[INFO] |  +- tomcat:jasper-compiler:jar:5.5.23:provided
+[INFO] |  +- tomcat:jasper-runtime:jar:5.5.23:provided
+[INFO] |  +- javax.servlet.jsp:jsp-api:jar:2.1:provided
+[INFO] |  +- commons-el:commons-el:jar:1.0:provided
+[INFO] |  +- commons-logging:commons-logging:jar:1.1.3:compile
+[INFO] |  +- log4j:log4j:jar:1.2.17:provided
+[INFO] |  +- net.java.dev.jets3t:jets3t:jar:0.9.0:provided
+[INFO] |  |  +- org.apache.httpcomponents:httpclient:jar:4.1.2:compile
+[INFO] |  |  +- org.apache.httpcomponents:httpcore:jar:4.1.2:compile
+[INFO] |  |  \- com.jamesmurty.utils:java-xmlbuilder:jar:0.4:provided
+[INFO] |  +- commons-lang:commons-lang:jar:2.6:provided
+[INFO] |  +- commons-configuration:commons-configuration:jar:1.6:provided
+[INFO] |  |  +- commons-digester:commons-digester:jar:1.8:compile
+[INFO] |  |  \- commons-beanutils:commons-beanutils-core:jar:1.8.0:provided
+[INFO] |  +- org.slf4j:slf4j-api:jar:1.7.5:provided
+[INFO] |  +- org.slf4j:slf4j-log4j12:jar:1.7.5:provided
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.8.8:provided
+[INFO] |  +- org.codehaus.jackson:jackson-mapper-asl:jar:1.8.8:provided
+[INFO] |  +- org.apache.avro:avro:jar:1.7.6-cdh5.10.0:provided
+[INFO] |  |  +- com.thoughtworks.paranamer:paranamer:jar:2.3:provided
+[INFO] |  |  \- org.xerial.snappy:snappy-java:jar:1.0.4.1:provided
+[INFO] |  +- com.google.protobuf:protobuf-java:jar:2.5.0:provided
+[INFO] |  +- com.google.code.gson:gson:jar:2.2.4:provided
+[INFO] |  +- org.apache.hadoop:hadoop-auth:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.directory.server:apacheds-kerberos-codec:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.server:apacheds-i18n:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.api:api-asn1-api:jar:1.0.0-M20:provided
+[INFO] |  |  |  \- org.apache.directory.api:api-util:jar:1.0.0-M20:provided
+[INFO] |  |  \- org.apache.curator:curator-framework:jar:2.7.1:provided
+[INFO] |  +- com.jcraft:jsch:jar:0.1.42:provided
+[INFO] |  +- org.apache.curator:curator-client:jar:2.7.1:provided
+[INFO] |  +- org.apache.curator:curator-recipes:jar:2.7.1:provided
+[INFO] |  +- com.google.code.findbugs:jsr305:jar:3.0.0:compile
+[INFO] |  +- org.apache.htrace:htrace-core4:jar:4.0.1-incubating:provided
+[INFO] |  +- org.apache.zookeeper:zookeeper:jar:3.4.5-cdh5.10.0:provided
+[INFO] |  \- org.apache.commons:commons-compress:jar:1.4.1:provided
+[INFO] |     \- org.tukaani:xz:jar:1.0:provided
+[INFO] +- org.wikimedia.analytics.refinery.core:refinery-core:jar:0.0.46-SNAPSHOT:compile
+[INFO] |  +- com.maxmind.geoip2:geoip2:jar:2.1.0:compile
+[INFO] |  |  +- com.maxmind.db:maxmind-db:jar:1.0.0:compile
+[INFO] |  |  \- com.google.http-client:google-http-client:jar:1.19.0:compile
+[INFO] |  +- commons-validator:commons-validator:jar:1.4.1:compile
+[INFO] |  |  \- commons-beanutils:commons-beanutils:jar:1.8.3:compile
+[INFO] |  +- org.springframework.security:spring-security-web:jar:3.2.5.RELEASE:compile
+[INFO] |  |  +- aopalliance:aopalliance:jar:1.0:compile
+[INFO] |  |  +- org.springframework.security:spring-security-core:jar:3.2.5.RELEASE:compile
+[INFO] |  |  |  \- org.springframework:spring-aop:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-beans:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-context:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-core:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-expression:jar:3.2.8.RELEASE:compile
+[INFO] |  |  \- org.springframework:spring-web:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.apache.commons:commons-lang3:jar:3.3.2:compile
+[INFO] |  +- ua_parser:ua-parser:jar:1.3.0-wmf3:compile
+[INFO] |  |  \- org.yaml:snakeyaml:jar:1.10:compile
+[INFO] |  +- com.googlecode.json-simple:json-simple:jar:1.1.1:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-databind:jar:2.2.3:compile
+[INFO] |  |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.2.3:compile
+[INFO] |  |  \- com.fasterxml.jackson.core:jackson-core:jar:2.2.3:compile
+[INFO] |  +- com.github.nscala-time:nscala-time_2.10:jar:2.0.0:compile
+[INFO] |  |  +- org.scala-lang:scala-library:jar:2.10.4:provided
+[INFO] |  |  +- joda-time:joda-time:jar:2.7:compile
+[INFO] |  |  \- org.joda:joda-convert:jar:1.2:compile
+[INFO] |  +- com.google.guava:guava:jar:12.0:compile
+[INFO] |  \- org.reflections:reflections:jar:0.9.7:compile
+[INFO] |     +- javassist:javassist:jar:3.12.1.GA:compile
+[INFO] |     \- dom4j:dom4j:jar:1.6.1:compile
+[INFO] |        \- xml-apis:xml-apis:jar:1.0.b2:compile
+[INFO] +- args4j:args4j:jar:2.0.29:compile
+[INFO] \- junit:junit:jar:4.11:test
+[INFO]    \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery Hive 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/mirrored/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-mirrored has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery-hive ---
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/mirrored/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-mirrored has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[INFO] org.wikimedia.analytics.refinery.hive:refinery-hive:jar:0.0.46-SNAPSHOT
+[INFO] +- junit:junit:jar:4.11:test
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO] +- pl.pragmatists:JUnitParams:jar:1.0.3:test
+[INFO] +- org.wikimedia.analytics.refinery.core:refinery-core:jar:0.0.46-SNAPSHOT:compile
+[INFO] |  +- com.maxmind.geoip2:geoip2:jar:2.1.0:compile
+[INFO] |  |  +- com.maxmind.db:maxmind-db:jar:1.0.0:compile
+[INFO] |  |  \- com.google.http-client:google-http-client:jar:1.19.0:compile
+[INFO] |  +- commons-validator:commons-validator:jar:1.4.1:compile
+[INFO] |  |  +- commons-beanutils:commons-beanutils:jar:1.8.3:compile
+[INFO] |  |  \- commons-digester:commons-digester:jar:1.8.1:compile
+[INFO] |  +- org.springframework.security:spring-security-web:jar:3.2.5.RELEASE:compile
+[INFO] |  |  +- aopalliance:aopalliance:jar:1.0:compile
+[INFO] |  |  +- org.springframework.security:spring-security-core:jar:3.2.5.RELEASE:compile
+[INFO] |  |  |  \- org.springframework:spring-aop:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-beans:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-context:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-core:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-expression:jar:3.2.8.RELEASE:compile
+[INFO] |  |  \- org.springframework:spring-web:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.apache.commons:commons-lang3:jar:3.3.2:compile
+[INFO] |  +- ua_parser:ua-parser:jar:1.3.0-wmf3:compile
+[INFO] |  |  \- org.yaml:snakeyaml:jar:1.10:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-databind:jar:2.2.3:compile
+[INFO] |  |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.2.3:compile
+[INFO] |  |  \- com.fasterxml.jackson.core:jackson-core:jar:2.2.3:compile
+[INFO] |  +- com.github.nscala-time:nscala-time_2.10:jar:2.0.0:compile
+[INFO] |  |  +- org.scala-lang:scala-library:jar:2.10.4:provided
+[INFO] |  |  +- joda-time:joda-time:jar:2.7:compile
+[INFO] |  |  \- org.joda:joda-convert:jar:1.2:compile
+[INFO] |  +- com.google.guava:guava:jar:12.0:compile
+[INFO] |  \- org.reflections:reflections:jar:0.9.7:compile
+[INFO] |     +- javassist:javassist:jar:3.12.1.GA:compile
+[INFO] |     \- dom4j:dom4j:jar:1.6.1:compile
+[INFO] |        \- xml-apis:xml-apis:jar:1.0.b2:compile
+[INFO] +- org.apache.lucene:lucene-analyzers-common:jar:5.5.3:compile
+[INFO] |  \- org.apache.lucene:lucene-core:jar:5.5.3:compile
+[INFO] +- org.apache.hadoop:hadoop-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-annotations:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- commons-cli:commons-cli:jar:1.2:provided
+[INFO] |  +- org.apache.commons:commons-math3:jar:3.1.1:provided
+[INFO] |  +- xmlenc:xmlenc:jar:0.52:provided
+[INFO] |  +- commons-httpclient:commons-httpclient:jar:3.1:provided
+[INFO] |  +- commons-codec:commons-codec:jar:1.4:provided
+[INFO] |  +- commons-io:commons-io:jar:2.4:provided
+[INFO] |  +- commons-net:commons-net:jar:3.1:provided
+[INFO] |  +- commons-collections:commons-collections:jar:3.2.2:compile
+[INFO] |  +- javax.servlet:servlet-api:jar:2.5:provided
+[INFO] |  +- org.mortbay.jetty:jetty:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- org.mortbay.jetty:jetty-util:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- com.sun.jersey:jersey-core:jar:1.9:provided
+[INFO] |  +- com.sun.jersey:jersey-json:jar:1.9:provided
+[INFO] |  |  +- org.codehaus.jettison:jettison:jar:1.1:provided
+[INFO] |  |  +- com.sun.xml.bind:jaxb-impl:jar:2.2.3-1:provided
+[INFO] |  |  |  \- javax.xml.bind:jaxb-api:jar:2.2.2:provided
+[INFO] |  |  |     +- javax.xml.stream:stax-api:jar:1.0-2:provided
+[INFO] |  |  |     \- javax.activation:activation:jar:1.1:provided
+[INFO] |  |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.8.3:provided
+[INFO] |  |  \- org.codehaus.jackson:jackson-xc:jar:1.8.3:provided
+[INFO] |  +- com.sun.jersey:jersey-server:jar:1.9:provided
+[INFO] |  |  \- asm:asm:jar:3.1:provided
+[INFO] |  +- tomcat:jasper-compiler:jar:5.5.23:provided
+[INFO] |  +- tomcat:jasper-runtime:jar:5.5.23:provided
+[INFO] |  +- javax.servlet.jsp:jsp-api:jar:2.1:provided
+[INFO] |  +- commons-el:commons-el:jar:1.0:provided
+[INFO] |  +- commons-logging:commons-logging:jar:1.1.3:compile
+[INFO] |  +- log4j:log4j:jar:1.2.17:provided
+[INFO] |  +- net.java.dev.jets3t:jets3t:jar:0.9.0:provided
+[INFO] |  |  +- org.apache.httpcomponents:httpclient:jar:4.1.2:compile
+[INFO] |  |  +- org.apache.httpcomponents:httpcore:jar:4.1.2:compile
+[INFO] |  |  \- com.jamesmurty.utils:java-xmlbuilder:jar:0.4:provided
+[INFO] |  +- commons-lang:commons-lang:jar:2.6:provided
+[INFO] |  +- commons-configuration:commons-configuration:jar:1.6:provided
+[INFO] |  |  \- commons-beanutils:commons-beanutils-core:jar:1.8.0:provided
+[INFO] |  +- org.slf4j:slf4j-api:jar:1.7.5:provided
+[INFO] |  +- org.slf4j:slf4j-log4j12:jar:1.7.5:provided
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.8.8:provided
+[INFO] |  +- org.codehaus.jackson:jackson-mapper-asl:jar:1.8.8:provided
+[INFO] |  +- org.apache.avro:avro:jar:1.7.6-cdh5.10.0:provided
+[INFO] |  |  +- com.thoughtworks.paranamer:paranamer:jar:2.3:provided
+[INFO] |  |  \- org.xerial.snappy:snappy-java:jar:1.0.4.1:provided
+[INFO] |  +- com.google.protobuf:protobuf-java:jar:2.5.0:provided
+[INFO] |  +- com.google.code.gson:gson:jar:2.2.4:provided
+[INFO] |  +- org.apache.hadoop:hadoop-auth:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.directory.server:apacheds-kerberos-codec:jar:2.0.0-M15:provided
+[INFO] |  |     +- org.apache.directory.server:apacheds-i18n:jar:2.0.0-M15:provided
+[INFO] |  |     +- org.apache.directory.api:api-asn1-api:jar:1.0.0-M20:provided
+[INFO] |  |     \- org.apache.directory.api:api-util:jar:1.0.0-M20:provided
+[INFO] |  +- com.jcraft:jsch:jar:0.1.42:provided
+[INFO] |  +- org.apache.curator:curator-client:jar:2.7.1:provided
+[INFO] |  +- org.apache.curator:curator-recipes:jar:2.7.1:provided
+[INFO] |  +- com.google.code.findbugs:jsr305:jar:3.0.0:compile
+[INFO] |  +- org.apache.htrace:htrace-core4:jar:4.0.1-incubating:provided
+[INFO] |  +- org.apache.zookeeper:zookeeper:jar:3.4.5-cdh5.10.0:provided
+[INFO] |  \- org.apache.commons:commons-compress:jar:1.4.1:provided
+[INFO] |     \- org.tukaani:xz:jar:1.0:provided
+[INFO] +- org.apache.hadoop:hadoop-client:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-hdfs:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- io.netty:netty:jar:3.10.5.Final:provided
+[INFO] |  |  +- io.netty:netty-all:jar:4.0.23.Final:provided
+[INFO] |  |  +- xerces:xercesImpl:jar:2.9.1:provided
+[INFO] |  |  \- org.fusesource.leveldbjni:leveldbjni-all:jar:1.8:provided
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-app:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hadoop:hadoop-mapreduce-client-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |  +- org.apache.hadoop:hadoop-yarn-client:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |  \- org.apache.hadoop:hadoop-yarn-server-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.hadoop:hadoop-mapreduce-client-shuffle:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-yarn-api:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-core:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.hadoop:hadoop-yarn-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |     \- com.sun.jersey:jersey-client:jar:1.9:provided
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-jobclient:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  \- org.apache.hadoop:hadoop-aws:jar:2.6.0-cdh5.10.0:provided
+[INFO] |     +- com.amazonaws:aws-java-sdk-s3:jar:1.10.6:provided
+[INFO] |     |  +- com.amazonaws:aws-java-sdk-kms:jar:1.10.6:provided
+[INFO] |     |  \- com.amazonaws:aws-java-sdk-core:jar:1.10.6:provided
+[INFO] |     \- com.amazonaws:aws-java-sdk-sts:jar:1.10.6:provided
+[INFO] +- org.apache.hive:hive-exec:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hive:hive-ant:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.velocity:velocity:jar:1.5:provided
+[INFO] |  |     \- oro:oro:jar:2.0.8:provided
+[INFO] |  +- org.apache.hive:hive-metastore:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hive:hive-serde:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  |  +- org.apache.hive:hive-common:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  |  |  +- org.eclipse.jetty.aggregate:jetty-all:jar:7.6.0.v20120127:provided
+[INFO] |  |  |  |  |  +- org.apache.geronimo.specs:geronimo-jta_1.1_spec:jar:1.1.1:provided
+[INFO] |  |  |  |  |  +- javax.mail:mail:jar:1.4.1:provided
+[INFO] |  |  |  |  |  +- org.apache.geronimo.specs:geronimo-jaspic_1.0_spec:jar:1.0:provided
+[INFO] |  |  |  |  |  +- org.apache.geronimo.specs:geronimo-annotation_1.0_spec:jar:1.1.1:provided
+[INFO] |  |  |  |  |  \- asm:asm-commons:jar:3.1:provided
+[INFO] |  |  |  |  |     \- asm:asm-tree:jar:3.1:provided
+[INFO] |  |  |  |  +- com.codahale.metrics:metrics-core:jar:3.0.2:provided
+[INFO] |  |  |  |  +- com.codahale.metrics:metrics-jvm:jar:3.0.2:provided
+[INFO] |  |  |  |  \- com.codahale.metrics:metrics-json:jar:3.0.2:provided
+[INFO] |  |  |  +- net.sf.opencsv:opencsv:jar:2.3:provided
+[INFO] |  |  |  +- com.twitter:parquet-hadoop-bundle:jar:1.5.0-cdh5.10.0:provided
+[INFO] |  |  |  \- com.sun.jersey:jersey-servlet:jar:1.14:provided
+[INFO] |  |  +- com.jolbox:bonecp:jar:0.8.0.RELEASE:provided
+[INFO] |  |  +- org.apache.derby:derby:jar:10.11.1.1:provided
+[INFO] |  |  +- org.datanucleus:datanucleus-api-jdo:jar:3.2.6:provided
+[INFO] |  |  +- org.datanucleus:datanucleus-rdbms:jar:3.2.9:provided
+[INFO] |  |  +- commons-pool:commons-pool:jar:1.5.4:provided
+[INFO] |  |  +- commons-dbcp:commons-dbcp:jar:1.4:provided
+[INFO] |  |  +- javax.jdo:jdo-api:jar:3.0.1:provided
+[INFO] |  |  |  \- javax.transaction:jta:jar:1.1:provided
+[INFO] |  |  \- org.apache.thrift:libthrift:jar:0.9.3:provided
+[INFO] |  +- org.apache.hive:hive-shims:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hive.shims:hive-shims-common:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hive.shims:hive-shims-0.23:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  |  \- org.apache.hadoop:hadoop-yarn-server-resourcemanager:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |     +- com.google.inject.extensions:guice-servlet:jar:3.0:provided
+[INFO] |  |  |     +- com.google.inject:guice:jar:3.0:provided
+[INFO] |  |  |     |  \- javax.inject:javax.inject:jar:1:provided
+[INFO] |  |  |     +- com.sun.jersey.contribs:jersey-guice:jar:1.9:provided
+[INFO] |  |  |     +- org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |     \- org.apache.hadoop:hadoop-yarn-server-web-proxy:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.hive.shims:hive-shims-scheduler:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |     \- org.mockito:mockito-all:jar:1.9.5:provided
+[INFO] |  +- org.cloudera.logredactor:logredactor:jar:1.0.3:provided
+[INFO] |  +- log4j:apache-log4j-extras:jar:1.2.17:provided
+[INFO] |  +- org.antlr:antlr-runtime:jar:3.4:provided
+[INFO] |  |  +- org.antlr:stringtemplate:jar:3.2.1:provided
+[INFO] |  |  \- antlr:antlr:jar:2.7.7:provided
+[INFO] |  +- org.antlr:ST4:jar:4.0.4:provided
+[INFO] |  +- org.apache.ant:ant:jar:1.9.1:provided
+[INFO] |  |  \- org.apache.ant:ant-launcher:jar:1.9.1:provided
+[INFO] |  +- org.apache.thrift:libfb303:jar:0.9.3:provided
+[INFO] |  +- org.apache.ivy:ivy:jar:2.4.0:provided
+[INFO] |  +- org.apache.curator:curator-framework:jar:2.6.0:provided
+[INFO] |  +- org.apache.curator:apache-curator:pom:2.6.0:provided
+[INFO] |  +- org.codehaus.groovy:groovy-all:jar:2.4.4:provided
+[INFO] |  +- org.datanucleus:datanucleus-core:jar:3.2.10:provided
+[INFO] |  +- org.apache.calcite:calcite-core:jar:1.0.0-incubating:provided
+[INFO] |  |  +- org.apache.calcite:calcite-linq4j:jar:1.0.0-incubating:provided
+[INFO] |  |  +- org.pentaho:pentaho-aggdesigner-algorithm:jar:5.1.5-jhyde:provided
+[INFO] |  |  +- eigenbase:eigenbase-properties:jar:1.1.4:provided
+[INFO] |  |  +- org.codehaus.janino:janino:jar:2.7.6:provided
+[INFO] |  |  \- org.codehaus.janino:commons-compiler:jar:2.7.6:provided
+[INFO] |  +- org.apache.calcite:calcite-avatica:jar:1.0.0-incubating:provided
+[INFO] |  +- stax:stax-api:jar:1.0.1:provided
+[INFO] |  +- jline:jline:jar:2.12:provided
+[INFO] |  \- org.apache.hbase:hbase-common:jar:1.2.0-cdh5.10.0:provided
+[INFO] |     +- org.apache.hbase:hbase-protocol:jar:1.2.0-cdh5.10.0:provided
+[INFO] |     +- org.apache.hbase:hbase-annotations:jar:1.2.0-cdh5.10.0:provided
+[INFO] |     +- org.apache.htrace:htrace-core:jar:3.2.0-incubating:provided
+[INFO] |     \- com.github.stephenc.findbugs:findbugs-annotations:jar:1.3.9-1:provided
+[INFO] \- com.googlecode.json-simple:json-simple:jar:1.1.1:compile
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery Jobs 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+Downloading: https://archiva.wikimedia.org/repository/releases/com/cloudera/cdh/cdh-root/5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata com.cloudera.cdh:cdh-root:5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/avro/avro-mapred/1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.avro:avro-mapred:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.avro:avro-mapred:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.avro:avro-mapred:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/avro/avro-parent/1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.avro:avro-parent:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/avro/avro-toplevel/1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.avro:avro-toplevel:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/avro/avro/1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.avro:avro:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.avro:avro:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.avro:avro:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/avro/avro-ipc/1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.avro:avro-ipc:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.avro:avro-ipc:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.avro:avro-ipc:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.avro:avro-ipc:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.avro:avro-ipc:1.7.6-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-client/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-project-dist/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-project-dist:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-project/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-project:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-main/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-main:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-hdfs/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-hdfs/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-hdfs:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-hdfs:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-hdfs:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-hdfs:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-hdfs:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-hdfs:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-mapreduce-client-app/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-mapreduce-client-app/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-app:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-app:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-app:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-app:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-app:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-app:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-mapreduce-client/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-mapreduce-client/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-mapreduce-client-common/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-mapreduce-client-common/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn-common/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn-common/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn-api/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn-api/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-api:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-api:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-api:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-api:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-api:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-api:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn-client/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn-client/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-client:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-mapreduce-client-core/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-mapreduce-client-core/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-core:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-core:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-core:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-core:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-core:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-core:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn-server-common/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn-server-common/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-server-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-server-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-common:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn-server/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn-server/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-server:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-server:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/zookeeper/zookeeper/3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/zookeeper/zookeeper/3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.zookeeper:zookeeper:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.zookeeper:zookeeper:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.zookeeper:zookeeper:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.zookeeper:zookeeper:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.zookeeper:zookeeper:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.zookeeper:zookeeper:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/com/cloudera/cdh/zookeeper-root/3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/com/cloudera/cdh/zookeeper-root/3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata com.cloudera.cdh:zookeeper-root:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata com.cloudera.cdh:zookeeper-root:3.4.5-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-mapreduce-client-shuffle/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-mapreduce-client-shuffle/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-shuffle:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-mapreduce-client-jobclient/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-mapreduce-client-jobclient/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-mapreduce-client-jobclient:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-yarn-server-nodemanager/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-yarn-server-nodemanager/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-nodemanager:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-nodemanager:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-server-nodemanager:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-nodemanager:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-yarn-server-nodemanager:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-yarn-server-nodemanager:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-aws/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-aws/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-aws:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-aws:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-aws:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-aws:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-aws:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-aws:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+Downloading: https://repository.apache.org/content/repositories/snapshots/org/apache/hadoop/hadoop-annotations/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+Downloading: https://archiva.wikimedia.org/repository/releases/org/apache/hadoop/hadoop-annotations/2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-annotations:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Could not transfer metadata org.apache.hadoop:hadoop-annotations:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-annotations:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-annotations:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.apache.hadoop:hadoop-annotations:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from https://repository.apache.org/content/repositories/snapshots was cached in the local repository, resolution will not be reattempted until the update interval of apache.snapshots.https has elapsed or updates are forced. Original error: Could not transfer metadata org.apache.hadoop:hadoop-annotations:2.6.0-cdh5.7.0-SNAPSHOT/maven-metadata.xml from/to apache.snapshots.https (https://repository.apache.org/content/repositories/snapshots): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/mirrored/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-mirrored has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery-job ---
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/mirrored/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-mirrored has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-mirrored (https://archiva.wikimedia.org/repository/mirrored/): java.lang.RuntimeException: Could not generate DH keypair
+[WARNING] Failure to transfer org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from https://archiva.wikimedia.org/repository/releases/ was cached in the local repository, resolution will not be reattempted until the update interval of wmf-releases has elapsed or updates are forced. Original error: Could not transfer metadata org.wikimedia.analytics.refinery.core:refinery-core:0.0.46-SNAPSHOT/maven-metadata.xml from/to wmf-releases (https://archiva.wikimedia.org/repository/releases/): java.lang.RuntimeException: Could not generate DH keypair
+[INFO] org.wikimedia.analytics.refinery.job:refinery-job:jar:0.0.46-SNAPSHOT
+[INFO] +- org.wikimedia.analytics.refinery.core:refinery-core:jar:0.0.46-SNAPSHOT:compile
+[INFO] |  +- com.maxmind.geoip2:geoip2:jar:2.1.0:compile
+[INFO] |  |  +- com.maxmind.db:maxmind-db:jar:1.0.0:compile
+[INFO] |  |  \- com.google.http-client:google-http-client:jar:1.19.0:compile
+[INFO] |  +- commons-validator:commons-validator:jar:1.4.1:compile
+[INFO] |  |  +- commons-beanutils:commons-beanutils:jar:1.8.3:compile
+[INFO] |  |  \- commons-digester:commons-digester:jar:1.8.1:compile
+[INFO] |  +- org.springframework.security:spring-security-web:jar:3.2.5.RELEASE:compile
+[INFO] |  |  +- aopalliance:aopalliance:jar:1.0:compile
+[INFO] |  |  +- org.springframework.security:spring-security-core:jar:3.2.5.RELEASE:compile
+[INFO] |  |  |  \- org.springframework:spring-aop:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-beans:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-context:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-core:jar:3.2.8.RELEASE:compile
+[INFO] |  |  +- org.springframework:spring-expression:jar:3.2.8.RELEASE:compile
+[INFO] |  |  \- org.springframework:spring-web:jar:3.2.8.RELEASE:compile
+[INFO] |  +- org.apache.commons:commons-lang3:jar:3.3.2:compile
+[INFO] |  +- ua_parser:ua-parser:jar:1.3.0-wmf3:compile
+[INFO] |  |  \- org.yaml:snakeyaml:jar:1.10:compile
+[INFO] |  +- com.googlecode.json-simple:json-simple:jar:1.1.1:compile
+[INFO] |  +- com.google.guava:guava:jar:12.0:compile
+[INFO] |  \- org.reflections:reflections:jar:0.9.7:compile
+[INFO] |     +- javassist:javassist:jar:3.12.1.GA:compile
+[INFO] |     \- dom4j:dom4j:jar:1.6.1:compile
+[INFO] |        \- xml-apis:xml-apis:jar:1.0.b2:compile
+[INFO] +- org.apache.hadoop:hadoop-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-annotations:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- commons-cli:commons-cli:jar:1.2:provided
+[INFO] |  +- org.apache.commons:commons-math3:jar:3.1.1:provided
+[INFO] |  +- xmlenc:xmlenc:jar:0.52:provided
+[INFO] |  +- commons-httpclient:commons-httpclient:jar:3.1:provided
+[INFO] |  +- commons-codec:commons-codec:jar:1.4:compile
+[INFO] |  +- commons-io:commons-io:jar:2.4:provided
+[INFO] |  +- commons-net:commons-net:jar:3.1:provided
+[INFO] |  +- commons-collections:commons-collections:jar:3.2.2:compile
+[INFO] |  +- org.mortbay.jetty:jetty:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- org.mortbay.jetty:jetty-util:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- com.sun.jersey:jersey-core:jar:1.9:provided
+[INFO] |  +- com.sun.jersey:jersey-json:jar:1.9:provided
+[INFO] |  |  +- org.codehaus.jettison:jettison:jar:1.1:provided
+[INFO] |  |  +- com.sun.xml.bind:jaxb-impl:jar:2.2.3-1:provided
+[INFO] |  |  |  \- javax.xml.bind:jaxb-api:jar:2.2.2:provided
+[INFO] |  |  |     +- javax.xml.stream:stax-api:jar:1.0-2:provided
+[INFO] |  |  |     \- javax.activation:activation:jar:1.1:provided
+[INFO] |  |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.8.3:provided
+[INFO] |  |  \- org.codehaus.jackson:jackson-xc:jar:1.8.3:provided
+[INFO] |  +- com.sun.jersey:jersey-server:jar:1.9:provided
+[INFO] |  |  \- asm:asm:jar:3.1:provided
+[INFO] |  +- tomcat:jasper-compiler:jar:5.5.23:provided
+[INFO] |  +- tomcat:jasper-runtime:jar:5.5.23:provided
+[INFO] |  +- javax.servlet.jsp:jsp-api:jar:2.1:provided
+[INFO] |  +- commons-el:commons-el:jar:1.0:provided
+[INFO] |  +- commons-logging:commons-logging:jar:1.1.3:compile
+[INFO] |  +- log4j:log4j:jar:1.2.17:compile
+[INFO] |  +- net.java.dev.jets3t:jets3t:jar:0.9.0:provided
+[INFO] |  |  +- org.apache.httpcomponents:httpcore:jar:4.1.2:compile
+[INFO] |  |  \- com.jamesmurty.utils:java-xmlbuilder:jar:0.4:provided
+[INFO] |  +- commons-lang:commons-lang:jar:2.6:provided
+[INFO] |  +- commons-configuration:commons-configuration:jar:1.6:provided
+[INFO] |  |  \- commons-beanutils:commons-beanutils-core:jar:1.8.0:provided
+[INFO] |  +- org.slf4j:slf4j-api:jar:1.7.5:compile
+[INFO] |  +- org.slf4j:slf4j-log4j12:jar:1.7.5:compile
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.8.8:compile
+[INFO] |  +- org.codehaus.jackson:jackson-mapper-asl:jar:1.8.8:compile
+[INFO] |  +- org.apache.avro:avro:jar:1.7.6-cdh5.10.0:compile
+[INFO] |  |  \- com.thoughtworks.paranamer:paranamer:jar:2.3:compile
+[INFO] |  +- com.google.protobuf:protobuf-java:jar:2.5.0:provided
+[INFO] |  +- com.google.code.gson:gson:jar:2.2.4:provided
+[INFO] |  +- org.apache.hadoop:hadoop-auth:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.directory.server:apacheds-kerberos-codec:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.server:apacheds-i18n:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.api:api-asn1-api:jar:1.0.0-M20:provided
+[INFO] |  |  |  \- org.apache.directory.api:api-util:jar:1.0.0-M20:provided
+[INFO] |  |  \- org.apache.curator:curator-framework:jar:2.7.1:provided
+[INFO] |  +- com.jcraft:jsch:jar:0.1.42:provided
+[INFO] |  +- org.apache.curator:curator-client:jar:2.7.1:provided
+[INFO] |  +- org.apache.curator:curator-recipes:jar:2.7.1:provided
+[INFO] |  +- com.google.code.findbugs:jsr305:jar:3.0.0:compile
+[INFO] |  +- org.apache.htrace:htrace-core4:jar:4.0.1-incubating:provided
+[INFO] |  +- org.apache.zookeeper:zookeeper:jar:3.4.5-cdh5.10.0:provided
+[INFO] |  \- org.apache.commons:commons-compress:jar:1.4.1:compile
+[INFO] |     \- org.tukaani:xz:jar:1.0:compile
+[INFO] +- com.fasterxml.jackson.core:jackson-databind:jar:2.4.4:compile
+[INFO] |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.4.0:compile
+[INFO] |  \- com.fasterxml.jackson.core:jackson-core:jar:2.4.4:compile
+[INFO] +- org.apache.spark:spark-core_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.avro:avro-mapred:jar:hadoop2:1.7.6-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.avro:avro-ipc:jar:1.7.6-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.avro:avro-ipc:jar:tests:1.7.6-cdh5.10.0:provided
+[INFO] |  +- com.twitter:chill_2.10:jar:0.5.0:provided
+[INFO] |  |  \- com.esotericsoftware.kryo:kryo:jar:2.21:provided
+[INFO] |  |     +- com.esotericsoftware.reflectasm:reflectasm:jar:shaded:1.07:provided
+[INFO] |  |     +- com.esotericsoftware.minlog:minlog:jar:1.2:provided
+[INFO] |  |     \- org.objenesis:objenesis:jar:1.2:provided
+[INFO] |  +- com.twitter:chill-java:jar:0.5.0:provided
+[INFO] |  +- org.apache.xbean:xbean-asm5-shaded:jar:4.4:compile
+[INFO] |  +- org.apache.hadoop:hadoop-client:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hadoop:hadoop-mapreduce-client-app:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hadoop:hadoop-yarn-api:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hadoop:hadoop-mapreduce-client-core:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.hadoop:hadoop-aws:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |     +- com.amazonaws:aws-java-sdk-s3:jar:1.10.6:provided
+[INFO] |  |     |  +- com.amazonaws:aws-java-sdk-kms:jar:1.10.6:provided
+[INFO] |  |     |  \- com.amazonaws:aws-java-sdk-core:jar:1.10.6:provided
+[INFO] |  |     \- com.amazonaws:aws-java-sdk-sts:jar:1.10.6:provided
+[INFO] |  +- org.apache.spark:spark-launcher_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.spark:spark-network-common_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.fusesource.leveldbjni:leveldbjni-all:jar:1.8:provided
+[INFO] |  +- org.apache.spark:spark-network-shuffle_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.spark:spark-unsafe_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  +- org.eclipse.jetty.orbit:javax.servlet:jar:3.0.0.v201112011016:provided
+[INFO] |  +- org.slf4j:jul-to-slf4j:jar:1.7.5:provided
+[INFO] |  +- org.slf4j:jcl-over-slf4j:jar:1.7.5:provided
+[INFO] |  +- com.ning:compress-lzf:jar:1.0.3:provided
+[INFO] |  +- org.xerial.snappy:snappy-java:jar:1.0.4.1:compile
+[INFO] |  +- net.jpountz.lz4:lz4:jar:1.3.0:compile
+[INFO] |  +- org.roaringbitmap:RoaringBitmap:jar:0.5.11:provided
+[INFO] |  +- org.spark-project.akka:akka-remote_2.10:jar:2.2.3-shaded-protobuf:provided
+[INFO] |  |  +- org.spark-project.akka:akka-actor_2.10:jar:2.2.3-shaded-protobuf:provided
+[INFO] |  |  |  \- com.typesafe:config:jar:1.0.2:provided
+[INFO] |  |  +- io.netty:netty:jar:3.6.6.Final:provided
+[INFO] |  |  +- org.spark-project.protobuf:protobuf-java:jar:2.4.1-shaded:provided
+[INFO] |  |  \- org.uncommons.maths:uncommons-maths:jar:1.2.2a:provided
+[INFO] |  +- org.spark-project.akka:akka-slf4j_2.10:jar:2.2.3-shaded-protobuf:provided
+[INFO] |  +- org.json4s:json4s-jackson_2.10:jar:3.2.10:provided
+[INFO] |  |  \- org.json4s:json4s-core_2.10:jar:3.2.10:provided
+[INFO] |  |     +- org.json4s:json4s-ast_2.10:jar:3.2.10:provided
+[INFO] |  |     \- org.scala-lang:scalap:jar:2.10.0:provided
+[INFO] |  |        \- org.scala-lang:scala-compiler:jar:2.10.0:provided
+[INFO] |  +- org.apache.mesos:mesos:jar:shaded-protobuf:0.21.1:provided
+[INFO] |  +- io.netty:netty-all:jar:4.0.29.Final:provided
+[INFO] |  +- com.clearspring.analytics:stream:jar:2.7.0:provided
+[INFO] |  +- io.dropwizard.metrics:metrics-core:jar:3.1.2:provided
+[INFO] |  +- io.dropwizard.metrics:metrics-jvm:jar:3.1.2:provided
+[INFO] |  +- io.dropwizard.metrics:metrics-json:jar:3.1.2:provided
+[INFO] |  +- io.dropwizard.metrics:metrics-graphite:jar:3.1.2:provided
+[INFO] |  +- com.fasterxml.jackson.module:jackson-module-scala_2.10:jar:2.2.3:provided
+[INFO] |  +- org.apache.ivy:ivy:jar:2.4.0:provided
+[INFO] |  +- oro:oro:jar:2.0.8:provided
+[INFO] |  +- org.tachyonproject:tachyon-client:jar:0.8.2:provided
+[INFO] |  |  +- org.tachyonproject:tachyon-underfs-hdfs:jar:0.8.2:provided
+[INFO] |  |  +- org.tachyonproject:tachyon-underfs-s3:jar:0.8.2:provided
+[INFO] |  |  \- org.tachyonproject:tachyon-underfs-local:jar:0.8.2:provided
+[INFO] |  +- net.razorvine:pyrolite:jar:4.9:provided
+[INFO] |  +- net.sf.py4j:py4j:jar:0.9:provided
+[INFO] |  +- com.intel.chimera:chimera:jar:0.9.2:provided
+[INFO] |  \- org.spark-project.spark:unused:jar:1.0.0:compile
+[INFO] +- org.apache.spark:spark-hive_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  +- com.twitter:parquet-hadoop:jar:1.5.0-cdh5.10.0:provided
+[INFO] |  |  +- com.twitter:parquet-format:jar:2.1.0-cdh5.10.0:provided
+[INFO] |  |  \- com.twitter:parquet-jackson:jar:1.5.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hive:hive-cli:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  \- jline:jline:jar:2.12:provided
+[INFO] |  +- org.apache.hive:hive-exec:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  +- org.cloudera.logredactor:logredactor:jar:1.0.3:provided
+[INFO] |  |  +- log4j:apache-log4j-extras:jar:1.2.17:provided
+[INFO] |  |  +- org.antlr:antlr-runtime:jar:3.4:provided
+[INFO] |  |  |  +- org.antlr:stringtemplate:jar:3.2.1:provided
+[INFO] |  |  |  \- antlr:antlr:jar:2.7.7:provided
+[INFO] |  |  +- org.antlr:ST4:jar:4.0.4:provided
+[INFO] |  |  +- stax:stax-api:jar:1.0.1:provided
+[INFO] |  |  \- org.apache.hbase:hbase-common:jar:1.2.0-cdh5.10.0:provided
+[INFO] |  |     +- org.apache.hbase:hbase-protocol:jar:1.2.0-cdh5.10.0:provided
+[INFO] |  |     +- org.apache.hbase:hbase-annotations:jar:1.2.0-cdh5.10.0:provided
+[INFO] |  |     +- org.apache.htrace:htrace-core:jar:3.2.0-incubating:provided
+[INFO] |  |     \- com.github.stephenc.findbugs:findbugs-annotations:jar:1.3.9-1:provided
+[INFO] |  +- org.apache.hive:hive-metastore:jar:1.1.0-cdh5.10.0:provided
+[INFO] |  |  +- com.jolbox:bonecp:jar:0.8.0.RELEASE:provided
+[INFO] |  |  +- org.apache.derby:derby:jar:10.11.1.1:provided
+[INFO] |  |  +- commons-pool:commons-pool:jar:1.5.4:provided
+[INFO] |  |  +- commons-dbcp:commons-dbcp:jar:1.4:provided
+[INFO] |  |  \- javax.jdo:jdo-api:jar:3.0.1:provided
+[INFO] |  |     \- javax.transaction:jta:jar:1.1:provided
+[INFO] |  +- org.apache.calcite:calcite-avatica:jar:1.2.0-incubating:provided
+[INFO] |  +- org.apache.calcite:calcite-core:jar:1.2.0-incubating:provided
+[INFO] |  |  +- org.apache.calcite:calcite-linq4j:jar:1.2.0-incubating:provided
+[INFO] |  |  +- net.hydromatic:eigenbase-properties:jar:1.1.5:provided
+[INFO] |  |  \- org.codehaus.janino:commons-compiler:jar:2.7.6:provided
+[INFO] |  +- org.apache.httpcomponents:httpclient:jar:4.2.5:compile
+[INFO] |  +- joda-time:joda-time:jar:2.9.3:compile
+[INFO] |  +- org.jodd:jodd-core:jar:3.5.2:provided
+[INFO] |  +- org.datanucleus:datanucleus-core:jar:3.2.10:provided
+[INFO] |  +- org.datanucleus:datanucleus-api-jdo:jar:3.2.6:provided
+[INFO] |  +- org.datanucleus:datanucleus-rdbms:jar:3.2.9:provided
+[INFO] |  +- org.apache.thrift:libthrift:jar:0.9.3:provided
+[INFO] |  \- org.apache.thrift:libfb303:jar:0.9.3:provided
+[INFO] +- org.apache.spark:spark-sql_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.spark:spark-catalyst_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.codehaus.janino:janino:jar:2.7.8:provided
+[INFO] |  \- com.twitter:parquet-column:jar:1.5.0-cdh5.10.0:provided
+[INFO] |     +- com.twitter:parquet-common:jar:1.5.0-cdh5.10.0:provided
+[INFO] |     \- com.twitter:parquet-encoding:jar:1.5.0-cdh5.10.0:provided
+[INFO] +- org.apache.spark:spark-streaming-kafka_2.10:jar:1.6.0-cdh5.10.0:compile
+[INFO] |  \- org.apache.kafka:kafka_2.10:jar:0.9.0-kafka-2.0.2:compile
+[INFO] |     +- com.101tec:zkclient:jar:0.7:compile
+[INFO] |     +- org.apache.kafka:kafka-clients:jar:0.9.0-kafka-2.0.2:compile
+[INFO] |     \- com.yammer.metrics:metrics-core:jar:2.2.0:compile
+[INFO] +- org.apache.spark:spark-streaming_2.10:jar:1.6.0-cdh5.10.0:provided
+[INFO] +- com.netaporter:scala-uri_2.10:jar:0.4.16:compile
+[INFO] |  +- org.parboiled:parboiled_2.10:jar:2.1.2:compile
+[INFO] |  |  +- com.chuusai:shapeless_2.10:jar:2.3.0:compile
+[INFO] |  |  |  \- org.typelevel:macro-compat_2.10:jar:1.1.1:compile
+[INFO] |  |  \- org.scalamacros:quasiquotes_2.10:jar:2.1.0:compile
+[INFO] |  \- io.spray:spray-json_2.10:jar:1.3.2:compile
+[INFO] +- com.twitter:algebird-core_2.10:jar:0.10.2:compile
+[INFO] |  \- com.googlecode.javaewah:JavaEWAH:jar:0.6.6:compile
+[INFO] +- junit:junit:jar:4.11:test
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO] +- com.github.scopt:scopt_2.10:jar:3.3.0:compile
+[INFO] +- org.scala-lang:scala-library:jar:2.10.4:provided
+[INFO] +- org.scalatest:scalatest_2.10:jar:2.2.4:test
+[INFO] |  \- org.scala-lang:scala-reflect:jar:2.10.4:compile
+[INFO] +- com.github.nscala-time:nscala-time_2.10:jar:2.0.0:compile
+[INFO] |  \- org.joda:joda-convert:jar:1.2:compile
+[INFO] +- com.databricks:spark-avro_2.10:jar:2.0.1:compile
+[INFO] +- com.databricks:spark-csv_2.10:jar:1.5.0:compile
+[INFO] |  +- org.apache.commons:commons-csv:jar:1.1:compile
+[INFO] |  \- com.univocity:univocity-parsers:jar:1.5.1:compile
+[INFO] +- org.apache.spark:spark-graphx_2.10:jar:1.6.0:compile
+[INFO] |  +- com.github.fommil.netlib:core:jar:1.1.2:compile
+[INFO] |  \- net.sourceforge.f2j:arpack_combined_all:jar:0.1:compile
+[INFO] +- graphframes:graphframes:jar:0.3.0-spark1.6-s_2.10:compile
+[INFO] |  +- com.typesafe.scala-logging:scala-logging-api_2.10:jar:2.1.2:compile
+[INFO] |  \- com.typesafe.scala-logging:scala-logging-slf4j_2.10:jar:2.1.2:compile
+[INFO] \- com.holdenkarau:spark-testing-base_2.10:jar:1.6.0_0.4.7:test
+[INFO]    +- io.github.nicolasstucki:multisets_2.10:jar:0.3:test
+[INFO]    +- org.scalacheck:scalacheck_2.10:jar:1.12.5:test
+[INFO]    |  \- org.scala-sbt:test-interface:jar:1.0:test
+[INFO]    +- org.eclipse.jetty:jetty-util:jar:9.3.11.v20160721:test
+[INFO]    +- org.apache.hadoop:hadoop-hdfs:jar:tests:2.6.4:test
+[INFO]    |  +- commons-daemon:commons-daemon:jar:1.0.13:provided
+[INFO]    |  +- xerces:xercesImpl:jar:2.9.1:provided
+[INFO]    |  \- org.htrace:htrace-core:jar:3.0.4:provided
+[INFO]    +- org.apache.hadoop:hadoop-hdfs:jar:2.6.4:provided
+[INFO]    +- org.apache.hadoop:hadoop-common:jar:tests:2.6.4:test
+[INFO]    +- org.apache.hadoop:hadoop-client:jar:tests:2.6.4:test
+[INFO]    +- org.apache.hadoop:hadoop-mapreduce-client-jobclient:jar:tests:2.6.4:test
+[INFO]    |  +- org.apache.hadoop:hadoop-mapreduce-client-common:jar:2.6.4:provided
+[INFO]    |  |  \- org.apache.hadoop:hadoop-yarn-client:jar:2.6.4:provided
+[INFO]    |  +- org.apache.hadoop:hadoop-mapreduce-client-shuffle:jar:2.6.4:provided
+[INFO]    |  \- com.google.inject.extensions:guice-servlet:jar:3.0:provided
+[INFO]    |     \- com.google.inject:guice:jar:3.0:provided
+[INFO]    |        \- javax.inject:javax.inject:jar:1:provided
+[INFO]    +- org.apache.hadoop:hadoop-mapreduce-client-jobclient:jar:2.6.4:provided
+[INFO]    +- org.apache.hadoop:hadoop-yarn-server-tests:jar:tests:2.6.4:test
+[INFO]    |  +- org.apache.hadoop:hadoop-yarn-server-common:jar:2.6.4:provided
+[INFO]    |  +- org.apache.hadoop:hadoop-yarn-server-nodemanager:jar:2.6.4:provided
+[INFO]    |  |  +- com.sun.jersey:jersey-client:jar:1.9:provided
+[INFO]    |  |  \- com.sun.jersey.contribs:jersey-guice:jar:1.9:provided
+[INFO]    |  +- org.apache.hadoop:hadoop-yarn-server-resourcemanager:jar:2.6.4:test
+[INFO]    |  |  \- org.apache.hadoop:hadoop-yarn-server-applicationhistoryservice:jar:2.6.4:test
+[INFO]    |  \- org.apache.hadoop:hadoop-yarn-common:jar:2.6.4:provided
+[INFO]    +- org.apache.hadoop:hadoop-yarn-server-tests:jar:2.6.4:test
+[INFO]    +- org.apache.hadoop:hadoop-yarn-server-web-proxy:jar:tests:2.6.4:test
+[INFO]    +- org.apache.hadoop:hadoop-yarn-server-web-proxy:jar:2.6.4:test
+[INFO]    \- org.apache.hadoop:hadoop-minicluster:jar:2.6.4:test
+[INFO]       \- org.apache.hadoop:hadoop-mapreduce-client-hs:jar:2.6.4:test
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery Camus 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery-camus ---
+[INFO] org.wikimedia.analytics.refinery.camus:refinery-camus:jar:0.0.46-SNAPSHOT
+[INFO] +- com.linkedin.camus:camus-api:jar:0.1.0-wmf7:compile
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-core:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |  +- org.apache.hadoop:hadoop-yarn-common:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |  |  +- org.apache.hadoop:hadoop-yarn-api:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |  |  +- javax.xml.bind:jaxb-api:jar:2.2.2:compile
+[INFO] |  |  |  |  \- javax.xml.stream:stax-api:jar:1.0-2:compile
+[INFO] |  |  |  +- com.sun.jersey:jersey-client:jar:1.9:compile
+[INFO] |  |  |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.8.8:compile
+[INFO] |  |  |  +- org.codehaus.jackson:jackson-xc:jar:1.8.8:compile
+[INFO] |  |  |  +- com.google.inject:guice:jar:3.0:compile
+[INFO] |  |  |  |  +- javax.inject:javax.inject:jar:1:compile
+[INFO] |  |  |  |  \- aopalliance:aopalliance:jar:1.0:compile
+[INFO] |  |  |  \- com.sun.jersey.contribs:jersey-guice:jar:1.9:compile
+[INFO] |  |  +- com.google.protobuf:protobuf-java:jar:2.5.0:compile
+[INFO] |  |  +- org.slf4j:slf4j-log4j12:jar:1.7.5:compile
+[INFO] |  |  +- org.apache.hadoop:hadoop-annotations:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |  +- com.google.inject.extensions:guice-servlet:jar:3.0:compile
+[INFO] |  |  \- io.netty:netty:jar:3.6.2.Final:compile
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-common:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |  +- org.apache.hadoop:hadoop-yarn-client:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |  \- org.apache.hadoop:hadoop-yarn-server-common:jar:2.6.0-cdh5.4.0:compile
+[INFO] |  |     \- org.fusesource.leveldbjni:leveldbjni-all:jar:1.8:compile
+[INFO] |  +- org.apache.hadoop:hadoop-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.commons:commons-math3:jar:3.1.1:provided
+[INFO] |  |  +- xmlenc:xmlenc:jar:0.52:provided
+[INFO] |  |  +- commons-httpclient:commons-httpclient:jar:3.1:provided
+[INFO] |  |  +- commons-codec:commons-codec:jar:1.4:compile
+[INFO] |  |  +- commons-io:commons-io:jar:2.4:compile
+[INFO] |  |  +- commons-net:commons-net:jar:3.1:provided
+[INFO] |  |  +- commons-collections:commons-collections:jar:3.2.2:compile
+[INFO] |  |  +- javax.servlet:servlet-api:jar:2.5:compile
+[INFO] |  |  +- org.mortbay.jetty:jetty:jar:6.1.26.cloudera.4:compile
+[INFO] |  |  +- org.mortbay.jetty:jetty-util:jar:6.1.26.cloudera.4:compile
+[INFO] |  |  +- com.sun.jersey:jersey-core:jar:1.9:compile
+[INFO] |  |  +- com.sun.jersey:jersey-json:jar:1.9:compile
+[INFO] |  |  |  +- org.codehaus.jettison:jettison:jar:1.1:compile
+[INFO] |  |  |  \- com.sun.xml.bind:jaxb-impl:jar:2.2.3-1:compile
+[INFO] |  |  +- com.sun.jersey:jersey-server:jar:1.9:compile
+[INFO] |  |  |  \- asm:asm:jar:3.1:compile
+[INFO] |  |  +- tomcat:jasper-compiler:jar:5.5.23:provided
+[INFO] |  |  +- tomcat:jasper-runtime:jar:5.5.23:provided
+[INFO] |  |  +- javax.servlet.jsp:jsp-api:jar:2.1:provided
+[INFO] |  |  +- commons-el:commons-el:jar:1.0:provided
+[INFO] |  |  +- commons-logging:commons-logging:jar:1.1.3:compile
+[INFO] |  |  +- net.java.dev.jets3t:jets3t:jar:0.9.0:provided
+[INFO] |  |  |  +- org.apache.httpcomponents:httpclient:jar:4.1.2:provided
+[INFO] |  |  |  +- org.apache.httpcomponents:httpcore:jar:4.1.2:provided
+[INFO] |  |  |  \- com.jamesmurty.utils:java-xmlbuilder:jar:0.4:provided
+[INFO] |  |  +- commons-lang:commons-lang:jar:2.6:compile
+[INFO] |  |  +- commons-configuration:commons-configuration:jar:1.6:provided
+[INFO] |  |  |  +- commons-digester:commons-digester:jar:1.8:provided
+[INFO] |  |  |  |  \- commons-beanutils:commons-beanutils:jar:1.7.0:provided
+[INFO] |  |  |  \- commons-beanutils:commons-beanutils-core:jar:1.8.0:provided
+[INFO] |  |  +- org.apache.hadoop:hadoop-auth:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |  +- org.apache.directory.server:apacheds-kerberos-codec:jar:2.0.0-M15:provided
+[INFO] |  |  |  |  +- org.apache.directory.server:apacheds-i18n:jar:2.0.0-M15:provided
+[INFO] |  |  |  |  +- org.apache.directory.api:api-asn1-api:jar:1.0.0-M20:provided
+[INFO] |  |  |  |  \- org.apache.directory.api:api-util:jar:1.0.0-M20:provided
+[INFO] |  |  |  \- org.apache.curator:curator-framework:jar:2.7.1:provided
+[INFO] |  |  +- com.jcraft:jsch:jar:0.1.42:provided
+[INFO] |  |  +- org.apache.curator:curator-client:jar:2.7.1:provided
+[INFO] |  |  +- org.apache.curator:curator-recipes:jar:2.7.1:provided
+[INFO] |  |  \- org.apache.htrace:htrace-core4:jar:4.0.1-incubating:provided
+[INFO] |  \- org.easymock:easymock:jar:3.3.1:compile
+[INFO] |     +- cglib:cglib:jar:3.1:compile
+[INFO] |     +- org.ow2.asm:asm:jar:5.0.3:compile
+[INFO] |     \- org.objenesis:objenesis:jar:2.1:compile
+[INFO] +- com.linkedin.camus:camus-schema-registry:jar:0.1.0-wmf7:compile
+[INFO] |  \- log4j:log4j:jar:1.2.17:compile
+[INFO] +- com.linkedin.camus:camus-kafka-coders:jar:0.1.0-wmf7:compile
+[INFO] |  +- org.apache.kafka:kafka_2.10:jar:0.8.0:compile
+[INFO] |  |  +- net.sf.jopt-simple:jopt-simple:jar:3.2:compile
+[INFO] |  |  +- com.101tec:zkclient:jar:0.3:compile
+[INFO] |  |  +- com.yammer.metrics:metrics-core:jar:2.2.0:compile
+[INFO] |  |  \- com.yammer.metrics:metrics-annotation:jar:2.2.0:compile
+[INFO] |  +- com.google.code.gson:gson:jar:2.2.4:compile
+[INFO] |  \- joda-time:joda-time:jar:1.6.2:compile
+[INFO] +- com.linkedin.camus:camus-etl-kafka:jar:0.1.0-wmf7:compile
+[INFO] |  +- org.apache.avro:avro-mapred:jar:1.7.7:compile
+[INFO] |  |  +- org.apache.avro:avro-ipc:jar:1.7.7:compile
+[INFO] |  |  |  +- org.apache.velocity:velocity:jar:1.7:compile
+[INFO] |  |  |  \- org.mortbay.jetty:servlet-api:jar:2.5-20081211:compile
+[INFO] |  |  \- org.apache.avro:avro-ipc:jar:tests:1.7.7:compile
+[INFO] |  +- com.github.sgroschupf:zkclient:jar:0.1:compile
+[INFO] |  +- org.apache.zookeeper:zookeeper:jar:3.3.4:compile
+[INFO] |  +- commons-cli:commons-cli:jar:1.2:compile
+[INFO] |  +- com.indeed:java-dogstatsd-client:jar:2.0.8:compile
+[INFO] |  \- javax.mail:mail:jar:1.4.3:compile
+[INFO] |     \- javax.activation:activation:jar:1.1:compile
+[INFO] +- com.google.guava:guava:jar:12.0:compile
+[INFO] |  \- com.google.code.findbugs:jsr305:jar:1.3.9:compile
+[INFO] +- junit:junit:jar:4.11:test
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO] +- org.apache.avro:avro:jar:1.7.7:compile
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.9.13:compile
+[INFO] |  +- org.codehaus.jackson:jackson-mapper-asl:jar:1.9.13:compile
+[INFO] |  +- com.thoughtworks.paranamer:paranamer:jar:2.3:compile
+[INFO] |  +- org.xerial.snappy:snappy-java:jar:1.0.5:compile
+[INFO] |  +- org.apache.commons:commons-compress:jar:1.4.1:compile
+[INFO] |  |  \- org.tukaani:xz:jar:1.0:compile
+[INFO] |  \- org.slf4j:slf4j-api:jar:1.6.4:compile
+[INFO] +- org.scala-lang:scala-library:jar:2.10.4:provided
+[INFO] +- org.scalatest:scalatest_2.10:jar:2.2.4:test
+[INFO] |  \- org.scala-lang:scala-reflect:jar:2.10.4:test
+[INFO] +- com.github.nscala-time:nscala-time_2.10:jar:2.0.0:compile
+[INFO] |  \- org.joda:joda-convert:jar:1.2:compile
+[INFO] \- com.github.scopt:scopt_2.10:jar:3.3.0:compile
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building Wikimedia Analytics Refinery Cassandra 0.0.46-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] --- maven-dependency-plugin:2.8:tree (default-cli) @ refinery-cassandra ---
+[INFO] org.wikimedia.analytics.refinery.cassandra:refinery-cassandra:jar:0.0.46-SNAPSHOT
+[INFO] +- org.apache.hadoop:hadoop-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-annotations:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- commons-cli:commons-cli:jar:1.2:compile
+[INFO] |  +- org.apache.commons:commons-math3:jar:3.1.1:compile
+[INFO] |  +- xmlenc:xmlenc:jar:0.52:provided
+[INFO] |  +- commons-httpclient:commons-httpclient:jar:3.1:provided
+[INFO] |  +- commons-codec:commons-codec:jar:1.4:compile
+[INFO] |  +- commons-io:commons-io:jar:2.4:provided
+[INFO] |  +- commons-net:commons-net:jar:3.1:provided
+[INFO] |  +- commons-collections:commons-collections:jar:3.2.2:provided
+[INFO] |  +- javax.servlet:servlet-api:jar:2.5:provided
+[INFO] |  +- org.mortbay.jetty:jetty:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- org.mortbay.jetty:jetty-util:jar:6.1.26.cloudera.4:provided
+[INFO] |  +- com.sun.jersey:jersey-core:jar:1.9:provided
+[INFO] |  +- com.sun.jersey:jersey-json:jar:1.9:provided
+[INFO] |  |  +- org.codehaus.jettison:jettison:jar:1.1:provided
+[INFO] |  |  +- com.sun.xml.bind:jaxb-impl:jar:2.2.3-1:provided
+[INFO] |  |  |  \- javax.xml.bind:jaxb-api:jar:2.2.2:provided
+[INFO] |  |  |     +- javax.xml.stream:stax-api:jar:1.0-2:provided
+[INFO] |  |  |     \- javax.activation:activation:jar:1.1:provided
+[INFO] |  |  +- org.codehaus.jackson:jackson-jaxrs:jar:1.8.3:provided
+[INFO] |  |  \- org.codehaus.jackson:jackson-xc:jar:1.8.3:provided
+[INFO] |  +- com.sun.jersey:jersey-server:jar:1.9:provided
+[INFO] |  |  \- asm:asm:jar:3.1:provided
+[INFO] |  +- tomcat:jasper-compiler:jar:5.5.23:provided
+[INFO] |  +- tomcat:jasper-runtime:jar:5.5.23:provided
+[INFO] |  +- javax.servlet.jsp:jsp-api:jar:2.1:provided
+[INFO] |  +- commons-el:commons-el:jar:1.0:provided
+[INFO] |  +- commons-logging:commons-logging:jar:1.1.3:provided
+[INFO] |  +- log4j:log4j:jar:1.2.17:provided
+[INFO] |  +- net.java.dev.jets3t:jets3t:jar:0.9.0:provided
+[INFO] |  |  +- org.apache.httpcomponents:httpclient:jar:4.1.2:compile
+[INFO] |  |  +- org.apache.httpcomponents:httpcore:jar:4.1.2:compile
+[INFO] |  |  \- com.jamesmurty.utils:java-xmlbuilder:jar:0.4:provided
+[INFO] |  +- commons-lang:commons-lang:jar:2.6:provided
+[INFO] |  +- commons-configuration:commons-configuration:jar:1.6:provided
+[INFO] |  |  +- commons-digester:commons-digester:jar:1.8:provided
+[INFO] |  |  |  \- commons-beanutils:commons-beanutils:jar:1.7.0:provided
+[INFO] |  |  \- commons-beanutils:commons-beanutils-core:jar:1.8.0:provided
+[INFO] |  +- org.slf4j:slf4j-api:jar:1.7.5:compile
+[INFO] |  +- org.slf4j:slf4j-log4j12:jar:1.7.5:provided
+[INFO] |  +- org.codehaus.jackson:jackson-core-asl:jar:1.8.8:compile
+[INFO] |  +- org.codehaus.jackson:jackson-mapper-asl:jar:1.8.8:compile
+[INFO] |  +- org.apache.avro:avro:jar:1.7.6-cdh5.10.0:provided
+[INFO] |  |  \- com.thoughtworks.paranamer:paranamer:jar:2.3:provided
+[INFO] |  +- com.google.protobuf:protobuf-java:jar:2.5.0:provided
+[INFO] |  +- com.google.code.gson:gson:jar:2.2.4:provided
+[INFO] |  +- org.apache.hadoop:hadoop-auth:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.directory.server:apacheds-kerberos-codec:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.server:apacheds-i18n:jar:2.0.0-M15:provided
+[INFO] |  |  |  +- org.apache.directory.api:api-asn1-api:jar:1.0.0-M20:provided
+[INFO] |  |  |  \- org.apache.directory.api:api-util:jar:1.0.0-M20:provided
+[INFO] |  |  \- org.apache.curator:curator-framework:jar:2.7.1:provided
+[INFO] |  +- com.jcraft:jsch:jar:0.1.42:provided
+[INFO] |  +- org.apache.curator:curator-client:jar:2.7.1:provided
+[INFO] |  +- org.apache.curator:curator-recipes:jar:2.7.1:provided
+[INFO] |  +- com.google.code.findbugs:jsr305:jar:3.0.0:compile
+[INFO] |  +- org.apache.htrace:htrace-core4:jar:4.0.1-incubating:provided
+[INFO] |  +- org.apache.zookeeper:zookeeper:jar:3.4.5-cdh5.10.0:provided
+[INFO] |  \- org.apache.commons:commons-compress:jar:1.4.1:provided
+[INFO] |     \- org.tukaani:xz:jar:1.0:provided
+[INFO] +- org.apache.hadoop:hadoop-client:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-hdfs:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- io.netty:netty:jar:3.10.5.Final:provided
+[INFO] |  |  +- xerces:xercesImpl:jar:2.9.1:provided
+[INFO] |  |  |  \- xml-apis:xml-apis:jar:1.3.04:provided
+[INFO] |  |  \- org.fusesource.leveldbjni:leveldbjni-all:jar:1.8:provided
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-app:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  +- org.apache.hadoop:hadoop-mapreduce-client-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |  +- org.apache.hadoop:hadoop-yarn-client:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  |  \- org.apache.hadoop:hadoop-yarn-server-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.hadoop:hadoop-mapreduce-client-shuffle:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-yarn-api:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-core:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |  \- org.apache.hadoop:hadoop-yarn-common:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  |     \- com.sun.jersey:jersey-client:jar:1.9:provided
+[INFO] |  +- org.apache.hadoop:hadoop-mapreduce-client-jobclient:jar:2.6.0-cdh5.10.0:provided
+[INFO] |  \- org.apache.hadoop:hadoop-aws:jar:2.6.0-cdh5.10.0:provided
+[INFO] |     +- com.amazonaws:aws-java-sdk-s3:jar:1.10.6:provided
+[INFO] |     |  +- com.amazonaws:aws-java-sdk-kms:jar:1.10.6:provided
+[INFO] |     |  \- com.amazonaws:aws-java-sdk-core:jar:1.10.6:provided
+[INFO] |     |     \- com.fasterxml.jackson.core:jackson-databind:jar:2.2.3:provided
+[INFO] |     |        +- com.fasterxml.jackson.core:jackson-annotations:jar:2.2.3:provided
+[INFO] |     |        \- com.fasterxml.jackson.core:jackson-core:jar:2.2.3:provided
+[INFO] |     \- com.amazonaws:aws-java-sdk-sts:jar:1.10.6:provided
+[INFO] +- junit:junit:jar:4.11:test
+[INFO] |  \- org.hamcrest:hamcrest-core:jar:1.3:test
+[INFO] +- com.datastax.cassandra:cassandra-driver-core:jar:2.2.0-rc3:compile
+[INFO] |  +- io.netty:netty-handler:jar:4.0.27.Final:compile
+[INFO] |  |  +- io.netty:netty-buffer:jar:4.0.27.Final:compile
+[INFO] |  |  |  \- io.netty:netty-common:jar:4.0.27.Final:compile
+[INFO] |  |  +- io.netty:netty-transport:jar:4.0.27.Final:compile
+[INFO] |  |  \- io.netty:netty-codec:jar:4.0.27.Final:compile
+[INFO] |  \- com.codahale.metrics:metrics-core:jar:3.0.2:compile
+[INFO] +- org.apache.cassandra:cassandra-all:jar:2.2.6:compile
+[INFO] |  +- org.xerial.snappy:snappy-java:jar:1.1.1.7:compile
+[INFO] |  +- net.jpountz.lz4:lz4:jar:1.3.0:compile
+[INFO] |  +- com.ning:compress-lzf:jar:0.8.4:compile
+[INFO] |  +- com.googlecode.concurrentlinkedhashmap:concurrentlinkedhashmap-lru:jar:1.4:compile
+[INFO] |  +- org.antlr:antlr:jar:3.5.2:compile
+[INFO] |  |  \- org.antlr:ST4:jar:4.0.8:compile
+[INFO] |  +- org.antlr:antlr-runtime:jar:3.5.2:compile
+[INFO] |  +- org.slf4j:log4j-over-slf4j:jar:1.7.7:compile
+[INFO] |  +- org.slf4j:jcl-over-slf4j:jar:1.7.7:compile
+[INFO] |  +- com.googlecode.json-simple:json-simple:jar:1.1.1:compile
+[INFO] |  +- com.boundary:high-scale-lib:jar:1.0.6:compile
+[INFO] |  +- org.yaml:snakeyaml:jar:1.11:compile
+[INFO] |  +- org.mindrot:jbcrypt:jar:0.3m:compile
+[INFO] |  +- io.dropwizard.metrics:metrics-core:jar:3.1.0:compile
+[INFO] |  +- com.addthis.metrics:reporter-config3:jar:3.0.0:compile
+[INFO] |  |  +- com.addthis.metrics:reporter-config-base:jar:3.0.0:compile
+[INFO] |  |  \- org.hibernate:hibernate-validator:jar:4.3.0.Final:compile
+[INFO] |  |     +- javax.validation:validation-api:jar:1.0.0.GA:compile
+[INFO] |  |     \- org.jboss.logging:jboss-logging:jar:3.1.0.CR2:compile
+[INFO] |  +- com.thinkaurelius.thrift:thrift-server:jar:0.3.7:compile
+[INFO] |  |  \- com.lmax:disruptor:jar:3.0.1:compile
+[INFO] |  +- com.clearspring.analytics:stream:jar:2.5.2:compile
+[INFO] |  |  \- it.unimi.dsi:fastutil:jar:6.5.7:compile
+[INFO] |  +- net.sf.supercsv:super-csv:jar:2.1.0:compile
+[INFO] |  +- ch.qos.logback:logback-core:jar:1.1.3:compile
+[INFO] |  +- ch.qos.logback:logback-classic:jar:1.1.3:compile
+[INFO] |  +- org.apache.thrift:libthrift:jar:0.9.2:compile
+[INFO] |  +- org.apache.cassandra:cassandra-thrift:jar:2.2.6:compile
+[INFO] |  +- net.java.dev.jna:jna:jar:4.0.0:compile
+[INFO] |  +- com.github.jbellis:jamm:jar:0.3.0:compile
+[INFO] |  +- com.github.tjake:crc32ex:jar:0.1.1:compile
+[INFO] |  +- io.netty:netty-all:jar:4.0.23.Final:compile
+[INFO] |  +- joda-time:joda-time:jar:2.4:compile
+[INFO] |  +- org.fusesource:sigar:jar:1.6.4:compile
+[INFO] |  +- org.eclipse.jdt.core.compiler:ecj:jar:4.4.2:compile
+[INFO] |  \- org.caffinitas.ohc:ohc-core:jar:0.3.4:compile
+[INFO] +- org.apache.commons:commons-lang3:jar:3.3.2:compile
+[INFO] +- org.mockito:mockito-all:jar:1.10.19:test
+[INFO] \- com.google.guava:guava:jar:12.0:compile
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary:
+[INFO] 
+[INFO] Wikimedia Analytics Refinery ....................... SUCCESS [  0.690 s]
+[INFO] Wikimedia Analytics Refinery Core .................. SUCCESS [  0.524 s]
+[INFO] Wikimedia Analytics Refinery Tools ................. SUCCESS [  0.711 s]
+[INFO] Wikimedia Analytics Refinery Hive .................. SUCCESS [  0.524 s]
+[INFO] Wikimedia Analytics Refinery Jobs .................. SUCCESS [  7.997 s]
+[INFO] Wikimedia Analytics Refinery Camus ................. SUCCESS [  0.116 s]
+[INFO] Wikimedia Analytics Refinery Cassandra ............. SUCCESS [  0.099 s]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 11.095 s
+[INFO] Finished at: 2017-05-29T12:14:19-07:00
+[INFO] Final Memory: 40M/86M
+[INFO] ------------------------------------------------------------------------
