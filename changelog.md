@@ -1,3 +1,7 @@
+## v0.0.47
+
+* Update tests and their dependencies to make them work on Mac and for any user.
+
 ## v0.0.46
 
 * Add small cache to avoid repeating normalization in Webrequest.normalizeHost
