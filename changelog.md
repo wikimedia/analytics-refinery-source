@@ -1,3 +1,7 @@
+## v0.0.48
+* Removed unused and deprecated ClientIpUDF. See also https://phabricator.wikimedia.org/T118557
+* Mark Legacy Pageview code as deprecated.
+
 ## v0.0.47
 
 * Update tests and their dependencies to make them work on Mac and for any user.

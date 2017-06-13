@@ -21,6 +21,8 @@ import org.wikimedia.analytics.refinery.core.LegacyPageviewDefinition;
 
 
 /**
+ * Deprecated - use IsPageviewUDF
+ *
  * A Hive UDF to identify what requests constitute "pageviews",
  * according to the definition at
  * https://github.com/wikimedia/analytics-refinery/blob/master/oozie/pagecounts-all-sites/load/insert_hourly_pagecounts.hql
@@ -51,6 +53,7 @@ import org.wikimedia.analytics.refinery.core.LegacyPageviewDefinition;
  *   LIMIT 10
  *   ;
  */
+@Deprecated
 public class IsLegacyPageviewUDF extends UDF {
     public boolean evaluate(
         String ip,

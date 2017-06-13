@@ -19,6 +19,8 @@ import java.util.HashSet;
 import java.util.Arrays;
 
 /**
+ * Deprecated - Use PageviewDefinition.
+ *
  * Functions to identify what requests constitute "pageviews",
  * according to the definition at
  * https://github.com/wikimedia/analytics-refinery/blob/master/oozie/pagecounts-all-sites/load/insert_hourly_pagecounts.hql
@@ -27,6 +29,7 @@ import java.util.Arrays;
  * from 2007 to early 2015, and is to be superseded by the "Pageview" class
  * and isPageview method.
  */
+@Deprecated
 public class LegacyPageviewDefinition {
 
     /*
