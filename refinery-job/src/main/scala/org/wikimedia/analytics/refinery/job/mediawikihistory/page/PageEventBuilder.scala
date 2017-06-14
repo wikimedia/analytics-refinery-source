@@ -1,5 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
+
 /**
   * This object contains utility functions to parse page data
   * from the logging table.
@@ -9,6 +10,8 @@ object PageEventBuilder extends Serializable {
 
   import org.apache.spark.sql.Row
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
+  import java.sql.Timestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
 
   /**
     * Page title normalization (trims whitespaces and swaps spaces for underscore)
@@ -68,12 +71,16 @@ object PageEventBuilder extends Serializable {
       isContentNamespaceMap: Map[(String, Int), Boolean]
   )(log: Row): PageEvent = {
     val logType = log.getString(0)
-    val logTimestamp = log.getString(1)
+    val logTimestampUnchecked = TimestampFormats.makeMediawikiTimestamp(log.getString(1))
     val logUser = if (log.isNullAt(2)) None else Some(log.getLong(2))
     val logTitle = log.getString(3)
     val logParams = log.getString(4)
     val logNamespace = if (log.isNullAt(5)) Integer.MIN_VALUE else log.getInt(5)
     val wikiDb = log.getString(6)
+
+    // Handle timestamp possible error
+    val logTimestamp = logTimestampUnchecked.getOrElse(new Timestamp(0L))
+    val timestampError = if (logTimestampUnchecked.isEmpty) Seq("Could not parse timestamp") else Seq.empty[String]
 
     // Get old and new titles
     if (logTitle == null || logParams == null)
@@ -89,7 +96,7 @@ object PageEventBuilder extends Serializable {
         oldNamespaceIsContent = false,
         newNamespace = Integer.MIN_VALUE,
         newNamespaceIsContent = false,
-        parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
+        parsingErrors = timestampError ++ Seq("Could not parse old and new titles from null logTitle or logParams")
       )
     else {
       val (oldTitle, newTitle) = getOldAndNewTitles(logTitle, logParams)
@@ -121,7 +128,8 @@ object PageEventBuilder extends Serializable {
           newNamespaceIsContent = isContentNamespaceMap((wikiDb, newNamespace)),
           timestamp = logTimestamp,
           eventType = logType,
-          causedByUserId = logUser
+          causedByUserId = logUser,
+          parsingErrors = timestampError
       )
     }
   }
@@ -140,9 +148,19 @@ object PageEventBuilder extends Serializable {
     */
   def buildSimplePageEvent(isContentNamespaceMap: Map[(String, Int), Boolean])(log: Row): PageEvent = {
     val wikiDb = log.getString(5)
+
+    // Handle possible title error
     val title = log.getString(1)
+    val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
+
     val namespace = if (log.isNullAt(2)) Integer.MIN_VALUE else log.getInt(2)
     val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
+    val logTimestampUnchecked = TimestampFormats.makeMediawikiTimestamp(log.getString(3))
+
+    // Handle possible timestamp error
+    val logTimestamp = logTimestampUnchecked.getOrElse(new Timestamp(0L))
+    val timestampError = if (logTimestampUnchecked.isEmpty) Seq("Could not parse timestamp") else Seq.empty[String]
+
     new PageEvent(
       pageId = if (log.isNullAt(0)) None else Some(log.getLong(0)),
       oldTitle = title,
@@ -154,11 +172,11 @@ object PageEventBuilder extends Serializable {
       oldNamespaceIsContent = namespaceIsContent,
       newNamespace = namespace,
       newNamespaceIsContent = namespaceIsContent,
-      timestamp = log.getString(3),
+      timestamp = logTimestamp,
       eventType = log.getString(6),
       causedByUserId = if (log.isNullAt(4)) None else Some(log.getLong(4)),
       wikiDb = wikiDb,
-      parsingErrors = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
+      parsingErrors = titleError ++ timestampError
     )
   }
 

@@ -1,12 +1,15 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
+import java.sql.Timestamp
+
+import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers
 import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers._
 
 object TestPageHistoryHelpers {
 
   def pageEventSet(
     wikiDb: Option[String] = Some("testwiki"),
-    timestamp: Option[String] = None,
+    timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
     causedByUserId: Option[Long] = Some(0L),
     pageId: Option[Long] = None,
@@ -28,7 +31,7 @@ object TestPageHistoryHelpers {
       val valueMap = headers.zip(values).map { case (h, v) =>
         h match {
           case "wiki" | "db" | "wikiDb" => ("wikiDb" -> string(v))
-          case "time" | "timestamp" => ("timestamp" -> string(v))
+          case "time" | "timestamp" => ("timestamp" -> TestHelpers.timestamp(v))
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "id" | "pageId" => ("pageId" -> long(v))
@@ -44,7 +47,7 @@ object TestPageHistoryHelpers {
       }.toMap
       new PageEvent(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
-        timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[String],
+        timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
@@ -62,8 +65,8 @@ object TestPageHistoryHelpers {
 
   def pageStateSet(
     wikiDb: Option[String] = Some("testwiki"),
-    startTimestamp: Option[String] = None,
-    endTimestamp: Option[String] = None,
+    startTimestamp: Option[Timestamp] = None,
+    endTimestamp: Option[Timestamp] = None,
     causedByEventType: Option[String] = Some("test"),
     causedByUserId: Option[Long] = Some(0L),
     pageId: Option[Long] = Some(1L),
@@ -74,7 +77,7 @@ object TestPageHistoryHelpers {
     namespaceIsContent: Option[Boolean] = Some(true),
     namespaceLatest: Option[Int] = None,
     namespaceIsContentLatest: Option[Boolean] = None,
-    pageCreationTimestamp: Option[String] = None,
+    pageCreationTimestamp: Option[Timestamp] = None,
     inferredFrom: Option[String] = None
   )(
     headerLine: String,
@@ -86,8 +89,8 @@ object TestPageHistoryHelpers {
       val valueMap = headers.zip(values).map { case (h, v) =>
         h match {
           case "wiki" | "db" | "wikiDb" => ("wikiDb" -> string(v))
-          case "start" | "startTimestamp" => ("startTimestamp" -> string(v))
-          case "end" | "endTimestamp" => ("endTimestamp" -> string(v))
+          case "start" | "startTimestamp" => ("startTimestamp" -> timestamp(v))
+          case "end" | "endTimestamp" => ("endTimestamp" -> timestamp(v))
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "id" | "pageId" => ("pageId" -> long(v))
@@ -98,7 +101,7 @@ object TestPageHistoryHelpers {
           case "nsIC" | "namespaceIsContent" => ("namespaceIsContent" -> boolean(v))
           case "nsL" | "namespaceLatest" => ("namespaceLatest" -> int(v))
           case "nsLIC" | "namespaceLatestIsContent" => ("namespaceLatestIsContent" -> boolean(v))
-          case "creation" | "pageCreationTimestamp" => ("pageCreationTimestamp" -> string(v))
+          case "creation" | "pageCreationTimestamp" => ("pageCreationTimestamp" -> timestamp(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
         }
       }.toMap
@@ -107,8 +110,8 @@ object TestPageHistoryHelpers {
       val namespaceIsContentVal = valueMap.getOrElse("namespaceIsContent", namespaceIsContent).get.asInstanceOf[Boolean]
       new PageState(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
-        startTimestamp = valueMap.getOrElse("startTimestamp", startTimestamp).asInstanceOf[Option[String]],
-        endTimestamp = valueMap.getOrElse("endTimestamp", endTimestamp).asInstanceOf[Option[String]],
+        startTimestamp = valueMap.getOrElse("startTimestamp", startTimestamp).asInstanceOf[Option[Timestamp]],
+        endTimestamp = valueMap.getOrElse("endTimestamp", endTimestamp).asInstanceOf[Option[Timestamp]],
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
@@ -119,7 +122,7 @@ object TestPageHistoryHelpers {
         namespaceIsContent = namespaceIsContentVal,
         namespaceLatest = valueMap.getOrElse("namespaceLatest", Some(namespaceLatest.getOrElse(namespaceVal))).get.asInstanceOf[Int],
         namespaceIsContentLatest = valueMap.getOrElse("namespaceIsContentLatest", Some(namespaceIsContentLatest.getOrElse(namespaceIsContentVal))).get.asInstanceOf[Boolean],
-        pageCreationTimestamp = valueMap.getOrElse("pageCreationTimestamp", pageCreationTimestamp).asInstanceOf[Option[String]],
+        pageCreationTimestamp = valueMap.getOrElse("pageCreationTimestamp", pageCreationTimestamp).asInstanceOf[Option[Timestamp]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]]
       )
     }

@@ -1,9 +1,11 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import java.sql.Timestamp
+
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TimeBoundaries
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Vertex
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{TimestampFormats, Vertex}
 
 /**
   * This case class represents a user state object, by opposition
@@ -15,8 +17,8 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Vertex
 case class UserState(
                       // Generic Fields
                       wikiDb: String,
-                      startTimestamp: Option[String] = None,
-                      endTimestamp: Option[String] = None,
+                      startTimestamp: Option[Timestamp] = None,
+                      endTimestamp: Option[Timestamp] = None,
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
                       // Specific fields
@@ -27,7 +29,7 @@ case class UserState(
                       userGroupsLatest: Seq[String] = Seq.empty[String],
                       userBlocks: Seq[String] = Seq.empty[String],
                       userBlocksLatest: Seq[String] = Seq.empty[String],
-                      userRegistrationTimestamp: Option[String] = None,
+                      userRegistrationTimestamp: Option[Timestamp] = None,
                       createdBySelf: Boolean = false,
                       createdBySystem: Boolean = false,
                       createdByPeer: Boolean = false,
@@ -46,14 +48,17 @@ case class UserState(
       userGroupsLatest,
       userBlocks,
       userBlocksLatest,
-      userRegistrationTimestamp.orNull,
+      userRegistrationTimestamp.map(_.toString).orNull,
+      //userRegistrationTimestamp.orNull,
       createdBySelf,
       createdBySystem,
       createdByPeer,
       anonymous,
       botByName,
-      startTimestamp.orNull,
-      endTimestamp.orNull,
+      startTimestamp.map(_.toString).orNull,
+      //startTimestamp.orNull,
+      endTimestamp.map(_.toString).orNull,
+      //endTimestamp.orNull,
       causedByEventType,
       causedByUserId.orNull,
       causedByBlockExpiration.orNull,
@@ -83,14 +88,17 @@ object UserState {
       userGroupsLatest = row.getSeq(5),
       userBlocks = row.getSeq(6),
       userBlocksLatest = row.getSeq(7),
-      userRegistrationTimestamp = Option(row.getString(8)),
+      userRegistrationTimestamp = if (row.isNullAt(8)) None else Some(Timestamp.valueOf(row.getString(8))),
+      //userRegistrationTimestamp = if (row.isNullAt(8)) None else Some(row.getTimestamp(8)),
       createdBySelf = row.getBoolean(9),
       createdBySystem = row.getBoolean(10),
       createdByPeer = row.getBoolean(11),
       anonymous = row.getBoolean(12),
       botByName = row.getBoolean(13),
-      startTimestamp = Option(row.getString(14)),
-      endTimestamp = Option(row.getString(15)),
+      startTimestamp = if (row.isNullAt(14)) None else Some(Timestamp.valueOf(row.getString(14))),
+      //startTimestamp = if (row.isNullAt(14)) None else Some(row.getTimestamp(14)),
+      endTimestamp = if (row.isNullAt(15)) None else Some(Timestamp.valueOf(row.getString(15))),
+      //endTimestamp = if (row.isNullAt(15)) None else Some(row.getTimestamp(15)),
       causedByEventType = row.getString(16),
       causedByUserId = if (row.isNullAt(17)) None else Some(row.getLong(17)),
       causedByBlockExpiration = Option(row.getString(18)),
@@ -108,13 +116,16 @@ object UserState {
       StructField("user_blocks", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_blocks_latest", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_registration_timestamp", StringType, nullable = true),
+      //StructField("user_registration_timestamp", TimestampType, nullable = true),
       StructField("created_by_self", BooleanType, nullable = false),
       StructField("created_by_system", BooleanType, nullable = false),
       StructField("created_by_peer", BooleanType, nullable = false),
       StructField("anonymous", BooleanType, nullable = false),
       StructField("is_bot_by_name", BooleanType, nullable = false),
       StructField("start_timestamp", StringType, nullable = true),
+      //StructField("start_timestamp", TimestampType, nullable = true),
       StructField("end_timestamp", StringType, nullable = true),
+      //StructField("end_timestamp", TimestampType, nullable = true),
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
       StructField("caused_by_block_expiration", StringType, nullable = true),

@@ -1,34 +1,43 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import java.sql.Timestamp
+
 import org.scalatest.{Matchers, FlatSpec}
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
 class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
+  // Reusable fake timestamps
+  val t0 = Some(new Timestamp(0L))
+  val t1 = Some(new Timestamp(1L))
+  val t2 = Some(new Timestamp(2L))
+  val t3 = Some(new Timestamp(3L))
+  val t4 = Some(new Timestamp(4L))
 
   /**
     * Tests for compareHistAndStateKeys function
     */
 
   "compareHistAndStateKeys" should "return -1 if first is smaller than second" in {
+
     val histKeys: Seq[MediawikiEventKey] =
-      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, "-1"), None, Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), None, None),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki2", 1L, "-1"), Some("01"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("01"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("02"), Some(1L)))
+      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, -1), None, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 1L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t2, Some(1L)))
 
     val stateKeys: Seq[StateKey] =
-      Seq(StateKey(PartitionKey("wiki1", -1L, "-1"), Some("02"), Some("02")),
-        StateKey(PartitionKey("wiki1", 2L, "-1"), None, None),
-        StateKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some("03")),
-        StateKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some("03")),
-        StateKey(PartitionKey("wiki3", 1L, "-1"), Some("01"), None),
-        StateKey(PartitionKey("wiki2", 3L, "-1"), Some("01"), None),
-        StateKey(PartitionKey("wiki2", 2L, "-1"), Some("03"), None))
+      Seq(StateKey(PartitionKey("wiki1", -1L, -1), t2, t2),
+        StateKey(PartitionKey("wiki1", 2L, -1), None, None),
+        StateKey(PartitionKey("wiki1", 1L, -1), t2, t3),
+        StateKey(PartitionKey("wiki1", 1L, -1), t2, t3),
+        StateKey(PartitionKey("wiki3", 1L, -1), t1, None),
+        StateKey(PartitionKey("wiki2", 3L, -1), t1, None),
+        StateKey(PartitionKey("wiki2", 2L, -1), t3, None))
 
     histKeys.zip(stateKeys).foreach {
       case (hk, sk) =>
@@ -38,19 +47,19 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "return 1 if first is bigger than second" in {
     val histKeys: Seq[MediawikiEventKey] = Seq(
-      MediawikiEventKey(PartitionKey("wiki1", 2L, "-1"), None, None),
-      MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), None),
-      MediawikiEventKey(PartitionKey("wiki3", 1L, "-1"), Some("01"), Some(1L)),
-      MediawikiEventKey(PartitionKey("wiki2", 3L, "-1"), Some("01"), Some(1L)),
-      MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("03"), Some(1L))
+      MediawikiEventKey(PartitionKey("wiki1", 2L, -1), None, None),
+      MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, None),
+      MediawikiEventKey(PartitionKey("wiki3", 1L, -1), t1, Some(1L)),
+      MediawikiEventKey(PartitionKey("wiki2", 3L, -1), t1, Some(1L)),
+      MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t3, Some(1L))
     )
 
     val stateKeys: Seq[StateKey] = Seq(
-      StateKey(PartitionKey("wiki1", 1L, "-1"), None, None),
-      StateKey(PartitionKey("wiki1", 1L, "-1"), None, Some("01")),
-      StateKey(PartitionKey("wiki2", 1L, "-1"), Some("01"), None),
-      StateKey(PartitionKey("wiki2", 2L, "-1"), Some("01"), None),
-      StateKey(PartitionKey("wiki2", 2L, "-1"), Some("02"), Some("02"))
+      StateKey(PartitionKey("wiki1", 1L, -1), None, None),
+      StateKey(PartitionKey("wiki1", 1L, -1), None, t1),
+      StateKey(PartitionKey("wiki2", 1L, -1), t1, None),
+      StateKey(PartitionKey("wiki2", 2L, -1), t1, None),
+      StateKey(PartitionKey("wiki2", 2L, -1), t2, t2)
     )
 
     histKeys.zip(stateKeys).foreach {
@@ -62,15 +71,15 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
   it should "return 0 if first is enclosed in second" in {
     val histKeys: Seq[MediawikiEventKey] =
       Seq(
-        MediawikiEventKey(PartitionKey("wiki1", -1L, "-1"), Some("02"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki1", 2L, "-1"), Some("01"), None),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None))
+        MediawikiEventKey(PartitionKey("wiki1", -1L, -1), t2, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki1", 2L, -1), t1, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None))
 
     val stateKeys: Seq[StateKey] =
       Seq(
-        StateKey(PartitionKey("wiki1", -1L, "-1"), Some("02"), Some("03")),
-        StateKey(PartitionKey("wiki1", 2L, "-1"), None, None),
-        StateKey(PartitionKey("wiki1", 1L, "-1"), None, Some("03")))
+        StateKey(PartitionKey("wiki1", -1L, -1), t2, t3),
+        StateKey(PartitionKey("wiki1", 2L, -1), None, None),
+        StateKey(PartitionKey("wiki1", 1L, -1), None, t3))
 
     histKeys.zip(stateKeys).foreach {
       case (hk, sk) =>
@@ -86,24 +95,24 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   "leftOuterZip" should "group ME Events and states by key equality" in {
     val mwKeys =
-      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, "-1"), None, Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), None, None),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some(2L)),
-        MediawikiEventKey(PartitionKey("wiki2", 1L, "-1"), Some("01"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("01"), Some(1L)),
-        MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("04"), Some(2L)))
+      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, -1), None, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, Some(2L)),
+        MediawikiEventKey(PartitionKey("wiki2", 1L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t4, Some(2L)))
         .map(k => (k, "")).iterator
 
     val stateKeys =
-      Seq(StateKey(PartitionKey("wiki1", -1L, "-1"), Some("02"), Some("02")),
-        StateKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some("03")),
-        StateKey(PartitionKey("wiki1", 1L, "-1"), Some("03"), Some("04")),
-        StateKey(PartitionKey("wiki1", 2L, "-1"), None, None),
-        StateKey(PartitionKey("wiki1", 3L, "-1"), None, None),
-        StateKey(PartitionKey("wiki2", 2L, "-1"), Some("01"), Some("03")),
-        StateKey(PartitionKey("wiki2", 2L, "-1"), Some("03"), None),
-        StateKey(PartitionKey("wiki3", 1L, "-1"), Some("01"), None))
+      Seq(StateKey(PartitionKey("wiki1", -1L, -1), t2, t2),
+        StateKey(PartitionKey("wiki1", 1L, -1), t2, t3),
+        StateKey(PartitionKey("wiki1", 1L, -1), t3, t4),
+        StateKey(PartitionKey("wiki1", 2L, -1), None, None),
+        StateKey(PartitionKey("wiki1", 3L, -1), None, None),
+        StateKey(PartitionKey("wiki2", 2L, -1), t1, t3),
+        StateKey(PartitionKey("wiki2", 2L, -1), t3, None),
+        StateKey(PartitionKey("wiki3", 1L, -1), t1, None))
         .map(k => (k, "")).iterator
 
     val zipper = DenormalizedKeysHelper
@@ -114,15 +123,15 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
     val result = zipper.toVector
 
     val expectedResult = Seq(
-      (MediawikiEventKey(PartitionKey("wiki1", -1L, "-1"), None, Some(1L)), None),
+      (MediawikiEventKey(PartitionKey("wiki1", -1L, -1), None, Some(1L)), None),
 
-      (MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), None, None), None),
-      (MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), Some(1L)), None),
-      (MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some(2L)), Some(StateKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some("03")))),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None), None),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, Some(1L)), None),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, Some(2L)), Some(StateKey(PartitionKey("wiki1", 1L, -1), t2, t3))),
 
-      (MediawikiEventKey(PartitionKey("wiki2", 1L, "-1"), Some("01"), Some(1L)), None),
-      (MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("01"), Some(1L)), Some(StateKey(PartitionKey("wiki2", 2L, "-1"), Some("01"), Some("03")))),
-      (MediawikiEventKey(PartitionKey("wiki2", 2L, "-1"), Some("04"), Some(2L)), Some(StateKey(PartitionKey("wiki2", 2L, "-1"), Some("03"), None)))
+      (MediawikiEventKey(PartitionKey("wiki2", 1L, -1), t1, Some(1L)), None),
+      (MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t1, Some(1L)), Some(StateKey(PartitionKey("wiki2", 2L, -1), t1, t3))),
+      (MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t4, Some(2L)), Some(StateKey(PartitionKey("wiki2", 2L, -1), t3, None)))
     )
 
     result should contain theSameElementsInOrderAs expectedResult
@@ -150,9 +159,9 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   "iterateSortedMwEventsAndStates" should "not update MW Event having user or page ids undefined" in {
     val mwKeys: Seq[MediawikiEventKey] =
-      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, "-1"), Some("01"), None),
-        MediawikiEventKey(PartitionKey("wiki1", -1L, "-1"), Some("02"), None),
-        MediawikiEventKey(PartitionKey("wiki1", 0L, "-1"), Some("03"), None))
+      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, -1), t1, None),
+        MediawikiEventKey(PartitionKey("wiki1", -1L, -1), t2, None),
+        MediawikiEventKey(PartitionKey("wiki1", 0L, -1), t3, None))
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(
       mwKeys.map(k => (k, emptyMwEvent)).iterator,
@@ -166,7 +175,7 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "not update MW Event if no state is available in state iterator" in {
     val histKeys: Seq[MediawikiEventKey] =
-      Seq(MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None))
+      Seq(MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None))
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(
       histKeys.map(k => (k, emptyMwEvent)).iterator,
@@ -181,13 +190,13 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "drop states smaller than worked MW Event" in {
     val histKeys: Seq[MediawikiEventKey] =
-      Seq(MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), None))
+      Seq(MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, None))
 
     val stateKeys: Seq[StateKey] = Seq(
-      StateKey(PartitionKey("wiki1", 0L, "-1"), Some("01"), Some("01")),
-      StateKey(PartitionKey("wiki1", 1L, "-1"), None, Some("00")),
-      StateKey(PartitionKey("wiki1", 1L, "-1"), Some("00"), Some("00"))
+      StateKey(PartitionKey("wiki1", 0L, -1), t1, t1),
+      StateKey(PartitionKey("wiki1", 1L, -1), None, t0),
+      StateKey(PartitionKey("wiki1", 1L, -1), t0, t0)
     )
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(
@@ -206,11 +215,11 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "not update MW Event smaller than worked state" in {
     val histKeys: Seq[MediawikiEventKey] =
-      Seq(MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None),
-        MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), None))
+      Seq(MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, None))
 
     val stateKeys: Seq[StateKey] = Seq(
-      StateKey(PartitionKey("wiki1", 2L, "-1"), Some("01"), Some("01"))
+      StateKey(PartitionKey("wiki1", 2L, -1), t1, t1)
     )
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(
@@ -226,14 +235,14 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "update MW Event with empty timestamp overlapping worked state being first in its partition" in {
     val keysAndHistories: Seq[(MediawikiEventKey, MediawikiEvent)] = Seq(
-      (MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), None, None),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None),
         emptyMwEvent)
     )
 
     val keysAndStates: Seq[(StateKey, UserState)] = Seq(
-      (StateKey(PartitionKey("wiki1", 0L, "-1"), Some("01"), Some("01")), fakeUserState(-1L)),
-      (StateKey(PartitionKey("wiki1", 1L, "-1"), None, Some("01")), fakeUserState(userId = 101L)),
-      (StateKey(PartitionKey("wiki1", 1L, "-1"), Some("02"), Some("02")), fakeUserState(-1L))
+      (StateKey(PartitionKey("wiki1", 0L, -1), t1, t1), fakeUserState(-1L)),
+      (StateKey(PartitionKey("wiki1", 1L, -1), None, t1), fakeUserState(userId = 101L)),
+      (StateKey(PartitionKey("wiki1", 1L, -1), t2, t2), fakeUserState(-1L))
     )
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(
@@ -250,14 +259,14 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "update MW Event with some timestamp overlapping worked state with no start and end being alone in its partition" in {
     val keysAndHistories: Seq[(MediawikiEventKey, MediawikiEvent)] = Seq(
-      (MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None),
         emptyMwEvent)
     )
 
     val keysAndStates: Seq[(StateKey, UserState)] = Seq(
-      (StateKey(PartitionKey("wiki1", 0L, "-1"), Some("01"), Some("01")), fakeUserState(-1L)),
-      (StateKey(PartitionKey("wiki1", 1L, "-1"), None, None), fakeUserState(101L)),
-      (StateKey(PartitionKey("wiki1", 2L, "-1"), Some("02"), Some("02")), fakeUserState(-1L))
+      (StateKey(PartitionKey("wiki1", 0L, -1), t1, t1), fakeUserState(-1L)),
+      (StateKey(PartitionKey("wiki1", 1L, -1), None, None), fakeUserState(101L)),
+      (StateKey(PartitionKey("wiki1", 2L, -1), t2, t2), fakeUserState(-1L))
     )
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(
@@ -273,15 +282,15 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
 
   it should "update MW Event with some timestamp overlapping worked state with start and/or end" in {
     val keysAndHistories: Seq[(MediawikiEventKey, MediawikiEvent)] = Seq(
-      (MediawikiEventKey(PartitionKey("wiki1", 1L, "-1"), Some("01"), None), emptyMwEvent),
-      (MediawikiEventKey(PartitionKey("wiki1", 2L, "-1"), Some("01"), None), emptyMwEvent),
-      (MediawikiEventKey(PartitionKey("wiki1", 3L, "-1"), Some("02"), None), emptyMwEvent)
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, None), emptyMwEvent),
+      (MediawikiEventKey(PartitionKey("wiki1", 2L, -1), t1, None), emptyMwEvent),
+      (MediawikiEventKey(PartitionKey("wiki1", 3L, -1), t2, None), emptyMwEvent)
     )
 
     val keysAndStates: Seq[(StateKey, UserState)] = Seq(
-      (StateKey(PartitionKey("wiki1", 1L, "-1"), None, Some("02")), fakeUserState(userId = 101L)),
-      (StateKey(PartitionKey("wiki1", 2L, "-1"), Some("01"), None), fakeUserState(userId = 102L)),
-      (StateKey(PartitionKey("wiki1", 3L, "-1"), Some("01"), Some("03")), fakeUserState(userId = 103L))
+      (StateKey(PartitionKey("wiki1", 1L, -1), None, t2), fakeUserState(userId = 101L)),
+      (StateKey(PartitionKey("wiki1", 2L, -1), t1, None), fakeUserState(userId = 102L)),
+      (StateKey(PartitionKey("wiki1", 3L, -1), t1, t3), fakeUserState(userId = 103L))
     )
 
     val result = iterateSortedMwEventsAndStates(MediawikiEvent.updateWithUserState, "testState")(

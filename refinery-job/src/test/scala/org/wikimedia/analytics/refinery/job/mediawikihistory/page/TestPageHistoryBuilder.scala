@@ -1,11 +1,15 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
+import java.sql.Timestamp
+
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 
 class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   import org.apache.spark.sql.SQLContext
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
+  // Implicit needed to sort by timestamps
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
 
   var pageHistoryBuilder = null.asInstanceOf[PageHistoryBuilder]
 
@@ -19,7 +23,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
    */
   def process(e: Iterable[PageEvent], s: Iterable[PageState]): Seq[Seq[PageState]] = {
     pageHistoryBuilder.processSubgraph(e, s)._1.groupBy(_.pageId).toSeq.sortBy(_._1).map{
-      case (pageId, pageStates) => pageStates.sortBy(_.startTimestamp.getOrElse("-1"))
+      case (pageId, pageStates) => pageStates.sortBy(_.startTimestamp.getOrElse(new Timestamp(0L)))
     }
   }
 
@@ -149,7 +153,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "Title3  1   01        create     40"
     )
     val expectedResults = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some("01")
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   titleL  eventType  adminId",
       "01     02    Title1  Title3  create     40",
@@ -199,14 +203,14 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "1   Title1  3   01"
     )
     val expectedResults1 = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some("01")
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   ns  title   titleL  eventType",
       "01     02    0   Title1  Title2  create",
       "02     None  0   Title2  Title2  move"
     )
     val expectedResults2 = pageStateSet(
-      pageId = Some(2L), pageCreationTimestamp = Some("01")
+      pageId = Some(2L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   ns  title   titleL  eventType",
       "01     03    1   Title1  Title2  create",
@@ -215,7 +219,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResults3 = pageStateSet(
       // Note modified startTimestamp and pageCreationTimestamp plus
       // no admin id because of oldTitle conflict with first event.
-      pageId = Some(3L), pageCreationTimestamp = Some("02")
+      pageId = Some(3L), pageCreationTimestamp = Some(new Timestamp(2L))
     )(
       "start  end   ns  nsL  title   eventType  adminId  inferred",
       "02     04    0   1    Title1  create     None     move-conflict",
@@ -241,14 +245,14 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResultsArtificial = pageStateSet(
       pageId = None,
       pageIdArtificial = processedStates.head.head.pageIdArtificial,
-      pageCreationTimestamp = Some("02")
+      pageCreationTimestamp = Some(new Timestamp(2L))
     )(
       "start  end   title   eventType  adminId  inferred",
       "02     03    TitleA  create     None     move-conflict",
       "03     None  TitleA  delete     0        None"
     )
     val expectedResults1 = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some("01")
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   titleL  eventType",
       "01     02    TitleA  TitleA  create",
@@ -275,7 +279,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResultsArtificial = pageStateSet(
       pageId = Some(1),
       pageIdArtificial = processedStates.head.head.pageIdArtificial,
-      pageCreationTimestamp = Some("01")
+      pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   eventType",
       "01     02    TitleA  create",
@@ -317,14 +321,14 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResultsArtificial = pageStateSet(
       pageId = None,
       pageIdArtificial = processedStates.head.head.pageIdArtificial,
-      pageCreationTimestamp = Some("03")
+      pageCreationTimestamp = Some(new Timestamp(3L))
     )(
       "start  end   title   eventType  adminId  inferred",
       "03     04    TitleB  create     None     move-conflict",
       "04     None  TitleB  delete     0        None"
     )
     val expectedResults1 = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some("01")
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   titleL  eventType",
       "01     02    TitleA  TitleC  create",
@@ -363,7 +367,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     )
     val processedStates = process(events, states)
     val expectedResults1 = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some("01")
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   titleL  eventType",
       "01     02    TitleA  TitleC  create",
@@ -371,7 +375,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "03     None  TitleC  TitleC  move"
     )
     val expectedResults4 = pageStateSet(
-      pageId = Some(4L), pageCreationTimestamp = Some("01")
+      pageId = Some(4L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   titleL  eventType",
       "01     04    TitleB  TitleX  create",
@@ -409,7 +413,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResultsX = pageStateSet(
       pageId = None,
       pageIdArtificial = processedStates.head.head.pageIdArtificial,
-      pageCreationTimestamp = Some("03")
+      pageCreationTimestamp = Some(new Timestamp(3L))
     )(
       "start  end   title   titleL  eventType  adminId  inferred",
       "03     05    TitleX  TitleA  create      None    move-conflict",
@@ -418,7 +422,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     )
 
     val expectedResults1 = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some("01")
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
       "start  end   title   titleL  eventType",
       "01     02    TitleA  TitleA  create",

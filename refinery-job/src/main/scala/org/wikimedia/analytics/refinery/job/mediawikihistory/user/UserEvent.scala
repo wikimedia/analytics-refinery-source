@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import java.sql.Timestamp
+
 import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Edge
 
 
@@ -12,7 +14,7 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Edge
 case class UserEvent(
                       // Generic Fields
                       wikiDb: String,
-                      timestamp: String,
+                      timestamp: Timestamp,
                       eventType: String,
                       causedByUserId: Option[Long],
                       parsingErrors: Seq[String] = Seq.empty[String],
