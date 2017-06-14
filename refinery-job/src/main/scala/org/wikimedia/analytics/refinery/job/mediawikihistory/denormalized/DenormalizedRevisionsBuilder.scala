@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+
 /**
   * This file defines the functions for revisions-enrichment.
   *
@@ -22,7 +24,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
   import java.sql.Timestamp
   // Implicit needed to sort by timestamps
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
   import scala.annotation.tailrec
 
@@ -168,6 +170,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
       }
   }
 
+
   /**
     * Generate a RDD of reverts-lists by (page, year, revert-base) to be partitioned-sorted
     * and then zipped with revisions RDD through [[updateRevisionAndReverts]].
@@ -219,19 +222,6 @@ object DenormalizedRevisionsBuilder extends Serializable {
   }
 
   /**
-    * Returns the number of seconds elapsed between the revision's creation and
-    * its revert.
-  **/
-
-  def getTimestampDifference(
-                              revertTimestamp: Option[Timestamp],
-                              revisionTimestamp: Option[Timestamp]
-                            ): Option[Long] = (revertTimestamp, revisionTimestamp) match {
-    case (Some(t1), Some(t2)) => Option((t1.getTime - t2.getTime) / 1000)
-    case _ => None
-  }
-
-  /**
     * Update revision revert information using the reverts ordered list created in
     * [[updateRevisionWithOptionalRevertsList]] (part of innerState) and updating
     * it as needed (not to be mixed up with the result of [[prepareRevertsLists]]).
@@ -257,14 +247,14 @@ object DenormalizedRevisionsBuilder extends Serializable {
         // Worked revision is reverting and also reverted as part of a different wider revert
         val revertingTimestamp = reverts.head._1._1
         val revertingRevisionId = reverts.head._1._2
-        val revisionTimeToRevert = getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+        val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
         revision.isIdentityRevert.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
       }
     } else {
       // Worked revision is reverted
       val revertingTimestamp = reverts.head._1._1
       val revertingRevisionId = reverts.head._1._2
-      val revisionTimeToRevert = getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+      val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
       revision.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
     }
   }
@@ -361,23 +351,47 @@ object DenormalizedRevisionsBuilder extends Serializable {
     val revisionsWithDiff = populateByteDiff(revisions)
     log.info(s"Revisions with text bytes diff: ${revisionsWithDiff.count()}")
 
+    val userMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
+      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
+      MediawikiEvent.updateWithOptionalUserPrevious
+    ) _
+
+    val pageMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
+      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
+      MediawikiEvent.updateWithOptionalPagePrevious
+    ) _
+
+    log.info(s"Populating revisions per-user metrics")
+    val revisionsWithDiffAndPerUserMetrics: RDD[MediawikiEvent] = revisionsWithDiff
+      .keyBy(r => DenormalizedKeysHelper.userMediawikiEventKeyNoYear(r))
+      .repartitionAndSortWithinPartitions(historyPartitioner)
+      .mapPartitions(userMetricsMapperWithPrevious)
+    log.info(s"Revisions with text bytes diff and per-user metrics: ${revisionsWithDiffAndPerUserMetrics.count()}")
+
+    log.info(s"Populating revisions per-page metrics")
+    val revisionsWithDiffAndPerUserAndPageMetrics: RDD[MediawikiEvent] = revisionsWithDiffAndPerUserMetrics
+      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r))
+      .repartitionAndSortWithinPartitions(historyPartitioner)
+      .mapPartitions(pageMetricsMapperWithPrevious)
+    log.info(s"Revisions with text bytes diff, per-user and per-page metrics: ${revisionsWithDiffAndPerUserAndPageMetrics.count()}")
+
     // Compute reverts info
     log.info(s"Populating revert info for denormalized revisions")
-    val revertsLists = prepareRevertsLists(revisionsWithDiff)
+    val revertsLists = prepareRevertsLists(revisionsWithDiffAndPerUserAndPageMetrics)
       .repartitionAndSortWithinPartitions(historyPartitioner)
     val zipper = DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventKeys,
       updateRevisionWithOptionalRevertsList(new RevertsListsState)) _
-    val revisionsWithDiffAndRevert = revisionsWithDiff
+    val revisionsWithDiffAndPerUserAndPageMetricsAndRevert = revisionsWithDiffAndPerUserAndPageMetrics
       .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
       .repartitionAndSortWithinPartitions(historyPartitioner)
       .zipPartitions(revertsLists)(
         (keysAndRevisions, keysAndRevertsLists) => zipper(keysAndRevisions, keysAndRevertsLists)
       )
-    log.info(s"Revisions with text bytes diff and revert info: ${revisionsWithDiffAndRevert.count()}")
+    log.info(s"Revisions with text bytes diff, per-user and per-page metrics, and revert info: ${revisionsWithDiffAndPerUserAndPageMetricsAndRevert.count()}")
 
     log.info(s"Denormalized revisions jobs done")
-    revisionsWithDiffAndRevert
+    revisionsWithDiffAndPerUserAndPageMetricsAndRevert
   }
 
 }

@@ -308,5 +308,44 @@ class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
     result(2).eventUserDetails.userId should equal(Some(103L))
   }
 
+  /**
+    * Tests for mapWithPrevious function
+    */
+
+  "mapWithPrevious" should "map ME Events with their previous by partition-key equality" in {
+    val mwKeys =
+      Seq(MediawikiEventKey(PartitionKey("wiki1", -1L, -1), None, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, Some(2L)),
+        MediawikiEventKey(PartitionKey("wiki2", 1L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t1, Some(1L)),
+        MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t4, Some(2L)))
+        .map(k => (k, "")).iterator
+
+    val zipper = DenormalizedKeysHelper
+      .mapWithPreviouslyComputed[MediawikiEventKey, String, (MediawikiEventKey, Option[MediawikiEventKey])](
+      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
+      (mwe, pmwe) => (mwe._1, pmwe.map(_._1)))(mwKeys)
+
+    val result = zipper.toVector
+
+    val expectedResult = Seq(
+      (MediawikiEventKey(PartitionKey("wiki1", -1L, -1), None, Some(1L)), None),
+
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None), None),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, Some(1L)), Some(MediawikiEventKey(PartitionKey("wiki1", 1L, -1), None, None))),
+      (MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t2, Some(2L)), Some(MediawikiEventKey(PartitionKey("wiki1", 1L, -1), t1, Some(1L)))),
+
+      (MediawikiEventKey(PartitionKey("wiki2", 1L, -1), t1, Some(1L)), None),
+
+      (MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t1, Some(1L)), None),
+      (MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t4, Some(2L)), Some(MediawikiEventKey(PartitionKey("wiki2", 2L, -1), t1, Some(1L))))
+    )
+
+    result should contain theSameElementsInOrderAs expectedResult
+
+  }
+
 
 }

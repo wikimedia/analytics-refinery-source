@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
-import org.apache.spark.sql.SQLContext
+
 
 /**
   * Entry point for the Mediawiki History spark job(s).
@@ -44,11 +44,14 @@ object MediawikiHistoryRunner {
 
   import org.apache.log4j.{Level, Logger}
   import org.apache.spark.{SparkConf, SparkContext}
+  import org.apache.spark.sql.SQLContext
   import scopt.OptionParser
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageHistoryRunner
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserHistoryRunner
   import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.DenormalizedRunner
-
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized._
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.{PageEvent, PageState}
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.{UserEvent, UserState}
   /**
     * Case class handling job parameters
     */
@@ -88,7 +91,7 @@ object MediawikiHistoryRunner {
       p.copy(wikiConstraint = x.split(",").map(_.toLowerCase))
     } validate { x =>
       val dbs = x.split(",").map(_.toLowerCase)
-      if (dbs.filter(db => db.isEmpty || (! db.contains("wik"))).length > 0)
+      if (dbs.exists(db => db.isEmpty || (! db.contains("wik"))))
         failure("Invalid wikis list")
       else
         success
@@ -176,7 +179,24 @@ object MediawikiHistoryRunner {
 
 
         // Spark setup
-        val conf = new SparkConf().setAppName(s"MediawikiHistoryRunner-${params.snapshot.getOrElse("NoSnapshot")}")
+        val conf = new SparkConf()
+          .setAppName(s"MediawikiHistoryRunner-${params.snapshot.getOrElse("NoSnapshot")}")
+          .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+          .registerKryoClasses(Array(
+            // Keys
+            classOf[PartitionKey],
+            classOf[StateKey],
+            classOf[MediawikiEventKey],
+            // MediawikiEvent
+            classOf[MediawikiEventPageDetails],
+            classOf[MediawikiEventUserDetails],
+            classOf[MediawikiEventRevisionDetails],
+            classOf[MediawikiEvent],
+            // Page and user Event and State
+            classOf[PageEvent],
+            classOf[PageState],
+            classOf[UserEvent],
+            classOf[UserState]))
         val sqlContext = new SQLContext(new SparkContext(conf))
         sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
         sqlContext.sparkContext.setCheckpointDir(tmpPath)

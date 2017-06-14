@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 import java.sql.Timestamp
 
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 class TestUserEventBuilder extends FlatSpec with Matchers {
 
@@ -297,7 +297,7 @@ nocreate"""))
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp =  TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp =  TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "rename",
       causedByUserId = Some(12345L),
       oldUserName = "OldUserName",
@@ -321,7 +321,7 @@ sysop,flood""",
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "altergroups",
       causedByUserId = Some(12345L),
       oldUserName = "UserName",
@@ -345,7 +345,7 @@ nocreate,noemail""",
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
       oldUserName = "UserName",
@@ -370,7 +370,7 @@ nocreate,noemail""",
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "create",
       causedByUserId = Some(12345L),
       oldUserName = "UserName",
@@ -395,7 +395,7 @@ nocreate,noemail""",
 
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "create",
       causedByUserId = Some(12345L),
       oldUserName = "UserName",
@@ -420,7 +420,7 @@ nocreate,noemail""",
 
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "create",
       causedByUserId = Some(12345L),
       oldUserName = "UserName",
@@ -444,7 +444,7 @@ nocreate,noemail""",
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
       oldUserName = "UserName",
@@ -470,7 +470,7 @@ nocreate,noemail""",
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20160101000000").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
       oldUserName = null,

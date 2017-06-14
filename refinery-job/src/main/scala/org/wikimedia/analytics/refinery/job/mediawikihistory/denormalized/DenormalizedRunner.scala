@@ -28,7 +28,7 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
   import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.MediawikiEvent
   import java.sql.Timestamp
   // Implicit needed to sort by timestamps
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)

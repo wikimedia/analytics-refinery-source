@@ -1,7 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
-
 /**
   * This object contains utility functions to parse user data
   * from the logging table.
@@ -13,6 +11,7 @@ object UserEventBuilder extends Serializable {
   import org.joda.time.DateTime
   import java.sql.Timestamp
   import org.joda.time.format.DateTimeFormat
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
 
   val userRenamePattern = """^[^\[]*\[\[[^:]*:([^|]*)\|.*\]\][^\[]*\[\[[^:]*:(.*)\|.*$""".r
@@ -256,7 +255,7 @@ object UserEventBuilder extends Serializable {
     val logType = log.getString(0)
     val logAction = log.getString(1)
     val logTimestampString = log.getString(2)
-    val logTimestampUnchecked = TimestampFormats.makeMediawikiTimestamp(logTimestampString)
+    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
     val logUser = if (log.isNullAt(3)) None else Some(log.getLong(3))
     val logTitle = log.getString(4)
     val logComment = log.getString(5)

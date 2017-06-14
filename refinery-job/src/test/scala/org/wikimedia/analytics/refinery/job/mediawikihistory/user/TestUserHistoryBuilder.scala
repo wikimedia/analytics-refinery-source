@@ -3,14 +3,14 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 import java.sql.Timestamp
 
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   import org.apache.spark.sql.SQLContext
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.TestUserHistoryHelpers._
   // Implicit needed to sort by timestamps
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
 
   var userHistoryBuilder = null.asInstanceOf[UserHistoryBuilder]
@@ -229,7 +229,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   20010101000001   (flood)"
     )
     val expectedResults = userStateSet(
-      userName = Some("User"), userId = Some(1L), userRegistration = TimestampFormats.makeMediawikiTimestamp("20010101000001")
+      userName = Some("User"), userId = Some(1L), userRegistration = TimestampHelpers.makeMediawikiTimestamp("20010101000001")
     )(
       "    start                end         groups   groupsL  blocks      blocksL  expiration      eventType    adminId  inferred",
       "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       0        None",

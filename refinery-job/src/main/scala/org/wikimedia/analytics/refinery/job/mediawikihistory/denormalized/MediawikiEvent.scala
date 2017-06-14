@@ -7,7 +7,7 @@ import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEventBuilder
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 /**
   * This file defines case classes for denormalized ME Events objects.
@@ -26,7 +26,10 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
                                      pageNamespaceLatest: Option[Int] = None,
                                      pageNamespaceIsContentLatest: Option[Boolean] = None,
                                      pageIsRedirectLatest: Option[Boolean] = None,
-                                     pageCreationTimestamp: Option[Timestamp] = None)
+                                     pageCreationTimestamp: Option[Timestamp] = None,
+                                     pageRevisionCount: Option[Long] = None,
+                                     pageSecondsFromPreviousRevision: Option[Long] = None
+                                    )
 
 case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                      userText: Option[String] = None,
@@ -40,7 +43,11 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                      userIsCreatedByPeer: Option[Boolean] = None,
                                      userIsAnonymous: Option[Boolean] = None,
                                      userIsBotByName: Option[Boolean] = None,
-                                     userCreationTimestamp: Option[Timestamp] = None)
+                                     userCreationTimestamp: Option[Timestamp] = None,
+                                     // Next two fields are used in event_user
+                                     userRevisionCount: Option[Long] = None,
+                                     userSecondsFromPreviousRevision: Option[Long] = None
+                                    )
 
 case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revParentId: Option[Long] = None,
@@ -55,7 +62,8 @@ case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revIsIdentityReverted: Option[Boolean] = None,
                                          revFirstIdentityRevertingRevisionId: Option[Long] = None,
                                          revSecondsToIdentityRevert: Option[Long] = None,
-                                         revIsIdentityRevert: Option[Boolean] = None)
+                                         revIsIdentityRevert: Option[Boolean] = None
+                                        )
 
 case class MediawikiEvent(
                            wikiDb: String,
@@ -90,6 +98,9 @@ case class MediawikiEvent(
     eventUserDetails.userIsBotByName.orNull,
     eventUserDetails.userCreationTimestamp.map(_.toString).orNull,
     //eventUserDetails.userCreationTimestamp.orNull,
+    eventUserDetails.userRevisionCount.orNull,
+    eventUserDetails.userSecondsFromPreviousRevision.orNull,
+
     pageDetails.pageId.orNull,
     pageDetails.pageTitle.orNull,
     pageDetails.pageTitleLatest.orNull,
@@ -100,6 +111,9 @@ case class MediawikiEvent(
     pageDetails.pageIsRedirectLatest.orNull,
     pageDetails.pageCreationTimestamp.map(_.toString).orNull,
     //pageDetails.pageCreationTimestamp.orNull,
+    pageDetails.pageRevisionCount.orNull,
+    pageDetails.pageSecondsFromPreviousRevision.orNull,
+
     userDetails.userId.orNull,
     userDetails.userText.orNull,
     userDetails.userTextLatest.orNull,
@@ -114,6 +128,7 @@ case class MediawikiEvent(
     userDetails.userIsBotByName.orNull,
     userDetails.userCreationTimestamp.map(_.toString).orNull,
     //userDetails.userCreationTimestamp.orNull,
+
     revisionDetails.revId.orNull,
     revisionDetails.revParentId.orNull,
     revisionDetails.revMinorEdit.orNull,
@@ -142,6 +157,18 @@ case class MediawikiEvent(
     revIsIdentityReverted = Some(true),
     revFirstIdentityRevertingRevisionId = revertingRevisionId,
     revSecondsToIdentityRevert = revTimeToRevert))
+  def updateWithUserPreviousRevision(userPreviousRevision: Option[MediawikiEvent]) = this.copy(
+    eventUserDetails = this.eventUserDetails.copy(
+      userRevisionCount = Some(userPreviousRevision.map(_.eventUserDetails.userRevisionCount.getOrElse(0L)).getOrElse(0L) + 1),
+      userSecondsFromPreviousRevision =
+        TimestampHelpers.getTimestampDifference(this.eventTimestamp, userPreviousRevision.map(_.eventTimestamp).getOrElse(None))
+    ))
+  def updateWithPagePreviousRevision(pagePreviousRevision: Option[MediawikiEvent]) = this.copy(
+    pageDetails = this.pageDetails.copy(
+      pageRevisionCount = Some(pagePreviousRevision.map(_.pageDetails.pageRevisionCount.getOrElse(0L)).getOrElse(0L) + 1),
+      pageSecondsFromPreviousRevision =
+        TimestampHelpers.getTimestampDifference(this.eventTimestamp, pagePreviousRevision.map(_.eventTimestamp).getOrElse(None))
+    ))
   def updateEventUserDetails(userState: UserState) = this.copy(
     eventUserDetails = this.eventUserDetails.copy(
       userId = Some(userState.userId),
@@ -196,6 +223,9 @@ object MediawikiEvent {
       StructField("event_user_is_bot_by_name", BooleanType, nullable = false),
       StructField("event_user_creation_timestamp", StringType, nullable = true),
       //StructField("event_user_creation_timestamp", TimestampType, nullable = true),
+      StructField("event_user_revision_count", LongType, nullable = true),
+      StructField("event_user_seconds_from_previous_revision", LongType, nullable = true),
+
       StructField("page_id", LongType, nullable = true),
       StructField("page_title", StringType, nullable = true),
       StructField("page_title_latest", StringType, nullable = true),
@@ -206,6 +236,9 @@ object MediawikiEvent {
       StructField("page_is_redirect_latest", BooleanType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
       //StructField("page_creation_timestamp", TimestampType, nullable = true),
+      StructField("page_revision_count", LongType, nullable = true),
+      StructField("page_seconds_from_previous_revision", LongType, nullable = true),
+
       StructField("user_id", LongType, nullable = true),
       StructField("user_text", StringType, nullable = true),
       StructField("user_text_latest", StringType, nullable = true),
@@ -259,7 +292,7 @@ object MediawikiEvent {
     wikiDb = row.getString(0),
     eventEntity = "revision",
     eventType = "create",
-    eventTimestamp = TimestampFormats.makeMediawikiTimestamp(row.getString(1)),
+    eventTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
     eventComment = Option(row.getString(2)),
     eventUserDetails = new MediawikiEventUserDetails(
       // TODO: When userId = 0, it does make no sense to store eventUserTextLatest.
@@ -328,7 +361,7 @@ object MediawikiEvent {
     wikiDb = row.getString(0),
     eventEntity = "revision",
     eventType = "create",
-    eventTimestamp = TimestampFormats.makeMediawikiTimestamp(row.getString(1)),
+    eventTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
     eventComment = Option(row.getString(2)),
     eventUserDetails = new MediawikiEventUserDetails(
       // TODO: When userId = 0, it does make no sense to store eventUserTextLatest.
@@ -466,12 +499,18 @@ object MediawikiEvent {
     )
   )
 
+
   /**
     * Object functions out of methods for passing them as parameters
     */
+
   def updateWithUserState(mwEvent: MediawikiEvent, userState: UserState) = mwEvent.updateEventUserDetails(userState)
   def updateWithPageState(mwEvent: MediawikiEvent, pageState: PageState) = mwEvent.updatePageDetails(pageState)
 
+  def updateWithOptionalUserPreviousRevision(mwEvent: MediawikiEvent, optionalUserPreviousRevision: Option[MediawikiEvent]) =
+    mwEvent.updateWithUserPreviousRevision(optionalUserPreviousRevision)
+  def updateWithOptionalPagePreviousRevision(mwEvent: MediawikiEvent, optionalPagePreviousRevision: Option[MediawikiEvent]) =
+    mwEvent.updateWithPagePreviousRevision(optionalPagePreviousRevision)
 
   /**
     * Filters a key-and-MW-Event and optional key-and-state to update
@@ -507,11 +546,31 @@ object MediawikiEvent {
     }
   }
 
+  def updateWithOptionalPrevious(
+                                  updateWithOptionalPreviousInner: (MediawikiEvent, Option[MediawikiEvent]) => MediawikiEvent
+                                )(
+                                  keyAndMwEvent: (MediawikiEventKey, MediawikiEvent),
+                                  previousKeyAndMwEvent: Option[(MediawikiEventKey, MediawikiEvent)]
+                                ): MediawikiEvent = {
+    val (mwKey, mwEvent) = keyAndMwEvent
+    if (mwKey.partitionKey.id <= 0L) {
+      // negative or 0 ids are fake (used to shuffle among workers)  -- Don't update
+      mwEvent
+    } else {
+      updateWithOptionalPreviousInner(mwEvent, previousKeyAndMwEvent.map(_._2))
+    }
+  }
+
+
   /**
     * Predefine user and page optional update functions
     */
+
   def updateWithOptionalUser = updateWithOptionalState[UserState](updateWithUserState, "userState") _
   def updateWithOptionalPage = updateWithOptionalState[PageState](updateWithPageState, "pageState") _
+
+  def updateWithOptionalUserPrevious = updateWithOptionalPrevious(updateWithOptionalUserPreviousRevision) _
+  def updateWithOptionalPagePrevious = updateWithOptionalPrevious(updateWithOptionalPagePreviousRevision) _
 
 
 }

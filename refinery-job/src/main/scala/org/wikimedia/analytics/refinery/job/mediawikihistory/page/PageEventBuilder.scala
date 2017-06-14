@@ -1,6 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-
 /**
   * This object contains utility functions to parse page data
   * from the logging table.
@@ -11,7 +10,7 @@ object PageEventBuilder extends Serializable {
   import org.apache.spark.sql.Row
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
   import java.sql.Timestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
   /**
     * Page title normalization (trims whitespaces and swaps spaces for underscore)
@@ -71,7 +70,7 @@ object PageEventBuilder extends Serializable {
       isContentNamespaceMap: Map[(String, Int), Boolean]
   )(log: Row): PageEvent = {
     val logType = log.getString(0)
-    val logTimestampUnchecked = TimestampFormats.makeMediawikiTimestamp(log.getString(1))
+    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(1))
     val logUser = if (log.isNullAt(2)) None else Some(log.getLong(2))
     val logTitle = log.getString(3)
     val logParams = log.getString(4)
@@ -155,7 +154,7 @@ object PageEventBuilder extends Serializable {
 
     val namespace = if (log.isNullAt(2)) Integer.MIN_VALUE else log.getInt(2)
     val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
-    val logTimestampUnchecked = TimestampFormats.makeMediawikiTimestamp(log.getString(3))
+    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
 
     // Handle possible timestamp error
     val logTimestamp = logTimestampUnchecked.getOrElse(new Timestamp(0L))

@@ -4,7 +4,7 @@ import java.sql.Timestamp
 
 import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers
 import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers._
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 object TestUserHistoryHelpers {
 
@@ -61,22 +61,22 @@ object TestUserHistoryHelpers {
   }
 
   def userStateSet(
-    wikiDb: Option[String] = Some("testwiki"),
-    startTimestamp: Option[Timestamp] = None,
-    endTimestamp: Option[Timestamp] = None,
-    causedByEventType: Option[String] = Some(null),
-    causedByUserId: Option[Long] = Some(0L),
-    userId: Option[Long] = Some(1L),
-    userName: Option[String] = Some("User"),
-    userNameLatest: Option[String] = None,
-    userGroups: Option[Seq[String]] = Some(Seq.empty),
-    userGroupsLatest: Option[Seq[String]] = Some(Seq.empty),
-    userBlocks: Option[Seq[String]] = Some(Seq.empty),
-    userBlocksLatest: Option[Seq[String]] = Some(Seq.empty),
-    userRegistration: Option[Timestamp] = TimestampFormats.makeMediawikiTimestamp("20010115000000"),
-    autoCreate: Option[Boolean] = Some(false),
-    causedByBlockExpiration: Option[String] = None,
-    inferredFrom: Option[String] = None
+                    wikiDb: Option[String] = Some("testwiki"),
+                    startTimestamp: Option[Timestamp] = None,
+                    endTimestamp: Option[Timestamp] = None,
+                    causedByEventType: Option[String] = Some(null),
+                    causedByUserId: Option[Long] = Some(0L),
+                    userId: Option[Long] = Some(1L),
+                    userName: Option[String] = Some("User"),
+                    userNameLatest: Option[String] = None,
+                    userGroups: Option[Seq[String]] = Some(Seq.empty),
+                    userGroupsLatest: Option[Seq[String]] = Some(Seq.empty),
+                    userBlocks: Option[Seq[String]] = Some(Seq.empty),
+                    userBlocksLatest: Option[Seq[String]] = Some(Seq.empty),
+                    userRegistration: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestamp("20010115000000"),
+                    autoCreate: Option[Boolean] = Some(false),
+                    causedByBlockExpiration: Option[String] = None,
+                    inferredFrom: Option[String] = None
   )(
     headerLine: String,
     stateLines: String*

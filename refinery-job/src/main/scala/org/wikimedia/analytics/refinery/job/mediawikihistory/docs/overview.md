@@ -105,6 +105,13 @@ doesn't store the timestamp of deletion. We therefore extract it from, in order:
  is the first (parent_rev_id = 0), we use the original text length value, and we use null in case
  of a valid parent_rev_id but no join was made (incomplete data).
 
+* Per-user and per-page revision metrics: cumulative revision count per user and per page,
+ and seconds from previous revision per user and per page. This involves two stages, one for
+ per-user and the other for per-page, with similar process. First, group by user/page and sort
+ each group by timestamp (see the secondary sorting trick section), and then apply a mapping
+ function that provides its previous item (if any) to the currently worked one in order to
+ compute cumulative count and distance.
+
 * Revert information (reverted, reverting, and dates) - We extract reverts lists by grouping the revisions
  by page id and sha1 and sorting them by timestamp. The first revision of each of those group is
  what we call the revert-base (first revision to have a specific sha1 in time), and the following ones
