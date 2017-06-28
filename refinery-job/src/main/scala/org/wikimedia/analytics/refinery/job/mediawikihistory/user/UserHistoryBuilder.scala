@@ -2,7 +2,6 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 
 import org.apache.spark.sql.SQLContext
-import org.joda.time.DateTimeZone
 
 
 /**
@@ -20,8 +19,9 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
   import org.joda.time.DateTime
+  import org.joda.time.DateTimeZone
   import java.sql.Timestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner
 
 
@@ -309,7 +309,7 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
           // the currently worked state, update currently worked state with
           // userBlocks and add a new state for the unblock. reset userBlocks
           // and expiration to undefined for the next state in fold.
-          val effectiveExpirationTimestamp = TimestampFormats.makeMediawikiTimestamp(effectiveExpiration.orNull)
+          val effectiveExpirationTimestamp = TimestampHelpers.makeMediawikiTimestamp(effectiveExpiration.orNull)
           if (effectiveExpirationTimestamp.isDefined &&
               effectiveExpirationTimestamp.get.before(presentTimestamp) &&
               (state.endTimestamp.isEmpty ||

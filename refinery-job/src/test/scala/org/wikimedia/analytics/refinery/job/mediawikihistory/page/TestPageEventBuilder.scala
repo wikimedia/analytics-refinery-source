@@ -4,7 +4,7 @@ import java.sql.Timestamp
 
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 class TestPageEventBuilder extends FlatSpec with Matchers {
 
@@ -98,7 +98,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 0,
       newNamespaceIsContent = true,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = eventType,
       causedByUserId = Some(220966L)
     )
@@ -126,7 +126,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 1,
       newNamespaceIsContent = false,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = eventType,
       causedByUserId = Some(220966L)
     )
@@ -154,7 +154,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = false,
       newNamespace = 1,
       newNamespaceIsContent = false,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = eventType,
       causedByUserId = Some(220966L)
     )
@@ -174,7 +174,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       wikiDb))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = eventType,
       oldTitle = "",
       newTitle = "",
@@ -202,7 +202,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       wikiDb))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = eventType,
       oldTitle = "",
       newTitle = "",
@@ -240,7 +240,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 0,
       newNamespaceIsContent = true,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = "test",
       causedByUserId = Some(220966L)
     )
@@ -270,7 +270,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 0,
       newNamespaceIsContent = true,
-      timestamp = TimestampFormats.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
       eventType = "test",
       causedByUserId = Some(220966L),
       parsingErrors = Seq("Could not get title from null logTitle")

@@ -159,6 +159,11 @@ object DenormalizedKeysHelper extends Serializable {
     else -math.abs(toHash.hashCode())
   }
 
+
+  /**************************************************************
+    * User helpers
+    */
+
   /**
     * Generate a list of user-centered [[StateKey]] for
     * a given [[UserState]], having the same values except
@@ -196,14 +201,36 @@ object DenormalizedKeysHelper extends Serializable {
     * given MW event using a fake value in place of user id
     * if invalid (see [[idOrHashNegative]]).
     *
+    * Year value of the [[PartitionKey]] can be -1
+    * if the useYear parameter is false (default true).
+    *
+    * @param mwEvent The MW Event to generate key for
+    * @param useYear Flag for using MW Event year (true) or
+    *                -1 (false) in [[PartitionKey]]
+    * @return The MW Event key
+    */
+  def userMediawikiEventKey(mwEvent: MediawikiEvent, useYear: Boolean = true): MediawikiEventKey = {
+    val userId: Long = idOrHashNegative(mwEvent.eventUserDetails.userId, mwEvent)
+    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, userId, if (useYear) year(mwEvent.eventTimestamp, 0) else -1),
+      mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
+  }
+
+  /**
+    * Generate a user-centered [[MediawikiEventKey]] for a
+    * given MW Event with -1 as year using a fake
+    * value in place of user id if invalid (see [[idOrHashNegative]]).
+    *
     * @param mwEvent The MW Event to generate key for
     * @return The MW Event key
     */
-  def userMediawikiEventKey(mwEvent: MediawikiEvent): MediawikiEventKey = {
-    val userId: Long = idOrHashNegative(mwEvent.eventUserDetails.userId, mwEvent)
-    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, userId, year(mwEvent.eventTimestamp, 0)),
-      mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
+  def userMediawikiEventKeyNoYear(mwEvent: MediawikiEvent): MediawikiEventKey = {
+    userMediawikiEventKey(mwEvent, useYear = false)
   }
+
+
+  /**************************************************************
+    * Page helpers
+    */
 
   /**
     * Generate a list of page-centered [[StateKey]] for
@@ -269,6 +296,10 @@ object DenormalizedKeysHelper extends Serializable {
   }
 
 
+  /**************************************************************
+    * Revision helpers
+    */
+
   /**
     * Generate a revision-centered [[MediawikiEventKey]] for a
     * given MW Event with -1 as year using a fake
@@ -283,6 +314,10 @@ object DenormalizedKeysHelper extends Serializable {
       mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
   }
 
+
+  /**************************************************************
+    * Generic helpers
+    */
 
   /**
     * Compare a [[MediawikiEventKey]] with a [[StateKey]] by
@@ -308,9 +343,54 @@ object DenormalizedKeysHelper extends Serializable {
   }
 
   /**
-    * Object-function from method for passing it as parameter
+    * Fully compare two MediawikiEventKeys
     */
   def compareMediawikiEventKeys(key1: MediawikiEventKey, key2: MediawikiEventKey): Integer = key1.compare(key2)
+
+  /**
+    * Compare the partition-keys of two MediawikiEventKeys
+    */
+  def compareMediawikiEventPartitionKeys(key1: MediawikiEventKey, key2: MediawikiEventKey): Integer = {
+    key1.partitionKey.compare(key2.partitionKey)
+  }
+
+
+  /**
+    * Map partition iterators providing each element with its previous element with same key or None.
+    * To be used with repartitionAndSortWithinPartition.
+    *
+    * WARNING: This functions assumes the given partition to be
+    * strictly sorted.
+    *
+    * @param iterator The iterator to map (all of its items are yielded)
+    * @param map The map function for each item and their optional previous item
+    * @param partitionKeyComparator The partition key comparator used to compare item and its previous
+    * @tparam K The key type
+    * @tparam V The value type
+    * @tparam Z The returned iterator type
+    */
+  def mapWithPreviouslyComputed[K, V, Z](
+                                partitionKeyComparator: (K, K) => Integer,
+                                map: ((K, V), Option[(K, Z)]) => Z
+                              )
+                              (
+                                iterator: Iterator[(K, V)]
+                              ): Iterator[Z] = {
+
+    // Mutable variable for previous element
+    var optionalPrevious = None.asInstanceOf[Option[(K, Z)]]
+
+    // Yielding loop over iterator
+    for (keyValue <- iterator) yield {
+      val mappedValue = optionalPrevious match {
+        // Only map with previous value when the partition-keys are equal
+        case Some(previous) if partitionKeyComparator(previous._1, keyValue._1) == 0 => map(keyValue, optionalPrevious)
+        case _ => map(keyValue, None)
+      }
+      optionalPrevious = Some(keyValue._1, mappedValue)
+      mappedValue
+    }
+  }
 
   /**
     * Zip two partitions iterators yielding every left item joint with

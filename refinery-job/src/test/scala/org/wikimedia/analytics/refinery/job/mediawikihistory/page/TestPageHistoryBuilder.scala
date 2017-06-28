@@ -9,7 +9,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
   import org.apache.spark.sql.SQLContext
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
   // Implicit needed to sort by timestamps
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
   var pageHistoryBuilder = null.asInstanceOf[PageHistoryBuilder]
 

@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import java.sql.Timestamp
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 object TestHistoryEventHelpers {
 
@@ -22,7 +22,7 @@ object TestHistoryEventHelpers {
                           wikiDb: Option[String] = Some("testwiki"),
                           eventEntity: String = "revision",
                           eventType: String = "create",
-                          eventTimestamp: Option[Timestamp] = TimestampFormats.makeMediawikiTimestamp("20010115000000"),
+                          eventTimestamp: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestamp("20010115000000"),
 
                           eventUserId: Option[Long] = Some(1L),
 

@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import java.sql.Timestamp
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 object TestHelpers {
 
@@ -12,7 +12,7 @@ object TestHelpers {
   def boolean(v: String): Option[Boolean] = if (v == "None") None else Some(v.toBoolean)
   def timestamp(v: String): Option[Timestamp] = {
     if (v == "None") None
-    else if (v.length == 14) TimestampFormats.makeMediawikiTimestamp(v) // If the string length is 14, mediawiki-formatted timestamp
+    else if (v.length == 14) TimestampHelpers.makeMediawikiTimestamp(v) // If the string length is 14, mediawiki-formatted timestamp
     else Some(new Timestamp(v.toLong)) // Else just a simple long-build timestamp
   }
   def list(v: String): Option[Seq[String]] = v match {

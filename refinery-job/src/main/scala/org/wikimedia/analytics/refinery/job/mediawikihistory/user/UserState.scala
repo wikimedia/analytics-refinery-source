@@ -5,7 +5,7 @@ import java.sql.Timestamp
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TimeBoundaries
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{TimestampFormats, Vertex}
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{TimestampHelpers, Vertex}
 
 /**
   * This case class represents a user state object, by opposition
