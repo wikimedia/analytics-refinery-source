@@ -1,4 +1,6 @@
 ## v0.0.48
+* Update mediawiki_history job with JDBC compliant timestamps and per-user and per-page
+  new fields (revision-count and time-from-previous-revision)
 * Removed unused and deprecated ClientIpUDF. See also https://phabricator.wikimedia.org/T118557
 * Mark Legacy Pageview code as deprecated.
 
