@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import java.sql.Timestamp
+
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.spark.sql.SQLContext
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -26,8 +28,8 @@ class TestDenormalizedRunner
   "filterStates" should "filter non-single whole-history state from partition" in {
     val userStates = sc.parallelize(Seq(
       fakeUserState(1L).copy(startTimestamp = None, endTimestamp = None),
-      fakeUserState(1L).copy(startTimestamp = None, endTimestamp = Some("1")),
-      fakeUserState(2L).copy(startTimestamp = Some("2"), endTimestamp = None)
+      fakeUserState(1L).copy(startTimestamp = None, endTimestamp = Some(new Timestamp(1L))),
+      fakeUserState(2L).copy(startTimestamp = Some(new Timestamp(2L)), endTimestamp = None)
     ))
 
     val result = denormalizedRunner
@@ -35,8 +37,8 @@ class TestDenormalizedRunner
       .collect()
 
     val expectedResults = Seq(
-      fakeUserState(1L).copy(startTimestamp = None, endTimestamp = Some("1")),
-      fakeUserState(2L).copy(startTimestamp = Some("2"), endTimestamp = None))
+      fakeUserState(1L).copy(startTimestamp = None, endTimestamp = Some(new Timestamp(1L))),
+      fakeUserState(2L).copy(startTimestamp = Some(new Timestamp(2L)), endTimestamp = None))
 
     result.length should be(2)
     result should contain theSameElementsAs expectedResults
@@ -58,8 +60,8 @@ class TestDenormalizedRunner
   it should "not filter single whole-history states from partition" in {
     val userStates = Seq(
       fakeUserState(1L).copy(startTimestamp = None, endTimestamp = None),
-      fakeUserState(2L).copy(startTimestamp = None, endTimestamp = Some("1")),
-      fakeUserState(2L).copy(startTimestamp = Some("2"), endTimestamp = None))
+      fakeUserState(2L).copy(startTimestamp = None, endTimestamp = Some(new Timestamp(1L))),
+      fakeUserState(2L).copy(startTimestamp = Some(new Timestamp(2L)), endTimestamp = None))
 
     val userStatesRdd = sc.parallelize(userStates)
 

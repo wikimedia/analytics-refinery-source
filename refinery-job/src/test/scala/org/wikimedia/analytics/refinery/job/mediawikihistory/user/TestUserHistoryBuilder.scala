@@ -1,11 +1,17 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import java.sql.Timestamp
+
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
 
 class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   import org.apache.spark.sql.SQLContext
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.TestUserHistoryHelpers._
+  // Implicit needed to sort by timestamps
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
+
 
   var userHistoryBuilder = null.asInstanceOf[UserHistoryBuilder]
 
@@ -19,7 +25,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
    */
   def process(e: Iterable[UserEvent], s: Iterable[UserState]): Seq[Seq[UserState]] = {
     userHistoryBuilder.processSubgraph(e, s)._1.groupBy(_.userId).toSeq.sortBy(_._1).map{
-      case (userId, userStates) => userStates.sortBy(_.startTimestamp.getOrElse("-1"))
+      case (userId, userStates) => userStates.sortBy(_.startTimestamp.getOrElse(new Timestamp(0L)))
     }
   }
 
@@ -34,7 +40,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "name  id  registration  groupsL",
       "New   1   01            (sysop)"
     )
-    val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some("01"))(
+    val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some(new Timestamp(1L)))(
       "start  end   name  nameL  groups   groupsL  eventType",
       "01     02    Old   New    ()       (sysop)  create",
       "02     03    Old   New    (sysop)  (sysop)  altergroups",
@@ -101,13 +107,14 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "name   id  registration",
       "Name3  1   01"
     )
-    val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some("01"))(
+    val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some(new Timestamp(1L)))(
       "start  end   name   nameL  eventType",
       "01     02    Name1  Name3  create",
       "02     03    Name2  Name3  rename",
       "03     None  Name3  Name3  rename"
     )
-    process(events, states) should be (Seq(expectedResults))
+    val actualResults = process(events, states)
+    actualResults should be (Seq(expectedResults))
   }
 
   it should "process altergroups chain properly" in {
@@ -122,7 +129,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   01            (sysop,flood)"
     )
     val expectedResults = userStateSet(
-      userName = Some("User"), userId = Some(1L), userRegistration = Some("01")
+      userName = Some("User"), userId = Some(1L), userRegistration = Some(new Timestamp(1L))
     )(
       "start  end   groups         groupsL        eventType",
       "01     02    ()             (sysop,flood)  create",
@@ -143,7 +150,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "name  id  registration",
       "User  1   01"    )
     val expectedResults = userStateSet(
-      userName = Some("User"), userId = Some(1L), userRegistration = Some("01")
+      userName = Some("User"), userId = Some(1L), userRegistration = Some(new Timestamp(1L))
     )(
       "start  end   blocks              blocksL             expiration       eventType",
       "01     02    ()                  (nocreate,noemail)  None             create",
@@ -165,7 +172,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "name  id  registration  groupsL",
       "New   10  01            (sysop)"
     )
-    val expectedResults = userStateSet(userId = Some(10L), userRegistration = Some("01"))(
+    val expectedResults = userStateSet(userId = Some(10L), userRegistration = Some(new Timestamp(1L)))(
       "start  end   name  nameL  groups   groupsL  blocks      blocksL     expiration  adminId  eventType",
       "01     02    Old   New    ()       (sysop)  ()          (nocreate)  ()          1        create",
       "02     03    New   New    ()       (sysop)  ()          (nocreate)  ()          2        rename",
@@ -189,7 +196,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "name   id  registration groupsL",
       "UserA  1   01           (sysop)"
     )
-    val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some("01"))(
+    val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some(new Timestamp(1L)))(
       "start  end   name   nameL  groups   groupsL  blocks      blocksL     expiration  autoCreate  eventType",
       "01     02    UserA  UserA  ()       (sysop)  ()          (nocreate)  None        true        create",
       "02     03    UserA  UserA  (sysop)  (sysop)  ()          (nocreate)  None        true        altergroups",
@@ -202,34 +209,38 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
   }
 
   it should "insert states at each block expiration if not explicit" in {
+    // NOTE:
+    // This test uses the propagation function which uses the Mediawiki format timestamp parser
+    // We therefore need to use mediawiki formatted timestamps for this test (YYYYMMDDHHMMSS).
+
     val events = userEventSet()(
-      "time  eventType    oldGroups  newGroups  newBlocks   expiration",
-      "01    create       ()         ()         ()          None",
-      "02    alterblocks  ()         ()         (nocreate)  04",   // Blocked until 04.
-      "03    altergroups  ()         (sysop)    ()          None", // Altergroups in the middle.
+      "time              eventType    oldGroups  newGroups  newBlocks   expiration",
+      "20010101000001    create       ()         ()         ()          None",
+      "20010101000002    alterblocks  ()         ()         (nocreate)  20010101000004",   // Blocked until 04.
+      "20010101000003    altergroups  ()         (sysop)    ()          None",             // Altergroups in the middle.
       // Here at 04 an explicit unblock is missing.
-      "05    alterblocks  ()         ()         (noemail)   09",   // Blocked until 09.
-      "06    altergroups  (sysop)    (flood)    ()          None", // Altergroups in the middle.
-      "07    alterblocks  ()         ()         ()          None", // Explicit unblock before 09.
-      "08    alterblocks  ()         ()         (nocreate)  10"    // Blocked until 10.
+      "20010101000005    alterblocks  ()         ()         (noemail)   20010101000009",   // Blocked until 09.
+      "20010101000006    altergroups  (sysop)    (flood)    ()          None",             // Altergroups in the middle.
+      "20010101000007    alterblocks  ()         ()         ()          None",             // Explicit unblock before 09.
+      "20010101000008    alterblocks  ()         ()         (nocreate)  20010101000010"    // Blocked until 10.
     )
     val states = userStateSet()(
-      "name  id  registration  groupsL",
-      "User  1   01            (flood)"
+      "name  id  registration     groupsL",
+      "User  1   20010101000001   (flood)"
     )
     val expectedResults = userStateSet(
-      userName = Some("User"), userId = Some(1L), userRegistration = Some("01")
+      userName = Some("User"), userId = Some(1L), userRegistration = TimestampFormats.makeMediawikiTimestamp("20010101000001")
     )(
-      "start  end   groups   groupsL  blocks      blocksL  expiration  eventType    adminId  inferred",
-      "01     02    ()       (flood)  ()          ()       None        create       0        None",
-      "02     03    ()       (flood)  (nocreate)  ()       04          alterblocks  0        None",
-      "03     04    (sysop)  (flood)  (nocreate)  ()       None        altergroups  0        None",
-      "04     05    (sysop)  (flood)  ()          ()       None        alterblocks  None     unblock", // Inserted.
-      "05     06    (sysop)  (flood)  (noemail)   ()       09          alterblocks  0        None",
-      "06     07    (flood)  (flood)  (noemail)   ()       None        altergroups  0        None",
-      "07     08    (flood)  (flood)  ()          ()       None        alterblocks  0        None", // Explicit.
-      "08     10    (flood)  (flood)  (nocreate)  ()       10          alterblocks  0        None",
-      "10     None  (flood)  (flood)  ()          ()       None        alterblocks  None     unblock"  // Inserted.
+      "    start                end         groups   groupsL  blocks      blocksL  expiration      eventType    adminId  inferred",
+      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       0        None",
+      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  0        None",
+      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  0        None",
+      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None     unblock", // Inserted.
+      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  0        None",
+      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  0        None",
+      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  0        None",    // Explicit.
+      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  0        None",
+      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None     unblock"  // Inserted.
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -252,19 +263,19 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "UserC  2   02", // User created with name: UserB.
       "UserB  3   04"  // User created with name: UserA (at 04).
     )
-    val expectedResultsUser1 = userStateSet(userId = Some(1L), userRegistration = Some("01"))(
+    val expectedResultsUser1 = userStateSet(userId = Some(1L), userRegistration = Some(new Timestamp(1L)))(
       "start  end   name   nameL  eventType",
       "01     03    UserA  UserA  create",
       "03     07    UserC  UserA  rename",
       "07     None  UserA  UserA  rename"
     )
-    val expectedResultsUser2 = userStateSet(userId = Some(2L), userRegistration = Some("02"))(
+    val expectedResultsUser2 = userStateSet(userId = Some(2L), userRegistration = Some(new Timestamp(2L)))(
       "start  end   name   nameL  eventType",
       "02     05    UserB  UserC  create",
       "05     08    UserD  UserC  rename",
       "08     None  UserC  UserC  rename"
     )
-    val expectedResultsUser3 = userStateSet(userId = Some(3L), userRegistration = Some("04"))(
+    val expectedResultsUser3 = userStateSet(userId = Some(3L), userRegistration = Some(new Timestamp(4L)))(
       "start  end   name   nameL  eventType",
       "04     06    UserA  UserB  create",
       "06     None  UserB  UserB  rename"

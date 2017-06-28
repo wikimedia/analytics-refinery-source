@@ -1,9 +1,11 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
+import java.sql.Timestamp
+
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TimeBoundaries
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Vertex
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{TimestampFormats, Vertex}
 
 
 /**
@@ -16,8 +18,8 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Vertex
 case class PageState(
                       // Generic Fields
                       wikiDb: String,
-                      startTimestamp: Option[String] = None,
-                      endTimestamp: Option[String] = None,
+                      startTimestamp: Option[Timestamp] = None,
+                      endTimestamp: Option[Timestamp] = None,
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
                       // Specific fields
@@ -30,7 +32,7 @@ case class PageState(
                       namespaceLatest: Int,
                       namespaceIsContentLatest: Boolean,
                       isRedirectLatest: Option[Boolean] = None,
-                      pageCreationTimestamp: Option[String] = None,
+                      pageCreationTimestamp: Option[Timestamp] = None,
                       inferredFrom: Option[String] = None
 ) extends Vertex[(String, String, Int)] with TimeBoundaries {
 
@@ -38,7 +40,8 @@ case class PageState(
       wikiDb,
       pageId.orNull,
       pageIdArtificial.orNull,
-      pageCreationTimestamp.orNull,
+      pageCreationTimestamp.map(_.toString).orNull,
+      //pageCreationTimestamp.orNull,
       title,
       titleLatest,
       namespace,
@@ -46,8 +49,10 @@ case class PageState(
       namespaceLatest,
       namespaceIsContentLatest,
       isRedirectLatest.orNull,
-      startTimestamp.orNull,
-      endTimestamp.orNull,
+      startTimestamp.map(_.toString).orNull,
+      //startTimestamp.orNull,
+      endTimestamp.map(_.toString).orNull,
+      //endTimestamp.orNull,
       causedByEventType,
       causedByUserId.orNull,
       inferredFrom.orNull
@@ -71,7 +76,8 @@ object PageState {
       wikiDb = row.getString(0),
       pageId = if (row.isNullAt(1)) None else Some(row.getLong(1)),
       pageIdArtificial = Option(row.getString(2)),
-      pageCreationTimestamp = Option(row.getString(3)),
+      pageCreationTimestamp = if (row.isNullAt(3)) None else Some(Timestamp.valueOf(row.getString(3))),
+      //pageCreationTimestamp = if (row.isNullAt(3)) None else Some(row.getTimestamp(3)),
       title = row.getString(4),
       titleLatest = row.getString(5),
       namespace = row.getInt(6),
@@ -79,8 +85,10 @@ object PageState {
       namespaceLatest = row.getInt(8),
       namespaceIsContentLatest = row.getBoolean(9),
       isRedirectLatest = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
-      startTimestamp = Option(row.getString(11)),
-      endTimestamp = Option(row.getString(12)),
+      startTimestamp = if (row.isNullAt(11)) None else Some(Timestamp.valueOf(row.getString(11))),
+      //startTimestamp = if (row.isNullAt(11)) None else Some(row.getTimestamp(11)),
+      endTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
+      //endTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
       causedByEventType = row.getString(13),
       causedByUserId = if (row.isNullAt(14)) None else Some(row.getLong(14)),
       inferredFrom = Option(row.getString(15))
@@ -92,6 +100,7 @@ object PageState {
       StructField("page_id", LongType, nullable = true),
       StructField("page_id_artificial", StringType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
+      //StructField("page_creation_timestamp", TimestampType, nullable = true),
       StructField("page_title", StringType, nullable = false),
       StructField("page_title_latest", StringType, nullable = false),
       StructField("page_namespace", IntegerType, nullable = false),
@@ -100,7 +109,9 @@ object PageState {
       StructField("page_namespace_is_content_latest", BooleanType, nullable = false),
       StructField("page_is_redirect_latest", BooleanType, nullable = true),
       StructField("start_timestamp", StringType, nullable = true),
+      //StructField("start_timestamp", TimestampType, nullable = true),
       StructField("end_timestamp", StringType, nullable = true),
+      //StructField("end_timestamp", TimestampType, nullable = true),
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
       StructField("inferred_from", StringType, nullable = true)

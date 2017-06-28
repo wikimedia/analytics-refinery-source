@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-import org.apache.spark.sql.{SaveMode, SQLContext}
+import org.apache.spark.sql.SQLContext
 
 
 /**
@@ -19,10 +19,13 @@ import org.apache.spark.sql.{SaveMode, SQLContext}
   */
 class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
 
+  import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
   import org.apache.log4j.Logger
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types._
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -224,7 +227,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
           val isContentNamespace = isContentNamespaceMap((wikiDb, namespace))
           new PageState(
                 pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
-                pageCreationTimestamp = Some(row.getString(1)),
+                pageCreationTimestamp = TimestampFormats.makeMediawikiTimestamp(row.getString(1)),
                 title = title,
                 titleLatest = title,
                 namespace = namespace,
@@ -232,7 +235,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
                 namespaceLatest = namespace,
                 namespaceIsContentLatest = isContentNamespace,
                 isRedirectLatest = Some(row.getBoolean(6)),
-                startTimestamp = Some(row.getString(1)),
+                startTimestamp = TimestampFormats.makeMediawikiTimestamp(row.getString(1)),
                 endTimestamp = None,
                 causedByEventType = "create",
                 causedByUserId = if (row.isNullAt(4)) None else Some(row.getLong(4)),

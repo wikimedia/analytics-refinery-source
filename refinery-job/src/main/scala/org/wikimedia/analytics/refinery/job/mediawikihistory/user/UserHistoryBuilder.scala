@@ -1,6 +1,8 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+
 import org.apache.spark.sql.SQLContext
+import org.joda.time.DateTimeZone
 
 
 /**
@@ -18,14 +20,15 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
   import org.joda.time.DateTime
-  import org.joda.time.format.DateTimeFormat
+  import java.sql.Timestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner
+
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
-  val presentTimestamp =
-    DateTimeFormat.forPattern("yyyyMMddHHmmss").withZoneUTC().print(DateTime.now)
+  val presentTimestamp = new Timestamp(DateTime.now.withZone(DateTimeZone.UTC).getMillis)
 
 
   /**
@@ -78,7 +81,7 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
       */
     def flushExpiredState(event: UserEvent, toKey: UserHistoryBuilder.KEY): ProcessingStatus = {
       if (potentialStates.contains(toKey) &&
-          event.timestamp < potentialStates(toKey).userRegistrationTimestamp.getOrElse("-1")) {
+          event.timestamp.before(potentialStates(toKey).userRegistrationTimestamp.getOrElse(new Timestamp(0L)))) {
         val state = potentialStates(toKey)
         this.copy(
             potentialStates = potentialStates - toKey,
@@ -301,20 +304,24 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
             } else {
               (userBlocks, blockExpiration)
             }
-          // If block expiration is defined and happened before the end of
+          // If block expiration is defined and is a timestamp ("indefinite"
+          // is not part of that case), check that it happened before the end of
           // the currently worked state, update currently worked state with
           // userBlocks and add a new state for the unblock. reset userBlocks
           // and expiration to undefined for the next state in fold.
-          if (effectiveExpiration.isDefined &&
-              effectiveExpiration.get != "indefinite" &&
-              effectiveExpiration.get < presentTimestamp &&
-              (state.endTimestamp.isEmpty || effectiveExpiration.get <= state.endTimestamp.get)) {
+          val effectiveExpirationTimestamp = TimestampFormats.makeMediawikiTimestamp(effectiveExpiration.orNull)
+          if (effectiveExpirationTimestamp.isDefined &&
+              effectiveExpirationTimestamp.get.before(presentTimestamp) &&
+              (state.endTimestamp.isEmpty ||
+                effectiveExpirationTimestamp.get.before(state.endTimestamp.get) ||
+                effectiveExpirationTimestamp.get.equals(state.endTimestamp.get)
+                )) {
             (
                 processed :+ state.copy(
                     userBlocks = effectiveBlocks,
-                    endTimestamp = effectiveExpiration
+                    endTimestamp = effectiveExpirationTimestamp
                 ) :+ state.copy(
-                    startTimestamp = effectiveExpiration,
+                    startTimestamp = effectiveExpirationTimestamp,
                     userBlocks = Seq.empty[String],
                     causedByEventType = "alterblocks",
                     causedByUserId = None,
@@ -359,7 +366,7 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
             case (a, b) =>
               a.startTimestamp.isEmpty || (
                   b.startTimestamp.isDefined &&
-                    a.startTimestamp.get < b.startTimestamp.get
+                    a.startTimestamp.get.before(b.startTimestamp.get)
               )
           }
           updateAnonymousAndBotByName(
@@ -406,7 +413,7 @@ class UserHistoryBuilder(sqlContext: SQLContext) extends Serializable {
   ) = {
     val statesMap = states.map(s => (s.wikiDb, s.userName) -> s).toMap
     val sortedEvents = events.toList.sortWith {
-      case (a, b) => a.timestamp > b.timestamp
+      case (a, b) => a.timestamp.after(b.timestamp)
     }
     val initialStatus = new ProcessingStatus(
         todayToCurrent = Map.empty[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],

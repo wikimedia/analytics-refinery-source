@@ -1,6 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-
 /**
   * This file defines the functions for revisions-enrichment.
   *
@@ -18,21 +17,20 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
   */
 object DenormalizedRevisionsBuilder extends Serializable {
 
-  import com.github.nscala_time.time.Imports._
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
+  import java.sql.Timestamp
+  // Implicit needed to sort by timestamps
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
 
   import scala.annotation.tailrec
 
   // Mutable ordered set to manage reverts by timestamp
-  type MutableOrderedReverts = scala.collection.mutable.TreeSet[((Option[String], Option[Long]), Option[Long])]
+  type MutableOrderedReverts = scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
-
-  @transient
-  lazy val timestampParser = DateTimeFormat.forPattern("YYYYMMddHHmmss")
 
   /**
     * Return the first value from sortedTimestamps
@@ -47,9 +45,9 @@ object DenormalizedRevisionsBuilder extends Serializable {
     */
   @tailrec
   final def firstBigger(
-                         refTimestamp: String,
-                         sortedTimestamps: Vector[String]
-                       ): Option[String] = {
+                         refTimestamp: Long,
+                         sortedTimestamps: Vector[Long]
+                       ): Option[Long] = {
     sortedTimestamps match {
       case IndexedSeq() => None
       case timestamp +: restTimestamps =>
@@ -84,8 +82,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
         else Seq.empty)
       .groupByKey()
       // We assume there will not be so many deletion events per page for this sort to fail
-      .mapValues(_.toVector.sorted)
-
+      .mapValues(_.toVector.map(_.getTime).sorted)
 
     // Max archived revision timestamp by page (when pageId is defined)
     // RDD[((wikiDb, PageId), MaxTimestamp)]
@@ -95,7 +92,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
       .reduceByKey {
         case (None, ts2) => ts2
         case (ts1, None) => ts1
-        case (ts1, ts2) => if (ts1.get >= ts2.get) ts1 else ts2
+        case (ts1, ts2) => if (ts1.get.getTime >= ts2.get.getTime) ts1 else ts2
       }
 
     // (Max Rev Ts, sorted deletes Ts) by page
@@ -111,7 +108,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
           if (deleteTs.isEmpty) r.isDeleted(maxTs)  // No delete timestamp -- Use max archived revision one
           else {
             // In case event timestamp is empty, firstBigger will return deleteTs first value
-            val foundDeleteTs = firstBigger(r.eventTimestamp.getOrElse(""), deleteTs.get)
+            val foundDeleteTs = firstBigger(r.eventTimestamp.map(_.getTime).getOrElse(-1L), deleteTs.get).map(new Timestamp(_))
             foundDeleteTs match {
               case None => r.isDeleted(maxTs) // No delete timestamp -- Use max archived revision one
               case _ => r.isDeleted(foundDeleteTs) // Use delete timestamp
@@ -185,7 +182,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
     */
   def prepareRevertsLists(
                            revisions: RDD[MediawikiEvent]
-                         ): RDD[(MediawikiEventKey, Vector[(Option[String], Option[Long])])] = {
+                         ): RDD[(MediawikiEventKey, Vector[(Option[Timestamp], Option[Long])])] = {
     revisions
       .filter(_.pageDetails.pageId.getOrElse(-1L) > 0L) // remove invalid pageIds
       .map(r =>
@@ -207,8 +204,8 @@ object DenormalizedRevisionsBuilder extends Serializable {
           else {
             // Years spanned by the reverts-lists (from base to last revert)
             val yearsSpanned = DenormalizedKeysHelper.years(new TimeBoundaries {
-              override def startTimestamp: Option[String] = baseRevision._1
-              override def endTimestamp: Option[String] = reverts.last._1
+              override def startTimestamp: Option[Timestamp] = baseRevision._1
+              override def endTimestamp: Option[Timestamp] = reverts.last._1
             })
             // Generate one revert-list event by year to be zipped with revisions-by-year
             yearsSpanned.map(y => {
@@ -227,14 +224,10 @@ object DenormalizedRevisionsBuilder extends Serializable {
   **/
 
   def getTimestampDifference(
-                              revertTimestamp: Option[String],
-                              revisionTimestamp: Option[String]
+                              revertTimestamp: Option[Timestamp],
+                              revisionTimestamp: Option[Timestamp]
                             ): Option[Long] = (revertTimestamp, revisionTimestamp) match {
-    case (Some(t1), Some(t2)) => {
-      val revertTimestampMs = timestampParser.parseMillis(t1)
-      val revisionTimestampMs = timestampParser.parseMillis(t2)
-      Option((revertTimestampMs - revisionTimestampMs) / 1000)
-    }
+    case (Some(t1), Some(t2)) => Option((t1.getTime - t2.getTime) / 1000)
     case _ => None
   }
 
@@ -303,7 +296,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
   def updateRevisionWithOptionalRevertsList(innerState: RevertsListsState)
                                            (
                                              keyAndRevision: (MediawikiEventKey, MediawikiEvent),
-                                             optionalKeyAndRevertsList: Option[(MediawikiEventKey, Vector[(Option[String], Option[Long])])]
+                                             optionalKeyAndRevertsList: Option[(MediawikiEventKey, Vector[(Option[Timestamp], Option[Long])])]
                                            ): MediawikiEvent = {
 
     val (revKey, revision) = keyAndRevision

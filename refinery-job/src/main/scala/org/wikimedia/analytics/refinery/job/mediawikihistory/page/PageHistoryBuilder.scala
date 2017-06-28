@@ -346,7 +346,8 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
     val toKey = event.toKey
     val status1 = if (
       status.potentialStates.contains(toKey) &&
-      event.timestamp < status.potentialStates(toKey).pageCreationTimestamp.getOrElse("-1")
+        status.potentialStates(toKey).pageCreationTimestamp.isDefined &&
+        event.timestamp.before(status.potentialStates(toKey).pageCreationTimestamp.get)
     ) {
       val state = status.potentialStates(toKey)
       status.copy(
@@ -386,7 +387,7 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
             case (a, b) =>
               a.startTimestamp.isEmpty || (
                   b.startTimestamp.isDefined &&
-                    a.startTimestamp.get < b.startTimestamp.get
+                    a.startTimestamp.get.before(b.startTimestamp.get)
               )
           }
           val pageCreationTimestamp = sortedStates.head.pageCreationTimestamp
@@ -429,11 +430,11 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
     val statesMap = states.map(s => s.key -> s).toMap
     val sortedEvents = events.toList.sortWith {
       case (a, b) =>
-        a.timestamp > b.timestamp ||
+        a.timestamp.after(b.timestamp) ||
         // Sort move events to be processed first,
         // thus avoiding confusion around "move_redir" events.
         (
-          a.timestamp == b.timestamp &&
+          a.timestamp.equals(b.timestamp) &&
           a.eventType == "move" &&
           b.eventType != "move"
         )

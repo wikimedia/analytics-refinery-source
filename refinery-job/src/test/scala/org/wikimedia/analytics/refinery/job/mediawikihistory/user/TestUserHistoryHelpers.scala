@@ -1,12 +1,16 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import java.sql.Timestamp
+
+import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers
 import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers._
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
 
 object TestUserHistoryHelpers {
 
   def userEventSet(
     wikiDb: Option[String] = Some("testwiki"),
-    timestamp: Option[String] = None,
+    timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
     causedByUserId: Option[Long] = Some(0L),
     oldUserName: Option[String] = Some("User"),
@@ -27,7 +31,7 @@ object TestUserHistoryHelpers {
       val valueMap = headers.zip(values).map { case (h, v) =>
         h match {
           case "wiki" | "db" | "wikiDb" => ("wikiDb" -> string(v))
-          case "time" | "timestamp" => ("timestamp" -> string(v))
+          case "time" | "timestamp" => ("timestamp" -> TestHelpers.timestamp(v))
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "oldName" | "oldUserName" => ("oldUserName" -> string(v))
@@ -41,7 +45,7 @@ object TestUserHistoryHelpers {
       }.toMap
       new UserEvent(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
-        timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[String],
+        timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         oldUserName = valueMap.getOrElse("oldUserName", oldUserName).get.asInstanceOf[String],
@@ -58,8 +62,8 @@ object TestUserHistoryHelpers {
 
   def userStateSet(
     wikiDb: Option[String] = Some("testwiki"),
-    startTimestamp: Option[String] = None,
-    endTimestamp: Option[String] = None,
+    startTimestamp: Option[Timestamp] = None,
+    endTimestamp: Option[Timestamp] = None,
     causedByEventType: Option[String] = Some(null),
     causedByUserId: Option[Long] = Some(0L),
     userId: Option[Long] = Some(1L),
@@ -69,7 +73,7 @@ object TestUserHistoryHelpers {
     userGroupsLatest: Option[Seq[String]] = Some(Seq.empty),
     userBlocks: Option[Seq[String]] = Some(Seq.empty),
     userBlocksLatest: Option[Seq[String]] = Some(Seq.empty),
-    userRegistration: Option[String] = Some("20010115000000"),
+    userRegistration: Option[Timestamp] = TimestampFormats.makeMediawikiTimestamp("20010115000000"),
     autoCreate: Option[Boolean] = Some(false),
     causedByBlockExpiration: Option[String] = None,
     inferredFrom: Option[String] = None
@@ -83,8 +87,8 @@ object TestUserHistoryHelpers {
       val valueMap = headers.zip(values).map { case (h, v) =>
         h match {
           case "wiki" | "db" | "wikiDb" => ("wikiDb" -> string(v))
-          case "start" | "startTimestamp" => ("startTimestamp" -> string(v))
-          case "end" | "endTimestamp" => ("endTimestamp" -> string(v))
+          case "start" | "startTimestamp" => ("startTimestamp" -> timestamp(v))
+          case "end" | "endTimestamp" => ("endTimestamp" -> timestamp(v))
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "id" | "userId" => ("userId" -> long(v))
@@ -94,7 +98,7 @@ object TestUserHistoryHelpers {
           case "groupsL" | "userGroupsLatest" => ("userGroupsLatest" -> list(v))
           case "blocks" | "userBlocks" => ("userBlocks" -> list(v))
           case "blocksL" | "userBlocksLatest" => ("userBlocksLatest" -> list(v))
-          case "registration" | "userRegistration" => ("userRegistration" -> string(v))
+          case "registration" | "userRegistration" => ("userRegistration" -> timestamp(v))
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
           case "expiration" | "causedByBlockExpiration" => ("causedByBlockExpiration" -> string(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
@@ -105,8 +109,8 @@ object TestUserHistoryHelpers {
       val userBlocksVal = valueMap.getOrElse("userBlocks", userBlocks).get.asInstanceOf[Seq[String]]
       new UserState(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
-        startTimestamp = valueMap.getOrElse("startTimestamp", startTimestamp).asInstanceOf[Option[String]],
-        endTimestamp = valueMap.getOrElse("endTimestamp", endTimestamp).asInstanceOf[Option[String]],
+        startTimestamp = valueMap.getOrElse("startTimestamp", startTimestamp).asInstanceOf[Option[Timestamp]],
+        endTimestamp = valueMap.getOrElse("endTimestamp", endTimestamp).asInstanceOf[Option[Timestamp]],
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         userId = valueMap.getOrElse("userId", userId).get.asInstanceOf[Long],
@@ -116,7 +120,7 @@ object TestUserHistoryHelpers {
         userGroupsLatest = valueMap.getOrElse("userGroupsLatest", Some(userGroupsVal)).get.asInstanceOf[Seq[String]],
         userBlocks = userBlocksVal,
         userBlocksLatest = valueMap.getOrElse("userBlocksLatest", Some(userBlocksVal)).get.asInstanceOf[Seq[String]],
-        userRegistrationTimestamp = valueMap.getOrElse("userRegistration", userRegistration).asInstanceOf[Option[String]],
+        userRegistrationTimestamp = valueMap.getOrElse("userRegistration", userRegistration).asInstanceOf[Option[Timestamp]],
         createdBySystem = valueMap.getOrElse("autoCreate", autoCreate).get.asInstanceOf[Boolean],
         causedByBlockExpiration = valueMap.getOrElse("causedByBlockExpiration", causedByBlockExpiration).asInstanceOf[Option[String]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]]

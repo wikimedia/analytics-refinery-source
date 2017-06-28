@@ -1,9 +1,14 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import java.sql.Timestamp
+
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 import TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+// Implicit needed to sort by timestamps
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
 
 class TestDenormalizedRevisionsBuilder extends FlatSpec
 with Matchers
@@ -15,28 +20,28 @@ with SharedSparkContext {
     */
   "firstBigger" should "return the first element bigger than ref in vector" in {
 
-    val ref = "b"
-    val vec = Vector("a", "b", "c", "d")
+    val ref = 2L
+    val vec = Vector(1L, 2L, 3L, 4L)
 
     val result = DenormalizedRevisionsBuilder.firstBigger(ref, vec)
-    result should equal(Some("c"))
+    result should equal(Some(3L))
 
   }
 
-  it should "return the first element bigger than empty in vector" in {
+  it should "return the first element bigger than -1L in vector" in {
 
-    val ref = ""
-    val vec = Vector("", "a", "b", "c", "d")
+    val ref = -1L
+    val vec = Vector(-1L, 1L, 2L, 3L, 4L)
 
     val result = DenormalizedRevisionsBuilder.firstBigger(ref, vec)
-    result should equal(Some("a"))
+    result should equal(Some(1L))
 
   }
 
   it should "return None if no element is bigger than ref in vector" in {
 
-    val ref = "e"
-    val vec = Vector("", "a", "b", "c", "d")
+    val ref = 5L
+    val vec = Vector(-1L, 1L, 2L, 3L, 4L)
 
     val result = DenormalizedRevisionsBuilder.firstBigger(ref, vec)
     result should equal(None)
@@ -243,23 +248,23 @@ with SharedSparkContext {
 
     val results = DenormalizedRevisionsBuilder.prepareRevertsLists(revs).collect.sortBy(_._1)
 
-    val partw1p1 = PartitionKey("w1", 1L, "2010")
-    val partw1p2_2010 = PartitionKey("w1", 2L, "2010")
-    val partw1p2_2011 = PartitionKey("w1", 2L, "2011")
-    val partw2p1 = PartitionKey("w2", 1L, "2010")
+    val partw1p1 = PartitionKey("w1", 1L, 2010)
+    val partw1p2_2010 = PartitionKey("w1", 2L, 2010)
+    val partw1p2_2011 = PartitionKey("w1", 2L, 2011)
+    val partw2p1 = PartitionKey("w2", 1L, 2010)
     val expectedResults = Seq(
-      (MediawikiEventKey(partw1p1, Some("20100101000000"), Some(1L)),
-        Vector((Some("20100106000000"), Some(6L)), (Some("20100109000000"), Some(12L)))),
-      (MediawikiEventKey(partw1p1, Some("20100102000000"), Some(2L)),
-        Vector((Some("20100104000000"), Some(4L)))),
-      (MediawikiEventKey(partw1p1, Some("20100105000000"), Some(5L)),
-        Vector((Some("20100108000000"), Some(8L)))),
-      (MediawikiEventKey(partw1p2_2010, Some("20100103000000"), Some(9L)),
-        Vector((Some("20110101000000"), Some(11L)))),
-      (MediawikiEventKey(partw1p2_2011, Some("20100103000000"), Some(9L)),
-        Vector((Some("20110101000000"), Some(11L)))),
-      (MediawikiEventKey(partw2p1, Some("20100101000000"), Some(1L)),
-        Vector((Some("20100103000000"), Some(3L))))
+      (MediawikiEventKey(partw1p1, TimestampFormats.makeMediawikiTimestamp("20100101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("20100106000000"), Some(6L)), (TimestampFormats.makeMediawikiTimestamp("20100109000000"), Some(12L)))),
+      (MediawikiEventKey(partw1p1, TimestampFormats.makeMediawikiTimestamp("20100102000000"), Some(2L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("20100104000000"), Some(4L)))),
+      (MediawikiEventKey(partw1p1, TimestampFormats.makeMediawikiTimestamp("20100105000000"), Some(5L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("20100108000000"), Some(8L)))),
+      (MediawikiEventKey(partw1p2_2010, TimestampFormats.makeMediawikiTimestamp("20100103000000"), Some(9L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("20110101000000"), Some(11L)))),
+      (MediawikiEventKey(partw1p2_2011, TimestampFormats.makeMediawikiTimestamp("20100103000000"), Some(9L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("20110101000000"), Some(11L)))),
+      (MediawikiEventKey(partw2p1, TimestampFormats.makeMediawikiTimestamp("20100101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("20100103000000"), Some(3L))))
     )
 
     results should equal(expectedResults)
@@ -275,7 +280,7 @@ with SharedSparkContext {
       "w1   19700101000000    1      1     s1  false   false"
     )
 
-    val endReverts = new scala.collection.mutable.TreeSet[((Option[String], Option[Long]), Option[Long])]
+    val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
 
     revs.foreach(r => {
       val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
@@ -292,8 +297,8 @@ with SharedSparkContext {
       "w1  19700101000000      1      1     s1  false   false"
     )
 
-    val endReverts = new scala.collection.mutable.TreeSet[((Option[String], Option[Long]), Option[Long])]
-    endReverts.add((Some("19710101000000"), Some(2L)), None)
+    val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
+    endReverts.add((TimestampFormats.makeMediawikiTimestamp("19710101000000"), Some(2L)), None)
 
     revs.foreach(r => {
       val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
@@ -311,8 +316,8 @@ with SharedSparkContext {
       "w1   19700101000000    1      1     s1  false   false"
     )
 
-    val endReverts = new scala.collection.mutable.TreeSet[((Option[String], Option[Long]), Option[Long])]
-    endReverts.add((Some("19700101000000"), Some(1L)), None)
+    val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
+    endReverts.add((TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)), None)
 
     revs.foreach(r => {
       val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
@@ -330,9 +335,9 @@ with SharedSparkContext {
       "w1   19700101000000    2      1     s1  false   false"
     )
 
-    val endReverts = new scala.collection.mutable.TreeSet[((Option[String], Option[Long]), Option[Long])]
-    endReverts.add((Some("19700101000000"), Some(2L)), Some(1L))
-    endReverts.add((Some("19700102000000"), Some(3L)), Some(1L))
+    val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
+    endReverts.add((TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(2L)), Some(1L))
+    endReverts.add((TimestampFormats.makeMediawikiTimestamp("19700102000000"), Some(3L)), Some(1L))
 
     revs.foreach(r => {
       val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
@@ -351,9 +356,9 @@ with SharedSparkContext {
       "w1   19700101000000    3      1     s1  false   false"
     )
 
-    val endReverts = new scala.collection.mutable.TreeSet[((Option[String], Option[Long]), Option[Long])]
-    endReverts.add((Some("19700101000000"), Some(3L)), Some(2L))
-    endReverts.add((Some("19700101100000"), Some(4L)), Some(1L))
+    val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
+    endReverts.add((TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(3L)), Some(2L))
+    endReverts.add((TimestampFormats.makeMediawikiTimestamp("19700101100000"), Some(4L)), Some(1L))
 
     revs.foreach(r => {
       val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
@@ -380,7 +385,7 @@ with SharedSparkContext {
 
   def iterateSortedRevisionsAndRevertsLists(
                                              keysAndRevisions: Iterator[(MediawikiEventKey, MediawikiEvent)],
-                                             keysAndRevertsLists: Iterator[(MediawikiEventKey, Vector[(Option[String], Option[Long])])]
+                                             keysAndRevertsLists: Iterator[(MediawikiEventKey, Vector[(Option[Timestamp], Option[Long])])]
                                            ): Iterator[MediawikiEvent] = {
 
 
@@ -405,7 +410,7 @@ with SharedSparkContext {
 
     val results = iterateSortedRevisionsAndRevertsLists(
       revs.map(r => (DenormalizedKeysHelper.pageMediawikiEventKey(r), r)).iterator,
-      Seq.empty[(MediawikiEventKey, Vector[(Option[String], Option[Long])])].iterator
+      Seq.empty[(MediawikiEventKey, Vector[(Option[Timestamp], Option[Long])])].iterator
     )
 
     results.foreach(r => {
@@ -426,8 +431,8 @@ with SharedSparkContext {
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w1", 1L, "1970"), Some("19700101000000"), Some(1L)),
-        Vector((Some("19700103000000"), Some(3L))))
+      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700103000000"), Some(3L))))
     )
 
     val expectedResults = revisionMwEventSet()(
@@ -435,7 +440,7 @@ with SharedSparkContext {
       "w0   19700101000000    1      1     s1  false   false   None         None ",
       "w1   19700101000000    1      1     s1  false   false   None         None ",
       "w1   19700102000000    2      1     s2  false   true     3           86400  ",
-      "w1   19700103000000    3      1     s1  true   false    None         None "
+      "w1   19700103000000    3      1     s1  true    false   None         None "
     )
 
     val results = iterateSortedRevisionsAndRevertsLists(
@@ -455,15 +460,15 @@ with SharedSparkContext {
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w1", 1L, "1970"), Some("19700101000000"), Some(1L)),
-        Vector((Some("19700103000000"), Some(3L))))
+      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700103000000"), Some(3L))))
     )
 
     val expectedResults = revisionMwEventSet()(
       "db        time       revId pageId sha1 revert reverted revertId     secondsToRevert",
       "w1   19700101000000    1      1     s1  false   false   None          None",
       "w1   19700102000000    2      1     s2  false   true     3            86400",
-      "w2   19700103000000    3      1     s1  false   false    None         None"
+      "w2   19700103000000    3      1     s1  false   false   None          None"
     )
 
     val results = iterateSortedRevisionsAndRevertsLists(
@@ -483,12 +488,12 @@ with SharedSparkContext {
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w0", 1L, "1970"), Some("19700101000000"), Some(1L)),
-        Vector((Some("19700103000000"), Some(3L)))),
-      (MediawikiEventKey(PartitionKey("w0", 2L, "1970"), Some("19700101000000"), Some(1L)),
-        Vector((Some("19700103000000"), Some(3L)))),
-      (MediawikiEventKey(PartitionKey("w1", 1L, "1970"), Some("19700101000000"), Some(1L)),
-        Vector((Some("19700103000000"), Some(3L))))
+      (MediawikiEventKey(PartitionKey("w0", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700103000000"), Some(3L)))),
+      (MediawikiEventKey(PartitionKey("w0", 2L, 1970), TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700103000000"), Some(3L)))),
+      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700103000000"), Some(3L))))
     )
 
     val expectedResults = revisionMwEventSet()(
@@ -525,12 +530,12 @@ with SharedSparkContext {
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w1", 1L, "1970"), Some("19700101000000"), Some(1L)),
-        Vector((Some("19700106000000"), Some(6L)))),
-      (MediawikiEventKey(PartitionKey("w1", 1L, "1970"), Some("19700102000000"), Some(2L)),
-        Vector((Some("19700104000000"), Some(4L)))),
-      (MediawikiEventKey(PartitionKey("w1", 1L, "1970"), Some("19700103000000"), Some(3L)),
-        Vector((Some("19700108000000"), Some(8L))))
+      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700106000000"), Some(6L)))),
+      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700102000000"), Some(2L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700104000000"), Some(4L)))),
+      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampFormats.makeMediawikiTimestamp("19700103000000"), Some(3L)),
+        Vector((TimestampFormats.makeMediawikiTimestamp("19700108000000"), Some(8L))))
     )
 
     val expectedResults = revisionMwEventSet()(
@@ -538,16 +543,16 @@ with SharedSparkContext {
       "w0   19700101000000    1      1     s1  false   false   None          None",
 
       "w1   19700101000000    1      1     s1  false   false   None          None",
-      "w1   19700102000000    2      1     s2  false  true      6       345600",
-      "w1   19700103000000    3      1     s3  false  true      4       86400",
-      "w1   19700104000000    4      1     s2  true   true      6       172800",
-      "w1   19700105000000    5      1     s5  false  true      6       86400",
-      "w1   19700106000000    6      1     s1  true   true      8       172800",
-      "w1   19700107000000    7      1     s7  false  true      8       86400",
-      "w1   19700108000000    8      1     s3  true   false    None         None",
-      "w1   19700109000000    9      1     s9  false  false    None         None",
+      "w1   19700102000000    2      1     s2  false  true      6            345600",
+      "w1   19700103000000    3      1     s3  false  true      4            86400",
+      "w1   19700104000000    4      1     s2  true   true      6            172800",
+      "w1   19700105000000    5      1     s5  false  true      6            86400",
+      "w1   19700106000000    6      1     s1  true   true      8            172800",
+      "w1   19700107000000    7      1     s7  false  true      8            86400",
+      "w1   19700108000000    8      1     s3  true   false    None          None",
+      "w1   19700109000000    9      1     s9  false  false    None          None",
 
-      "w2   19700102000000    1      1     s1  false   false   None         None"
+      "w2   19700102000000    1      1     s1  false   false   None          None"
     )
 
     val results = iterateSortedRevisionsAndRevertsLists(

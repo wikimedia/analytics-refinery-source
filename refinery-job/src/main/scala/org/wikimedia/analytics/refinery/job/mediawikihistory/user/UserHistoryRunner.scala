@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import org.apache.spark.sql.{SaveMode, SQLContext}
+import org.apache.spark.sql.SQLContext
 
 /**
   * This class defines the functions for the user history reconstruction process.
@@ -18,10 +18,12 @@ import org.apache.spark.sql.{SaveMode, SQLContext}
   */
 class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
 
+  import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
   import org.apache.log4j.Logger
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types._
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -209,8 +211,8 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
             userNameLatest = row.getString(1),
             userRegistrationTimestamp = (row.getString(2), row.getString(4)) match {
               case (null, null) => None
-              case (null, validTimestamp) => Some(validTimestamp)
-              case (validTimestamp, _) => Some(validTimestamp)
+              case (null, potentialTimestamp) => TimestampFormats.makeMediawikiTimestamp(potentialTimestamp)
+              case (potentialTimestamp, _) => TimestampFormats.makeMediawikiTimestamp(potentialTimestamp)
             },
             userGroups = Seq.empty[String],
             userGroupsLatest = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),

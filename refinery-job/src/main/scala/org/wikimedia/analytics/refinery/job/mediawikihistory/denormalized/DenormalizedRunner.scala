@@ -1,9 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SaveMode, SQLContext}
-
-import scala.reflect.ClassTag
+import org.apache.spark.sql.SQLContext
 
 /**
   * This class defines the functions for revisions-denormalization process.
@@ -21,11 +18,17 @@ import scala.reflect.ClassTag
   */
 class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
 
+  import org.apache.spark.sql.SaveMode
+  import scala.reflect.ClassTag
   import com.databricks.spark.avro._
   import org.apache.log4j.Logger
+  import org.apache.spark.rdd.RDD
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
   import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.MediawikiEvent
+  import java.sql.Timestamp
+  // Implicit needed to sort by timestamps
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats.orderedTimestamp
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -67,7 +70,7 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
       .flatMap {
         case (key, count) =>
           if (count > 1L)
-            Seq((new StateKey(key, None.asInstanceOf[Option[String]], None.asInstanceOf[Option[String]]), true))
+            Seq((new StateKey(key, None.asInstanceOf[Option[Timestamp]], None.asInstanceOf[Option[Timestamp]]), true))
           else
             Seq.empty[(StateKey, Boolean)]
       }

@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
+
 /**
   * This object contains utility functions to parse user data
   * from the logging table.
@@ -9,6 +11,7 @@ object UserEventBuilder extends Serializable {
 
   import org.apache.spark.sql.Row
   import org.joda.time.DateTime
+  import java.sql.Timestamp
   import org.joda.time.format.DateTimeFormat
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
 
@@ -252,7 +255,8 @@ object UserEventBuilder extends Serializable {
   def buildUserEvent(log: Row): UserEvent = {
     val logType = log.getString(0)
     val logAction = log.getString(1)
-    val logTimestamp = log.getString(2)
+    val logTimestampString = log.getString(2)
+    val logTimestampUnchecked = TimestampFormats.makeMediawikiTimestamp(logTimestampString)
     val logUser = if (log.isNullAt(3)) None else Some(log.getLong(3))
     val logTitle = log.getString(4)
     val logComment = log.getString(5)
@@ -264,6 +268,11 @@ object UserEventBuilder extends Serializable {
       case "rights" => "altergroups"
       case "block" => "alterblocks"
       case "newusers" => "create"
+    }
+
+    val (logTimestamp, timestampError) = logTimestampUnchecked match {
+      case Some(timestamp) =>(timestamp, None)
+      case None => (new Timestamp(0L), Some("Could not parse timestamp"))
     }
 
     val (oldUserName, newUserName, namesError) = eventType match {
@@ -286,7 +295,7 @@ object UserEventBuilder extends Serializable {
 
     val (newUserBlocks, blockExpiration, blocksError) = eventType match {
       case "alterblocks" if logAction != "unblock" =>
-        getNewUserBlocksAndBlockExpiration(logParams, logTimestamp)
+        getNewUserBlocksAndBlockExpiration(logParams, logTimestampString)
       case _ => (Seq.empty[String], None, None)
     }
 
@@ -295,12 +304,7 @@ object UserEventBuilder extends Serializable {
     val createdBySystem = createEvent && (logAction == "autocreate")
     val createdByPeer = createEvent && ((logAction == "create2") || (logAction == "byemail"))
 
-    val parsingErrors = if (groupsError.isDefined || blocksError.isDefined || namesError.isDefined) {
-      Seq(groupsError, blocksError, namesError).flatMap {
-        case None => Seq.empty[String]
-        case Some(error) => Seq(error)
-      }
-    } else Seq.empty[String]
+    val parsingErrors = groupsError ++ blocksError ++ namesError ++ timestampError
 
     new UserEvent(
         wikiDb = wikiDb,
@@ -316,7 +320,7 @@ object UserEventBuilder extends Serializable {
         createdBySelf = createdBySelf,
         createdBySystem = createdBySystem,
         createdByPeer = createdByPeer,
-        parsingErrors = parsingErrors
+        parsingErrors = parsingErrors.toSeq
     )
   }
 }

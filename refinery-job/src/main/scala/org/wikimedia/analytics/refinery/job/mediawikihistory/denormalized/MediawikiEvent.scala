@@ -1,10 +1,13 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import java.sql.Timestamp
+
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEventBuilder
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampFormats
 
 /**
   * This file defines case classes for denormalized ME Events objects.
@@ -23,7 +26,7 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
                                      pageNamespaceLatest: Option[Int] = None,
                                      pageNamespaceIsContentLatest: Option[Boolean] = None,
                                      pageIsRedirectLatest: Option[Boolean] = None,
-                                     pageCreationTimestamp: Option[String] = None)
+                                     pageCreationTimestamp: Option[Timestamp] = None)
 
 case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                      userText: Option[String] = None,
@@ -37,7 +40,7 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                      userIsCreatedByPeer: Option[Boolean] = None,
                                      userIsAnonymous: Option[Boolean] = None,
                                      userIsBotByName: Option[Boolean] = None,
-                                     userCreationTimestamp: Option[String] = None)
+                                     userCreationTimestamp: Option[Timestamp] = None)
 
 case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revParentId: Option[Long] = None,
@@ -48,7 +51,7 @@ case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revContentModel: Option[String] = None,
                                          revContentFormat: Option[String] = None,
                                          revIsDeleted: Option[Boolean] = None,
-                                         revDeletedTimestamp: Option[String] = None,
+                                         revDeletedTimestamp: Option[Timestamp] = None,
                                          revIsIdentityReverted: Option[Boolean] = None,
                                          revFirstIdentityRevertingRevisionId: Option[Long] = None,
                                          revSecondsToIdentityRevert: Option[Long] = None,
@@ -58,7 +61,7 @@ case class MediawikiEvent(
                            wikiDb: String,
                            eventEntity: String,
                            eventType: String,
-                           eventTimestamp: Option[String] = None,
+                           eventTimestamp: Option[Timestamp] = None,
                            eventComment: Option[String] = None,
                            eventErrors: Seq[String] = Seq.empty,
                            eventUserDetails: MediawikiEventUserDetails = new MediawikiEventUserDetails,
@@ -70,7 +73,8 @@ case class MediawikiEvent(
     wikiDb,
     eventEntity,
     eventType,
-    eventTimestamp.orNull,
+    eventTimestamp.map(_.toString).orNull,
+    //eventTimestamp.orNull,
     eventComment.orNull,
     eventUserDetails.userId.orNull,
     eventUserDetails.userText.orNull,
@@ -84,7 +88,8 @@ case class MediawikiEvent(
     eventUserDetails.userIsCreatedByPeer.orNull,
     eventUserDetails.userIsAnonymous.orNull,
     eventUserDetails.userIsBotByName.orNull,
-    eventUserDetails.userCreationTimestamp.orNull,
+    eventUserDetails.userCreationTimestamp.map(_.toString).orNull,
+    //eventUserDetails.userCreationTimestamp.orNull,
     pageDetails.pageId.orNull,
     pageDetails.pageTitle.orNull,
     pageDetails.pageTitleLatest.orNull,
@@ -93,7 +98,8 @@ case class MediawikiEvent(
     pageDetails.pageNamespaceLatest.orNull,
     pageDetails.pageNamespaceIsContentLatest.orNull,
     pageDetails.pageIsRedirectLatest.orNull,
-    pageDetails.pageCreationTimestamp.orNull,
+    pageDetails.pageCreationTimestamp.map(_.toString).orNull,
+    //pageDetails.pageCreationTimestamp.orNull,
     userDetails.userId.orNull,
     userDetails.userText.orNull,
     userDetails.userTextLatest.orNull,
@@ -106,7 +112,8 @@ case class MediawikiEvent(
     userDetails.userIsCreatedByPeer.orNull,
     userDetails.userIsAnonymous.orNull,
     userDetails.userIsBotByName.orNull,
-    userDetails.userCreationTimestamp.orNull,
+    userDetails.userCreationTimestamp.map(_.toString).orNull,
+    //userDetails.userCreationTimestamp.orNull,
     revisionDetails.revId.orNull,
     revisionDetails.revParentId.orNull,
     revisionDetails.revMinorEdit.orNull,
@@ -116,14 +123,15 @@ case class MediawikiEvent(
     revisionDetails.revContentModel.orNull,
     revisionDetails.revContentFormat.orNull,
     revisionDetails.revIsDeleted.orNull,
-    revisionDetails.revDeletedTimestamp.orNull,
+    revisionDetails.revDeletedTimestamp.map(_.toString).orNull,
+    //revisionDetails.revDeletedTimestamp.orNull,
     revisionDetails.revIsIdentityReverted.orNull,
     revisionDetails.revFirstIdentityRevertingRevisionId.orNull,
     revisionDetails.revSecondsToIdentityRevert.orNull,
     revisionDetails.revIsIdentityRevert.orNull
   )
   def textBytesDiff(value: Option[Long]) = this.copy(revisionDetails = this.revisionDetails.copy(revTextBytesDiff = value))
-  def isDeleted(deleteTimestamp: Option[String]) = this.copy(revisionDetails = this.revisionDetails.copy(
+  def isDeleted(deleteTimestamp: Option[Timestamp]) = this.copy(revisionDetails = this.revisionDetails.copy(
     revIsDeleted = Some(true),
     revDeletedTimestamp = deleteTimestamp))
   def isIdentityRevert = this.copy(revisionDetails = this.revisionDetails.copy(revIsIdentityRevert = Some(true)))
@@ -172,6 +180,7 @@ object MediawikiEvent {
       StructField("event_entity", StringType, nullable = false),
       StructField("event_type", StringType, nullable = false),
       StructField("event_timestamp", StringType, nullable = true),
+      //StructField("event_timestamp", TimestampType, nullable = true),
       StructField("event_comment", StringType, nullable = true),
       StructField("event_user_id", LongType, nullable = false),
       StructField("event_user_text", StringType, nullable = false),
@@ -186,6 +195,7 @@ object MediawikiEvent {
       StructField("event_user_is_anonymous", BooleanType, nullable = false),
       StructField("event_user_is_bot_by_name", BooleanType, nullable = false),
       StructField("event_user_creation_timestamp", StringType, nullable = true),
+      //StructField("event_user_creation_timestamp", TimestampType, nullable = true),
       StructField("page_id", LongType, nullable = true),
       StructField("page_title", StringType, nullable = true),
       StructField("page_title_latest", StringType, nullable = true),
@@ -195,6 +205,7 @@ object MediawikiEvent {
       StructField("page_namespace_is_content_latest", BooleanType, nullable = true),
       StructField("page_is_redirect_latest", BooleanType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
+      //StructField("page_creation_timestamp", TimestampType, nullable = true),
       StructField("user_id", LongType, nullable = true),
       StructField("user_text", StringType, nullable = true),
       StructField("user_text_latest", StringType, nullable = true),
@@ -208,6 +219,7 @@ object MediawikiEvent {
       StructField("user_is_anonymous", BooleanType, nullable = true),
       StructField("user_is_bot_by_name", BooleanType, nullable = true),
       StructField("user_creation_timestamp", StringType, nullable = true),
+      //StructField("user_creation_timestamp", TimestampType, nullable = true),
       StructField("revision_id", LongType, nullable = true),
       StructField("revision_parent_id", LongType, nullable = true),
       StructField("revision_minor_edit", BooleanType, nullable = true),
@@ -218,6 +230,7 @@ object MediawikiEvent {
       StructField("revision_content_format", StringType, nullable = true),
       StructField("revision_is_deleted", BooleanType, nullable = true),
       StructField("revision_deleted_timestamp", StringType, nullable = true),
+      //StructField("revision_deleted_timestamp", TimestampType, nullable = true),
       StructField("revision_is_identity_reverted", BooleanType, nullable = true),
       StructField("revision_first_identity_reverting_revision_id", LongType, nullable = true),
       StructField("revision_seconds_to_identity_revert", LongType, nullable = true),
@@ -241,12 +254,12 @@ object MediawikiEvent {
           rev_content_format
      from revision
    */
-  def fromRevisionRow(row: Row): MediawikiEvent = new MediawikiEvent(
+  def fromRevisionRow(row: Row): MediawikiEvent =
+    new MediawikiEvent(
     wikiDb = row.getString(0),
     eventEntity = "revision",
     eventType = "create",
-    // Only accept valid timestamps
-    eventTimestamp = if (row.isNullAt(1) || row.getString(1).length != 14) None else Some(row.getString(1)),
+    eventTimestamp = TimestampFormats.makeMediawikiTimestamp(row.getString(1)),
     eventComment = Option(row.getString(2)),
     eventUserDetails = new MediawikiEventUserDetails(
       // TODO: When userId = 0, it does make no sense to store eventUserTextLatest.
@@ -315,8 +328,7 @@ object MediawikiEvent {
     wikiDb = row.getString(0),
     eventEntity = "revision",
     eventType = "create",
-    // Only accept valid timestamps
-    eventTimestamp = if (row.isNullAt(1) || row.getString(1).length != 14) None else Some(row.getString(1)),
+    eventTimestamp = TimestampFormats.makeMediawikiTimestamp(row.getString(1)),
     eventComment = Option(row.getString(2)),
     eventUserDetails = new MediawikiEventUserDetails(
       // TODO: When userId = 0, it does make no sense to store eventUserTextLatest.
@@ -355,7 +367,6 @@ object MediawikiEvent {
       revContentModel = Option(row.getString(13)),
       revContentFormat = Option(row.getString(14)),
       revIsDeleted = Option(true),
-      revDeletedTimestamp = Option("TBD"), // Hack to prevent having to join with pageStates 2 times
       revIsIdentityReverted = Some(false),
       revSecondsToIdentityRevert = None,
       revIsIdentityRevert = Some(false)
