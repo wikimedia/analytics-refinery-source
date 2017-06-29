@@ -1,4 +1,4 @@
-test_description,expected_project_class,expected_project,expected_qualifiers,expected_tld,uri_host
+test_description,expected_project_family,expected_project,expected_qualifiers,expected_tld,uri_host
 IP,-,-,,-,192.168.0.1
 No Dot,-,-,,-,wikipedia
 One dot capital,wikipedia,-,,org,Wikipedia.org

@@ -126,7 +126,7 @@ public class TestWebrequest {
         assertEquals(
                 test_description + " - Project Class",
                 expectedProjectClass,
-                webrequest_inst.normalizeHost(uriHost).getProjectClass()
+                webrequest_inst.normalizeHost(uriHost).getProjectFamily()
         );
         assertEquals(
                 test_description + " - Project",
@@ -155,7 +155,7 @@ public class TestWebrequest {
         assertEquals(
                 "Null - Project Class",
                 NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getProjectClass()
+                webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
         );
         assertEquals(
                 "Null - Project",
@@ -179,7 +179,7 @@ public class TestWebrequest {
         assertEquals(
                "Empty - Project Class",
                 NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getProjectClass()
+                webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
         );
         assertEquals(
                 "Empty - Project",

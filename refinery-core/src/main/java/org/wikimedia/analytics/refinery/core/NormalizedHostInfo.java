@@ -13,24 +13,24 @@ public class NormalizedHostInfo {
      */
     public static final String EMPTY_NORM_HOST_VALUE  = "-";
 
-    private String projectClass;
+    private String projectFamily;
     private String project;
     private List<String> qualifiers;
     private String tld;
 
     public NormalizedHostInfo() {
-        projectClass = EMPTY_NORM_HOST_VALUE;
+        projectFamily = EMPTY_NORM_HOST_VALUE;
         project = EMPTY_NORM_HOST_VALUE;
         qualifiers = new ArrayList<>();
         tld = EMPTY_NORM_HOST_VALUE;
     }
 
-    public String getProjectClass() {
-        return projectClass;
+    public String getProjectFamily() {
+        return projectFamily;
     }
 
-    public void setProjectClass(String projectClass) {
-        this.projectClass = projectClass;
+    public void setProjectFamily(String projectFamily) {
+        this.projectFamily = projectFamily;
     }
 
     public String getProject() {

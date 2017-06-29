@@ -14,7 +14,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.*;
 
 import java.util.*;
@@ -22,11 +21,13 @@ import java.util.*;
 /**
  * UDF that normalizes host (lower case, split) and returns a struct.
  * Records are processed one by one.<p/>
+ * NOTE: project_class is renamed to project_family - we currently provide both.
  * Example:<br/>
  * SELECT get_host_properties('en.m.zero.wikipedia.org') FROM test_table LIMIT 1;<br/>
  * Returns:<br/>
  * {
  * "project_class":"wikipedia",
+ * "project_family":"wikipedia",
  * "project":"en",
  * "qualifiers":["m", "zero"],
  * "tld":"org",
@@ -39,7 +40,7 @@ import java.util.*;
 
 @UDFType(deterministic = true)
 @Description(name = "get_host_properties", value = "_FUNC_(uri_host) - "
-        + "Returns a map with project_class, project, qualifiers, tld keys and "
+        + "Returns a map with project_family, project, qualifiers, tld keys and "
         + "the appropriate values for each of them")
 public class GetHostPropertiesUDF extends GenericUDF {
     private Object[] result;
@@ -49,6 +50,7 @@ public class GetHostPropertiesUDF extends GenericUDF {
     private StringObjectInspector argumentOI;
 
     private int IDX_PROJECT_CLASS;
+    private int IDX_PROJECT_FAMILY;
     private int IDX_PROJECT;
     private int IDX_QUALIFIERS;
     private int IDX_TLD;
@@ -111,6 +113,10 @@ public class GetHostPropertiesUDF extends GenericUDF {
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
         IDX_PROJECT_CLASS=idx++;
 
+        fieldNames.add("project_family");
+        fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+        IDX_PROJECT_FAMILY=idx++;
+
         fieldNames.add("project");
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
         IDX_PROJECT=idx++;
@@ -168,11 +174,13 @@ public class GetHostPropertiesUDF extends GenericUDF {
 
         if (normHost == null) {
             result[IDX_PROJECT_CLASS] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
+            result[IDX_PROJECT_FAMILY] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
             result[IDX_PROJECT] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
             result[IDX_QUALIFIERS] = new ArrayList<String>();
             result[IDX_TLD] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
         } else {
-            result[IDX_PROJECT_CLASS] = normHost.getProjectClass();
+            result[IDX_PROJECT_CLASS] = normHost.getProjectFamily();
+            result[IDX_PROJECT_FAMILY] = normHost.getProjectFamily();
             result[IDX_PROJECT] = normHost.getProject();
             result[IDX_QUALIFIERS] = normHost.getQualifiers();
             result[IDX_TLD] = normHost.getTld();

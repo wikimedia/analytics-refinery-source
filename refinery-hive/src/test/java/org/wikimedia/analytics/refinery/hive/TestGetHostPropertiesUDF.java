@@ -67,7 +67,7 @@ public class TestGetHostPropertiesUDF {
     )
     public void testNormalizeHost(
             String test_description,
-            String expectedProjectClass,
+            String expectedProjectFamily,
             String expectedProject,
             String expectedQualifiers,
             String expectedTld,
@@ -81,12 +81,14 @@ public class TestGetHostPropertiesUDF {
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(uriHost) };
         Object[] res = (Object[]) getHostPropertiesUDF.evaluate(args);
 
-        assertEquals("Result array has wrong length", 4, res.length);
+        // Hacked for normalized_host.project_family change
+        assertEquals("Result array has wrong length", 5, res.length);
 
-        assertEquals(test_description + " - ProjectClass", expectedProjectClass, res[0]);
-        assertEquals(test_description + " - Project ", expectedProject, res[1]);
-        assertEquals(test_description + " - Qualifiers", expectedQualifiers, join((List<String>)res[2], ";"));
-        assertEquals(test_description + " - TLD", expectedTld, res[3]);
+        assertEquals(test_description + " - ProjectClass", expectedProjectFamily, res[0]);
+        assertEquals(test_description + " - ProjectFamily", expectedProjectFamily, res[1]);
+        assertEquals(test_description + " - Project ", expectedProject, res[2]);
+        assertEquals(test_description + " - Qualifiers", expectedQualifiers, join((List<String>)res[3], ";"));
+        assertEquals(test_description + " - TLD", expectedTld, res[4]);
 
         getHostPropertiesUDF.close();
     }

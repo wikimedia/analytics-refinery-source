@@ -233,14 +233,14 @@ public class Webrequest {
      * Example: normalizeHost("en.m.zero.wikipedia.org")<br/>
      * Returns:<br/>
      * NormalizedHostInfo(
-     * "project_class":"wikipedia",
+     * "projectFamily":"wikipedia",
      * "project":"en",
      * "qualifiers":["m", "zero"],
      * "tld":"org",
      * )
      *
      * @param uriHost The url's host
-     * @return A NormalizedHostInfo object with project_class, project, qualifiers and tld values set.
+     * @return A NormalizedHostInfo object with projectFamily, project, qualifiers and tld values set.
      */
     public NormalizedHostInfo normalizeHost(String uriHost) {
 
@@ -272,8 +272,8 @@ public class Webrequest {
             if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
 
             if (uriParts.length > 1) {
-                // project_class and TLD normalization
-                result.setProjectClass(uriParts[uriParts.length - 2]);
+                // project_family and TLD normalization
+                result.setProjectFamily(uriParts[uriParts.length - 2]);
                 result.setTld(uriParts[uriParts.length - 1]);
             }
             // project normalization
