@@ -26,7 +26,7 @@ public class TestTagger extends TestCase {
 
         TaggerChain taggerChain = new TaggerChain();
         // see fakePageviewTagger just for tests
-        assertTrue(taggerChain.chain.size() == 2);
+        assertTrue(taggerChain.chain.size() == 3);
         assertTrue(taggerChain.chain.get(0) != null);
         assertTrue(taggerChain.chain.get(1) != null);
     }
@@ -38,14 +38,13 @@ public class TestTagger extends TestCase {
         TaggerChain taggerChain = new TaggerChain();
         // see fakePageviewTagger just for tests
         Tagger t1 = taggerChain.chain.get(0);
-        Tagger t2 = taggerChain.chain.get(1);
+        Tagger t2 = taggerChain.chain.get(taggerChain.chain.size() - 1);
 
         //according to our setup  PortalTagger comes 1st, FakePageviewtagger comes after
 
         assertTrue("executionStage is considered when building chain",
             t1.getClass().getAnnotation(Tag.class).executionStage() <
             t2.getClass().getAnnotation(Tag.class).executionStage());
-
     }
 
 
@@ -130,9 +129,44 @@ public class TestTagger extends TestCase {
 
     }
 
+    @Test
+    @FileParameters(
+        value = "src/test/resources/wdqs_test_data.csv",
+        mapper = CsvWithHeaderMapper.class
+    )
+    public void testTagWdqsRequests(
+            String test_description,
+            String uri_host,
+            String uri_path,
+            String uri_query,
+            String http_status,
+            String content_type,
+            boolean is_wdqs,
+            String extra_tag
+    ) throws ClassNotFoundException, IllegalAccessException, InstantiationException {
+        WebrequestData data = new WebrequestData(uri_host,
+                uri_path,
+                uri_query,
+                http_status,
+                content_type,
+                "Test",
+                "") ;
 
+            TaggerChain taggerChain = new TaggerChain();
 
+            Set<String> tags = taggerChain.getTags(data);
+            if (is_wdqs) {
+                assertTrue(test_description, tags.contains("wikidata-query"));
+            } else {
+                assertFalse(test_description, tags.contains("wikidata-query"));
+            }
+            if (extra_tag.length() > 0) {
+                assertTrue(test_description, tags.contains(extra_tag));
+            } else {
+                assertFalse(test_description, tags.contains("sparql"));
+                assertFalse(test_description, tags.contains("ldf"));
+            }
 
-
+    }
 
 }

@@ -1,0 +1,8 @@
+test_description,uri_host,uri_path,uri_query,http_status,content_type,is_wdqs,extra_tag
+Not WDQS - Successs,en.wikipedia.org,/wiki/Horseshoe%20crab#anchor,-,200,text/html,false,
+Not WDQS - Failure,en.wikipedia.org,/notwiki/Horseshoe%20crab#anchor,-,404,text/html,false,
+WDQS - static data,query.wikidata.org,/logo.svg,-,200,-,true,
+WDQS - LDF,query.wikidata.org,/bigdata/ldf,?subject=&predicate=http%3A%2F%2Fwww.wikidata.org%2Fprop%2Fdirect%2FP3417&page=5,200,application/ld+json; charset=UTF-8,true,ldf
+WDQS - SPARQL,query.wikidata.org,/sparql,?query=%0A++++++++++++PREFIX+wd%3A,200,application/sparql-results+json,true,sparql
+WDQS - SPARQL long URL,query.wikidata.org,/bigdata/namespace/wdq/sparql,?query=%0A++++++++++++PREFIX+wd%3A,200,application/sparql-results+json,true,sparql
+WDQS - SPARQL - Faliure,query.wikidata.org,/sparql,?query=%0A++++++++++++PREFIX+wd%3A,404,application/sparql-results+json,false,

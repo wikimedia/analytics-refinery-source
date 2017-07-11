@@ -29,7 +29,7 @@ public class TaggerChain {
     public TaggerChain() throws ClassNotFoundException, IllegalAccessException, InstantiationException{
         // scan annotations at runtime and build chain
         Reflections reflections = new Reflections("org.wikimedia.analytics.refinery.core.webrequest.tag");
-        Set<Class<?>> taggerClasses = reflections.getTypesAnnotatedWith(org.wikimedia.analytics.refinery.core.webrequest.tag.Tag.class‌​);
+        Set<Class<?>> taggerClasses = reflections.getTypesAnnotatedWith(org.wikimedia.analytics.refinery.core.webrequest.tag.Tag.class);
 
         for (Class taggerClass : taggerClasses) {
             Class<?> clazz;
