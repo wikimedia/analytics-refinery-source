@@ -12,7 +12,7 @@ import java.util.Set;
  * [executionStage = 0] because this tagger does not depend on other tags
  * found in tagAccumulator.
  */
-@Tag(tag = "portal", executionStage = 0)
+@Tag(tag = {"portal"}, executionStage = 0)
 public class PortalTagger implements Tagger {
 
     Set<String> portalDomains = new HashSet<String>(

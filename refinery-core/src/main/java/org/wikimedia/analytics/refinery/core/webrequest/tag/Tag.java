@@ -14,8 +14,8 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface Tag {
-    // The tag string that the tagger will apply to webrequests.
-    String tag() default "";
+    // The tags that the tagger will apply to webrequests. Can be one or many.
+    String[] tag();
     // If the Tagger does not depend on other tags, executionStage should be 0.
     // If the Tagger depends on other tags, executionStage should be 1 plus the
     // maximum executionStage of all its tag dependencies.
