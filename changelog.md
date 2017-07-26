@@ -1,3 +1,9 @@
+## v0.0.49
+* Add webrequest tagging (UDF to tag requests) https://phabricator.wikimedia.org/T164021
+  * Tagger can return several tags (same task as above)
+  * Correct null pointer exception (same task as above)
+* Add webrequest tagger for Wikidata Query Service https://phabricator.wikimedia.org/T169798
+
 ## v0.0.48
 * Update mediawiki_history job with JDBC compliant timestamps and per-user and per-page
   new fields (revision-count and time-from-previous-revision)
