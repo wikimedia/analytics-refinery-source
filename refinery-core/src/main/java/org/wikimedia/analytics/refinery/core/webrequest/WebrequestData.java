@@ -21,7 +21,14 @@ public class WebrequestData {
     public WebrequestData(String uriHost, String uriPath, String uriQuery,
                           String httpStatus, String contentType, String userAgent,
                           String rawXAnalyticsHeader){
-        this.uriHost = uriHost.toLowerCase().trim();
+
+
+        if (uriHost != null) {
+            this.uriHost = uriHost.toLowerCase().trim();
+        } else {
+            this.uriHost = uriHost;
+        }
+
         this.uriPath = uriPath;
         this.uriQuery = uriQuery;
         this.httpStatus = httpStatus;
