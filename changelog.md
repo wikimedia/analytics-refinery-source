@@ -1,3 +1,6 @@
+## v0.0.51
+* Correct bug in host normalization function - make new field be at the end of the struct
+
 ## v0.0.50
 * Update host normalization function to return project_family in addition to project_class
   (with same value) in preparation to remove (at some point) the project_class field.
