@@ -85,10 +85,10 @@ public class TestGetHostPropertiesUDF {
         assertEquals("Result array has wrong length", 5, res.length);
 
         assertEquals(test_description + " - ProjectClass", expectedProjectFamily, res[0]);
-        assertEquals(test_description + " - ProjectFamily", expectedProjectFamily, res[1]);
-        assertEquals(test_description + " - Project ", expectedProject, res[2]);
-        assertEquals(test_description + " - Qualifiers", expectedQualifiers, join((List<String>)res[3], ";"));
-        assertEquals(test_description + " - TLD", expectedTld, res[4]);
+        assertEquals(test_description + " - Project ", expectedProject, res[1]);
+        assertEquals(test_description + " - Qualifiers", expectedQualifiers, join((List<String>)res[2], ";"));
+        assertEquals(test_description + " - TLD", expectedTld, res[3]);
+        assertEquals(test_description + " - ProjectFamily", expectedProjectFamily, res[4]);
 
         getHostPropertiesUDF.close();
     }

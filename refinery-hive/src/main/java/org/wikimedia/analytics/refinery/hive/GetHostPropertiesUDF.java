@@ -113,10 +113,6 @@ public class GetHostPropertiesUDF extends GenericUDF {
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
         IDX_PROJECT_CLASS=idx++;
 
-        fieldNames.add("project_family");
-        fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
-        IDX_PROJECT_FAMILY=idx++;
-
         fieldNames.add("project");
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
         IDX_PROJECT=idx++;
@@ -129,6 +125,10 @@ public class GetHostPropertiesUDF extends GenericUDF {
         fieldNames.add("tld");
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
         IDX_TLD=idx++;
+
+        fieldNames.add("project_family");
+        fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+        IDX_PROJECT_FAMILY=idx++;
 
         result = new Object[idx];
 
@@ -174,16 +174,16 @@ public class GetHostPropertiesUDF extends GenericUDF {
 
         if (normHost == null) {
             result[IDX_PROJECT_CLASS] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
-            result[IDX_PROJECT_FAMILY] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
             result[IDX_PROJECT] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
             result[IDX_QUALIFIERS] = new ArrayList<String>();
             result[IDX_TLD] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
+            result[IDX_PROJECT_FAMILY] = NormalizedHostInfo.EMPTY_NORM_HOST_VALUE;
         } else {
             result[IDX_PROJECT_CLASS] = normHost.getProjectFamily();
-            result[IDX_PROJECT_FAMILY] = normHost.getProjectFamily();
             result[IDX_PROJECT] = normHost.getProject();
             result[IDX_QUALIFIERS] = normHost.getQualifiers();
             result[IDX_TLD] = normHost.getTld();
+            result[IDX_PROJECT_FAMILY] = normHost.getProjectFamily();
         }
 
         return result;
