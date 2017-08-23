@@ -1,3 +1,7 @@
+## v0.0.50
+* Update host normalization function to return project_family in addition to project_class
+  (with same value) in preparation to remove (at some point) the project_class field.
+  
 ## v0.0.49
 * Add webrequest tagging (UDF to tag requests) https://phabricator.wikimedia.org/T164021
   * Tagger can return several tags (same task as above)
@@ -11,33 +15,27 @@
 * Mark Legacy Pageview code as deprecated.
 
 ## v0.0.47
-
 * Update tests and their dependencies to make them work on Mac and for any user.
 
 ## v0.0.46
-
 * Add small cache to avoid repeating normalization in Webrequest.normalizeHost
 * Refactor PageviewDefinition to add RedirectToPageviewUDF
 * Add support for both cs and cz as Czech Wiki Abbreviations to StemmerUDF
 
 ## v0.0.45
-
 * Remove is_productive and update time to revert from MediaWiki history denormalizer
 * Add revision_seconds_to_identity_revert to MediaWiki history denormalizer
 * Use hive query instead of parsing non existent sampled TSV files for guard settings
 
 ## v0.0.44
-
 * Update mediawiki history jobs to overwrite result folders
 
 ## v0.0.43
-
 * Add mediawiki history spark jobs to refinery-job
 * Add spark job to aggregate historical projectviews
 * Do not filter test[2].wikipedia.org from pageviews
 
 ## v0.0.42
-
 * Upgrade hadoop, hive and spark version after CDH upgrade.
   Hadoop and hive just have very minor upgrades, spark has a
   more import one (from 1.5.0 to 1.6.0.)
@@ -46,13 +44,11 @@
   has a bug preventing using HiveContext in oozie).
 
 ## v0.0.41
-
 * Update pageview definition to remove previews https://phabricator.wikimedia.org/T156628
 * Add spark streaming job for banner impressions https://phabricator.wikimedia.org/T155141
 * Add DSXS (self-identified bot) to bot regex https://phabricator.wikimedia.org/T157528
 
 ## v0.0.40
-
 * Add comment to action=edit filter in pageview definition: https://phabricator.wikimedia.org/T156629
 
 ## v0.0.39
