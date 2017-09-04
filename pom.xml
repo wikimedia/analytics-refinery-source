@@ -18,6 +18,10 @@
     <module>refinery-job</module>
     <module>refinery-camus</module>
     <module>refinery-cassandra</module>
+
+    <!-- Temporary module to iteratively move refinery-job jobs
+         from spark 1.6 with scala 2.10 to spark 2.1 with scala 2.11 -->
+    <module>refinery-job-spark-2.1</module>
   </modules>
 
   <scm>
