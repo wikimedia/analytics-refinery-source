@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.connectors
 
 import java.io.OutputStream
 import java.net.Socket

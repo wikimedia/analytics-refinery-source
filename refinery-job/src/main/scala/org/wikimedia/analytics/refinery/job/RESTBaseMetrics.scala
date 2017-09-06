@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
-import org.wikimedia.analytics.refinery.core.GraphiteClient
+import org.wikimedia.analytics.refinery.job.connectors.GraphiteClient
 import scopt.OptionParser
 
 /**
