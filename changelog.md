@@ -1,10 +1,14 @@
+## v0.0.52
+* Add Clickstream builder spark job to refinery-job
+* Move GraphiteClient from refinery-core to refinery-job
+
 ## v0.0.51
 * Correct bug in host normalization function - make new field be at the end of the struct
 
 ## v0.0.50
 * Update host normalization function to return project_family in addition to project_class
   (with same value) in preparation to remove (at some point) the project_class field.
-  
+
 ## v0.0.49
 * Add webrequest tagging (UDF to tag requests) https://phabricator.wikimedia.org/T164021
   * Tagger can return several tags (same task as above)
