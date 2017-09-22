@@ -28,7 +28,7 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
                                      pageIsRedirectLatest: Option[Boolean] = None,
                                      pageCreationTimestamp: Option[Timestamp] = None,
                                      pageRevisionCount: Option[Long] = None,
-                                     pageSecondsFromPreviousRevision: Option[Long] = None
+                                     pageSecondsSincePreviousRevision: Option[Long] = None
                                     )
 
 case class MediawikiEventUserDetails(userId: Option[Long] = None,
@@ -46,7 +46,7 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                      userCreationTimestamp: Option[Timestamp] = None,
                                      // Next two fields are used in event_user
                                      userRevisionCount: Option[Long] = None,
-                                     userSecondsFromPreviousRevision: Option[Long] = None
+                                     userSecondsSincePreviousRevision: Option[Long] = None
                                     )
 
 case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
@@ -99,7 +99,7 @@ case class MediawikiEvent(
     eventUserDetails.userCreationTimestamp.map(_.toString).orNull,
     //eventUserDetails.userCreationTimestamp.orNull,
     eventUserDetails.userRevisionCount.orNull,
-    eventUserDetails.userSecondsFromPreviousRevision.orNull,
+    eventUserDetails.userSecondsSincePreviousRevision.orNull,
 
     pageDetails.pageId.orNull,
     pageDetails.pageTitle.orNull,
@@ -112,7 +112,7 @@ case class MediawikiEvent(
     pageDetails.pageCreationTimestamp.map(_.toString).orNull,
     //pageDetails.pageCreationTimestamp.orNull,
     pageDetails.pageRevisionCount.orNull,
-    pageDetails.pageSecondsFromPreviousRevision.orNull,
+    pageDetails.pageSecondsSincePreviousRevision.orNull,
 
     userDetails.userId.orNull,
     userDetails.userText.orNull,
@@ -160,13 +160,13 @@ case class MediawikiEvent(
   def updateWithUserPreviousRevision(userPreviousRevision: Option[MediawikiEvent]) = this.copy(
     eventUserDetails = this.eventUserDetails.copy(
       userRevisionCount = Some(userPreviousRevision.map(_.eventUserDetails.userRevisionCount.getOrElse(0L)).getOrElse(0L) + 1),
-      userSecondsFromPreviousRevision =
+      userSecondsSincePreviousRevision =
         TimestampHelpers.getTimestampDifference(this.eventTimestamp, userPreviousRevision.map(_.eventTimestamp).getOrElse(None))
     ))
   def updateWithPagePreviousRevision(pagePreviousRevision: Option[MediawikiEvent]) = this.copy(
     pageDetails = this.pageDetails.copy(
       pageRevisionCount = Some(pagePreviousRevision.map(_.pageDetails.pageRevisionCount.getOrElse(0L)).getOrElse(0L) + 1),
-      pageSecondsFromPreviousRevision =
+      pageSecondsSincePreviousRevision =
         TimestampHelpers.getTimestampDifference(this.eventTimestamp, pagePreviousRevision.map(_.eventTimestamp).getOrElse(None))
     ))
   def updateEventUserDetails(userState: UserState) = this.copy(
@@ -224,7 +224,7 @@ object MediawikiEvent {
       StructField("event_user_creation_timestamp", StringType, nullable = true),
       //StructField("event_user_creation_timestamp", TimestampType, nullable = true),
       StructField("event_user_revision_count", LongType, nullable = true),
-      StructField("event_user_seconds_from_previous_revision", LongType, nullable = true),
+      StructField("event_user_seconds_since_previous_revision", LongType, nullable = true),
 
       StructField("page_id", LongType, nullable = true),
       StructField("page_title", StringType, nullable = true),
@@ -237,7 +237,7 @@ object MediawikiEvent {
       StructField("page_creation_timestamp", StringType, nullable = true),
       //StructField("page_creation_timestamp", TimestampType, nullable = true),
       StructField("page_revision_count", LongType, nullable = true),
-      StructField("page_seconds_from_previous_revision", LongType, nullable = true),
+      StructField("page_seconds_since_previous_revision", LongType, nullable = true),
 
       StructField("user_id", LongType, nullable = true),
       StructField("user_text", StringType, nullable = true),
