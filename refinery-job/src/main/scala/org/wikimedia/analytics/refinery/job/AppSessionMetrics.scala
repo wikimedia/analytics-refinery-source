@@ -248,8 +248,13 @@ object AppSessionMetrics {
    */
   def pathListToDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
     sqlContext.read.parquet(paths: _*)
-      .filter("is_pageview and access_method = 'mobile app' and " +
-        "x_analytics_map['wmfuuid'] is not null and x_analytics_map['wmfuuid'] != ''")
+      .filter("""
+        is_pageview
+        and access_method = 'mobile app'
+        and x_analytics_map['wmfuuid'] is not null
+        and x_analytics_map['wmfuuid'] != ''
+        and ts is not null
+      """)
       .selectExpr(
         "user_agent_map['os_family'] as os_family",
         "x_analytics_map['wmfuuid'] as wmfuuid",
