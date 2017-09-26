@@ -1,3 +1,8 @@
+## v0.0.53
+* Correct field names in mediawiki-history spark job (time since previous revision)
+* Add PhantomJS to the bot_flagging regex
+* Correct mobile-apps-sessions spark job (filter out `ts is null`)
+
 ## v0.0.52
 * Add Clickstream builder spark job to refinery-job
 * Move GraphiteClient from refinery-core to refinery-job
