@@ -1,0 +1,50 @@
+{
+    "type" : "index_hadoop",
+    "spec" : {
+        "ioConfig" : {
+            "type" : "hadoop",
+            "inputSpec" : {
+                "type" : "static",
+                "paths" : "{{INPUT_PATH}}"
+            }
+        },
+        "dataSchema" : {
+            "dataSource" : "{{DATA_SOURCE}}",
+            "granularitySpec" : {
+                "type" : "uniform",
+                "segmentGranularity" : "{{SEGMENT_GRANULARITY}}",
+                "queryGranularity" : "{{QUERY_GRANULARITY}}",
+                "intervals" : {{INTERVALS_ARRAY}}
+            },
+            "parser" : {
+                "type" : "string",
+                "parseSpec" : {
+                    "format" : "json",
+                    "dimensionsSpec" : {
+                        "dimensions" : {{DIMENSIONS}}
+                    },
+                    "timestampSpec" : {
+                        "format" : "{{TIMESTAMP_FORMAT}}",
+                        "column" : "{{TIMESTAMP_COLUMN}}"
+                    }
+                }
+            },
+            "metricsSpec" : {{METRICS}}
+        },
+        "tuningConfig" : {
+            "type" : "hadoop",
+            "overwriteFiles": true,
+            "ignoreInvalidRows" : false,
+            "partitionsSpec" : {
+                "type" : "hashed",
+                "numShards" : {{NUM_SHARDS}}
+            },
+            "jobProperties" : {
+                "mapreduce.reduce.memory.mb" : "{{REDUCE_MEMORY}}",
+                "mapreduce.output.fileoutputformat.compress":
+                    "org.apache.hadoop.io.compress.GzipCodec",
+                "mapreduce.job.queuename": "{{HADOOP_QUEUE}}"
+            }
+        }
+    }
+}

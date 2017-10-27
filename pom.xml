@@ -190,7 +190,21 @@
         <scope>test</scope>
       </dependency>
 
-      <dependency>
+
+    <!-- 
+             adding explicit dep for snappy, otherwise
+             spark assumes is on the java.library.path
+             see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
+    -->
+    <!-- https://mvnrepository.com/artifact/org.xerial.snappy/snappy-java -->
+    <dependency>
+        <groupId>org.xerial.snappy</groupId>
+        <artifactId>snappy-java</artifactId>
+        <version>1.1.2.5</version>
+        <scope>test</scope>
+    </dependency>
+        
+    <dependency>
         <groupId>com.github.nscala-time</groupId>
         <artifactId>nscala-time_2.10</artifactId>
         <version>2.0.0</version>
