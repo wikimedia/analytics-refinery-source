@@ -1,5 +1,7 @@
 ## v0.0.54
+# refinery-core now builds scala.
 * Add JsonRefine job
+
 
 ## v0.0.53
 * Correct field names in mediawiki-history spark job (time since previous revision)
