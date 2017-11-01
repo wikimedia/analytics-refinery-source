@@ -1,3 +1,6 @@
+## v0.0.54
+* Add JsonRefine job
+
 ## v0.0.53
 * Correct field names in mediawiki-history spark job (time since previous revision)
 * Add PhantomJS to the bot_flagging regex
