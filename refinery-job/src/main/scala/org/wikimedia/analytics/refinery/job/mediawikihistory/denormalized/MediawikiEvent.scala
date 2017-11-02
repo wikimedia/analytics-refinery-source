@@ -19,25 +19,25 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelp
 
 
 case class MediawikiEventPageDetails(pageId: Option[Long] = None,
+                                     pageTitleHistorical: Option[String] = None,
                                      pageTitle: Option[String] = None,
-                                     pageTitleLatest: Option[String] = None,
+                                     pageNamespaceHistorical: Option[Int] = None,
+                                     pageNamespaceIsContentHistorical: Option[Boolean] = None,
                                      pageNamespace: Option[Int] = None,
                                      pageNamespaceIsContent: Option[Boolean] = None,
-                                     pageNamespaceLatest: Option[Int] = None,
-                                     pageNamespaceIsContentLatest: Option[Boolean] = None,
-                                     pageIsRedirectLatest: Option[Boolean] = None,
+                                     pageIsRedirect: Option[Boolean] = None,
                                      pageCreationTimestamp: Option[Timestamp] = None,
                                      pageRevisionCount: Option[Long] = None,
                                      pageSecondsSincePreviousRevision: Option[Long] = None
                                     )
 
 case class MediawikiEventUserDetails(userId: Option[Long] = None,
+                                     userTextHistorical: Option[String] = None,
                                      userText: Option[String] = None,
-                                     userTextLatest: Option[String] = None,
+                                     userBlocksHistorical: Option[Seq[String]] = None,
                                      userBlocks: Option[Seq[String]] = None,
-                                     userBlocksLatest: Option[Seq[String]] = None,
+                                     userGroupsHistorical: Option[Seq[String]] = None,
                                      userGroups: Option[Seq[String]] = None,
-                                     userGroupsLatest: Option[Seq[String]] = None,
                                      userIsCreatedBySelf: Option[Boolean] = None,
                                      userIsCreatedBySystem: Option[Boolean] = None,
                                      userIsCreatedByPeer: Option[Boolean] = None,
@@ -85,12 +85,12 @@ case class MediawikiEvent(
     //eventTimestamp.orNull,
     eventComment.orNull,
     eventUserDetails.userId.orNull,
+    eventUserDetails.userTextHistorical.orNull,
     eventUserDetails.userText.orNull,
-    eventUserDetails.userTextLatest.orNull,
+    eventUserDetails.userBlocksHistorical.orNull,
     eventUserDetails.userBlocks.orNull,
-    eventUserDetails.userBlocksLatest.orNull,
+    eventUserDetails.userGroupsHistorical.orNull,
     eventUserDetails.userGroups.orNull,
-    eventUserDetails.userGroupsLatest.orNull,
     eventUserDetails.userIsCreatedBySelf.orNull,
     eventUserDetails.userIsCreatedBySystem.orNull,
     eventUserDetails.userIsCreatedByPeer.orNull,
@@ -102,25 +102,25 @@ case class MediawikiEvent(
     eventUserDetails.userSecondsSincePreviousRevision.orNull,
 
     pageDetails.pageId.orNull,
+    pageDetails.pageTitleHistorical.orNull,
     pageDetails.pageTitle.orNull,
-    pageDetails.pageTitleLatest.orNull,
+    pageDetails.pageNamespaceHistorical.orNull,
+    pageDetails.pageNamespaceIsContentHistorical.orNull,
     pageDetails.pageNamespace.orNull,
     pageDetails.pageNamespaceIsContent.orNull,
-    pageDetails.pageNamespaceLatest.orNull,
-    pageDetails.pageNamespaceIsContentLatest.orNull,
-    pageDetails.pageIsRedirectLatest.orNull,
+    pageDetails.pageIsRedirect.orNull,
     pageDetails.pageCreationTimestamp.map(_.toString).orNull,
     //pageDetails.pageCreationTimestamp.orNull,
     pageDetails.pageRevisionCount.orNull,
     pageDetails.pageSecondsSincePreviousRevision.orNull,
 
     userDetails.userId.orNull,
+    userDetails.userTextHistorical.orNull,
     userDetails.userText.orNull,
-    userDetails.userTextLatest.orNull,
+    userDetails.userBlocksHistorical.orNull,
     userDetails.userBlocks.orNull,
-    userDetails.userBlocksLatest.orNull,
+    userDetails.userGroupsHistorical.orNull,
     userDetails.userGroups.orNull,
-    userDetails.userGroupsLatest.orNull,
     userDetails.userIsCreatedBySelf.orNull,
     userDetails.userIsCreatedBySystem.orNull,
     userDetails.userIsCreatedByPeer.orNull,
@@ -172,12 +172,12 @@ case class MediawikiEvent(
   def updateEventUserDetails(userState: UserState) = this.copy(
     eventUserDetails = this.eventUserDetails.copy(
       userId = Some(userState.userId),
+      userTextHistorical = Some(userState.userNameHistorical),
       userText = Some(userState.userName),
-      userTextLatest = Some(userState.userNameLatest),
+      userBlocksHistorical = Some(userState.userBlocksHistorical),
       userBlocks = Some(userState.userBlocks),
-      userBlocksLatest = Some(userState.userBlocksLatest),
+      userGroupsHistorical = Some(userState.userGroupsHistorical),
       userGroups = Some(userState.userGroups),
-      userGroupsLatest = Some(userState.userGroupsLatest),
       userIsCreatedBySelf = Some(userState.createdBySelf),
       userIsCreatedBySystem = Some(userState.createdBySystem),
       userIsCreatedByPeer = Some(userState.createdByPeer),
@@ -187,13 +187,13 @@ case class MediawikiEvent(
     ))
   def updatePageDetails(pageState: PageState) = this.copy(
     pageDetails = this.pageDetails.copy(
+      pageTitleHistorical = Some(pageState.titleHistorical),
       pageTitle = Some(pageState.title),
-      pageTitleLatest = Some(pageState.titleLatest),
+      pageNamespaceHistorical = Some(pageState.namespaceHistorical),
+      pageNamespaceIsContentHistorical = Some(pageState.namespaceIsContentHistorical),
       pageNamespace = Some(pageState.namespace),
       pageNamespaceIsContent = Some(pageState.namespaceIsContent),
-      pageNamespaceLatest = Some(pageState.namespaceLatest),
-      pageNamespaceIsContentLatest = Some(pageState.namespaceIsContentLatest),
-      pageIsRedirectLatest = pageState.isRedirectLatest,
+      pageIsRedirect = pageState.isRedirect,
       pageCreationTimestamp = pageState.pageCreationTimestamp
     ))
 
@@ -210,12 +210,12 @@ object MediawikiEvent {
       //StructField("event_timestamp", TimestampType, nullable = true),
       StructField("event_comment", StringType, nullable = true),
       StructField("event_user_id", LongType, nullable = false),
+      StructField("event_user_text_historical", StringType, nullable = false),
       StructField("event_user_text", StringType, nullable = false),
-      StructField("event_user_text_latest", StringType, nullable = false),
+      StructField("event_user_blocks_historical", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("event_user_blocks", ArrayType(StringType, containsNull = true), nullable = false),
-      StructField("event_user_blocks_latest", ArrayType(StringType, containsNull = true), nullable = false),
+      StructField("event_user_groups_historical", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("event_user_groups", ArrayType(StringType, containsNull = true), nullable = false),
-      StructField("event_user_groups_latest", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("event_user_is_created_by_self", BooleanType, nullable = false),
       StructField("event_user_is_created_by_system", BooleanType, nullable = false),
       StructField("event_user_is_created_by_peer", BooleanType, nullable = false),
@@ -227,25 +227,25 @@ object MediawikiEvent {
       StructField("event_user_seconds_since_previous_revision", LongType, nullable = true),
 
       StructField("page_id", LongType, nullable = true),
+      StructField("page_title_historical", StringType, nullable = true),
       StructField("page_title", StringType, nullable = true),
-      StructField("page_title_latest", StringType, nullable = true),
+      StructField("page_namespace_historical", IntegerType, nullable = true),
+      StructField("page_namespace_is_content_historical", BooleanType, nullable = true),
       StructField("page_namespace", IntegerType, nullable = true),
       StructField("page_namespace_is_content", BooleanType, nullable = true),
-      StructField("page_namespace_latest", IntegerType, nullable = true),
-      StructField("page_namespace_is_content_latest", BooleanType, nullable = true),
-      StructField("page_is_redirect_latest", BooleanType, nullable = true),
+      StructField("page_is_redirect", BooleanType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
       //StructField("page_creation_timestamp", TimestampType, nullable = true),
       StructField("page_revision_count", LongType, nullable = true),
       StructField("page_seconds_since_previous_revision", LongType, nullable = true),
 
       StructField("user_id", LongType, nullable = true),
+      StructField("user_text_historical", StringType, nullable = true),
       StructField("user_text", StringType, nullable = true),
-      StructField("user_text_latest", StringType, nullable = true),
+      StructField("user_blocks_historical", ArrayType(StringType, containsNull = true), nullable = true),
       StructField("user_blocks", ArrayType(StringType, containsNull = true), nullable = true),
-      StructField("user_blocks_latest", ArrayType(StringType, containsNull = true), nullable = true),
+      StructField("user_groups_historical", ArrayType(StringType, containsNull = true), nullable = true),
       StructField("user_groups", ArrayType(StringType, containsNull = true), nullable = true),
-      StructField("user_groups_latest", ArrayType(StringType, containsNull = true), nullable = true),
       StructField("user_is_created_by_self", BooleanType, nullable = true),
       StructField("user_is_created_by_system", BooleanType, nullable = true),
       StructField("user_is_created_by_peer", BooleanType, nullable = true),
@@ -295,29 +295,29 @@ object MediawikiEvent {
     eventTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
     eventComment = Option(row.getString(2)),
     eventUserDetails = new MediawikiEventUserDetails(
-      // TODO: When userId = 0, it does make no sense to store eventUserTextLatest.
+      // TODO: When userId = 0, it does make no sense to store eventUserText.
       userId = if (row.isNullAt(3)) None else Some(row.getLong(3)),
       // Next fields: Needed in case userId is 0, overwritten otherwise
-      userText = Option(row.getString(4)),
+      userTextHistorical = Option(row.getString(4)),
       userIsAnonymous = Some(row.isNullAt(3) || row.getLong(3) <= 0),
       userIsBotByName = Some(!row.isNullAt(4) && UserEventBuilder.isBotByName(row.getString(4)))
     ),
     pageDetails = new MediawikiEventPageDetails(
       pageId = if (row.isNullAt(5)) None else Some(row.getLong(5))
+      // pageTitleHistorical: need page history
       // pageTitle: need page history
-      // pageTitleLatest: need page history
+      // pageNamespaceHistorical: need page history
       // pageNamespace: need page history
-      // pageNamespaceLatest: need page history
       // pageCreationTimestamp: need page history
     ),
     userDetails = new MediawikiEventUserDetails(
       // userId: Not Applicable (not a user centered event) - See TODO comment above
-      // userText: Not Applicable (not a user centered event)
-      // userTextLatest = Not Applicable (not a user centered event)
+      // userTextHistorical: Not Applicable (not a user centered event)
+      // userText = Not Applicable (not a user centered event)
+      // userBlocksHistorical: need user history
       // userBlocks: need user history
-      // userBlocksLatest: need user history
+      // userGroupsHistorical: need user history
       // userGroups: need user history
-      // userGroupsLatest: need user history
       // userCreationTimestamp: need user history
     ),
     revisionDetails = new MediawikiEventRevisionDetails(
@@ -364,29 +364,29 @@ object MediawikiEvent {
     eventTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
     eventComment = Option(row.getString(2)),
     eventUserDetails = new MediawikiEventUserDetails(
-      // TODO: When userId = 0, it does make no sense to store eventUserTextLatest.
+      // TODO: When userId = 0, it does make no sense to store eventUserText.
       userId = if (row.isNullAt(3)) None else Some(row.getLong(3)),
       // Next fields -- Needed in case userId is 0, overwritten otherwise
-      userText = Option(row.getString(4)),
+      userTextHistorical = Option(row.getString(4)),
       userIsAnonymous = Some(row.isNullAt(3) || row.getLong(3) <= 0),
       userIsBotByName = Some(!row.isNullAt(4) && UserEventBuilder.isBotByName(row.getString(4)))
     ),
     pageDetails = new MediawikiEventPageDetails(
       pageId = if (row.isNullAt(5)) None else Some(row.getLong(5)),
       // pageTitle: need page history
-      pageTitleLatest = Option(row.getString(6)),
+      pageTitle = Option(row.getString(6)),
       // pageNamespace: need page history
-      pageNamespaceLatest = if (row.isNullAt(7)) None else Some(row.getInt(7))
+      pageNamespace = if (row.isNullAt(7)) None else Some(row.getInt(7))
       // pageCreationTimestamp: need page history
     ),
     userDetails = new MediawikiEventUserDetails(
       // userId: NA - See TODO comment above
-      // userText: NA
-      // userTextLatest = NA
+      // userTextHistorical: NA
+      // userText = NA
+      // userBlocksHistorical: need user history
       // userBlocks: need user history
-      // userBlocksLatest: need user history
+      // userGroupsHistorical: need user history
       // userGroups: need user history
-      // userGroupsLatest: need user history
       // userCreationTimestamp: need user history
     ),
     revisionDetails = new MediawikiEventRevisionDetails(
@@ -418,20 +418,20 @@ object MediawikiEvent {
     ),
     pageDetails = new MediawikiEventPageDetails(
       // pageId: NA
+      // pageTitleHistorical: NA
       // pageTitle: NA
-      // pageTitleLatest: NA
+      // pageNamespaceHistorical: NA
       // pageNamespace: NA
-      // pageNamespaceLatest: NA
       // pageCreationTimestamp: NA
     ),
     userDetails = new MediawikiEventUserDetails(
       userId = Some(userState.userId),
+      userTextHistorical = Some(userState.userNameHistorical),
       userText = Some(userState.userName),
-      userTextLatest = Some(userState.userNameLatest),
+      userBlocksHistorical = Some(userState.userBlocksHistorical),
       userBlocks = Some(userState.userBlocks),
-      userBlocksLatest = Some(userState.userBlocksLatest),
+      userGroupsHistorical = Some(userState.userGroupsHistorical),
       userGroups = Some(userState.userGroups),
-      userGroupsLatest = Some(userState.userGroupsLatest),
       userIsCreatedBySelf = Some(userState.createdBySelf),
       userIsCreatedBySystem = Some(userState.createdBySystem),
       userIsCreatedByPeer = Some(userState.createdByPeer),
@@ -465,23 +465,23 @@ object MediawikiEvent {
     ),
     pageDetails = new MediawikiEventPageDetails(
       pageId = pageState.pageId, // TODO: what to do with artificial pages?
+      pageTitleHistorical = Some(pageState.titleHistorical),
       pageTitle = Some(pageState.title),
-      pageTitleLatest = Some(pageState.titleLatest),
+      pageNamespaceHistorical = Some(pageState.namespaceHistorical),
+      pageNamespaceIsContentHistorical = Some(pageState.namespaceIsContentHistorical),
       pageNamespace = Some(pageState.namespace),
       pageNamespaceIsContent = Some(pageState.namespaceIsContent),
-      pageNamespaceLatest = Some(pageState.namespaceLatest),
-      pageNamespaceIsContentLatest = Some(pageState.namespaceIsContentLatest),
-      pageIsRedirectLatest = pageState.isRedirectLatest,
+      pageIsRedirect = pageState.isRedirect,
       pageCreationTimestamp = pageState.pageCreationTimestamp
     ),
     userDetails = new MediawikiEventUserDetails(
       // userId: NA
+      // userTextHistorical: NA
       // userText: NA
-      // userTextLatest: NA
+      // userBlocksHistorical: NA
       // userBlocks: NA
-      // userBlocksLatest: NA
+      // userGroupsHistorical: NA
       // userGroups: NA
-      // userGroupsLatest: NA
       // userCreationTimestamp: NA
     ),
     revisionDetails = new MediawikiEventRevisionDetails(

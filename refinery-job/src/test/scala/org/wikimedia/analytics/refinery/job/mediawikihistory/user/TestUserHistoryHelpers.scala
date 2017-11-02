@@ -67,12 +67,12 @@ object TestUserHistoryHelpers {
                     causedByEventType: Option[String] = Some(null),
                     causedByUserId: Option[Long] = Some(0L),
                     userId: Option[Long] = Some(1L),
-                    userName: Option[String] = Some("User"),
-                    userNameLatest: Option[String] = None,
+                    userNameHistorical: Option[String] = Some("User"),
+                    userName: Option[String] = None,
+                    userGroupsHistorical: Option[Seq[String]] = Some(Seq.empty),
                     userGroups: Option[Seq[String]] = Some(Seq.empty),
-                    userGroupsLatest: Option[Seq[String]] = Some(Seq.empty),
+                    userBlocksHistorical: Option[Seq[String]] = Some(Seq.empty),
                     userBlocks: Option[Seq[String]] = Some(Seq.empty),
-                    userBlocksLatest: Option[Seq[String]] = Some(Seq.empty),
                     userRegistration: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestamp("20010115000000"),
                     autoCreate: Option[Boolean] = Some(false),
                     causedByBlockExpiration: Option[String] = None,
@@ -92,21 +92,21 @@ object TestUserHistoryHelpers {
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "id" | "userId" => ("userId" -> long(v))
+          case "nameH" | "userNameH" => ("userNameHistorical" -> string(v))
           case "name" | "userName" => ("userName" -> string(v))
-          case "nameL" | "userNameLatest" => ("userNameLatest" -> string(v))
+          case "groupsH" | "userGroupsH" => ("userGroupsHistorical" -> list(v))
           case "groups" | "userGroups" => ("userGroups" -> list(v))
-          case "groupsL" | "userGroupsLatest" => ("userGroupsLatest" -> list(v))
+          case "blocksH" | "userBlocksH" => ("userBlocksHistorical" -> list(v))
           case "blocks" | "userBlocks" => ("userBlocks" -> list(v))
-          case "blocksL" | "userBlocksLatest" => ("userBlocksLatest" -> list(v))
           case "registration" | "userRegistration" => ("userRegistration" -> timestamp(v))
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
           case "expiration" | "causedByBlockExpiration" => ("causedByBlockExpiration" -> string(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
         }
       }.toMap
-      val userNameVal = valueMap.getOrElse("userName", userName).get.asInstanceOf[String]
-      val userGroupsVal = valueMap.getOrElse("userGroups", userGroups).get.asInstanceOf[Seq[String]]
-      val userBlocksVal = valueMap.getOrElse("userBlocks", userBlocks).get.asInstanceOf[Seq[String]]
+      val userNameHistoricalVal = valueMap.getOrElse("userNameHistorical", userNameHistorical).get.asInstanceOf[String]
+      val userGroupsHistoricalVal = valueMap.getOrElse("userGroupsHistorical", userGroupsHistorical).get.asInstanceOf[Seq[String]]
+      val userBlocksHistoricalVal = valueMap.getOrElse("userBlocksHistorical", userBlocksHistorical).get.asInstanceOf[Seq[String]]
       new UserState(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
         startTimestamp = valueMap.getOrElse("startTimestamp", startTimestamp).asInstanceOf[Option[Timestamp]],
@@ -114,12 +114,12 @@ object TestUserHistoryHelpers {
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         userId = valueMap.getOrElse("userId", userId).get.asInstanceOf[Long],
-        userName = userNameVal,
-        userNameLatest = valueMap.getOrElse("userNameLatest", Some(userNameVal)).get.asInstanceOf[String],
-        userGroups = userGroupsVal,
-        userGroupsLatest = valueMap.getOrElse("userGroupsLatest", Some(userGroupsVal)).get.asInstanceOf[Seq[String]],
-        userBlocks = userBlocksVal,
-        userBlocksLatest = valueMap.getOrElse("userBlocksLatest", Some(userBlocksVal)).get.asInstanceOf[Seq[String]],
+        userNameHistorical = userNameHistoricalVal,
+        userName = valueMap.getOrElse("userName", Some(userNameHistoricalVal)).get.asInstanceOf[String],
+        userGroupsHistorical = userGroupsHistoricalVal,
+        userGroups = valueMap.getOrElse("userGroups", Some(userGroupsHistoricalVal)).get.asInstanceOf[Seq[String]],
+        userBlocksHistorical = userBlocksHistoricalVal,
+        userBlocks = valueMap.getOrElse("userBlocks", Some(userBlocksHistoricalVal)).get.asInstanceOf[Seq[String]],
         userRegistrationTimestamp = valueMap.getOrElse("userRegistration", userRegistration).asInstanceOf[Option[Timestamp]],
         createdBySystem = valueMap.getOrElse("autoCreate", autoCreate).get.asInstanceOf[Boolean],
         causedByBlockExpiration = valueMap.getOrElse("causedByBlockExpiration", causedByBlockExpiration).asInstanceOf[Option[String]],

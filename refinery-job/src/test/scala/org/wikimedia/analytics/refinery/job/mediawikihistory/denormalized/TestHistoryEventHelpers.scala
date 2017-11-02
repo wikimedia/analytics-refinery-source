@@ -15,8 +15,8 @@ object TestHistoryEventHelpers {
     wikiDb = "",
     userId = userId,
     causedByEventType = "",
-    userName = "",
-    userNameLatest = "")
+    userNameHistorical = "",
+    userName = "")
 
   def revisionMwEventSet(
                           wikiDb: Option[String] = Some("testwiki"),

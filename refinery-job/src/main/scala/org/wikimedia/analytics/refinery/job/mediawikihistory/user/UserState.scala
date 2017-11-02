@@ -23,12 +23,12 @@ case class UserState(
                       causedByUserId: Option[Long] = None,
                       // Specific fields
                       userId: Long,
+                      userNameHistorical: String,
                       userName: String,
-                      userNameLatest: String,
+                      userGroupsHistorical: Seq[String] = Seq.empty[String],
                       userGroups: Seq[String] = Seq.empty[String],
-                      userGroupsLatest: Seq[String] = Seq.empty[String],
+                      userBlocksHistorical: Seq[String] = Seq.empty[String],
                       userBlocks: Seq[String] = Seq.empty[String],
-                      userBlocksLatest: Seq[String] = Seq.empty[String],
                       userRegistrationTimestamp: Option[Timestamp] = None,
                       createdBySelf: Boolean = false,
                       createdBySystem: Boolean = false,
@@ -42,12 +42,12 @@ case class UserState(
   def toRow: Row = Row(
       wikiDb,
       userId,
+      userNameHistorical,
       userName,
-      userNameLatest,
+      userGroupsHistorical,
       userGroups,
-      userGroupsLatest,
+      userBlocksHistorical,
       userBlocks,
-      userBlocksLatest,
       userRegistrationTimestamp.map(_.toString).orNull,
       //userRegistrationTimestamp.orNull,
       createdBySelf,
@@ -65,7 +65,7 @@ case class UserState(
       inferredFrom.orNull
   )
 
-  override def key: (String, String) = (wikiDb, userName)
+  override def key: (String, String) = (wikiDb, userNameHistorical)
 }
 
 object UserState {
@@ -82,12 +82,12 @@ object UserState {
   def fromRow(row: Row): UserState = UserState(
       wikiDb = row.getString(0),
       userId = row.getLong(1),
-      userName = row.getString(2),
-      userNameLatest = row.getString(3),
-      userGroups = row.getSeq(4),
-      userGroupsLatest = row.getSeq(5),
-      userBlocks = row.getSeq(6),
-      userBlocksLatest = row.getSeq(7),
+      userNameHistorical = row.getString(2),
+      userName = row.getString(3),
+      userGroupsHistorical = row.getSeq(4),
+      userGroups = row.getSeq(5),
+      userBlocksHistorical = row.getSeq(6),
+      userBlocks = row.getSeq(7),
       userRegistrationTimestamp = if (row.isNullAt(8)) None else Some(Timestamp.valueOf(row.getString(8))),
       //userRegistrationTimestamp = if (row.isNullAt(8)) None else Some(row.getTimestamp(8)),
       createdBySelf = row.getBoolean(9),
@@ -109,12 +109,12 @@ object UserState {
     Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("user_id", LongType, nullable = false),
+      StructField("user_name_historical", StringType, nullable = false),
       StructField("user_name", StringType, nullable = false),
-      StructField("user_name_latest", StringType, nullable = false),
+      StructField("user_groups_historical", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_groups", ArrayType(StringType, containsNull = true), nullable = false),
-      StructField("user_groups_latest", ArrayType(StringType, containsNull = true), nullable = false),
+      StructField("user_blocks_historical", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_blocks", ArrayType(StringType, containsNull = true), nullable = false),
-      StructField("user_blocks_latest", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_registration_timestamp", StringType, nullable = true),
       //StructField("user_registration_timestamp", TimestampType, nullable = true),
       StructField("created_by_self", BooleanType, nullable = false),

@@ -71,12 +71,12 @@ object TestPageHistoryHelpers {
     causedByUserId: Option[Long] = Some(0L),
     pageId: Option[Long] = Some(1L),
     pageIdArtificial: Option[String] = None,
-    title: Option[String] = Some("Title"),
-    titleLatest: Option[String] = None,
-    namespace: Option[Int] = Some(0),
-    namespaceIsContent: Option[Boolean] = Some(true),
-    namespaceLatest: Option[Int] = None,
-    namespaceIsContentLatest: Option[Boolean] = None,
+    titleHistorical: Option[String] = Some("Title"),
+    title: Option[String] = None,
+    namespaceHistorical: Option[Int] = Some(0),
+    namespaceIsContentHistorical: Option[Boolean] = Some(true),
+    namespace: Option[Int] = None,
+    namespaceIsContent: Option[Boolean] = None,
     pageCreationTimestamp: Option[Timestamp] = None,
     inferredFrom: Option[String] = None
   )(
@@ -95,19 +95,19 @@ object TestPageHistoryHelpers {
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "id" | "pageId" => ("pageId" -> long(v))
           case "artificial" | "pageIdArtificial" => ("pageIdArtificial" -> string(v))
+          case "titleH" => ("titleHistorical" -> string(v))
           case "title" => ("title" -> string(v))
-          case "titleL" | "titleLatest" => ("titleLatest" -> string(v))
+          case "nsH" | "namespaceH" => ("namespaceHistorical" -> int(v))
+          case "nsICH" | "namespaceIsContentH" => ("namespaceIsContentHistorical" -> boolean(v))
           case "ns" | "namespace" => ("namespace" -> int(v))
           case "nsIC" | "namespaceIsContent" => ("namespaceIsContent" -> boolean(v))
-          case "nsL" | "namespaceLatest" => ("namespaceLatest" -> int(v))
-          case "nsLIC" | "namespaceLatestIsContent" => ("namespaceLatestIsContent" -> boolean(v))
           case "creation" | "pageCreationTimestamp" => ("pageCreationTimestamp" -> timestamp(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
         }
       }.toMap
-      val titleVal = valueMap.getOrElse("title", title).get.asInstanceOf[String]
-      val namespaceVal = valueMap.getOrElse("namespace", namespace).get.asInstanceOf[Int]
-      val namespaceIsContentVal = valueMap.getOrElse("namespaceIsContent", namespaceIsContent).get.asInstanceOf[Boolean]
+      val titleHistoricalVal = valueMap.getOrElse("titleHistorical", titleHistorical).get.asInstanceOf[String]
+      val namespaceHistoricalVal = valueMap.getOrElse("namespaceHistorical", namespaceHistorical).get.asInstanceOf[Int]
+      val namespaceIsContentHistoricalVal = valueMap.getOrElse("namespaceIsContentHistorical", namespaceIsContentHistorical).get.asInstanceOf[Boolean]
       new PageState(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
         startTimestamp = valueMap.getOrElse("startTimestamp", startTimestamp).asInstanceOf[Option[Timestamp]],
@@ -116,12 +116,12 @@ object TestPageHistoryHelpers {
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
         pageIdArtificial = valueMap.getOrElse("pageIdArtificial", pageIdArtificial).asInstanceOf[Option[String]],
-        title = titleVal,
-        titleLatest = valueMap.getOrElse("titleLatest", Some(titleLatest.getOrElse(titleVal))).get.asInstanceOf[String],
-        namespace = namespaceVal,
-        namespaceIsContent = namespaceIsContentVal,
-        namespaceLatest = valueMap.getOrElse("namespaceLatest", Some(namespaceLatest.getOrElse(namespaceVal))).get.asInstanceOf[Int],
-        namespaceIsContentLatest = valueMap.getOrElse("namespaceIsContentLatest", Some(namespaceIsContentLatest.getOrElse(namespaceIsContentVal))).get.asInstanceOf[Boolean],
+        titleHistorical = titleHistoricalVal,
+        title = valueMap.getOrElse("title", Some(title.getOrElse(titleHistoricalVal))).get.asInstanceOf[String],
+        namespaceHistorical = namespaceHistoricalVal,
+        namespaceIsContentHistorical = namespaceIsContentHistoricalVal,
+        namespace = valueMap.getOrElse("namespace", Some(namespace.getOrElse(namespaceHistoricalVal))).get.asInstanceOf[Int],
+        namespaceIsContent = valueMap.getOrElse("namespaceIsContent", Some(namespaceIsContent.getOrElse(namespaceIsContentHistoricalVal))).get.asInstanceOf[Boolean],
         pageCreationTimestamp = valueMap.getOrElse("pageCreationTimestamp", pageCreationTimestamp).asInstanceOf[Option[Timestamp]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]]
       )

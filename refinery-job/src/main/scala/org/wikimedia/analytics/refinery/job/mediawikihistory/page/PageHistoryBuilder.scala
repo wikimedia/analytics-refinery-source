@@ -17,6 +17,7 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
 
   import org.apache.log4j.Logger
   import java.util.UUID.randomUUID
+  import java.sql.Timestamp
   import org.apache.spark.rdd.RDD
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner
 
@@ -45,7 +46,6 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
 
   /**
     * Updates a processing status with a move type event
-    *
     *
     * @param status The processing status to update
     * @param event The move event to use
@@ -77,9 +77,9 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
       // and create new potentialState with old values
       val state = status1.potentialStates(toKey)
       val newPotentialState = state.copy(
-          title = event.oldTitle,
-          namespace = event.oldNamespace,
-          namespaceIsContent = event.oldNamespaceIsContent,
+          titleHistorical = event.oldTitle,
+          namespaceHistorical = event.oldNamespace,
+          namespaceIsContentHistorical = event.oldNamespaceIsContent,
           endTimestamp = Some(event.timestamp)
       )
       val newKnownState = state.copy(
@@ -107,12 +107,12 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
         wikiDb = event.wikiDb,
         pageId = event.pageId,
         pageIdArtificial = Some(fakeId),
-        title = event.oldTitle,
-        titleLatest = event.newTitleWithoutPrefix,
-        namespace = event.oldNamespace,
-        namespaceIsContent = event.oldNamespaceIsContent,
-        namespaceLatest = event.newNamespace,
-        namespaceIsContentLatest = event.newNamespaceIsContent,
+        titleHistorical = event.oldTitle,
+        title = event.newTitleWithoutPrefix,
+        namespaceHistorical = event.oldNamespace,
+        namespaceIsContentHistorical = event.oldNamespaceIsContent,
+        namespace = event.newNamespace,
+        namespaceIsContent = event.newNamespaceIsContent,
         endTimestamp = Some(event.timestamp),
         causedByEventType = "move"
       )
@@ -120,12 +120,12 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
         wikiDb = event.wikiDb,
         pageId = event.pageId,
         pageIdArtificial = Some(fakeId),
+        titleHistorical = event.newTitleWithoutPrefix,
         title = event.newTitleWithoutPrefix,
-        titleLatest = event.newTitleWithoutPrefix,
+        namespaceHistorical = event.newNamespace,
+        namespaceIsContentHistorical = event.newNamespaceIsContent,
         namespace = event.newNamespace,
         namespaceIsContent = event.newNamespaceIsContent,
-        namespaceLatest = event.newNamespace,
-        namespaceIsContentLatest = event.newNamespaceIsContent,
         startTimestamp =Some(event.timestamp),
         endTimestamp = state.endTimestamp,
         causedByEventType = "move",
@@ -135,12 +135,12 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
         wikiDb = event.wikiDb,
         pageId = event.pageId,
         pageIdArtificial = Some(fakeId),
+        titleHistorical = event.newTitleWithoutPrefix,
         title = event.newTitleWithoutPrefix,
-        titleLatest = event.newTitleWithoutPrefix,
+        namespaceHistorical = event.newNamespace,
+        namespaceIsContentHistorical = event.newNamespaceIsContent,
         namespace = event.newNamespace,
         namespaceIsContent = event.newNamespaceIsContent,
-        namespaceLatest = event.newNamespace,
-        namespaceIsContentLatest = event.newNamespaceIsContent,
         startTimestamp = state.endTimestamp,
         causedByEventType = "delete",
         causedByUserId = event.causedByUserId,
@@ -185,7 +185,6 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
           causedByUserId = event.causedByUserId,
           inferredFrom = Some("restore")
         )
-
         status.copy(
           potentialStates = status.potentialStates - fromKey,
           knownStates = status.knownStates :+ newKnownState
@@ -236,12 +235,12 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
         wikiDb = event.wikiDb,
         pageId = event.pageId,
         pageIdArtificial = Some(fakeId),
+        titleHistorical = event.oldTitle,
         title = event.oldTitle,
-        titleLatest = event.oldTitle,
+        namespaceHistorical = event.oldNamespace,
+        namespaceIsContentHistorical = event.oldNamespaceIsContent,
         namespace = event.oldNamespace,
         namespaceIsContent = event.oldNamespaceIsContent,
-        namespaceLatest = event.oldNamespace,
-        namespaceIsContentLatest = event.oldNamespaceIsContent,
         endTimestamp = Some(event.timestamp),
         causedByEventType = "create",
         inferredFrom = Some("delete")
@@ -250,12 +249,12 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
         wikiDb = event.wikiDb,
         pageId = event.pageId,
         pageIdArtificial = Some(fakeId),
+        titleHistorical = event.oldTitle,
         title = event.oldTitle,
-        titleLatest = event.oldTitle,
+        namespaceHistorical = event.oldNamespace,
+        namespaceIsContentHistorical = event.oldNamespaceIsContent,
         namespace = event.oldNamespace,
         namespaceIsContent = event.oldNamespaceIsContent,
-        namespaceLatest = event.oldNamespace,
-        namespaceIsContentLatest = event.oldNamespaceIsContent,
         startTimestamp = Some(event.timestamp),
         causedByEventType = "delete",
         causedByUserId = event.causedByUserId
@@ -505,8 +504,8 @@ object PageHistoryBuilder extends Serializable{
   object PageRowKeyFormat extends RowKeyFormat[KEY] with Serializable {
     val struct = StructType(Seq(
       StructField("wiki_db", StringType, nullable = false),
-      StructField("page_title", StringType, nullable = false),
-      StructField("page_namespace", IntegerType, nullable = false)
+      StructField("page_title_historical", StringType, nullable = false),
+      StructField("page_namespace_historical", IntegerType, nullable = false)
     ))
     def toRow(k: KEY): Row = Row.fromTuple(k)
     def toKey(r: Row): KEY = (r.getString(0), r.getString(1), r.getInt(2))

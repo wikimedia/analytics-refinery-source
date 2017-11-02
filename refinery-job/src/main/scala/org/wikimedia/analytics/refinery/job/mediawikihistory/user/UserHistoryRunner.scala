@@ -130,7 +130,7 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
     val userGroupsSchema = StructType(
       Seq(StructField("wiki_db", StringType, nullable = false),
         StructField("ug_user", LongType, nullable = false),
-        StructField("user_groups_latest", ArrayType(StringType, containsNull = false), nullable = false)))
+        StructField("user_groups", ArrayType(StringType, containsNull = false), nullable = false)))
 
     val userGroupsRdd = sqlContext.sql(
       s"""
@@ -158,8 +158,8 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
     user_registration,
     u.wiki_db,
     rev.rev_timestamp as first_rev_timestamp,
-    --coalesce(user_groups_latest, emptyStringArray())
-    user_groups_latest
+    --coalesce(user_groups, emptyStringArray())
+    user_groups
   FROM user AS u
     LEFT JOIN (
       SELECT
@@ -181,7 +181,7 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
       --SELECT
       --    wiki_db,
       --    ug_user,
-      --    collect_set(ug_group) as user_groups_latest
+      --    collect_set(ug_group) as user_groups
       --FROM user_groups
       --WHERE TRUE
       --  $wikiClause
@@ -200,23 +200,23 @@ class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
     user_registration,
     u.wiki_db,
     rev.rev_timestamp,
-    --coalesce(user_groups_latest, emptyStringArray())
-    user_groups_latest
+    --coalesce(user_groups, emptyStringArray())
+    user_groups
         """)
       .rdd
       .map { row =>
         new UserState(
             userId = row.getLong(0),
+            userNameHistorical = row.getString(1),
             userName = row.getString(1),
-            userNameLatest = row.getString(1),
             userRegistrationTimestamp = (row.getString(2), row.getString(4)) match {
               case (null, null) => None
               case (null, potentialTimestamp) => TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp)
               case (potentialTimestamp, _) => TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp)
             },
-            userGroups = Seq.empty[String],
-            userGroupsLatest = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),
-            userBlocks = Seq.empty[String],
+            userGroupsHistorical = Seq.empty[String],
+            userGroups = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),
+            userBlocksHistorical = Seq.empty[String],
             causedByEventType = "create",
             wikiDb = row.getString(3)
         )}
