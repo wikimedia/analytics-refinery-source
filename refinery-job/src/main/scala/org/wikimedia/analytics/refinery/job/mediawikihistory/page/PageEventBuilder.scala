@@ -13,13 +13,14 @@ object PageEventBuilder extends Serializable {
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
   /**
-    * Page title normalization (trims whitespaces and swaps spaces for underscore)
+    * Page title normalization (trims whitespaces, swaps spaces for underscore,
+    * and removes \n1 artifact)
     *
     * @param title The title to normalize
     * @return The normalized title
     */
   def normalizeTitle(title: String): String = {
-    title.trim.replaceAll(" ", "_")
+    title.trim.replaceAll(" ", "_").stripSuffix("\n1")
   }
 
   /**

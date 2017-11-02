@@ -43,10 +43,10 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     process(events, states) should be (Seq(expectedResults))
   }
 
-  it should "flush states that conflict with move events" in {
+  it should "flush states that conflict with move events without changing timestamp" in {
     val events = pageEventSet()(
       "time  eventType  oldTitle  newTitleWP  adminId",
-      "02    move       Title1    Title2      0"
+      "4000    move       Title1    Title2      0"
     )
     val states = pageStateSet()(
       "titleH  id  creation  eventType",
@@ -54,15 +54,31 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     )
     val expectedResults = pageStateSet()(
       "start  end   titleH  id  creation  eventType  adminId  inferred",
-      "02     None  Title1  1   02        create     None     move-conflict"
+      "4000   None  Title1  1   4000        create     None     move-conflict"
     )
     process(events, states) should be (Seq(expectedResults))
   }
 
-  it should "flush states that conflict with delete events" in {
+  it should "flush states that conflict with move events and change timestamp if less than 2 seconds diff" in {
     val events = pageEventSet()(
       "time  eventType  oldTitle  newTitleWP  adminId",
-      "02    delete     Title     Title       0"
+      "2000    move       Title1    Title2      0"
+    )
+    val states = pageStateSet()(
+      "titleH  id  creation  eventType",
+      "Title1  1   1000        create"
+    )
+    val expectedResults = pageStateSet()(
+      "start  end   titleH   id  creation  eventType  adminId  inferred",
+      "1000   None  Title1   1   1000        create     None     move-conflict"
+    )
+    process(events, states) should be (Seq(expectedResults))
+  }
+
+  it should "flush states that conflict with delete events without change timestamps" in {
+    val events = pageEventSet()(
+      "time  eventType  oldTitle  newTitleWP  adminId",
+      "4000    delete     Title     Title       0"
     )
     val states = pageStateSet()(
       "titleH  id  creation  eventType  adminId",
@@ -74,15 +90,41 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       pageIdArtificial = processedStates.head.head.pageIdArtificial
     )(
       "start  end   titleH  id    creation  eventType  adminId  inferred",
-      "None   02    Title   None  None      create     None     delete",
-      "02     None  Title   None  None      delete     0        None"
+      "None   4000  Title   None  None      create     None     delete",
+      "4000   None  Title   None  None      delete     0        None"
     )
     val expectedResults1 = pageStateSet()(
       "start  end   titleH  id  creation  eventType  adminId  inferred",
-      "02     None  Title   1   02        create     None     delete-conflict"
+      "4000   None  Title   1   4000        create     None     delete-conflict"
     )
     processedStates should be (Seq(expectedResultsA, expectedResults1))
   }
+
+  it should "flush states that conflict with delete events updating timestamps if less than 2 seconds" in {
+    val events = pageEventSet()(
+      "time  eventType  oldTitle  newTitleWP  adminId",
+      "2000    delete     Title     Title       0"
+    )
+    val states = pageStateSet()(
+      "titleH  id  creation  eventType  adminId",
+      "Title   1   1000        create     0"
+    )
+    val processedStates = process(events, states)
+    val expectedResultsA = pageStateSet(
+      // Inserting random id coming from results.
+      pageIdArtificial = processedStates.head.head.pageIdArtificial
+    )(
+      "start  end   titleH  id    creation  eventType  adminId  inferred",
+      "None   1000  Title   None  None      create     None     delete",
+      "1000   None  Title   None  None      delete     0        None"
+    )
+    val expectedResults1 = pageStateSet()(
+      "start  end   titleH  id  creation  eventType  adminId  inferred",
+      "1000   None  Title   1   1000      create     None     delete-conflict"
+    )
+    processedStates should be (Seq(expectedResultsA, expectedResults1))
+  }
+
 
   it should "flush states that conflict with restore events" in {
     val events = pageEventSet()(
@@ -191,10 +233,10 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
 
   it should "take the namespace into account when joining" in {
     val events = pageEventSet()(
-      "time  eventType  oldNs  newNs  oldTitle  newTitleWP",
-      "02    move       0      0      Title1    Title2",
-      "03    move       1      1      Title1    Title2",
-      "04    move       0      1      Title1    Title1"
+      "time   eventType  oldNs  newNs  oldTitle  newTitleWP",
+      "20000    move       0      0      Title1    Title2",
+      "30000    move       1      1      Title1    Title2",
+      "40000    move       0      1      Title1    Title1"
     )
     val states = pageStateSet(causedByEventType = Some("create"))(
       "nsH  titleH  id  creation",
@@ -205,25 +247,25 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResults1 = pageStateSet(
       pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
-      "start  end   nsH  titleH   title   eventType",
-      "01     02    0    Title1   Title2  create",
-      "02     None  0    Title2   Title2  move"
+      "start   end    nsH  titleH  title   eventType",
+      "1       20000   0   Title1  Title2  create",
+      "20000   None    0   Title2  Title2  move"
     )
     val expectedResults2 = pageStateSet(
       pageId = Some(2L), pageCreationTimestamp = Some(new Timestamp(1L))
     )(
-      "start  end   nsH  titleH   title   eventType",
-      "01     03    1    Title1   Title2  create",
-      "03     None  1    Title2   Title2  move"
+      "start  end     nsH  titleH   title   eventType",
+      "1      30000   1    Title1   Title2  create",
+      "30000  None    1    Title2   Title2  move"
     )
     val expectedResults3 = pageStateSet(
       // Note modified startTimestamp and pageCreationTimestamp plus
       // no admin id because of oldTitle conflict with first event.
-      pageId = Some(3L), pageCreationTimestamp = Some(new Timestamp(2L))
+      pageId = Some(3L), pageCreationTimestamp = Some(new Timestamp(20000L))
     )(
-      "start  end   nsH  ns  titleH  eventType  adminId  inferred",
-      "02     04    0    1   Title1  create     None     move-conflict",
-      "04     None  1    1   Title1  move       0        None"
+      "start    end   nsH  ns   titleH  eventType  adminId  inferred",
+      "20000  40000    0   1    Title1  create     None     move-conflict",
+      "40000   None    1   1    Title1  move       0        None"
     )
     process(events, states) should be (
       Seq(expectedResults1, expectedResults2, expectedResults3)
@@ -388,7 +430,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
 
   it should "solve the restore-over problem"  in {
     /*
-     * The restore problem happens on page_id 27264 around 2016-05-16.
+     * The restore problem happens on page_id 27264 in simplewiki between 2006-05-16 2006-05-17.
      * Correct page is moved, with redirects coming into play, then at some
      * point deleted with a false page moved to correct name. After, correct
      * page gets restored, overwriting the incorrect page already in place.
@@ -399,37 +441,37 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
      */
     val events = pageEventSet()(
       "time  eventType  oldTitle  newTitleWP",
-      "02    move       TitleA    TitleX",
-      "03    move       TitleX    TitleA",
-      "04    delete     TitleA    TitleA",
-      "05    move       TitleX    TitleA",
-      "06    restore    TitleA    TitleA"
+      "20000    move       TitleA    TitleX",
+      "30000    move       TitleX    TitleA",
+      "40000    delete     TitleA    TitleA",
+      "50000    move       TitleX    TitleA",
+      "60000    restore    TitleA    TitleA"
     )
     val states = pageStateSet(causedByEventType = Some("create"))(
       "titleH  id  creation",
-      "TitleA  1   01"
+      "TitleA  1   10000"
     )
     val processedStates = process(events, states)
     val expectedResultsX = pageStateSet(
       pageId = None,
       pageIdArtificial = processedStates.head.head.pageIdArtificial,
-      pageCreationTimestamp = Some(new Timestamp(3L))
+      pageCreationTimestamp = Some(new Timestamp(30000L))
     )(
-      "start  end   titleH  title   eventType  adminId  inferred",
-      "03     05    TitleX  TitleA  create      None    move-conflict",
-      "05     06    TitleA  TitleA  move        0       None",
-      "06     None  TitleA  TitleA  delete      0       restore"
+      "start   end     titleH  title   eventType  adminId  inferred",
+      "30000  50000    TitleX  TitleA  create      None    move-conflict",
+      "50000  60000    TitleA  TitleA  move        0       None",
+      "60000  None     TitleA  TitleA  delete      0       restore"
     )
 
     val expectedResults1 = pageStateSet(
-      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(1L))
+      pageId = Some(1L), pageCreationTimestamp = Some(new Timestamp(10000L))
     )(
-      "start  end   titleH  title   eventType",
-      "01     02    TitleA  TitleA  create",
-      "02     03    TitleX  TitleA  move",
-      "03     04    TitleA  TitleA  move",
-      "04     06    TitleA  TitleA  delete",
-      "06     None  TitleA  TitleA  restore"
+      "start     end      titleH   title   eventType",
+      "10000     20000    TitleA  TitleA  create",
+      "20000     30000    TitleX  TitleA  move",
+      "30000     40000    TitleA  TitleA  move",
+      "40000     60000    TitleA  TitleA  delete",
+      "60000     None     TitleA  TitleA  restore"
     )
     processedStates should be (
       Seq(expectedResultsX, expectedResults1)

@@ -56,100 +56,113 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
       event: PageEvent
   ): ProcessingStatus = {
     // Flush potential state conflicting with the event (event.fromKey = state.key)
+    // Uses original pageCreationTimestamp if it happens 2 seconds or less before move event timestamp
     val fromKey = event.fromKey
-    val status1 = if (status.potentialStates.contains(fromKey)) {
+    val (status1, event1) = if (status.potentialStates.contains(fromKey)) {
       val state = status.potentialStates(fromKey)
-      status.copy(
-        potentialStates = status.potentialStates - fromKey,
-        knownStates = status.knownStates :+ state.copy(
-          startTimestamp = Some(event.timestamp),
-          pageCreationTimestamp = Some(event.timestamp),
-          causedByEventType = "create",
-          causedByUserId = None,
-          inferredFrom = Some("move-conflict")
-        )
+      val timeDiff = event.timestamp.getTime - state.pageCreationTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime
+      val newEvent = {
+        if (timeDiff >= 0 && timeDiff <= 2000) {
+          event.copy(timestamp = state.pageCreationTimestamp.getOrElse(new Timestamp(0L)))
+        } else {
+          event
+        }
+      }
+      val newKnownState = state.copy(
+        startTimestamp = Some(newEvent.timestamp),
+        pageCreationTimestamp = Some(newEvent.timestamp),
+        causedByEventType = "create",
+        causedByUserId = None,
+        inferredFrom = Some("move-conflict")
       )
-    } else status
+      (
+        status.copy(
+            potentialStates = status.potentialStates - fromKey,
+            knownStates = status.knownStates :+ newKnownState),
+        newEvent
+      )
+    } else (status, event)
 
-    val toKey = event.toKey
+    val toKey = event1.toKey
     if (status1.potentialStates.contains(toKey)) {
       // Event-state match, move potential to known state
       // and create new potentialState with old values
       val state = status1.potentialStates(toKey)
       val newPotentialState = state.copy(
-          titleHistorical = event.oldTitle,
-          namespaceHistorical = event.oldNamespace,
-          namespaceIsContentHistorical = event.oldNamespaceIsContent,
-          endTimestamp = Some(event.timestamp)
+          titleHistorical = event1.oldTitle,
+          namespaceHistorical = event1.oldNamespace,
+          namespaceIsContentHistorical = event1.oldNamespaceIsContent,
+          endTimestamp = Some(event1.timestamp)
       )
       val newKnownState = state.copy(
-          startTimestamp = Some(event.timestamp),
-          causedByEventType = event.eventType,
-          causedByUserId = event.causedByUserId,
+          startTimestamp = Some(event1.timestamp),
+          causedByEventType = event1.eventType,
+          causedByUserId = event1.causedByUserId,
           inferredFrom = None
       )
       status1.copy(
-        potentialStates = status1.potentialStates - toKey + (event.fromKey -> newPotentialState),
+        potentialStates = status1.potentialStates - toKey + (event1.fromKey -> newPotentialState),
         knownStates = status1.knownStates :+ newKnownState
       )
-    } else if (status1.restoredStates.contains(toKey)) {
-      // No potential state but a restore R (waiting for a matching delete).
-      //
-      // Create a new lineage for this move with:
-      // - new potential state with move old values
-      // - new known move state from old values to new ones
-      // - new known deleted state with new values when R happens
-      //  (when the R restore happens, the created page from this move
-      //  has the same name --> it's deleted)
-      val state = status1.restoredStates(toKey)
-      val fakeId = randomUUID.toString
-      val newPotentialState = new PageState(
-        wikiDb = event.wikiDb,
-        pageId = event.pageId,
-        pageIdArtificial = Some(fakeId),
-        titleHistorical = event.oldTitle,
-        title = event.newTitleWithoutPrefix,
-        namespaceHistorical = event.oldNamespace,
-        namespaceIsContentHistorical = event.oldNamespaceIsContent,
-        namespace = event.newNamespace,
-        namespaceIsContent = event.newNamespaceIsContent,
-        endTimestamp = Some(event.timestamp),
-        causedByEventType = "move"
-      )
-      val newKnownMoveState = new PageState(
-        wikiDb = event.wikiDb,
-        pageId = event.pageId,
-        pageIdArtificial = Some(fakeId),
-        titleHistorical = event.newTitleWithoutPrefix,
-        title = event.newTitleWithoutPrefix,
-        namespaceHistorical = event.newNamespace,
-        namespaceIsContentHistorical = event.newNamespaceIsContent,
-        namespace = event.newNamespace,
-        namespaceIsContent = event.newNamespaceIsContent,
-        startTimestamp =Some(event.timestamp),
-        endTimestamp = state.endTimestamp,
-        causedByEventType = "move",
-        causedByUserId = event.causedByUserId
-      )
-      val newKnownDeleteState = new PageState(
-        wikiDb = event.wikiDb,
-        pageId = event.pageId,
-        pageIdArtificial = Some(fakeId),
-        titleHistorical = event.newTitleWithoutPrefix,
-        title = event.newTitleWithoutPrefix,
-        namespaceHistorical = event.newNamespace,
-        namespaceIsContentHistorical = event.newNamespaceIsContent,
-        namespace = event.newNamespace,
-        namespaceIsContent = event.newNamespaceIsContent,
-        startTimestamp = state.endTimestamp,
-        causedByEventType = "delete",
-        causedByUserId = event.causedByUserId,
-        inferredFrom = Some("restore")
-      )
-      status1.copy(
-        potentialStates = status1.potentialStates + (event.fromKey -> newPotentialState),
-        knownStates = status1.knownStates :+ newKnownMoveState :+ newKnownDeleteState
-      )
+      }
+      else if (status1.restoredStates.contains(toKey)) {
+        // No potential state but a restore R (waiting for a matching delete).
+        //
+        // Create a new lineage for this move with:
+        // - new potential state with move old values
+        // - new known move state from old values to new ones
+        // - new known deleted state with new values when R happens
+        //  (when the R restore happens, the created page from this move
+        //  has the same name --> it's deleted)
+        val state = status1.restoredStates(toKey)
+        val fakeId = randomUUID.toString
+        val newPotentialState = new PageState(
+          wikiDb = event1.wikiDb,
+          pageId = event1.pageId,
+          pageIdArtificial = Some(fakeId),
+          titleHistorical = event1.oldTitle,
+          title = event1.newTitleWithoutPrefix,
+          namespaceHistorical = event1.oldNamespace,
+          namespaceIsContentHistorical = event1.oldNamespaceIsContent,
+          namespace = event1.newNamespace,
+          namespaceIsContent = event1.newNamespaceIsContent,
+          endTimestamp = Some(event1.timestamp),
+          causedByEventType = "move"
+        )
+        val newKnownMoveState = new PageState(
+          wikiDb = event1.wikiDb,
+          pageId = event1.pageId,
+          pageIdArtificial = Some(fakeId),
+          titleHistorical = event1.newTitleWithoutPrefix,
+          title = event1.newTitleWithoutPrefix,
+          namespaceHistorical = event1.newNamespace,
+          namespaceIsContentHistorical = event1.newNamespaceIsContent,
+          namespace = event1.newNamespace,
+          namespaceIsContent = event1.newNamespaceIsContent,
+          startTimestamp =Some(event1.timestamp),
+          endTimestamp = state.endTimestamp,
+          causedByEventType = "move",
+          causedByUserId = event1.causedByUserId
+        )
+        val newKnownDeleteState = new PageState(
+          wikiDb = event1.wikiDb,
+          pageId = event1.pageId,
+          pageIdArtificial = Some(fakeId),
+          titleHistorical = event1.newTitleWithoutPrefix,
+          title = event1.newTitleWithoutPrefix,
+          namespaceHistorical = event1.newNamespace,
+          namespaceIsContentHistorical = event1.newNamespaceIsContent,
+          namespace = event1.newNamespace,
+          namespaceIsContent = event1.newNamespaceIsContent,
+          startTimestamp = state.endTimestamp,
+          causedByEventType = "delete",
+          causedByUserId = event1.causedByUserId,
+          inferredFrom = Some("restore")
+        )
+        status1.copy(
+          potentialStates = status1.potentialStates + (event1.fromKey -> newPotentialState),
+          knownStates = status1.knownStates :+ newKnownMoveState :+ newKnownDeleteState
+        )
 
     } else {
       // No event match - updating errors
@@ -211,20 +224,32 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
 
     } else {
       // This delete is not restored
-      val status1 = if (status.potentialStates.contains(fromKey)) {
+      val (status1, event1) = if (status.potentialStates.contains(fromKey)) {
         // Flush potential state conflicting with the event (event.fromKey = state.key)
+        // Uses original pageCreationTimestamp if it happens 2 seconds or less before delete event timestamp
         val state = status.potentialStates(fromKey)
-        status.copy(
-          potentialStates = status.potentialStates - fromKey,
-          knownStates = status.knownStates :+ state.copy(
-            startTimestamp = Some(event.timestamp),
-            pageCreationTimestamp = Some(event.timestamp),
-            causedByEventType = "create",
-            causedByUserId = None,
-            inferredFrom = Some("delete-conflict")
-          )
+        val timeDiff = event.timestamp.getTime - state.pageCreationTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime
+        val newEvent = {
+          if (timeDiff >= 0 && timeDiff <= 2000) {
+            event.copy(timestamp = state.pageCreationTimestamp.getOrElse(new Timestamp(0L)))
+          } else {
+            event
+          }
+        }
+        val newKnownState = state.copy(
+          startTimestamp = Some(newEvent.timestamp),
+          pageCreationTimestamp = Some(newEvent.timestamp),
+          causedByEventType = "create",
+          causedByUserId = None,
+          inferredFrom = Some("delete-conflict")
         )
-      } else status
+        (
+          status.copy(
+            potentialStates = status.potentialStates - fromKey,
+            knownStates = status.knownStates :+ newKnownState),
+          newEvent
+        )
+      } else (status, event)
 
       // Since the deleted page has no restore, we can't retrieve it's real id
       // We therefore assign a new fake Id to its lineage
@@ -232,35 +257,35 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
 
       // Create a new known delete state and new potential create one
       val newPotentialCreateState = new PageState(
-        wikiDb = event.wikiDb,
-        pageId = event.pageId,
+        wikiDb = event1.wikiDb,
+        pageId = event1.pageId,
         pageIdArtificial = Some(fakeId),
-        titleHistorical = event.oldTitle,
-        title = event.oldTitle,
-        namespaceHistorical = event.oldNamespace,
-        namespaceIsContentHistorical = event.oldNamespaceIsContent,
-        namespace = event.oldNamespace,
-        namespaceIsContent = event.oldNamespaceIsContent,
-        endTimestamp = Some(event.timestamp),
+        titleHistorical = event1.oldTitle,
+        title = event1.oldTitle,
+        namespaceHistorical = event1.oldNamespace,
+        namespaceIsContentHistorical = event1.oldNamespaceIsContent,
+        namespace = event1.oldNamespace,
+        namespaceIsContent = event1.oldNamespaceIsContent,
+        endTimestamp = Some(event1.timestamp),
         causedByEventType = "create",
         inferredFrom = Some("delete")
       )
       val newKnownDeleteState = new PageState(
-        wikiDb = event.wikiDb,
-        pageId = event.pageId,
+        wikiDb = event1.wikiDb,
+        pageId = event1.pageId,
         pageIdArtificial = Some(fakeId),
-        titleHistorical = event.oldTitle,
-        title = event.oldTitle,
-        namespaceHistorical = event.oldNamespace,
-        namespaceIsContentHistorical = event.oldNamespaceIsContent,
-        namespace = event.oldNamespace,
-        namespaceIsContent = event.oldNamespaceIsContent,
-        startTimestamp = Some(event.timestamp),
+        titleHistorical = event1.oldTitle,
+        title = event1.oldTitle,
+        namespaceHistorical = event1.oldNamespace,
+        namespaceIsContentHistorical = event1.oldNamespaceIsContent,
+        namespace = event1.oldNamespace,
+        namespaceIsContent = event1.oldNamespaceIsContent,
+        startTimestamp = Some(event1.timestamp),
         causedByEventType = "delete",
-        causedByUserId = event.causedByUserId
+        causedByUserId = event1.causedByUserId
       )
       status1.copy(
-        potentialStates = status1.potentialStates + (event.fromKey -> newPotentialCreateState),
+        potentialStates = status1.potentialStates + (event1.fromKey -> newPotentialCreateState),
         knownStates = status1.knownStates :+ newKnownDeleteState
       )
     }
@@ -296,7 +321,7 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
     } else if (status.potentialStates.contains(toKey)) {
       // Event-state match, move state to known state,
       // remove it from potential states,
-      // and create new restoreState
+      // and create new restoredState
       val state = status.potentialStates(toKey)
       val newRestoredState = state.copy(
         endTimestamp = Some(event.timestamp),
