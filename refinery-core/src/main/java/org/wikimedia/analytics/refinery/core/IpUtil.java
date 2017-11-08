@@ -92,7 +92,7 @@ public class IpUtil {
      * Constructs a IpUtil object with the default list of trusted proxies
      * <p>
      * The default list of trusted proxies is sourced from:
-     * https://git.wikimedia.org/blob/operations%2Fpuppet.git/9f97e3c2c5bc012ba5c3751f13fd838a06d6528d/manifests%2Fnetwork.pp#L14
+     * https://phabricator.wikimedia.org/source/operations-puppet/browse/production/manifests/network.pp;9f97e3c2c5bc012ba5c3751f13fd838a06d6528d$14
      */
     public IpUtil() {
         trustedProxiesCache = new HashSet<IpAddressMatcher>();
