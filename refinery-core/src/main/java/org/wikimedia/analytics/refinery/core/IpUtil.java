@@ -27,7 +27,7 @@ public class IpUtil {
      * List of trusted proxies
      * <p>
      * The following trusted proxies list is sourced from
-     * https://git.wikimedia.org/blob/operations%2Fpuppet.git/9f97e3c2c5bc012ba5c3751f13fd838a06d6528d/manifests%2Fnetwork.pp#L14
+     * https://phabricator.wikimedia.org/source/operations-puppet/browse/master/manifests/network.pp;9f97e3c2c5bc012ba5c3751f13fd838a06d6528d$14
      * For now, any updates to this source must be manually brought over here.
      */
     final String[] trustedProxies = new String[] {
