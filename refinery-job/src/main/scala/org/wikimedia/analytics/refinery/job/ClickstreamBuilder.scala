@@ -495,8 +495,8 @@ object ClickstreamBuilder {
       })
       val projectList = domainList.map(_.stripSuffix(".org"))
 
-      val outputFolder = "/user/joal/wmf/data/archive/clickstream/" +
-        f"${params.year}%04d-${params.month}%02d${params.day.map(d => f"-$d%02d").getOrElse("")}${params.hour.map(h => f"-$h%02d").getOrElse("")}"
+      val outputFolder = params.outputBasePath +
+        f"/${params.year}%04d-${params.month}%02d${params.day.map(d => f"-$d%02d").getOrElse("")}${params.hour.map(h => f"-$h%02d").getOrElse("")}"
 
       // Reused RDDs
       val pages = preparePages(sqlContext, params.pageTable, params.snapshot, params.wikiList).cache()
