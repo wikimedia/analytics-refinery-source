@@ -305,6 +305,9 @@ public class CassandraXSVLoader extends Configured implements Tool {
                 conf.get(CASSANDRA_USER_PROP),
                 conf.get(CASSANDRA_PASSWD_PROP));
 
+        // Force cassandra to write LOCAL_QUORUM
+        ConfigHelper.setWriteConsistencyLevel(job.getConfiguration(), "LOCAL_QUORUM");
+
         // If batch size parameters are set, use them
         if ((conf.getInt(CASSANDRA_NODES, 0) > 0) && (conf.getInt(BATCH_SIZE_PROP, 0) > 0)) {
             conf.setInt(ColumnFamilyOutputFormat.BATCH_THRESHOLD, conf.getInt(BATCH_SIZE_PROP, 0));
