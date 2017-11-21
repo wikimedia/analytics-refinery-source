@@ -6,6 +6,17 @@ import java.net.Socket
 import org.joda.time.DateTimeUtils
 
 /**
+  * Helper to create a message string following Carbon's plaintext protocol
+  *
+  * @param metric Name of the graphite metric, e.g foo.bar
+  * @param value Value of the metric
+  * @param timestamp Timestamp in seconds, defaults to current time
+  */
+case class GraphiteMessage(metric: String, value: Long, timestamp:Long = DateTimeUtils.currentTimeMillis() / 1000) {
+  override def toString = "%s %d %d\n".format(metric, value, timestamp)
+}
+
+/**
  * Simple GraphiteClient in Scala
  * Creates a Socket and writes to it,
  * based on the plaintext protocol supported by Carbon
@@ -44,10 +55,12 @@ class GraphiteClient(host:String, port: Int = 2003) {
     }
 
     def close() = {
-      out.close
-      socket.close
+      out.close()
+      socket.close()
     }
   }
+
+
 
   /**
    * Create an instance of Connection
@@ -60,18 +73,6 @@ class GraphiteClient(host:String, port: Int = 2003) {
   }
 
   /**
-   * Helper to create a message string following Carbon's plaintext protocol
-   *
-   * @param metric Name of the graphite metric, e.g foo.bar
-   * @param value Value of the metric
-   * @param timestamp Timestamp in seconds, defaults to current time
-   * @return Formatted string for plaintext protocol
-   */
-  def message(metric:String, value:Long, timestamp:Long = DateTimeUtils.currentTimeMillis() / 1000) = {
-    "%s %d %d\n".format(metric, value, timestamp)
-  }
-
-  /**
    * Helper that opens a connection, sends a message, and closes connection
    * @param metric Name of the graphite metric, e.g foo.bar
    * @param value Value of the metric
@@ -79,7 +80,17 @@ class GraphiteClient(host:String, port: Int = 2003) {
    */
   def sendOnce(metric:String, value:Long, timestamp:Long) = {
     val conn = connection()
-    conn.write(message(metric, value, timestamp))
+    conn.write(new GraphiteMessage(metric, value, timestamp).toString)
+    conn.close()
+  }
+
+  /**
+    * Helper that opens a connection, sends a list of messages, and closes connection
+    * @param messages List of messages to be sent
+    */
+  def sendMany(messages: Seq[GraphiteMessage]) = {
+    val conn = connection()
+    messages.foreach(message => conn.write(message.toString))
     conn.close()
   }
 
