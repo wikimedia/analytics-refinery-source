@@ -78,6 +78,7 @@ object TestPageHistoryHelpers {
     namespace: Option[Int] = None,
     namespaceIsContent: Option[Boolean] = None,
     pageCreationTimestamp: Option[Timestamp] = None,
+    pageFirstEditTimestamp: Option[Timestamp] = None,
     inferredFrom: Option[String] = None
   )(
     headerLine: String,
@@ -102,6 +103,7 @@ object TestPageHistoryHelpers {
           case "ns" | "namespace" => ("namespace" -> int(v))
           case "nsIC" | "namespaceIsContent" => ("namespaceIsContent" -> boolean(v))
           case "creation" | "pageCreationTimestamp" => ("pageCreationTimestamp" -> timestamp(v))
+          case "firstEdit" | "pageFirstEditTimestamp" => ("pageFirstEditTimestamp" -> timestamp(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
         }
       }.toMap
@@ -123,6 +125,7 @@ object TestPageHistoryHelpers {
         namespace = valueMap.getOrElse("namespace", Some(namespace.getOrElse(namespaceHistoricalVal))).get.asInstanceOf[Int],
         namespaceIsContent = valueMap.getOrElse("namespaceIsContent", Some(namespaceIsContent.getOrElse(namespaceIsContentHistoricalVal))).get.asInstanceOf[Boolean],
         pageCreationTimestamp = valueMap.getOrElse("pageCreationTimestamp", pageCreationTimestamp).asInstanceOf[Option[Timestamp]],
+        pageFirstEditTimestamp = valueMap.getOrElse("pageFirstEditTimestamp", pageFirstEditTimestamp).asInstanceOf[Option[Timestamp]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]]
       )
     }

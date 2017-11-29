@@ -33,29 +33,30 @@ case class PageState(
                       namespaceIsContent: Boolean,
                       isRedirect: Option[Boolean] = None,
                       pageCreationTimestamp: Option[Timestamp] = None,
+                      pageFirstEditTimestamp: Option[Timestamp] = None,
                       inferredFrom: Option[String] = None
 ) extends Vertex[(String, String, Int)] with TimeBoundaries {
 
   def toRow: Row = Row(
-      wikiDb,
-      pageId.orNull,
-      pageIdArtificial.orNull,
-      pageCreationTimestamp.map(_.toString).orNull,
-      //pageCreationTimestamp.orNull,
-      titleHistorical,
-      title,
-      namespaceHistorical,
-      namespaceIsContentHistorical,
-      namespace,
-      namespaceIsContent,
-      isRedirect.orNull,
-      startTimestamp.map(_.toString).orNull,
-      //startTimestamp.orNull,
-      endTimestamp.map(_.toString).orNull,
-      //endTimestamp.orNull,
-      causedByEventType,
-      causedByUserId.orNull,
-      inferredFrom.orNull
+    wikiDb,
+    pageId.orNull,
+    pageIdArtificial.orNull,
+    pageCreationTimestamp.map(_.toString).orNull,
+    //pageCreationTimestamp.orNull,
+    titleHistorical,
+    title,
+    namespaceHistorical,
+    namespaceIsContentHistorical,
+    namespace,
+    namespaceIsContent,
+    isRedirect.orNull,
+    startTimestamp.map(_.toString).orNull,
+    //startTimestamp.orNull,
+    endTimestamp.map(_.toString).orNull,
+    //endTimestamp.orNull,
+    causedByEventType,
+    causedByUserId.orNull,
+    inferredFrom.orNull
   )
 
   def key: (String, String, Int) = (wikiDb, titleHistorical, namespaceHistorical)
@@ -73,25 +74,25 @@ object PageState {
     * @return the [[PageState]] built
     */
   def fromRow(row: Row): PageState = PageState(
-      wikiDb = row.getString(0),
-      pageId = if (row.isNullAt(1)) None else Some(row.getLong(1)),
-      pageIdArtificial = Option(row.getString(2)),
-      pageCreationTimestamp = if (row.isNullAt(3)) None else Some(Timestamp.valueOf(row.getString(3))),
-      //pageCreationTimestamp = if (row.isNullAt(3)) None else Some(row.getTimestamp(3)),
-      titleHistorical = row.getString(4),
-      title = row.getString(5),
-      namespaceHistorical = row.getInt(6),
-      namespaceIsContentHistorical = row.getBoolean(7),
-      namespace = row.getInt(8),
-      namespaceIsContent = row.getBoolean(9),
-      isRedirect = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
-      startTimestamp = if (row.isNullAt(11)) None else Some(Timestamp.valueOf(row.getString(11))),
-      //startTimestamp = if (row.isNullAt(11)) None else Some(row.getTimestamp(11)),
-      endTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
-      //endTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
-      causedByEventType = row.getString(13),
-      causedByUserId = if (row.isNullAt(14)) None else Some(row.getLong(14)),
-      inferredFrom = Option(row.getString(15))
+    wikiDb = row.getString(0),
+    pageId = if (row.isNullAt(1)) None else Some(row.getLong(1)),
+    pageIdArtificial = Option(row.getString(2)),
+    pageCreationTimestamp = if (row.isNullAt(3)) None else Some(Timestamp.valueOf(row.getString(3))),
+    //pageCreationTimestamp = if (row.isNullAt(3)) None else Some(row.getTimestamp(3)),
+    titleHistorical = row.getString(5),
+    title = row.getString(6),
+    namespaceHistorical = row.getInt(7),
+    namespaceIsContentHistorical = row.getBoolean(8),
+    namespace = row.getInt(9),
+    namespaceIsContent = row.getBoolean(10),
+    isRedirect = if (row.isNullAt(11)) None else Some(row.getBoolean(11)),
+    startTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
+    //startTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
+    endTimestamp = if (row.isNullAt(13)) None else Some(Timestamp.valueOf(row.getString(13))),
+    //endTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
+    causedByEventType = row.getString(14),
+    causedByUserId = if (row.isNullAt(15)) None else Some(row.getLong(15)),
+    inferredFrom = Option(row.getString(16))
   )
 
   val schema = StructType(

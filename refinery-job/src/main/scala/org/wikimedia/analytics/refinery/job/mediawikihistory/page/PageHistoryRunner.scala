@@ -228,6 +228,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
           new PageState(
                 pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
                 pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
+                pageFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
                 titleHistorical = title,
                 title = title,
                 namespaceHistorical = namespace,

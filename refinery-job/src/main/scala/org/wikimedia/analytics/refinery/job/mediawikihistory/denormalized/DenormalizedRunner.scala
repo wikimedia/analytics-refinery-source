@@ -133,6 +133,7 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
 
     val pageStatesDf = sqlContext.read.parquet(pageHistoryPath).where(s"TRUE $wikiClause")
     val pageStatesToFilter = pageStatesDf.rdd.map(PageState.fromRow)
+      .filter(state => state.pageId.getOrElse(0L) > 0 && state.pageIdArtificial.isEmpty)
     val pageStates = filterStates[PageState](pageStatesToFilter, DenormalizedKeysHelper.pageStateKeyNoYear)
 
     val liveRevisions = sqlContext.sql(

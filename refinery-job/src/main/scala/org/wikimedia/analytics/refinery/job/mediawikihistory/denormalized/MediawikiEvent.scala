@@ -185,17 +185,22 @@ case class MediawikiEvent(
       userIsBotByName = Some(userState.botByName),
       userCreationTimestamp = userState.userRegistrationTimestamp
     ))
-  def updatePageDetails(pageState: PageState) = this.copy(
-    pageDetails = this.pageDetails.copy(
-      pageTitleHistorical = Some(pageState.titleHistorical),
-      pageTitle = Some(pageState.title),
-      pageNamespaceHistorical = Some(pageState.namespaceHistorical),
-      pageNamespaceIsContentHistorical = Some(pageState.namespaceIsContentHistorical),
-      pageNamespace = Some(pageState.namespace),
-      pageNamespaceIsContent = Some(pageState.namespaceIsContent),
-      pageIsRedirect = pageState.isRedirect,
-      pageCreationTimestamp = pageState.pageCreationTimestamp
-    ))
+  def updatePageDetails(pageState: PageState) = {
+    val thisTimestamp = this.eventTimestamp.getOrElse(new Timestamp(Long.MinValue))
+    val pageCreationTimestamp = pageState.pageCreationTimestamp.getOrElse(new Timestamp(Long.MaxValue))
+    val beforeCreation = thisTimestamp.before(pageCreationTimestamp)
+    this.copy(
+      pageDetails = this.pageDetails.copy(
+        pageTitleHistorical = if (beforeCreation) None else Some(pageState.titleHistorical),
+        pageTitle = Some(pageState.title),
+        pageNamespaceHistorical = if (beforeCreation) None else Some(pageState.namespaceHistorical),
+        pageNamespaceIsContentHistorical = if (beforeCreation) None else Some(pageState.namespaceIsContentHistorical),
+        pageNamespace = Some(pageState.namespace),
+        pageNamespaceIsContent = Some(pageState.namespaceIsContent),
+        pageIsRedirect = pageState.isRedirect,
+        pageCreationTimestamp = pageState.pageCreationTimestamp
+      ))
+  }
 
 }
 
