@@ -405,6 +405,17 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     )
   }
 
+  /**
+    * 2017-11-03 -- We are going to simplify restore treatment, event if not
+    * as precise in term of history as we could do. Purpose is to deliver on
+    * high-level metrics faster even if correctness is not at its highest standard.
+    *
+    * TODO: Make delete/restore history rebuilding better.
+    * We have updated the original restore test to document the new expected behavior,
+    * created the template for the multi-restore test (content to be written),
+    * and we keep them for later use
+    *
+    */
   it should "solve the simple-restore problem"  in {
     /*
      * The simple-restore problem is:
@@ -651,6 +662,33 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     processedStates should be (
       Seq(expectedResultsU, expectedResults1)
     )
+  }
+
+  it should "solve the multi-restore problem"  in {
+    /*
+     * The multi-restore problem happens on page_id 12691, 24119274, 24296206
+     * in enwiki, on 2009-08-26 and 2009-09-10. This is a good example of
+     * https://en.wikipedia.org/wiki/Wikipedia:Administrators%27_guide/Fixing_cut-and-paste_moves
+     * - Correct page is moved to the one which history is be merged inside, deleted the latter.
+     * - Restore of the just-deleted-page is made over the new moved one, merging history into new one,
+     * - Then page is moved back to correct name, leaving a new redirect for the page whose history
+     * has been merged into the correct one.
+     * - Later another restore moves some potential revisions leftovers into the redirect.
+     * Thing to notice is that, for the period of time when the merged-page was alive
+     * (before it's been deleted by the move event), we actually can't reconstruct page_title_historical
+     * (nor namespace) with certainty: since histories were merged, we don't know if a revisions belongs
+     * to correct-page or to merged-page ...
+     *
+     * This pattern can happen on multiple pages (as in the real-life example cited above).
+     * We implement a test for a single case
+     *
+     *       ||    t1    |    t2    |    t3    |    t4    |    t5   |    t6    ||  States
+     * ------||-------------------------------------------|---------|----------||----------
+     *   p1  ||    +A    |          |   A->B   |   restB  |   B->A  |          ||    A
+     *   pU1 ||          |   +B     |   delB   |          |         |          ||
+     *   pU2 ||          |          |          |          |   +B*   |   restB  ||    B
+     */
+
   }
 
 }
