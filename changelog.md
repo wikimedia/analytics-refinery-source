@@ -1,7 +1,14 @@
-## v0.0.54
-# refinery-core now builds scala.
-* Add JsonRefine job
+## v0.0.55
+* something/something_latest fields change to something_historical/something
+* UDF for extracting primary full-text search request
+* Fix Clickstream job
+* Change Cassandra loader to local quorum write
+* Add Mediawiki API to RestbaseMetrics
+* Fix mediawiki history reconstruction
 
+## v0.0.54
+* refinery-core now builds scala.
+* Add JsonRefine job
 
 ## v0.0.53
 * Correct field names in mediawiki-history spark job (time since previous revision)
