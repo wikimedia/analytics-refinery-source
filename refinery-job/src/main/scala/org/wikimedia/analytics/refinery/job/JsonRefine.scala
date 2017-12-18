@@ -46,6 +46,8 @@ object JsonRefine {
         tableWhitelistRegex: Option[Regex]         = None,
         tableBlacklistRegex: Option[Regex]         = None,
         doneFlag: String                           = "_REFINED",
+        failureFlag: String                        = "_REFINE_FAILED",
+        shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
         isSequenceFile: Boolean                    = true,
@@ -197,6 +199,22 @@ object JsonRefine {
               |data has changed meaning the partition needs to be re-refined.
               |Default: _REFINED""".stripMargin.replace("\n", "\n\t") + "\n"
 
+        opt[String]('X', "failure-flag") optional() valueName "<filename>" action { (x, p) =>
+            p.copy(failureFlag = x)
+        } text
+            """When a partition fails refinement, this file will be created in the
+              |output partition path with the binary timestamp of the input source partition's
+              |modification timestamp.  Any parititon with this flag will be excluded
+              |from refinement if the input data data's modtime hasn't changed.  If the
+              |modtime has changed, this will re-attempt refinement anyway.
+              |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
+
+        opt[Unit]('I', "ignore-failure-flag") optional() action { (_, p) =>
+            p.copy(shouldIgnoreFailureFlag = true)
+        } text
+            """Set this if you want all discovered partitions with --failure-flag files to be
+               |(re)refined. Default: false""".stripMargin.replace("\n", "\n\t") + "\n"
+
         opt[Int]('P', "parallelism") optional() valueName "<parallelism>" action { (x, p) =>
             p.copy(parallelism = Some(x))
         } text
@@ -317,6 +335,7 @@ object JsonRefine {
             new Path(params.outputBasePath),
             params.databaseName,
             params.doneFlag,
+            params.failureFlag,
             params.inputPathDateTimeFormat,
             inputPathRegex,
             params.sinceDateTime
@@ -324,7 +343,10 @@ object JsonRefine {
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
         .filter(target => shouldRefineJsonTarget(
-            target, params.tableWhitelistRegex, params.tableBlacklistRegex
+            target,
+            params.tableWhitelistRegex,
+            params.tableBlacklistRegex,
+            params.shouldIgnoreFailureFlag
         ))
 
         // At this point, targetsToRefine will be a Seq of JsonTargets in our targeted
@@ -447,7 +469,8 @@ object JsonRefine {
     def shouldRefineJsonTarget(
         target: JsonTarget,
         tableWhitelistRegex: Option[Regex],
-        tableBlacklistRegex: Option[Regex]
+        tableBlacklistRegex: Option[Regex],
+        shouldIgnoreFailureFlag: Boolean
     ): Boolean = {
 
         // Filter for targets that will refine to tables that match the whitelist
@@ -471,11 +494,19 @@ object JsonRefine {
             false
         }
         // Finally filter for those that need to be refined (have new data).
-        else if (!target.shouldRefine) {
-            log.info(
-                s"$target does not have new data since the last refine at " +
-                s"${target.doneFlagMTime().getOrElse("_unknown_")}, skipping."
-            )
+        else if (!target.shouldRefine(shouldIgnoreFailureFlag)) {
+            if (!shouldIgnoreFailureFlag && target.failureFlagExists()) {
+                log.warn(
+                    s"$target previously failed refinement and does not have new data since the " +
+                    s"last refine at ${target.failureFlagMTime().getOrElse("_unknown_")}, skipping."
+                )
+            }
+            else {
+                log.info(
+                    s"$target does not have new data since the last refine at " +
+                    s"${target.doneFlagMTime().getOrElse("_unknown_")}, skipping."
+                )
+            }
             false
         }
         else {
@@ -518,6 +549,7 @@ object JsonRefine {
             catch {
                 case e: Exception => {
                     log.error(s"Failed refinement of JSON dataset $target.", e)
+                    target.writeFailureFlag()
                     target.failure(e)
                 }
             }
@@ -574,6 +606,10 @@ object JsonRefine {
       *                                     write this file to the output path with
       *                                     the Long timestamp of the inputPath's current mod time.
       *
+      * @param failureFlag                  Failure flag file.  A failed refinement will
+      *                                     write this file to the output path with
+      *                                     the Long timestamp of the inputPath's current mod time.
+      *
       * @param inputPathDateTimeFormatter   Formatter used to construct input partition paths
       *                                     in the given time range.
       *
@@ -593,6 +629,7 @@ object JsonRefine {
         baseTableLocationPath: Path,
         databaseName: String,
         doneFlag: String,
+        failureFlag: String,
         inputPathDateTimeFormatter: DateTimeFormatter,
         inputPathRegex: Regex,
         sinceDateTime: DateTime,
@@ -628,7 +665,8 @@ object JsonRefine {
                     partitionPath,
                     inputIsSequenceFile,
                     partition,
-                    doneFlag
+                    doneFlag,
+                    failureFlag
                 )
             })
             // We only care about input partition paths that actually exist,
@@ -714,7 +752,6 @@ object JsonRefine {
             .distinct
     }
 
-
     /**
       * Represents a JSON dataset target for refinement.  This mainly exists to reduce the number
       * of parameters we have to pass around between functions here.  An instantiated JsonTarget
@@ -728,13 +765,17 @@ object JsonRefine {
       * @param doneFlag             Name of file that should be written upon success of
       *                             SparkJsonToHive run.  This can be created by calling
       *                             the writeDoneFlag method.
+      * @param failureFlag          Name of file that should be written upon failure of
+      *                             SparkJsonToHive run.  This can be created by calling
+      *                             the writeFailureFlag method.
       */
     case class JsonTarget(
         fs: FileSystem,
         inputPath: Path,
         inputIsSequenceFile: Boolean,
         partition: HivePartition,
-        doneFlag: String
+        doneFlag: String,
+        failureFlag: String
     ) {
         /**
           * Easy access to the fully qualified Hive table name.
@@ -750,6 +791,11 @@ object JsonRefine {
           * Path to doneFlag in hive table partition output path
           */
         val doneFlagPath = new Path(s"$outputPath/$doneFlag")
+
+        /**
+          * Path to doneFlag in hive table partition output path
+          */
+        val failureFlagPath = new Path(s"$outputPath/$failureFlag")
 
         /**
           * Number of records successfully refined for this JsonTarget.
@@ -782,6 +828,12 @@ object JsonRefine {
         def doneFlagExists(): Boolean = fs.exists(doneFlagPath)
 
         /**
+          * True if the outputPath/failureFlag exists
+          * @return
+          */
+        def failureFlagExists(): Boolean = fs.exists(failureFlagPath)
+
+        /**
           * Returns the mtime Long timestamp of inputPath.  inputPath's
           * mtime will change if it or any of its direct files change.
           * It will not change if a content in a subdirectory changes.
@@ -795,19 +847,39 @@ object JsonRefine {
                 None
         }
 
+
         /**
-          * Reads the Long timestamp out of the outputPath/doneFlag if it exists.
-          * @return
+         *
+         * @param path reads a Long timestamp out of path and returns a new DateTime
+         * @return DateTime
           */
-        def doneFlagMTime(): Option[DateTime] = {
-            if (doneFlagExists()) {
-                val inStream = fs.open(doneFlagPath)
-                val mtime = new DateTime(inStream.readUTF())
-                inStream.close()
-                Some(mtime)
-            }
-            else
-                None
+        private def readMTimeFromFile(path: Path): DateTime = {
+            val inStream = fs.open(path)
+            val mtime = new DateTime(inStream.readUTF())
+            inStream.close()
+            mtime
+        }
+
+        /**
+         * Writes this JsonTarget's mtime to path
+         * @param path
+         */
+        private def writeMTimeToFile(path: Path): Unit = {
+            val mtime = inputMTimeCached.getOrElse(
+                throw new RuntimeException(
+                    s"Cannot write mtime to flag file, input mod time was not obtained when $this was " +
+                        s"instantiated, probably because it did not exist. This should not happen"
+                )
+            )
+
+            log.info(
+                s"Writing flag file at $path with $inputPath last modification " +
+                    s"timestamp of $mtime"
+            )
+
+            val outStream = fs.create(path)
+            outStream.writeUTF(mtime.toString)
+            outStream.close()
         }
 
         /**
@@ -822,36 +894,81 @@ object JsonRefine {
          * below it changes.
          */
         def writeDoneFlag(): Unit = {
+            writeMTimeToFile(doneFlagPath)
+        }
+        /**
+          * Write out failureFlag file for this output target partition
+          *
+          * This saves the modification timestamp of the inputPath as it when this target was
+          * instantiated.  This will allow later comparison of the contents of failureFlag with the
+          * inputPath modification time.  If they are different, the user might decide to rerun
+          * SparkJsonToHive for this target, perhaps assuming that there is new
+          * data in inputPath.  Note that inputPath directory mod time only changes if
+          * its direct content changes, it will not change if something in a subdirectory
+          * below it changes.
+          */
+        def writeFailureFlag(): Unit = {
+            writeMTimeToFile(failureFlagPath)
+        }
 
-            val mtime = inputMTimeCached.getOrElse(
-                throw new RuntimeException(
-                    s"Cannot write done flag, input mod time was not obtained when $this was " +
-                        s"instantiated, probably because it did not exist. This should not happen"
-                )
-            )
+        /**
+          * Reads the Long timestamp as a DateTime out of the doneFlag
+          * @return
+          */
+        def doneFlagMTime(): Option[DateTime] = {
+            if (doneFlagExists()) {
+                Some(readMTimeFromFile(doneFlagPath))
+            }
+            else
+                None
+        }
 
-            log.info(
-                s"Writing done flag file at $doneFlagPath with $inputPath last modification " +
-                s"timestamp of $mtime"
-            )
-
-            val outStream = fs.create(doneFlagPath)
-            outStream.writeUTF(mtime.toString)
-            outStream.close()
+        /**
+          * Reads the Long timestamp as a DateTime out of the failureFlag
+          * @return
+          */
+        def failureFlagMTime(): Option[DateTime] = {
+            if (failureFlagExists()) {
+                Some(readMTimeFromFile(failureFlagPath))
+            }
+            else
+                None
         }
 
         /**
           * This target needs refined if:
+          *
           * - The output doesn't exist OR
-          * - The output doneFlag doesn't exist OR
-          * - The input's mtime does not equal the timestamp in the output doneFlag file,
-          *   meaning that something has changed in the inputPath since the last time doneFlag
-          *   was written.
+          * - The output doneFlag doesn't exist or it does and the input mtime has changed OR
+          * - The output failureFlag doesn't exist, or it does and we want to ignore previous
+          *   failures or the input mtime has changed.
+          *
+          *
+          * The input's mtime has changed if it does not equal the timestamp in the output doneFlag
+          * or failureFlag file, meaning that something has changed in the inputPath since the last
+          * time the flag file was written.
           *
           * @return
           */
-        def shouldRefine(): Boolean = {
-            !outputExists() || !doneFlagExists() || inputMTimeCached != doneFlagMTime()
+        def shouldRefine(shouldIgnoreFailureFlag: Boolean = false): Boolean = {
+            // This could be written and returned as a single boolean conditional statement,
+            // keeping track of possible states was confusing.  This is clearer.
+
+            // If the outputExists, check for existent status flag files
+            if (outputExists) {
+                // If doneFlag exists, and the input mtime has changed, then we need to refine.
+                if (doneFlagExists()) {
+                    return inputMTimeCached != doneFlagMTime()
+                }
+                // Else if the failure flag exists, we need to refine if
+                // we are ignoring the failure flag, or if the input mtime has changed.
+                else if (failureFlagExists()) {
+                    return shouldIgnoreFailureFlag || inputMTimeCached != failureFlagMTime()
+                }
+            }
+
+            // If none of the above conditions return, we will refine.
+            true
         }
 
         /**
