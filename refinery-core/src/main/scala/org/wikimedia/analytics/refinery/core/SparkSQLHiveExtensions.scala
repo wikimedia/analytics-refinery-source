@@ -1,6 +1,11 @@
 package org.wikimedia.analytics.refinery.core
 
+import org.apache.log4j.LogManager
+
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion
+
+
 
 
 /**
@@ -23,6 +28,7 @@ import org.apache.spark.sql.types._
   *     hiveContext.sql(hiveAlterStatement)
   */
 object SparkSQLHiveExtensions {
+    private val log = LogManager.getLogger("SparkSQLHiveExtensions")
 
     /**
       * Implicit methods extensions for Spark StructField.
@@ -114,6 +120,20 @@ object SparkSQLHiveExtensions {
             }
         }
 
+        /**
+          * Find the tightest common DataType of a Seq of StructFields by continuously applying
+          * `HiveTypeCoercion.findTightestCommonTypeOfTwo` on these types.
+          * See: https://github.com/apache/spark/blob/v1.6.0/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/HiveTypeCoercion.scala#L65-L87
+          *
+          * @param fields
+          * @return
+          */
+        def tightestCommonType(fields: Seq[StructField]): Option[DataType] = {
+            fields.map(_.dataType).foldLeft[Option[DataType]](Some(field.dataType))((r, c) => r match {
+                case None => None
+                case Some(d) => HiveTypeCoercion.findTightestCommonTypeOfTwo(d, c)
+            })
+        }
     }
 
 
@@ -192,63 +212,67 @@ object SparkSQLHiveExtensions {
 
             // Distinct using case insensitive and types.
             // Result will be sorted by n1 fields first, with n2 fields at the end.
-            // distinctFields could still have repeat field names with different types.
-            val distinctFields: Seq[StructField] = combinedNormalized.distinct
-
             val distinctNames: Seq[String] = combinedNormalized.fieldNames.distinct
 
-            // Store a map of fields by name
-            val fieldsByName: Map[String, Seq[StructField]] = distinctFields.groupBy(_.name)
+            // Store a map of fields by name.  We will iterate through the fields and
+            // resolve the cases where there are more than one field (type) for a given name
+            // as best we can.
+            val fieldsByName: Map[String, Seq[StructField]] = combinedNormalized.distinct.groupBy(_.name)
 
-            // Find fields with repeat field names, e.g.
-            // Where there's more than one field per name.
-            val repeatFieldsByName: Map[String, Seq[StructField]] =
-                fieldsByName.filter(_._2.size > 1)
-
-            // If any of the repeated fields is a non StructType, then throw Exception now.
-            // We can't deal with that crap!
-            repeatFieldsByName.foreach {
-                // If there are any fields for this field name that aren't StructTypes
-                case(name, fields) if fields.exists(!_.isStructType) => {
-                    throw new IllegalStateException(
-                        s"""merge failed - Field $name is repeated with multiple non
-                           |StructType types: ${fields.mkString(" , ")}""".stripMargin
-                    )
-                }
-                case _ => ()
-            }
-
-            // Ok!  If we get this far, we don't have any non StructType type changes.
-            // repeatFieldsByName will only contain StructType fields.
-            // Build the mergedStruct from all non repeated fields + merged repeated struct fields.
             val mergedStruct = StructType(
                 distinctNames.map { name =>
-                    // If this field name only occurred once, then we can just
-                    // grab the single field out of fieldsByName and keep it.
-                    if (!repeatFieldsByName.contains(name)) {
-                        fieldsByName(name).head
-                    }
-                    // Else, the field name is repeated, and we already know that the
-                    // repeated types are all StructTypes. We can deal with StructType
-                    // type changes by merging the structs.
-                    else {
-                        // Get the Seq of StructFields that are the different StructTypes
-                        // for this field name.
-                        val mergedStruct = repeatFieldsByName(name)
-                            // Map each StructField to its StructType DataType
-                            .map(_.dataType.asInstanceOf[StructType])
-                            // Recursively merge each StructType together
-                            .foldLeft(StructType(Seq.empty))((merged, current) =>
-                                // Don't normalize sub struct schemas.  Spark doesn't
-                                // lowercase Hive struct<> field names, and those
-                                // seem to be nullable by default anyway.
-                                // If we did normalize, then we'd have to recursively
-                                // un-normalize if the original caller passed normalize=false.
-                                merged.merge(current, normalize=false)
-                        )
+                    fieldsByName(name) match {
+                        // If all field types for this name are structs, then we attempt
+                        // to recursively merge them.
+                        case fields if (fields.forall(_.isStructType)) => {
+                            val mergedStruct = fields
+                                // Map each StructField to its StructType DataType
+                                .map(_.dataType.asInstanceOf[StructType])
+                                // Recursively merge each StructType together
+                                .foldLeft(StructType(Seq.empty))((merged, current) =>
+                                    // Don't normalize sub struct schemas.  Spark doesn't
+                                    // lowercase Hive struct<> field names, and those
+                                    // seem to be nullable by default anyway.
+                                    // If we did normalize, then we'd have to recursively
+                                    // un-normalize if the original caller passed normalize=false.
+                                    merged.merge(current, normalize = false)
+                                )
 
-                        // Convert the StructType back into a StructField with this field name.
-                        StructField(name, mergedStruct, nullable=true)
+                            // Convert the StructType back into a StructField with this field name.
+                            StructField(name, mergedStruct, nullable = true)
+                        }
+                        case fields => {
+                            // Find the tightest common type for Hive. If there is there is only
+                            // one field for this name, this will return that field's type.
+                            // If there are multiple fields, this will try to find a common
+                            // type that can be cast.  E.g. if we are given an LongType
+                            // and a DoubleType, this will return DoubleType.
+                            val commonDataType = fields.head.tightestCommonType(fields.tail)
+                            // If there is no common type between these fields, then fail now.
+                            if (!commonDataType.isDefined) {
+                                throw new IllegalStateException(
+                                    s"merge failed - ${name} has repeat types which are not " +
+                                    s"resolvable:\n  ${fields.mkString("  \n")}"
+                                )
+                            }
+                            // Else: let's get weird.  Since we don't support type changes,
+                            // We choose to keep the first field type we have.  This should
+                            // be the field belonging to this struct schema (which is probably
+                            // a Hive table schema).
+                            else if (commonDataType.get != fields.head.dataType) {
+                                log.warn(
+                                    s"${name} has repeat types which are resolvable.  " +
+                                    s"Choosing ${fields.head.dataType} for schema merge.  " +
+                                    s"Other fields were:\n  ${fields.tail.mkString("  \n")}\n" +
+                                    "NOTE: Data loaded into the merged schema might " +
+                                    "lose precision or nullify all fields for a " +
+                                    "conflicting record, depending on the value of the " +
+                                    "DataFrameReader mode option used.  See also: " +
+                                    "https://spark.apache.org/docs/2.0.2/api/java/org/apache/spark/sql/DataFrameReader.html#json(java.lang.String...)"
+                                )
+                            }
+                            fields.head
+                         }
                     }
                 }
             )

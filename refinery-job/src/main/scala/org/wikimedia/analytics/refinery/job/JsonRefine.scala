@@ -204,8 +204,8 @@ object JsonRefine {
         } text
             """When a partition fails refinement, this file will be created in the
               |output partition path with the binary timestamp of the input source partition's
-              |modification timestamp.  Any parititon with this flag will be excluded
-              |from refinement if the input data data's modtime hasn't changed.  If the
+              |modification timestamp.  Any partition with this flag will be excluded
+              |from refinement if the input data's modtime hasn't changed.  If the
               |modtime has changed, this will re-attempt refinement anyway.
               |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
 
