@@ -1,3 +1,12 @@
+## v0.0.56
+* JsonRefine improvements:
+** Use _REFINE_FAILED flag to indicate previous failure, so we don't
+   re-refine the same bad data over and over again
+** Don't fail the entire partition refinement if Spark can resolve
+   (and possibly throw out) records with non-critical type changes.
+   I.e. don't throw the entire hour away if just a couple records have floats
+   instead of ints.  See: https://phabricator.wikimedia.org/T182000
+
 ## v0.0.55
 * something/something_latest fields change to something_historical/something
 * UDF for extracting primary full-text search request
