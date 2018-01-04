@@ -1,3 +1,7 @@
+## v0.0.57
+* Add new package refinery-job-spark-2.1
+* Add spark-streaming job for banner-activity
+
 ## v0.0.56
 * JsonRefine improvements:
 ** Use _REFINE_FAILED flag to indicate previous failure, so we don't
