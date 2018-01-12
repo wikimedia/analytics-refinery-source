@@ -27,8 +27,10 @@ public class IpUtil {
      * List of trusted proxies
      * <p>
      * The following trusted proxies list is sourced from
-     * https://phabricator.wikimedia.org/source/operations-puppet/browse/master/manifests/network.pp;9f97e3c2c5bc012ba5c3751f13fd838a06d6528d$14
+     * https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml
      * For now, any updates to this source must be manually brought over here.
+     *
+     * Last update: 2018-01-12
      */
     final String[] trustedProxies = new String[] {
             "91.198.174.0/24",
@@ -37,43 +39,52 @@ public class IpUtil {
             "198.35.26.0/23",
             "185.15.56.0/22",
             "2a02:ec80::/32",
-            "10.0.0.0/8"
+            "2001:df2:e500::/48",
+            "103.102.166.0/24",
+
+            "10.0.0.0/8"       // Internal subnet
     };
+
+
+
 
     Set<IpAddressMatcher> trustedProxiesCache;
 
     /**
      * List of Wikimedia Labs subnets
      * <p>
-     * The following list is sourced from ops/puppet.git's
-     * $all_network_subnets global variable. Specifically these were taken
-     * from manifests/network.pp at git hash bc1d7ef.
-     * @see https://phabricator.wikimedia.org/diffusion/OPUP/browse/production/manifests/network.pp
+     * The following list is sourced from ops/puppet.git's data.yaml file (see above)
+     * Specifically these were takenthe from the labs portion
+     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L235
+     *
+     * Last updated: 2018-01-12
      */
     final String[] labsSubnets = new String[] {
-            // labs-instances1-a-eqiad
+            // labs-instances-eqiad
             "10.68.0.0/24",
             "2620:0:861:201::/64",
-            // labs-instances1-b-eqiad
+
             "10.68.16.0/21",
             "2620:0:861:202::/64",
-            // labs-instances1-c-eqiad
+
             "10.68.32.0/24",
             "2620:0:861:203::/64",
-            // labs-instances1-d-eqiad
+
             "10.68.48.0/24",
             "2620:0:861:204::/64",
-            // labs-hosts1-a-eqiad
-            "10.64.4.0/24",
-            "2620:0:861:117::/64",
-            // labs-hosts1-b-eqiad
-            "10.64.20.0/24",
-            "2620:0:861:118::/64",
-            // labs-hosts1-d-eqiad
-            "10.64.52.0/24",
-            // labs-support1-c-eqiad
-            "10.64.37.0/24",
-            "2620:0:861:119::/64"
+
+            // labs-instances-codfw
+            "10.196.0.0/24",
+            "2620:0:860:201::/64",
+
+            "10.196.16.0/21",
+            "2620:0:860:202::/64",
+
+            "10.196.32.0/24",
+            "2620:0:860:203::/64",
+
+            "10.196.48.0/24",
+            "2620:0:860:204::/64",
     };
 
     Set<IpAddressMatcher> labsSubnetsCache;

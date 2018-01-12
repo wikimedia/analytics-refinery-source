@@ -18,18 +18,18 @@ package org.wikimedia.analytics.refinery.hive;
 import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.mapred.JobConf;
-import java.io.IOException;
-
 import org.junit.Test;
-import static org.junit.Assert.*;
 
+import java.io.IOException;
 import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 
 public class TestGetGeoDataUDF {
 
@@ -52,7 +52,7 @@ public class TestGetGeoDataUDF {
 
     @Test
     public void testEvaluateWithValidIPv4() throws HiveException, IOException {
-        //IPv4 addresses taken from Maxmind's test suite
+        //IPv4 addresses taken from MaxMind's test suite
         String ip = "81.2.69.160";
         Map<String, String> result = evaluate (ip);
 
@@ -69,7 +69,7 @@ public class TestGetGeoDataUDF {
 
     @Test
     public void testEvaluateWithValidIPv6() throws HiveException, IOException {
-        //IPv6 representation of an IPv4 address taken from Maxmind's test suite
+        //IPv6 representation of an IPv4 address taken from MaxMind's test suite
         String ip = "::ffff:81.2.69.160";
         Map<String, String> result = evaluate (ip);
 
@@ -96,8 +96,8 @@ public class TestGetGeoDataUDF {
         assertEquals("Subdivision check", "Unknown", result.get("subdivision"));
         assertEquals("City check", "Unknown", result.get("city"));
         assertEquals("Postal code check", "Unknown", result.get("postal_code"));
-        assertEquals("Latitude check", "-1", result.get("latitude"));
-        assertEquals("Longitude check", "-1", result.get("longitude"));
+        assertEquals("Latitude check", "-1.0", result.get("latitude"));
+        assertEquals("Longitude check", "-1.0", result.get("longitude"));
         assertEquals("Timezone check", "Unknown", result.get("timezone"));
 
         ip = null;
@@ -109,8 +109,8 @@ public class TestGetGeoDataUDF {
         assertEquals("Subdivision check", "Unknown", result.get("subdivision"));
         assertEquals("City check", "Unknown", result.get("city"));
         assertEquals("Postal code check", "Unknown", result.get("postal_code"));
-        assertEquals("Latitude check", "-1", result.get("latitude"));
-        assertEquals("Longitude check", "-1", result.get("longitude"));
+        assertEquals("Latitude check", "-1.0", result.get("latitude"));
+        assertEquals("Longitude check", "-1.0", result.get("longitude"));
         assertEquals("Timezone check", "Unknown", result.get("timezone"));
     }
 

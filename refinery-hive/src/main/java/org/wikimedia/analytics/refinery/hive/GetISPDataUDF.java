@@ -29,7 +29,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader;
+import org.wikimedia.analytics.refinery.core.maxmind.ISPDatabaseReader;
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 
 import java.io.IOException;
@@ -37,29 +37,29 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A Hive UDF to lookup location fields from IP addresses.
+ * A Hive UDF to lookup ISP fields from IP addresses.
  * <p>
  * Hive Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
- *   CREATE TEMPORARY FUNCTION get_geo_data as 'org.wikimedia.analytics.refinery.hive.GetGeoDataUDF';
- *   SELECT get_geo_data(ip)['country'], get_geo_data(ip)['city'] from webrequest where year = 2014 limit 10;
+ *   CREATE TEMPORARY FUNCTION get_isp_data as 'org.wikimedia.analytics.refinery.hive.GetISPDataUDF';
+ *   SELECT get_isp_data(ip)['isp'], get_isp_data(ip)['organization'] from webrequest where year = 2014 limit 10;
  *
- * The above steps assume that the required file GeoIP2-City.mmdb is available
+ * The above steps assume that the required file GeoIP2-ISP.mmdb is available
  * in its default path /usr/share/GeoIP. If not, then add the following steps:
  *
- *   SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
+ *   SET maxmind.database.isp=/path/to/GeoIP2-ISP.mmdb;
  */
 @UDFType(deterministic = true)
-@Description(name = "get_geo_data", value = "_FUNC_(ip) - "
-        + "Returns a map with continent, country_code, country, city, subdivision, postal_code, latitude, longitude, "
-        + "timezone keys and the appropriate values for each of them")
-public class GetGeoDataUDF extends GenericUDF {
+@Description(name = "get_isp_data", value = "_FUNC_(ip) - "
+        + "Returns a map with isp, organization, autonomous_system_organization, autonomous_system_number "
+        + "keys and the appropriate values for each of them")
+public class GetISPDataUDF extends GenericUDF {
 
     Map<String, String> result;
     private ObjectInspector argumentOI;
-    private GeocodeDatabaseReader maxMindGeocode;
+    private ISPDatabaseReader MaxMindISP;
 
-    static final Logger LOG = Logger.getLogger(GetGeoDataUDF.class.getName());
+    static final Logger LOG = Logger.getLogger(GetISPDataUDF.class.getName());
 
     /**
      * The initialize method is called only once during the lifetime of the UDF.
@@ -79,7 +79,7 @@ public class GetGeoDataUDF extends GenericUDF {
             throws UDFArgumentException {
 
         if (arguments.length != 1) {
-            throw new UDFArgumentLengthException("The GetGeoDataUDF takes an array with only 1 element as argument");
+            throw new UDFArgumentLengthException("The GetISPDataUDF takes an array with only 1 element as argument");
         }
 
         ObjectInspector arg1 = arguments[0];
@@ -109,11 +109,11 @@ public class GetGeoDataUDF extends GenericUDF {
 
     @Override
     public void configure(MapredContext context) {
-        if (maxMindGeocode == null) {
+        if (MaxMindISP == null) {
             try {
                 JobConf jobConf = context.getJobConf();
-                maxMindGeocode = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader(
-                    jobConf.getTrimmed("maxmind.database.city")
+                MaxMindISP = MaxmindDatabaseReaderFactory.getInstance().getISPDatabaseReader(
+                    jobConf.getTrimmed("maxmind.database.isp")
                 );
             } catch (IOException ex) {
                 LOG.error(ex);
@@ -144,16 +144,16 @@ public class GetGeoDataUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert maxMindGeocode != null : "Evaluate called without initializing 'geocodeCity'";
+        assert MaxMindISP != null : "Evaluate called without initializing 'geocodeISP'";
 
         result.clear();
 
         if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
             String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            Map<String, String > geoDataResult = maxMindGeocode.getResponse(ip).getMap();
-            if (geoDataResult != null) {
-                for (String field : geoDataResult.keySet()) {
-                    Object value = geoDataResult.get(field);
+            Map<String, String> ispDataResult = MaxMindISP.getResponse(ip).getMap();
+            if (ispDataResult != null) {
+                for (String field : ispDataResult.keySet()) {
+                    Object value = ispDataResult.get(field);
                     if (value != null) {
                         result.put(field, value.toString());
                     }
@@ -166,6 +166,6 @@ public class GetGeoDataUDF extends GenericUDF {
     @Override
     public String getDisplayString(String[] arguments) {
         assert (arguments.length == 1);
-        return "get_geo_data(" + arguments[0] + ")";
+        return "get_isp_data(" + arguments[0] + ")";
     }
 }

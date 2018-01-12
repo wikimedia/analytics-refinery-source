@@ -60,7 +60,7 @@ public class TestGetCountryISOCodeUDF {
         getCountryISOCodeUDF.initialize(initArguments);
         getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
 
-        //IPv4 addresses taken from Maxmind's test suite
+        //IPv4 addresses taken from MaxMind's test suite
         String ip = "81.2.69.160";
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
         Text result = (Text)getCountryISOCodeUDF.evaluate(args);
@@ -77,7 +77,7 @@ public class TestGetCountryISOCodeUDF {
         getCountryISOCodeUDF.initialize(initArguments);
         getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
 
-        //IPv6 representation of an IPv4 address taken from Maxmind's test suite
+        //IPv6 representation of an IPv4 address taken from MaxMind's test suite
         String ip = "::ffff:81.2.69.160";
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
         Text result = (Text)getCountryISOCodeUDF.evaluate(args);

@@ -1,6 +1,6 @@
 # Licenses
 
-## refinery/souce
+## refinery/source
 Copyright (C) 2014  Wikimedia Foundation
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 
-## Maxmind GeoIP2*.mmdb files
+## MaxMind GeoIP2*.mmdb files
 The GeoIP2-*.mmdb database files were created by [MaxMind](https://www.maxmind.com/) and
 copied from http://dev.maxmind.com/geoip/geoip2/downloadable/
 under a [CC BY-SA:3.0](https://github.com/maxmind/MaxMind-DB/blob/master/LICENSE)

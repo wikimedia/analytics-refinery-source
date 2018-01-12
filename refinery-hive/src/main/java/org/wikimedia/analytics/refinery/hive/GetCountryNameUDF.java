@@ -16,6 +16,7 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import org.apache.commons.lang.LocaleUtils;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -27,7 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.Geocode;
+import org.wikimedia.analytics.refinery.core.LocaleUtil;
 
 /**
  * A Hive UDF to lookup country name from country code.
@@ -78,7 +79,7 @@ public class GetCountryNameUDF extends GenericUDF {
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         result.clear();
         String countryCode = argumentOI.getPrimitiveJavaObject(arguments[0].get());
-        result.set(Geocode.getCountryName(countryCode));
+        result.set(LocaleUtil.getCountryName(countryCode));
         return result;
     }
 

@@ -16,32 +16,29 @@ package org.wikimedia.analytics.refinery.core;
 
 import junit.framework.TestCase;
 import org.junit.BeforeClass;
+import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader;
+import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class TestGeocode extends TestCase {
+public class TestMaxMindGeocode extends TestCase {
 
-    private Geocode geocode;
+    private GeocodeDatabaseReader maxMindGeocode;
 
     @BeforeClass
     public void setUp() throws IOException {
-        geocode = new Geocode();
+        maxMindGeocode =  MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader();
     }
 
-    public void testGeoCountryLookup() {
-        //IPv4 addresses taken from Maxmind's test suite
-        String ip = "81.2.69.160";
-        assertEquals("GB", geocode.getCountryCode(ip));
-        assertEquals("--", geocode.getCountryCode("-"));
-        assertEquals("--", geocode.getCountryCode(null));
-    }
+
 
     public void testGeoDataLookupIPv4() {
-        //IPv4 addresses taken from Maxmind's test suite
+        //IPv4 addresses taken from MaxMind's test suite
         String ip = "81.2.69.160";
 
-        Map<String, Object> geoData = geocode.getGeocodedData(ip);
+        Map<String, String> geoData = maxMindGeocode.getResponse(ip).getMap();
+
         assertNotNull("Geo data cannot be null", geoData);
         assertEquals("Europe", geoData.get("continent"));
         assertEquals("GB", geoData.get("country_code"));
@@ -49,16 +46,16 @@ public class TestGeocode extends TestCase {
         assertEquals("England", geoData.get("subdivision"));
         assertEquals("London", geoData.get("city"));
         assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals(51.5142, geoData.get("latitude"));
-        assertEquals(-0.0931, geoData.get("longitude"));
+        assertEquals("51.5142", geoData.get("latitude"));
+        assertEquals("-0.0931", geoData.get("longitude"));
         assertEquals("Europe/London", geoData.get("timezone"));
     }
 
     public void testDoGeoLookupIpv6() {
-        //IPv6 representation of an IPv4 address taken from Maxmind's test suite
+        //IPv6 representation of an IPv4 address taken from MaxMind's test suite
         String ip = "::ffff:81.2.69.160";
 
-        Map<String, Object> geoData = geocode.getGeocodedData(ip);
+        Map<String, String> geoData = maxMindGeocode.getResponse(ip).getMap();
         assertNotNull("Geo data cannot be null", geoData);
         assertEquals("Europe", geoData.get("continent"));
         assertEquals("GB", geoData.get("country_code"));
@@ -66,8 +63,8 @@ public class TestGeocode extends TestCase {
         assertEquals("England", geoData.get("subdivision"));
         assertEquals("London", geoData.get("city"));
         assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals(51.5142, geoData.get("latitude"));
-        assertEquals(-0.0931, geoData.get("longitude"));
+        assertEquals("51.5142", geoData.get("latitude"));
+        assertEquals("-0.0931", geoData.get("longitude"));
         assertEquals("Europe/London", geoData.get("timezone"));
     }
 
@@ -75,7 +72,7 @@ public class TestGeocode extends TestCase {
         // Invalid or unknown IP address
         String ip = "-";
 
-        Map<String, Object> geoData = geocode.getGeocodedData(ip);
+        Map<String, String> geoData = maxMindGeocode.getResponse(ip).getMap();
         assertNotNull("Geo data cannot be null", geoData);
         assertEquals("--", geoData.get("country_code"));
         assertEquals("Unknown", geoData.get("continent"));
@@ -84,8 +81,8 @@ public class TestGeocode extends TestCase {
         assertEquals("Unknown", geoData.get("subdivision"));
         assertEquals("Unknown", geoData.get("city"));
         assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals(-1, geoData.get("latitude"));
-        assertEquals(-1, geoData.get("longitude"));
+        assertEquals("-1.0", geoData.get("latitude"));
+        assertEquals("-1.0", geoData.get("longitude"));
         assertEquals("Unknown", geoData.get("timezone"));
     }
 
@@ -93,7 +90,7 @@ public class TestGeocode extends TestCase {
         // Invalid IP address
         String ip = null;
 
-        Map<String, Object> geoData = geocode.getGeocodedData(ip);
+        Map<String, String> geoData = maxMindGeocode.getResponse(ip).getMap();
         assertNotNull("Geo data cannot be null", geoData);
         assertEquals("Unknown", geoData.get("continent"));
         assertEquals("--", geoData.get("country_code"));
@@ -101,22 +98,9 @@ public class TestGeocode extends TestCase {
         assertEquals("Unknown", geoData.get("subdivision"));
         assertEquals("Unknown", geoData.get("city"));
         assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals(-1, geoData.get("latitude"));
-        assertEquals(-1, geoData.get("longitude"));
+        assertEquals("-1.0", geoData.get("latitude"));
+        assertEquals("-1.0", geoData.get("longitude"));
         assertEquals("Unknown", geoData.get("timezone"));
     }
 
-    public void testGetKnownCountryName() {
-        assertEquals("Ireland", Geocode.getCountryName("IE"));
-        assertEquals("Ireland", Geocode.getCountryName("ie"));
-    }
-
-    public void testGetUnknownCountryName() {
-        assertEquals("Unknown", Geocode.getCountryName("-"));
-        assertEquals("Unknown", Geocode.getCountryName("--"));
-        assertEquals("Unknown", Geocode.getCountryName("XX"));
-        assertEquals("Unknown", Geocode.getCountryName("XXX"));
-        assertEquals("Unknown", Geocode.getCountryName("ct"));
-        assertEquals("Unknown", Geocode.getCountryName(null));
-    }
 }

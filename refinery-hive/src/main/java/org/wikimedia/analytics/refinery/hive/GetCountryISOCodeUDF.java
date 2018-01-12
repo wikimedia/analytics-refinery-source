@@ -16,16 +16,10 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
-import java.io.IOException;
-
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
-import org.apache.hadoop.hive.ql.exec.Description;
-import org.apache.hadoop.hive.ql.exec.MapredContext;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
+import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
+import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
@@ -34,9 +28,11 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
-
 import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.Geocode;
+import org.wikimedia.analytics.refinery.core.maxmind.CountryDatabaseReader;
+import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
+
+import java.io.IOException;
 
 /**
  * A Hive UDF to lookup country codes from IP addresses.
@@ -46,11 +42,10 @@ import org.wikimedia.analytics.refinery.core.Geocode;
  *   CREATE TEMPORARY FUNCTION get_country_iso as 'org.wikimedia.analytics.refinery.hive.GetCountryISOCodeUDF';
  *   SELECT get_country_iso(ip) from webrequest where year = 2014 limit 10;
  *
- * The above steps assume that the two required files - GeoIP2-Country.mmdb and GeoIP2-City.mmdb - are available
- * in their default path /usr/share/GeoIP. If not, then add the following steps:
+ * The above steps assume that the required file GeoIP2-Country.mmdb is available
+ * in its default path /usr/share/GeoIP. If not, then add the following steps:
  *
  *   SET maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
- *   SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
  */
 @UDFType(deterministic = true)
 @Description(
@@ -61,7 +56,7 @@ public class GetCountryISOCodeUDF extends GenericUDF {
 
     private final Text result = new Text();
     private ObjectInspector argumentOI;
-    private Geocode geocode;
+    private CountryDatabaseReader maxMindCountryCode;
 
     static final Logger LOG = Logger.getLogger(GetCountryISOCodeUDF.class.getName());
 
@@ -96,12 +91,11 @@ public class GetCountryISOCodeUDF extends GenericUDF {
 
     @Override
     public void configure(MapredContext context) {
-        if (geocode == null) {
+        if (maxMindCountryCode == null) {
             try {
                 JobConf jobConf = context.getJobConf();
-                geocode = new Geocode(
-                        jobConf.getTrimmed("maxmind.database.country"),
-                        jobConf.getTrimmed("maxmind.database.city")
+                maxMindCountryCode = MaxmindDatabaseReaderFactory.getInstance().getCountryDatabaseReader(
+                        jobConf.getTrimmed("maxmind.database.country")
                 );
             } catch (IOException ex) {
                 LOG.error(ex);
@@ -115,13 +109,13 @@ public class GetCountryISOCodeUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert geocode != null : "Evaluate called without initializing 'geocode'";
+        assert maxMindCountryCode != null : "Evaluate called without initializing 'maxMindCountryCode'";
 
         result.clear();
 
         if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
             String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            result.set(geocode.getCountryCode(ip));
+            result.set(maxMindCountryCode.getResponse(ip).getCountryCode());
         }
         return result;
     }

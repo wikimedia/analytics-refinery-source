@@ -28,11 +28,10 @@ import org.apache.hadoop.hive.ql.udf.UDFType;
  *   CREATE TEMPORARY FUNCTION geocode_country as 'org.wikimedia.analytics.refinery.hive.GeocodedCountryUDF';
  *   SELECT geocode_country(ip) from webrequest where year = 2014 limit 10;
  *
- * The above steps assume that the two required files - GeoIP2-Country.mmdb and GeoIP2-City.mmdb - are available
- * in their default path /usr/share/GeoIP. If not, then add the following steps:
+ * The above steps assume that the required file GeoIP2-Country.mmdb is available
+ * in its default path /usr/share/GeoIP. If not, then add the following steps:
  *
  *   SET maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
- *   SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
  */
 @Deprecated
 @UDFType(deterministic = true)
