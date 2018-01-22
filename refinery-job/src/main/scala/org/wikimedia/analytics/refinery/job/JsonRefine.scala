@@ -7,30 +7,30 @@ import scala.util.{Failure, Success, Try}
 import scala.util.matching.Regex
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
-
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import com.github.nscala_time.time.Imports._
-
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.DataFrame
+import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, SparkJsonToHive, Utilities}
 
-import org.wikimedia.analytics.refinery.core.{HivePartition, SparkJsonToHive, Utilities}
 
 
 // TODO: ERROR Hive: Table otto not found: default.otto table not found ???
 // TODO: support append vs overwrite?
 // TODO: Hive Table Locking?
 
+
 /**
   * Looks for hourly input partition directories with JSON data that need refinement,
   * and refines them into Hive Parquet tables using SparkJsonToHive.
   */
 object JsonRefine {
-
     private val log = LogManager.getLogger("JsonRefine")
     private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
+
     /**
       * Config class for CLI argument parser using scopt
       */
@@ -45,8 +45,10 @@ object JsonRefine {
         inputPathDateTimeFormat: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
         tableWhitelistRegex: Option[Regex]         = None,
         tableBlacklistRegex: Option[Regex]         = None,
+        transformFunctions: Seq[String]            = Seq(),
         doneFlag: String                           = "_REFINED",
-        failureFlag: String                        = "_REFINE_FAILED",
+        // Temporarily commented out until we move to Spark 2
+//        failureFlag: String                        = "_REFINE_FAILED",
         shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
@@ -83,7 +85,6 @@ object JsonRefine {
                 DateTime.parse(s, iso8601DateFormatter)
         }
     }
-
 
 
     /**
@@ -190,6 +191,15 @@ object JsonRefine {
             p.copy(tableBlacklistRegex = x)
         } text "Blacklist regex of table names to skip.\n".stripMargin
 
+        opt[String]('l', "transform-functions") optional() valueName "<fn>" action { (x, p) =>
+            p.copy(transformFunctions = x.split(",").toSeq)
+        } text
+            """Comma separated list of fully qualified module.ObjectNames.  The objects'
+               apply methods should take a DataFrame and a HivePartition and return
+               a DataFrame.  These functions can be used to map from the input JSON DataFrame
+               to a new one, applying various transformations along the way.
+            """.stripMargin.replace("\n", "\n\t") + "\n"
+
         opt[String]('D', "done-flag") optional() valueName "<filename>" action { (x, p) =>
             p.copy(doneFlag = x)
         } text
@@ -199,15 +209,16 @@ object JsonRefine {
               |data has changed meaning the partition needs to be re-refined.
               |Default: _REFINED""".stripMargin.replace("\n", "\n\t") + "\n"
 
-        opt[String]('X', "failure-flag") optional() valueName "<filename>" action { (x, p) =>
-            p.copy(failureFlag = x)
-        } text
-            """When a partition fails refinement, this file will be created in the
-              |output partition path with the binary timestamp of the input source partition's
-              |modification timestamp.  Any partition with this flag will be excluded
-              |from refinement if the input data's modtime hasn't changed.  If the
-              |modtime has changed, this will re-attempt refinement anyway.
-              |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
+        // Temporarily commented out until we move to Spark 2.
+//        opt[String]('X', "failure-flag") optional() valueName "<filename>" action { (x, p) =>
+//            p.copy(failureFlag = x)
+//        } text
+//            """When a partition fails refinement, this file will be created in the
+//              |output partition path with the binary timestamp of the input source partition's
+//              |modification timestamp.  Any partition with this flag will be excluded
+//              |from refinement if the input data's modtime hasn't changed.  If the
+//              |modtime has changed, this will re-attempt refinement anyway.
+//              |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
 
         opt[Unit]('I', "ignore-failure-flag") optional() action { (_, p) =>
             p.copy(shouldIgnoreFailureFlag = true)
@@ -289,6 +300,7 @@ object JsonRefine {
     }
 
 
+
     /**
       * Given params, refine all discovered JsonTargets.
       *
@@ -321,6 +333,23 @@ object JsonRefine {
             params.inputPathPatternCaptureGroups: _*
         )
 
+        // If we are given any transform function names, they should be fully
+        // qualified package.objectName to an object with an apply method that
+        // takes a DataFrame and HiveParititon, and returns a DataFrame.
+        // Map these String names to callable functions.
+        val transformFunctions = params.transformFunctions.map { objectName =>
+            val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
+            // Lookup the object's apply method as a reflect MethodMirror, and wrap
+            // it in a anonymous function that has the signature expected by
+            // SparkJsonToHive's transformFunction parameter.
+            val wrapperFn: (DataFrame, HivePartition) => DataFrame = {
+                case (df, hp) => {
+                    log.info(s"Applying ${transformMirror.receiver} to $hp")
+                    transformMirror(df, hp).asInstanceOf[DataFrame]
+                }
+            }
+            wrapperFn
+        }
 
         log.info(
             s"Looking for JSON targets to refine in ${params.inputBasePath} between " +
@@ -335,7 +364,7 @@ object JsonRefine {
             new Path(params.outputBasePath),
             params.databaseName,
             params.doneFlag,
-            params.failureFlag,
+            "_REFINED_FAILED", //params.failureFlag,
             params.inputPathDateTimeFormat,
             inputPathRegex,
             params.sinceDateTime
@@ -395,7 +424,7 @@ object JsonRefine {
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!params.dryRun)
-                table -> refineJsonTargets(hiveContext, tableTargets.seq)
+                table -> refineJsonTargets(hiveContext, tableTargets.seq, transformFunctions)
             // If --dry-run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -524,7 +553,8 @@ object JsonRefine {
       */
     def refineJsonTargets(
         hiveContext: HiveContext,
-        targets: Seq[JsonTarget]
+        targets: Seq[JsonTarget],
+        transformFunctions: Seq[(DataFrame, HivePartition) => DataFrame]
     ): Seq[Try[JsonTarget]] = {
         targets.map(target => {
             log.info(s"Beginning refinement of $target...")
@@ -535,7 +565,8 @@ object JsonRefine {
                     target.inputPath.toString,
                     target.partition,
                     target.inputIsSequenceFile,
-                    () => target.writeDoneFlag()
+                    () => target.writeDoneFlag(),
+                    transformFunctions
                 )
 
                 log.info(
