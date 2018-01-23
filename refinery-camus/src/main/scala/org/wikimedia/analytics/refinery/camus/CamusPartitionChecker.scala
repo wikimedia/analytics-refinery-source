@@ -60,9 +60,11 @@ object CamusPartitionChecker {
     }
   }
 
+  // Replacing dots by underscores in topic names as per
+  // https://github.com/wikimedia/analytics-camus/blob/master/camus-etl-kafka/src/main/java/com/linkedin/camus/etl/kafka/partitioner/DefaultPartitioner.java#L67
   def partitionDirectory(base: String, topic: String, year: Int, month: Int, day: Int, hour: Int): String = {
     if ((! StringUtils.isEmpty(base)) && (! StringUtils.isEmpty(topic)))
-      f"${base}%s/${topic}%s/hourly/${year}%04d/${month}%02d/${day}%02d/${hour}%02d"
+      f"${base}%s/${topic.replaceAll("\\.", "_")}%s/hourly/${year}%04d/${month}%02d/${day}%02d/${hour}%02d"
     else
       throw new IllegalArgumentException("Can't make partition directory with empty base or topic.")
   }
