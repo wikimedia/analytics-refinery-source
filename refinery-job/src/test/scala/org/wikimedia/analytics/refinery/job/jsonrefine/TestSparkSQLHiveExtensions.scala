@@ -1,9 +1,9 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.jsonrefine
 
 import org.apache.spark.sql.types._
-import org.scalatest.{Matchers, FlatSpec}
+import org.scalatest.{FlatSpec, Matchers}
 
-import org.wikimedia.analytics.refinery.core.SparkSQLHiveExtensions._
+import SparkSQLHiveExtensions._
 
 class TestSparkSQLHiveExtensions extends FlatSpec with Matchers {
 

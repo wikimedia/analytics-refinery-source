@@ -1,21 +1,20 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.jsonrefine
 
+import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
 import org.apache.log4j.LogManager
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.hive.HiveContext
+import org.apache.spark.sql.types.StructType
+import org.wikimedia.analytics.refinery.core.HivePartition
 
 import scala.util.control.Exception.{allCatch, ignoring}
 
-import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
-
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.functions.lit
+import SparkSQLHiveExtensions._
 
 // Import implicit StructType and StructField conversions.
 // This allows us use these types with an extendend API
 // that includes schema merging and Hive DDL statement generation.
-import SparkSQLHiveExtensions._
 
 /**
   * Converts arbitrary JSON to Hive Parquet by 'evolving' the Hive table to
@@ -54,10 +53,7 @@ import SparkSQLHiveExtensions._
   * new input data, an IllegalStateException Exception will be thrown.
   *
   */
-object SparkJsonToHive {
-    private val log = LogManager.getLogger("SparkJsonToHive")
-
-
+object SparkJsonToHive extends LogHelper {
     /**
       * Reads inputPath as JSON data, creates or alters tableName in Hive to match the inferred
       * schema of the input JSON data, and then inserts the data into the table.
@@ -101,6 +97,9 @@ object SparkJsonToHive {
             readJsonDataFrame(hiveContext.asInstanceOf[SQLContext], inputPath, isSequenceFile),
             partition
         )
+
+        //NOTE!  This does not actually work yet.  Need to do more refactoring to include
+        //https://gerrit.wikimedia.org/r/#/c/410154
 
         // Apply any transformFunctions to do any modifications to the input DataFrame now
         // (e.g. de-duplication, anonymizing, etc.).

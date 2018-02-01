@@ -1,6 +1,5 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.job.jsonrefine
 
-import org.apache.log4j.LogManager
 import scopt.OptionParser
 
 import scala.util.{Success, Try}
@@ -13,7 +12,8 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.sql.DataFrame
-import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, SparkJsonToHive, Utilities}
+import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Utilities}
+import org.wikimedia.analytics.refinery.job.RefineTarget
 
 
 // TODO: support append vs overwrite?
@@ -24,8 +24,7 @@ import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Spark
   * Looks for hourly input partition directories with JSON data that need refinement,
   * and refines them into Hive Parquet tables using SparkJsonToHive.
   */
-object JsonRefine {
-    private val log = LogManager.getLogger("JsonRefine")
+object JsonRefine extends LogHelper {
     private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
     /**
@@ -278,6 +277,7 @@ object JsonRefine {
 
     }
 
+
     def main(args: Array[String]): Unit = {
         val params = args.headOption match {
             // Case when our job options are given as a single string.  Split them
@@ -341,7 +341,7 @@ object JsonRefine {
             // SparkJsonToHive's transformFunction parameter.
             val wrapperFn: (DataFrame, HivePartition) => DataFrame = {
                 case (df, hp) => {
-                    log.info(s"Applying ${transformMirror.receiver} to $hp")
+                    log.debug(s"Applying ${transformMirror.receiver} to $hp")
                     transformMirror(df, hp).asInstanceOf[DataFrame]
                 }
             }
@@ -382,7 +382,7 @@ object JsonRefine {
 
         // Return now if we didn't find any targets to refine.
         if (targetsToRefine.isEmpty) {
-            log.info(s"No targets needing refinement were found in ${params.inputBasePath}")
+            log.debug(s"No targets needing refinement were found in ${params.inputBasePath}")
             return true
         }
 
@@ -504,7 +504,7 @@ object JsonRefine {
         if (tableWhitelistRegex.isDefined &&
             !regexMatches(target.partition.table, tableWhitelistRegex.get)
         ) {
-            log.info(
+            log.debug(
                 s"$target table ${target.partition.table} does not match table whitelist regex " +
                 s"${tableWhitelistRegex.get}', skipping."
             )
@@ -514,7 +514,7 @@ object JsonRefine {
         else if (tableBlacklistRegex.isDefined &&
             regexMatches(target.partition.table, tableBlacklistRegex.get)
         ) {
-            log.info(
+            log.debug(
                 s"$target table ${target.partition.table} matches table blacklist regex " +
                 s"'${tableBlacklistRegex.get}', skipping."
             )
@@ -529,7 +529,7 @@ object JsonRefine {
                 )
             }
             else {
-                log.info(
+                log.debug(
                     s"$target does not have new data since the last refine at " +
                     s"${target.doneFlagMTime().getOrElse("_unknown_")}, skipping."
                 )

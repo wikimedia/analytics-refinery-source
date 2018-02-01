@@ -1,9 +1,8 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.jsonrefine
 
 import org.apache.log4j.LogManager
-
-import org.apache.spark.sql.types._
 import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion
+import org.apache.spark.sql.types._
 
 
 
