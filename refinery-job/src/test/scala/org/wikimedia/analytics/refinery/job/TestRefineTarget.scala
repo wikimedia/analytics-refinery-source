@@ -4,7 +4,7 @@ import com.github.nscala_time.time.Imports.DateTime
 import com.github.nscala_time.time.Imports._
 import org.scalatest.{FlatSpec, Matchers}
 
-class TestJsonRefine extends FlatSpec with Matchers {
+class TestRefineTarget extends FlatSpec with Matchers {
 
     it should "hoursInBetween gives hours in between two DateTimes" in {
         val d1 = DateTime.now - 3.hours
@@ -16,7 +16,7 @@ class TestJsonRefine extends FlatSpec with Matchers {
             (new DateTime(DateTime.now, DateTimeZone.UTC) - 1.hours).hourOfDay.roundFloorCopy
         )
 
-        val hours = JsonRefine.hoursInBetween(d1, d2)
+        val hours = RefineTarget.hoursInBetween(d1, d2)
         hours should equal (hoursShouldBe)
     }
 }
