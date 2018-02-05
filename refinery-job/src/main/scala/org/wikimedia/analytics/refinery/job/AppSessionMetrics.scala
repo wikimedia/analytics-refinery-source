@@ -49,7 +49,20 @@ object AppSessionMetrics {
    */
   def quantiles(nums: RDD[Long], qs: List[Double]): List[(Double, Double)] = {
     val qtSemigroup = new QTreeSemigroup[Long](8)
-    val sum = nums.map(QTree(_)).reduce(qtSemigroup.plus)
+
+
+    /** see https://github.com/twitter/algebird/issues/517
+      * and note that QTree constructor has changed since then,
+      * If we upgrade algebird we need to upgrade this workarround
+      https://github.com/twitter/algebird/blob/e8f869bc266997190a1fc6ed376dc415cee8e250/algebird-core/src/main/scala/com/twitter/algebird/QTree.scala#L159
+
+     */
+
+    // aiming for 4 digits of precision, percentiles should be reported like:
+    // SessionsPerUser,Android,Map(percentile_50 -> (1.0,1.0625)
+
+    val sum = nums.map(x =>QTree(x*16,-4,1,x,None,None) ).reduce(qtSemigroup.plus)
+
     qs.map(sum.quantileBounds(_))
   }
 
