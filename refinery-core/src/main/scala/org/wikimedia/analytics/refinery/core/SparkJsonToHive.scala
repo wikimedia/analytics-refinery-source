@@ -4,9 +4,6 @@ import org.apache.log4j.LogManager
 
 import scala.util.control.Exception.{allCatch, ignoring}
 
-import org.apache.hadoop.fs.Path
-
-
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
 
 import org.apache.spark.sql.SQLContext
@@ -19,7 +16,6 @@ import org.apache.spark.sql.functions.lit
 // This allows us use these types with an extendend API
 // that includes schema merging and Hive DDL statement generation.
 import SparkSQLHiveExtensions._
-
 
 /**
   * Converts arbitrary JSON to Hive Parquet by 'evolving' the Hive table to
@@ -66,29 +62,36 @@ object SparkJsonToHive {
       * Reads inputPath as JSON data, creates or alters tableName in Hive to match the inferred
       * schema of the input JSON data, and then inserts the data into the table.
       *
-      * @param hiveContext      Spark HiveContext
+      * @param hiveContext        Spark HiveContext
       *
-      * @param inputPath        Path to JSON data
+      * @param inputPath          Path to JSON data
       *
       *
-      * @param partition        HivePartition.  This helper class contains
-      *                         database and table name, as well as external location
-      *                         and partition keys and values.
+      * @param partition          HivePartition.  This helper class contains
+      *                           database and table name, as well as external location
+      *                           and partition keys and values.
       *
-      * @param isSequenceFile   If true, inputPath is expected to contain JSON in
-      *                         Hadoop Sequence Files, else JSON in text files.
+      * @param isSequenceFile     If true, inputPath is expected to contain JSON in
+      *                           Hadoop Sequence Files, else JSON in text files.
       *
-      * @param doneCallback     Function to call after a successful run
+      * @param doneCallback       Function to call after a successful run
       *
-      * @return                 The number of records refined
+      * @param transformFunctions Functions to do DataFrame transformations.
+      *                           DO NOT return a DataFrame with a different schema.
+      *                           You should use these functions to do things like
+      *                           redacting or de-duplicating records in your DataFrame.
+      *
+      * @return                   The number of records inserted into the HivePartition.
       */
     def apply(
         hiveContext: HiveContext,
         inputPath: String,
         partition: HivePartition,
         isSequenceFile: Boolean,
-        doneCallback: () => Unit
+        doneCallback: () => Unit,
+        transformFunctions: Seq[(DataFrame, HivePartition) => DataFrame] = Seq()
     ): Long = {
+
         // Set this so we can partition by fields in the DataFrame.
         hiveContext.setConf("hive.exec.dynamic.partition.mode", "nonstrict")
 
@@ -97,6 +100,12 @@ object SparkJsonToHive {
         val inputDf = dataFrameWithHivePartitions(
             readJsonDataFrame(hiveContext.asInstanceOf[SQLContext], inputPath, isSequenceFile),
             partition
+        )
+
+        // Apply any transformFunctions to do any modifications to the input DataFrame now
+        // (e.g. de-duplication, anonymizing, etc.).
+        val transformedDf: DataFrame = transformFunctions.foldLeft(inputDf)(
+            (df, fn) => fn(df, partition)
         )
 
         // Grab the partition name keys to use for Hive partitioning.
@@ -109,7 +118,7 @@ object SparkJsonToHive {
             // made nullable.
             prepareHiveTable(
                 hiveContext,
-                inputDf.schema,
+                transformedDf.schema,
                 partition.tableName,
                 partition.location,
                 partitionNames
@@ -118,7 +127,7 @@ object SparkJsonToHive {
             case e: IllegalStateException => {
                 log.fatal(
                     s"""Failed preparing Hive table ${partition.tableName} with
-                       |input schema:\n${inputDf.schema.treeString}""".stripMargin, e)
+                       |input schema:\n${transformedDf.schema.treeString}""".stripMargin, e)
                 throw e
             }
         }
@@ -146,7 +155,7 @@ object SparkJsonToHive {
         // they will always be made nullable.  We need this because we are about to use
         // this schema to re-read the json data, and here, case matters.  Any fields that
         // are in inputDf must have the same case in the schema we use to read the JSON.
-        val nonNormalizedSchema = table.schema.merge(inputDf.schema, normalize=false)
+        val nonNormalizedSchema = table.schema.merge(transformedDf.schema, normalize=false)
 
         val mergedSchemaDf = dataFrameWithHivePartitions(
             // re-read the JSON data with the merged non normalized schema.  Any fields in this
@@ -168,6 +177,7 @@ object SparkJsonToHive {
             s"""Inserting into `${partition.tableName}` DataFrame with schema:\n
                |${mergedSchemaDf.schema.treeString} for partition $partition""".stripMargin
         )
+
         // Insert data into Hive table.
         // TODO parameterize "overwrite" to allow "append"?
         mergedSchemaDf.write.mode("overwrite")
@@ -175,7 +185,6 @@ object SparkJsonToHive {
             .insertInto(partition.tableName)
 
 
-        // Return the String path of the external partition we just inserted into.
         val partitionPath = hivePartitionPath(hiveContext, partition)
         log.info(
             s"Finished inserting into `${partition.tableName}` DataFrame, " +
