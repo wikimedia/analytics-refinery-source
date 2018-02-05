@@ -338,7 +338,8 @@ object JsonRefine {
             params.failureFlag,
             params.inputPathDateTimeFormat,
             inputPathRegex,
-            params.sinceDateTime
+            params.sinceDateTime,
+            params.untilDateTime
         )
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
