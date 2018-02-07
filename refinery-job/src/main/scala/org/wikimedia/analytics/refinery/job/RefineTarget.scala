@@ -361,7 +361,7 @@ object RefineTarget {
                 inputPathDateTimeFormatter,
                 sinceDateTime,
                 untilDateTime
-            )
+            ).filter { case inputPathRegex => true }
 
             // Convert each possible partition input path into a possible RefineTarget for refinement.
             pastPartitionPaths.map(partitionPath => {
