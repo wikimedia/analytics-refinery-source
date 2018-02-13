@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.jsonrefine
 
 import org.apache.log4j.LogManager
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion
 import org.apache.spark.sql.types._
 
@@ -455,7 +456,173 @@ object SparkSQLHiveExtensions {
                 addStatements ++ changeStatements
             }
         }
+
+
+        /**
+          * Given a subsetSchema, recursively find any fields in it that are not in this
+          * struct superSchema, or that have incompatible DataTypes.
+          *
+          * @param subsetSchema     Subset schema to check.
+          *
+          * @param fieldNamePrefix  Used when recursing into sub structs to report any offending
+          *                         field names as fully qualified, e.g. event.newField.
+          *                         Should be blank when first called.
+          *
+          * @return Seq[(StructField, String)] bad field from subsetSchema and reason why the field was incompatible.
+          */
+        def findIncompatibleFields(
+            subsetSchema: StructType,
+            fieldNamePrefix: String = ""
+        ): Seq[(StructField, String)] = {
+
+            val superSchema = struct
+            // Recursively iterate through all the fields in smallerSchema and
+            // compare them against superSchema.
+            subsetSchema.fields.foldLeft(Seq.empty[(StructField, String)])((incompatibleFields, field) => {
+                val name = field.name
+                val fullName = fieldNamePrefix + name
+
+                // If field from smallerSchema is present in superSchema, we need to check it.
+                if (superSchema.fieldNames.contains(name)) {
+                    val superSchemaField = superSchema(name)
+
+                    val fieldType = field.dataType
+                    val superSchemaFieldType = superSchemaField.dataType
+                    // If DataTypes are incompatible and not StructTypes.
+                    if (!fieldType.isInstanceOf[StructType] &&
+                        !superSchemaFieldType.isInstanceOf[StructType] &&
+                        field.tightestCommonType(Seq(superSchemaField)).isEmpty
+                    ) {
+                        incompatibleFields :+ (
+                            field,
+                            s"""`$fullName` is DataType $superSchemaFieldType in super schema,
+                               |but in subset schema is incompatible $fieldType.""".stripMargin
+                        )
+                    }
+
+                    // If the nullable-ness of the fields are different
+                    else if (field.nullable != superSchemaField.nullable) {
+                        incompatibleFields :+ (
+                            field,
+                            s"""`$fullName` nullable=${superSchemaField.nullable} in super schema,
+                                |but is nullable=${field.nullable} in subset schema.""".stripMargin
+                        )
+                    }
+
+                    // If both are a StructType, then we recurse into the struct to check sub fields.
+                    else if (fieldType.isInstanceOf[StructType]) {
+                        incompatibleFields ++ superSchemaFieldType.asInstanceOf[StructType].findIncompatibleFields(
+                            // search the smallerSchema's struct field
+                            fieldType.asInstanceOf[StructType],
+                            // Prefix any found bad fields with the current field name.
+                            s"$fullName."
+                        )
+                    }
+
+                    // Else we didn't find anything wrong with this field, so don't
+                    // add anything new to incompatibleFields.
+                    else {
+                        incompatibleFields
+                    }
+                }
+                // Else this is a field in the smallerSchema, but not in the bigger one.
+                else {
+                    incompatibleFields :+ (
+                        field,
+                        s"`$fullName` is missing in bigger schema, but is present in subset schema."
+                    )
+                }
+            })
+        }
+
+    }
+
+    implicit class DataFrameExtensions(df: DataFrame) {
+        /**
+          * Converts a DataFrame to schema.
+          * The schema is expected to be an unordered superset of df's schema, i.e.
+          * all fields from df.schema must exist in schema with compatible types
+          * and similar nullableness.  Fields that exist in schema but not
+          * in df.schema will be set to NULL (and as such must be nullable).  If this
+          * condition does not match, this will throw an AssertionError.
+          *
+          * @param schema   schema to convert this df to
+          *
+          * @return         a DataFrame abiding to this struct (reordered fields and NULL new fields)
+          */
+        def convertToSchema(schema: StructType): DataFrame = {
+
+            // Build a tree keeping indices of the srcSchema for the given dstSchema (if any)
+            def buildConversionTreeRec(srcSchema: StructType, dstSchema: StructType): Array[Node] = {
+                dstSchema.fields.map(field => {
+                    val idx = srcSchema.fieldNames.indexOf(field.name)
+                    if (idx == -1) TLeaf(None)
+                    else field.dataType match {
+                        case fieldType: StructType => TInner(idx, buildConversionTreeRec(
+                            srcSchema(idx).dataType.asInstanceOf[StructType],
+                            fieldType
+                        ))
+                        case _ => TLeaf(Some(idx))
+                    }
+                })
+            }
+
+            val incompatibilities = schema.findIncompatibleFields(df.schema).map(_._2)
+            if (incompatibilities.nonEmpty) {
+                throw new AssertionError(
+                    s"""This schema struct is not an unordered superset of the DataFrame's schema.
+                       |Cannot convert the DataFrame to match schema.\n
+                       |${incompatibilities.mkString("\n")}""".stripMargin
+                )
+            }
+
+            // We use idx = -1 for tree-root by convention
+            val convTree: Node = TInner(-1, buildConversionTreeRec(df.schema, schema))
+            val convRdd = df.rdd.map(row => convTree.valueFromRow(row).asInstanceOf[Row])
+            df.sqlContext.createDataFrame(convRdd, schema)
+        }
     }
 }
 
+/**
+  * Trait and subclasses providing schema-conversion utilities
+  * (see DataFrameExtensions.convertToSchema)
+  *
+  * Super awful hack to make this work wih Spark DataFrames:
+  *  - For leafs (not structs), use Options for nulls
+  *  - For inner-nodes (structs), use null for null rows
+  *
+  * Spark does not like nulls for non struct fields, but requires them for structs.
+  */
+sealed trait Node {
+    def valueFromRow(r: Row): Any
+}
 
+/**
+  * Tree leaf has no sub-object, and is either None or the index
+  * to get the value from the dataframe (at the same sub-object level)
+  * @param idx Optional index to get existing value in DF (same sub-object level)
+  */
+case class TLeaf(idx: Option[Int]) extends Node {
+    def valueFromRow(r: Row): Any = {
+        if (idx.isEmpty || r.isNullAt(idx.get)) None
+        else Some(r.get(idx.get))
+    }
+}
+
+/**
+  * Tree inner node is a sub-object field that exist in both src (at index) and dst
+  * schemas. The children array of nodes keeps track of the sub-object.
+  * @param idx the idx of the field being a sub-object (-1 for the tree root by convention)
+  * @param children the sub-object fields represented as an array of Nodes
+  */
+case class TInner(idx: Int, children: Array[Node]) extends Node {
+    def valueFromRow(r: Row): Any = {
+        if (idx != -1 && r.isNullAt(idx)) null
+        else {
+            // -1 idx is root by convention
+            val toWork = if (idx == -1) r else r.getStruct(idx)
+            Row.fromSeq(children.map(_.valueFromRow(toWork)))
+        }
+    }
+}
