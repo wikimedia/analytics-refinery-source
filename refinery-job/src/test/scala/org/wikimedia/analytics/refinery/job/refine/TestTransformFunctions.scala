@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.jsonrefine
+package org.wikimedia.analytics.refinery.job.refine
 
 import scala.collection.immutable.ListMap
 

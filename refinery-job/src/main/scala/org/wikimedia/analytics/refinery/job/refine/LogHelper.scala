@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.jsonrefine
+package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.log4j.{Level, LogManager, Logger}
 

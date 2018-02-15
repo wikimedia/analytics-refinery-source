@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.jsonrefine
+package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.log4j.LogManager
 import org.apache.spark.sql.{DataFrame, Row}
@@ -376,12 +376,19 @@ object SparkSQLHiveExtensions {
           * Since Hive is case insensitive, the top level field names will lowercased.
           * To ease integration with missing fields in data, all fields are made nullable.
           *
+          * @param tableName        Fully qualified Hive database.table name.
+          * @param locationPath     HDFS path to external Hive table.
+          * @param partitionNames   List of partition column names.
+          * @param storageFormat    Hive storage format string to use in `STORED AS ` clause.
+          *                         See: https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-StorageFormatsStorageFormatsRowFormat,StorageFormat,andSerDe
+          *
           * @return CREATE statement DDL string
           */
         def hiveCreateDDL(
             tableName: String,
             locationPath: String = "",
-            partitionNames: Seq[String] = Seq.empty
+            partitionNames: Seq[String] = Seq.empty,
+            storageFormat: String = "PARQUET"
         ): String = {
             val schemaNormalized = struct.normalize()
             val partitionNamesNormalized = partitionNames.map(_.toLowerCase)
@@ -418,7 +425,7 @@ object SparkSQLHiveExtensions {
                |$columnsClause
                |)
                |$partitionClause
-               |STORED AS PARQUET$locationClause""".stripMargin
+               |STORED AS $storageFormat$locationClause""".stripMargin
         }
 
 
@@ -622,6 +629,14 @@ object SparkSQLHiveExtensions {
             val convTree: Node = TInner(-1, buildConversionTreeRec(df.schema, schema))
             val convRdd = df.rdd.map(row => convTree.valueFromRow(row).asInstanceOf[Row])
             df.sqlContext.createDataFrame(convRdd, schema)
+        }
+
+        def makeNullable(): DataFrame = {
+            df.sqlContext.createDataFrame(df.rdd, df.schema.makeNullable())
+        }
+
+        def normalize(): DataFrame = {
+            df.sqlContext.createDataFrame(df.rdd, df.schema.normalize())
         }
     }
 }

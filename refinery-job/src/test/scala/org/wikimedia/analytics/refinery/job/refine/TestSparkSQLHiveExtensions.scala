@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.jsonrefine
+package org.wikimedia.analytics.refinery.job.refine
 
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.spark.sql.{SQLContext, Row}

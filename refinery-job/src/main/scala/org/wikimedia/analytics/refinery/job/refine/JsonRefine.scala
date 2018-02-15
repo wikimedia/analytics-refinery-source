@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.jsonrefine
+package org.wikimedia.analytics.refinery.job.refine
 
 import scopt.OptionParser
 
@@ -11,7 +11,8 @@ import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.job.RefineTarget
 
@@ -558,14 +559,21 @@ object JsonRefine extends LogHelper {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val recordCount = SparkJsonToHive(
+                val targetDf = readJsonDataFrame(
                     hiveContext,
                     target.inputPath.toString,
+                    target.inputIsSequenceFile
+                )
+
+                val insertedDf = DataFrameToHive(
+                    hiveContext,
+                    targetDf,
                     target.partition,
-                    target.inputIsSequenceFile,
+//                    target.inputIsSequenceFile,
                     () => target.writeDoneFlag(),
                     transformFunctions
                 )
+                val recordCount = insertedDf.count
 
                 log.info(
                     s"Finished refinement of JSON dataset $target. " +
@@ -573,7 +581,6 @@ object JsonRefine extends LogHelper {
                 )
 
                 target.success(recordCount)
-
             }
             catch {
                 case e: Exception => {
@@ -583,6 +590,51 @@ object JsonRefine extends LogHelper {
                 }
             }
         })
+    }
+
+    /**
+      * Reads a JSON data set out of path.  If isSequenceFile is true, the data should
+      * be in Hadoop Sequence file format, instead of text.
+      *
+      * @param sqlContext       Spark SQLContext
+      *
+      * @param path             Path to JSON data
+      *
+      * @param isSequenceFile   If true (default), path is expected to contain Hadoop
+      *                         Sequence Files with JSON record strings as values, else
+      *                         just JSON text files.
+      *
+      * @param schema           Optional schema to use for reading data.  If not given,
+      *                         Spark's JSON reading logic will infer the schema by passing over
+      *                         all data and examining fields in each record.
+      *
+      * @return
+      */
+    def readJsonDataFrame(
+        sqlContext: SQLContext,
+        path: String,
+        isSequenceFile: Boolean = true,
+        schema: Option[StructType] = None
+    ): DataFrame = {
+        // If we have a schema, then use it to read JSON data,
+        // else just infer schemas while reading.
+        val dfReader = if (schema.isDefined) {
+            sqlContext.read.schema(schema.get)
+        }
+        else {
+            sqlContext.read
+        }
+
+        if (isSequenceFile) {
+            // Load DataFrame from JSON data in path
+            dfReader.json(
+                // Expect data to be SequenceFiles with JSON strings as values.
+                sqlContext.sparkContext.sequenceFile[Long, String](path).map(t => t._2)
+            )
+        }
+        else {
+            dfReader.json(path)
+        }
     }
 
 
