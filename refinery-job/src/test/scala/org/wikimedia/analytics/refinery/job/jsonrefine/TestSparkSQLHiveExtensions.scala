@@ -13,6 +13,33 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
     val tableLocation = "/tmp/test/table"
 
 
+    it should "normalize a field" in {
+        val field = StructField("Field-1", IntegerType, nullable = false)
+
+        val normalizedField = field.normalize()
+        normalizedField.name should equal("field_1")
+        normalizedField.dataType should equal(LongType)
+        normalizedField.nullable should equal(true)
+    }
+
+    it should "make all fields of a struct nullable" in {
+        val schema1 = StructType(Seq(
+            StructField("F1", IntegerType, nullable = false),
+            StructField("f2", StructType(Seq(
+                StructField("S1", StringType, nullable = false),
+                StructField("s2", StringType, nullable = false),
+                StructField("A1", StructType(Seq(
+                    StructField("c1", StringType, nullable=false)
+                )))
+            )), nullable = false),
+            StructField("f3", StringType, nullable = false)
+        ))
+
+        val nulledSchema = schema1.makeNullable()
+        nulledSchema("F1").nullable should equal(true)
+        nulledSchema("f2").dataType.asInstanceOf[StructType]("S1").nullable should equal(true)
+    }
+
     it should "build a Hive DDL string representing a simple column" in {
         val field = StructField("f1", LongType, nullable = false)
         val expected = s"`f1` bigint NOT NULL"
@@ -94,7 +121,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
             StructField("f3", LongType, nullable = true)
         ))
 
-        schema1.merge(schema2, normalize=false) should equal(expected)
+        schema1.merge(schema2, lowerCaseTopLevel=false) should equal(expected)
     }
 
     it should "merge and not normalize 2 complex schemas" in {
@@ -146,7 +173,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
             StructField("f4", LongType, nullable = true)
         ))
 
-        schema1.merge(schema2, normalize=false) should equal(expected)
+        schema1.merge(schema2, lowerCaseTopLevel=false) should equal(expected)
     }
 
 
@@ -199,7 +226,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
             StructField("f4", LongType, nullable = true)
         ))
 
-        schema1.merge(schema2, normalize=true) should equal(expected)
+        schema1.merge(schema2, lowerCaseTopLevel=true) should equal(expected)
     }
 
 
@@ -378,7 +405,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         statements should equal(expected)
     }
 
-    it should "Find incompatible fields for 'not-unordered-superset' (missing)" in {
+    it should "find incompatible fields for 'not-unordered-superset' (missing)" in {
         val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
         val biggerSchema = StructType(StructField("b", LongType, false) :: Nil)
 
@@ -386,7 +413,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         badFields.head.name should equal("a")
     }
 
-    it should "Find incompatible fields for 'not-unordered-superset' (different types)" in {
+    it should "find incompatible fields for 'not-unordered-superset' (different types)" in {
         val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
         val biggerSchema = StructType(StructField("a", StringType, false) :: Nil)
 
@@ -394,15 +421,15 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         badFields.head.name should equal("a")
     }
 
-    it should "Find incompatible fields for 'unordered-superset' with common-different types" in {
+    it should "find incompatible fields for 'unordered-superset' with compatible different types" in {
         val smallerSchema = StructType(StructField("a", IntegerType, false) :: Nil)
         val biggerSchema = StructType(StructField("a", LongType, false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.head.name should equal("a")
+        badFields.isEmpty should equal(true)
     }
 
-    it should "Find incompatible fields for 'not-unordered-superset' (different nullable)" in {
+    it should "find incompatible fields for 'not-unordered-superset' (different nullable)" in {
         val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
         val biggerSchema = StructType(StructField("a", LongType, true) :: Nil)
 
@@ -410,10 +437,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         badFields.head.name should equal("a")
     }
 
-    it should "Find incompatible fields for 'not-unordered-superset' (sub-object)" in {
+    it should "find incompatible fields for 'not-unordered-superset' (sub-object)" in {
         val smallerSchema = StructType(
             StructField("a", StructType(
-                StructField("aa", IntegerType, true) ::
+                    StructField("aa", IntegerType, true) ::
                     StructField("ab", LongType, false) ::
                     StructField("ac", BooleanType, false) :: Nil
                 ), true
@@ -426,15 +453,16 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
               StructField("b", LongType, false) ::
               StructField("d", LongType, false) ::
               StructField("a", StructType(
-                  StructField("aa", IntegerType, true) ::
+                      StructField("aa", IntegerType, true) ::
                       StructField("ab", LongType, false) ::
-                      StructField("ad", LongType, false) :: Nil), true
+                      StructField("ad", LongType, false) :: Nil
+                  ), true
               ) ::
               StructField("c", BooleanType, false) :: Nil
         )
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.head.name should equal("a")
+        badFields.head.name should equal("ac")
     }
 
     it should "convert a DataFrame to superset schema" in {
@@ -442,21 +470,27 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
 
         val smallerSchema = StructType(
             StructField("a", StructType(
-                StructField("aa", IntegerType, true) ::
-                  StructField("ab", LongType, true) ::
-                  StructField("ac", BooleanType, true) :: Nil), true) ::
-              StructField("b", LongType, true) ::
-              StructField("c", BooleanType, true) :: Nil)
+                    StructField("aa", IntegerType, true) ::
+                    StructField("ab", LongType, true) ::
+                    StructField("ac", BooleanType, true) :: Nil
+                ), true
+            ) ::
+            StructField("b", LongType, true) ::
+            StructField("c", BooleanType, true) :: Nil
+        )
 
         val biggerSchema = StructType(
-              StructField("b", LongType, true) ::
-              StructField("d", LongType, true) ::
-              StructField("a", StructType(
-                  StructField("aa", IntegerType, true) ::
+            StructField("b", LongType, true) ::
+            StructField("d", LongType, true) ::
+            StructField("a", StructType(
+                    StructField("aa", IntegerType, true) ::
                     StructField("ab", LongType, true) ::
                     StructField("ad", LongType, true) ::
-                    StructField("ac", BooleanType, true) :: Nil), true) ::
-              StructField("c", BooleanType, true) :: Nil)
+                    StructField("ac", BooleanType, true) :: Nil
+                ), true
+            ) ::
+            StructField("c", BooleanType, true) :: Nil
+        )
 
         val rdd = sc.parallelize(Seq(
             Row(Row(null, 1L, true), 1L, true),

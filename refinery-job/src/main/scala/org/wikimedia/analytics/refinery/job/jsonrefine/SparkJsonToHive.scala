@@ -154,7 +154,7 @@ object SparkJsonToHive extends LogHelper {
         // they will always be made nullable.  We need this because we are about to use
         // this schema to re-read the json data, and here, case matters.  Any fields that
         // are in inputDf must have the same case in the schema we use to read the JSON.
-        val nonNormalizedSchema = table.schema.merge(transformedDf.schema, normalize=false)
+        val nonNormalizedSchema = table.schema.merge(transformedDf.schema, lowerCaseTopLevel=false)
 
         val mergedSchemaDf = dataFrameWithHivePartitions(
             // re-read the JSON data with the merged non normalized schema.  Any fields in this
