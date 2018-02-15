@@ -1,3 +1,14 @@
+## v0.0.58
+* Refactor geo-coding function and add ISP
+* Update camus part checker topic name normalization
+* Update RefineTarget inputBasePath matches
+* Add GetMediawikiTimestampUDF to refinery-hive
+* Factor out RefineTarget from JsonRefine for use with other jobs
+* Add configurable transform function to JSONRefine
+* Fix JsonRefine so that it respects --until flag
+* Clean refinery-job from BannerImpressionStream job
+* Add core class and job to import EL hive tables to Druid
+
 ## v0.0.57
 * Add new package refinery-job-spark-2.1
 * Add spark-streaming job for banner-activity
