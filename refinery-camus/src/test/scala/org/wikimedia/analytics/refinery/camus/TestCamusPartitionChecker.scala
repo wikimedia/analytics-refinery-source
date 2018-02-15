@@ -66,6 +66,17 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     partitionDir should equal(expectedDir)
   }
 
+  it should "compute partition directory with dotted topic" in {
+    val base = "/test/base/folder"
+    val topic = "topic.test"
+    val (year, month, day, hour) = (2015, 9, 28, 1)
+
+    val partitionDir = CamusPartitionChecker.partitionDirectory(base, topic, year, month, day, hour)
+    val expectedDir = "/test/base/folder/topic_test/hourly/2015/09/28/01"
+
+    partitionDir should equal(expectedDir)
+  }
+
   it should "fail computing partition directory if no base" in {
     val base = null
     val topic = "topic"
