@@ -30,7 +30,7 @@ case class HivePartition(
 
     /**
       * A string suitable for use in Hive QL partition operations,
-      * e.g. year=2017,month=07,day=12,hour=0
+      * e.g. year=2017,month=7,day=12,hour=0
       */
     val hiveQL: String = {
         partitions.map { case (k: String, v: String) => {

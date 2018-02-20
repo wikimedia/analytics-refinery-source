@@ -122,12 +122,18 @@
             <artifactId>graphframes</artifactId>
             <version>0.3.0-spark1.6-s_2.10</version>
         </dependency>
-        
+
         <dependency>
             <groupId>com.holdenkarau</groupId>
             <artifactId>spark-testing-base_2.10</artifactId>
             <version>1.6.0_0.4.7</version>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>org.yaml</groupId>
+          <artifactId>snakeyaml</artifactId>
+          <version>1.18</version>
         </dependency>
     </dependencies>
 
