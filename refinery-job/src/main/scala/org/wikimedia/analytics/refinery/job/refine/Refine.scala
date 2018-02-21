@@ -11,10 +11,8 @@ import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.DataFrame
 import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Utilities}
-import org.wikimedia.analytics.refinery.job.RefineTarget
 
 
 // TODO: support append vs overwrite?
@@ -22,10 +20,10 @@ import org.wikimedia.analytics.refinery.job.RefineTarget
 
 
 /**
-  * Looks for hourly input partition directories with JSON data that need refinement,
-  * and refines them into Hive Parquet tables using SparkJsonToHive.
+  * Looks for hourly input partition directories with data that need refinement,
+  * and refines them into Hive Parquet tables using DataFrameToHive.
   */
-object JsonRefine extends LogHelper {
+object Refine extends LogHelper {
     private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
     /**
@@ -44,17 +42,15 @@ object JsonRefine extends LogHelper {
         tableBlacklistRegex: Option[Regex]         = None,
         transformFunctions: Seq[String]            = Seq(),
         doneFlag: String                           = "_REFINED",
-        // Temporarily commented out until we move to Spark 2
-//        failureFlag: String                        = "_REFINE_FAILED",
+        failureFlag: String                        = "_REFINE_FAILED",
         shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
-        isSequenceFile: Boolean                    = true,
         limit: Option[Int]                         = None,
         dryRun: Boolean                            = false,
         shouldEmailReport: Boolean                 = false,
         smtpURI: String                            = "mx1001.wikimedia.org:25",
-        fromEmail: String                          = s"jsonrefine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
+        fromEmail: String                          = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
         toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
     )
 
@@ -88,18 +84,18 @@ object JsonRefine extends LogHelper {
       * Define the command line options parser.
       */
     val argsParser = new OptionParser[Params](
-        "spark-submit --class org.wikimedia.analytics.refinery.job.JsonRefine refinery-job.jar"
+        "spark-submit --class org.wikimedia.analytics.refinery.job.refine.Refine refinery-job.jar"
     ) {
         head("""
-              |JSON Datasets -> Partitioned Hive Parquet tables.
+              |Input Datasets -> Partitioned Hive Parquet tables.
               |
               |Given an input base path, this will search all subdirectories for input
               |partitions to convert to Parquet backed Hive tables.  This was originally
               |written to work with JSON data imported via Camus into hourly buckets, but
-              |should be configurable to work with any regular import directory hierarchy.
+              |should be configurable to work with any regular directory hierarchy.
               |
               |Example:
-              |  spark-submit --class org.wikimedia.analytics.refinery.job.JsonRefine refinery-job.jar \
+              |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.Refine refinery-job.jar \
               |   --input-base-path     /wmf/data/raw/event \
               |   --output-base-path    /user/otto/external/eventbus5' \
               |   --database            event \
@@ -118,7 +114,7 @@ object JsonRefine extends LogHelper {
         opt[String]('i', "input-base-path").required().valueName("<path>").action { (x, p) =>
             p.copy(inputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
         } text
-            """Path to input JSON datasets.  This directory is expected to contain
+            """Path to input datasets.  This directory is expected to contain
               |directories of individual (topic) table datasets.  E.g.
               |/path/to/raw/data/{myprefix_dataSetOne,myprefix_dataSetTwo}, etc.
               |Each of these subdirectories will be searched for partitions that
@@ -193,8 +189,8 @@ object JsonRefine extends LogHelper {
         } text
             """Comma separated list of fully qualified module.ObjectNames.  The objects'
                apply methods should take a DataFrame and a HivePartition and return
-               a DataFrame.  These functions can be used to map from the input JSON DataFrame
-               to a new one, applying various transformations along the way.
+               a DataFrame.  These functions can be used to map from the input DataFrames
+               to a new ones, applying various transformations along the way.
             """.stripMargin.replace("\n", "\n\t") + "\n"
 
         opt[String]('D', "done-flag") optional() valueName "<filename>" action { (x, p) =>
@@ -206,16 +202,15 @@ object JsonRefine extends LogHelper {
               |data has changed meaning the partition needs to be re-refined.
               |Default: _REFINED""".stripMargin.replace("\n", "\n\t") + "\n"
 
-        // Temporarily commented out until we move to Spark 2.
-//        opt[String]('X', "failure-flag") optional() valueName "<filename>" action { (x, p) =>
-//            p.copy(failureFlag = x)
-//        } text
-//            """When a partition fails refinement, this file will be created in the
-//              |output partition path with the binary timestamp of the input source partition's
-//              |modification timestamp.  Any partition with this flag will be excluded
-//              |from refinement if the input data's modtime hasn't changed.  If the
-//              |modtime has changed, this will re-attempt refinement anyway.
-//              |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
+        opt[String]('X', "failure-flag") optional() valueName "<filename>" action { (x, p) =>
+            p.copy(failureFlag = x)
+        } text
+            """When a partition fails refinement, this file will be created in the
+              |output partition path with the binary timestamp of the input source partition's
+              |modification timestamp.  Any partition with this flag will be excluded
+              |from refinement if the input data's modtime hasn't changed.  If the
+              |modtime has changed, this will re-attempt refinement anyway.
+              |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
 
         opt[Unit]('I', "ignore-failure-flag") optional() action { (_, p) =>
             p.copy(shouldIgnoreFailureFlag = true)
@@ -235,13 +230,6 @@ object JsonRefine extends LogHelper {
         opt[String]('c', "compression-codec") optional() valueName "<codec>" action { (x, p) =>
             p.copy(compressionCodec = x)
         } text "Value of spark.sql.parquet.compression.codec, default: snappy\n"
-
-        opt[Boolean]('S', "sequence-file") optional() action { (x, p) =>
-            p.copy(isSequenceFile = x)
-        } text
-            """Set to true if the input data is stored in Hadoop Sequence files.
-              |Otherwise text is assumed.  Default: true"""
-                .stripMargin.replace("\n", "\n\t") + "\n"
 
         opt[String]('L', "limit") optional() valueName "<limit>" action { (x, p) =>
             p.copy(limit = Some(x.toInt))
@@ -339,7 +327,7 @@ object JsonRefine extends LogHelper {
             val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
             // Lookup the object's apply method as a reflect MethodMirror, and wrap
             // it in a anonymous function that has the signature expected by
-            // SparkJsonToHive's transformFunction parameter.
+            // DataFrameToHive's transformFunction parameter.
             val wrapperFn: (DataFrame, HivePartition) => DataFrame = {
                 case (df, hp) => {
                     log.debug(s"Applying ${transformMirror.receiver} to $hp")
@@ -350,7 +338,7 @@ object JsonRefine extends LogHelper {
         }
 
         log.info(
-            s"Looking for JSON targets to refine in ${params.inputBasePath} between " +
+            s"Looking for targets to refine in ${params.inputBasePath} between " +
             s"${params.sinceDateTime} and ${params.untilDateTime}"
         )
 
@@ -358,7 +346,6 @@ object JsonRefine extends LogHelper {
         val targetsToRefine = RefineTarget.find(
             fs,
             new Path(params.inputBasePath),
-            params.isSequenceFile,
             new Path(params.outputBasePath),
             params.databaseName,
             params.doneFlag,
@@ -406,7 +393,7 @@ object JsonRefine extends LogHelper {
         val targetsByTable = targets.groupBy(_.tableName)
 
         log.info(
-            s"Refining ${targets.length} JSON dataset partitions in into tables " +
+            s"Refining ${targets.length} dataset partitions in into tables " +
             s"${targetsByTable.keys.mkString(", ")} with local " +
             s"parallelism of ${targets.tasksupport.parallelismLevel}..."
         )
@@ -439,7 +426,7 @@ object JsonRefine extends LogHelper {
                 val totalRefinedRecordCount = targetsByTable(table).map(_.recordCount).sum
                 log.info(
                     s"Successfully refined ${successes.length} of ${targetsByTable(table).size} " +
-                    s"raw JSON dataset partitions into table $table (total # refined records: $totalRefinedRecordCount)"
+                    s"dataset partitions into table $table (total # refined records: $totalRefinedRecordCount)"
                 )
             }
         }
@@ -452,7 +439,7 @@ object JsonRefine extends LogHelper {
                 // Log each failed refinement.
                 val message =
                     s"The following ${failures.length} of ${targetsByTable(table).size} " +
-                    s"raw JSON dataset partitions for table $table failed refinement:\n\t" +
+                    s"dataset partitions for table $table failed refinement:\n\t" +
                     failures.mkString("\n\t")
 
                 log.error(message)
@@ -474,7 +461,7 @@ object JsonRefine extends LogHelper {
                 smtpPort,
                 params.fromEmail,
                 params.toEmails.toArray,
-                s"JsonRefine failure report for ${params.inputBasePath} -> ${params.outputBasePath}",
+                s"Refine failure report for ${params.inputBasePath} -> ${params.outputBasePath}",
                 failureMessages
             )
         }
@@ -544,7 +531,7 @@ object JsonRefine extends LogHelper {
 
 
     /**
-      * Given a Seq of RefineTargets, this runs SparkJsonToHive on each one.
+      * Given a Seq of RefineTargets, this runs DataFrameToHive on each one.
       *
       * @param hiveContext HiveContext
       * @param targets     Seq of RefineTargets to refine
@@ -559,24 +546,17 @@ object JsonRefine extends LogHelper {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val targetDf = readJsonDataFrame(
-                    hiveContext,
-                    target.inputPath.toString,
-                    target.inputIsSequenceFile
-                )
-
                 val insertedDf = DataFrameToHive(
                     hiveContext,
-                    targetDf,
+                    target.inputDataFrame(hiveContext),
                     target.partition,
-//                    target.inputIsSequenceFile,
                     () => target.writeDoneFlag(),
                     transformFunctions
                 )
                 val recordCount = insertedDf.count
 
                 log.info(
-                    s"Finished refinement of JSON dataset $target. " +
+                    s"Finished refinement of dataset $target. " +
                     s"(# refined records: $recordCount)"
                 )
 
@@ -584,57 +564,12 @@ object JsonRefine extends LogHelper {
             }
             catch {
                 case e: Exception => {
-                    log.error(s"Failed refinement of JSON dataset $target.", e)
+                    log.error(s"Failed refinement of dataset $target.", e)
                     target.writeFailureFlag()
                     target.failure(e)
                 }
             }
         })
-    }
-
-    /**
-      * Reads a JSON data set out of path.  If isSequenceFile is true, the data should
-      * be in Hadoop Sequence file format, instead of text.
-      *
-      * @param sqlContext       Spark SQLContext
-      *
-      * @param path             Path to JSON data
-      *
-      * @param isSequenceFile   If true (default), path is expected to contain Hadoop
-      *                         Sequence Files with JSON record strings as values, else
-      *                         just JSON text files.
-      *
-      * @param schema           Optional schema to use for reading data.  If not given,
-      *                         Spark's JSON reading logic will infer the schema by passing over
-      *                         all data and examining fields in each record.
-      *
-      * @return
-      */
-    def readJsonDataFrame(
-        sqlContext: SQLContext,
-        path: String,
-        isSequenceFile: Boolean = true,
-        schema: Option[StructType] = None
-    ): DataFrame = {
-        // If we have a schema, then use it to read JSON data,
-        // else just infer schemas while reading.
-        val dfReader = if (schema.isDefined) {
-            sqlContext.read.schema(schema.get)
-        }
-        else {
-            sqlContext.read
-        }
-
-        if (isSequenceFile) {
-            // Load DataFrame from JSON data in path
-            dfReader.json(
-                // Expect data to be SequenceFiles with JSON strings as values.
-                sqlContext.sparkContext.sequenceFile[Long, String](path).map(t => t._2)
-            )
-        }
-        else {
-            dfReader.json(path)
-        }
     }
 
 

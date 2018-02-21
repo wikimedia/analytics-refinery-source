@@ -1,11 +1,13 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.job.refine
 
-import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone, _}
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.SparkContext
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.HivePartition
-import com.github.nscala_time.time.Imports._
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
@@ -28,7 +30,6 @@ import scala.util.{Failure, Success, Try}
   *
   * @param fs                   Hadoop FileSystem
   * @param inputPath            Full input partition path
-  * @param inputIsSequenceFile  If the input is a Hadoop Sequence File
   * @param partition            HivePartition
   * @param doneFlag             Name of file that should be written upon success of
   *                             the refine job.  This can be created by calling
@@ -40,10 +41,9 @@ import scala.util.{Failure, Success, Try}
 case class RefineTarget(
     fs: FileSystem,
     inputPath: Path,
-    inputIsSequenceFile: Boolean,
     partition: HivePartition,
-    doneFlag: String,
-    failureFlag: String
+    doneFlag: String = "_REFINED",
+    failureFlag: String = "_REFINE_FAILED"
 ) {
     /**
       * Easy access to the fully qualified Hive table name.
@@ -241,6 +241,83 @@ case class RefineTarget(
 
 
     /**
+      * Reads the first line of inputPath as a string, and examines it to
+      * infer the file format.  This will only work if the first file
+      * is Parquet, JSON text, or SequenceFile with JSON string values.
+      * If the directory is empty, this will return "json".
+      *
+      * Kinda hacky, but should work! :)
+      *
+      * @param sc SparkContext
+      *
+      * @return One of "parquet", "sequence_json", "json", "empty" (if inputPath is empty, or
+      *         default to "text" if could format not be inferred.
+      */
+    def inferInputFormat(sc: SparkContext): String = {
+        sc.textFile(inputPath.toString).take(1) match {
+            case first if first.isEmpty                => "empty"
+            case first if first.head.startsWith("PAR") => "parquet"
+            case first if first.head.startsWith("SEQ") => "sequence_json"
+            case first if first.head.startsWith("{") || first.head.startsWith("[") => "json"
+            case _                                     => "text"
+        }
+    }
+
+    /**
+      * Reads inputPath into a DataFrame.
+      *
+      * @param sqlContext   SQL Context
+      *
+      * @param schema       If given, the DataFrame will be created with this schema.
+      *                     Otherwise, it will be inferred from the data.  Note that
+      *                     if inputFormat is "text", you should not provide a schema,
+      *                     unless it is a single text column schema.  Not doing so will
+      *                     result in an AssertionError when reading the DataFrame,
+      *                     as the data will not match the schema.
+      *
+      * @param inputFormat  If given, the inputPath should be in this format.  Otherwise,
+      *                     the inputFormat will be inferred from this schema.  This must be
+      *                     one of "json", "sequence_json" (if the format is Sequence files with
+      *                     the values as JSON strings), or "parquet".
+      *
+      * @return
+      */
+    def inputDataFrame(
+        sqlContext: SQLContext,
+        schema: Option[StructType] = None,
+        inputFormat: Option[String] = None
+    ): DataFrame = {
+        // If we have a schema, then use it to read data,
+        // else just infer schemas while reading.
+        val dfReader = if (schema.isDefined) {
+            sqlContext.read.schema(schema.get)
+        }
+        else {
+            sqlContext.read
+        }
+
+
+
+        // Read inputPath either as JSON, SequenceFile JSON, or Parquet, based
+        // provided value of inputFormat, or inferred from first line in inputPath.
+        inputFormat.getOrElse(inferInputFormat(sqlContext.sparkContext)) match {
+            case "empty"         => {
+                if (schema.isDefined) sqlContext.createDataFrame(sqlContext.sparkContext.emptyRDD[Row], schema.get)
+                else sqlContext.emptyDataFrame
+            }
+            case "text"          => dfReader.text(inputPath.toString)
+            // Expect data to be text JSON
+            case "json"          => dfReader.json(inputPath.toString)
+            // Expect data to be SequenceFiles with JSON strings as values.
+            case "sequence_json" => dfReader.json(
+                sqlContext.sparkContext.sequenceFile[Long, String](inputPath.toString).map(t => t._2)
+            )
+            // Expect data to be in Parquet format
+            case "parquet"       => dfReader.parquet(inputPath.toString)
+        }
+    }
+
+    /**
       * Returns a Failure with e wrapped in a new more descriptive Exception
       * @param e Original exception that caused this failure
       * @return
@@ -306,9 +383,6 @@ object RefineTarget {
       *                                     paths here must be compatible with the provided
       *                                     values of inputPathDateTimeFormatter and inputPathRegex.
       *
-      * @param inputIsSequenceFile          Should be True if the input data files are Hadoop
-      *                                     Sequence Files.
-      *
       * @param baseTableLocationPath        Path to directory where Hive table data will be stored.
       *                                     $baseTableLocationPath/$table will be the value of the
       *                                     external Hive table's LOCATION.
@@ -338,7 +412,6 @@ object RefineTarget {
     def find(
         fs: FileSystem,
         baseInputPath: Path,
-        inputIsSequenceFile: Boolean,
         baseTableLocationPath: Path,
         databaseName: String,
         doneFlag: String,
@@ -376,7 +449,6 @@ object RefineTarget {
                 RefineTarget(
                     fs,
                     partitionPath,
-                    inputIsSequenceFile,
                     partition,
                     doneFlag,
                     failureFlag
