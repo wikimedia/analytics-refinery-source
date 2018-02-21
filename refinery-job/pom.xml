@@ -133,6 +133,7 @@
 
     <build>
         <plugins>
+
             <plugin>
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
@@ -152,6 +153,11 @@
               <artifactId>scalatest-maven-plugin</artifactId>
               <version>1.0</version>
               <configuration>
+                <systemProperties>
+                  <maxmind.database.country>${project.build.testOutputDirectory}/GeoIP2-Country-Test.mmdb</maxmind.database.country>
+                  <maxmind.database.city>${project.build.testOutputDirectory}/GeoIP2-City-Test.mmdb</maxmind.database.city>
+                  <maxmind.database.isp>${project.build.testOutputDirectory}/GeoIP2-ISP-Test.mmdb</maxmind.database.isp>
+                </systemProperties>
                 <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
                 <junitxml>.</junitxml>
                 <filereports>WDF TestSuite.txt</filereports>

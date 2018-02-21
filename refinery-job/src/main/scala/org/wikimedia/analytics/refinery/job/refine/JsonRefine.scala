@@ -1,6 +1,5 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.job.refine
 
-import org.apache.log4j.LogManager
 import scopt.OptionParser
 
 import scala.util.{Success, Try}
@@ -12,8 +11,10 @@ import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.sql.DataFrame
-import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, SparkJsonToHive, Utilities}
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.types.StructType
+import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Utilities}
+import org.wikimedia.analytics.refinery.job.RefineTarget
 
 
 // TODO: support append vs overwrite?
@@ -24,8 +25,7 @@ import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Spark
   * Looks for hourly input partition directories with JSON data that need refinement,
   * and refines them into Hive Parquet tables using SparkJsonToHive.
   */
-object JsonRefine {
-    private val log = LogManager.getLogger("JsonRefine")
+object JsonRefine extends LogHelper {
     private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
     /**
@@ -278,6 +278,7 @@ object JsonRefine {
 
     }
 
+
     def main(args: Array[String]): Unit = {
         val params = args.headOption match {
             // Case when our job options are given as a single string.  Split them
@@ -341,7 +342,7 @@ object JsonRefine {
             // SparkJsonToHive's transformFunction parameter.
             val wrapperFn: (DataFrame, HivePartition) => DataFrame = {
                 case (df, hp) => {
-                    log.info(s"Applying ${transformMirror.receiver} to $hp")
+                    log.debug(s"Applying ${transformMirror.receiver} to $hp")
                     transformMirror(df, hp).asInstanceOf[DataFrame]
                 }
             }
@@ -382,7 +383,7 @@ object JsonRefine {
 
         // Return now if we didn't find any targets to refine.
         if (targetsToRefine.isEmpty) {
-            log.info(s"No targets needing refinement were found in ${params.inputBasePath}")
+            log.debug(s"No targets needing refinement were found in ${params.inputBasePath}")
             return true
         }
 
@@ -504,7 +505,7 @@ object JsonRefine {
         if (tableWhitelistRegex.isDefined &&
             !regexMatches(target.partition.table, tableWhitelistRegex.get)
         ) {
-            log.info(
+            log.debug(
                 s"$target table ${target.partition.table} does not match table whitelist regex " +
                 s"${tableWhitelistRegex.get}', skipping."
             )
@@ -514,7 +515,7 @@ object JsonRefine {
         else if (tableBlacklistRegex.isDefined &&
             regexMatches(target.partition.table, tableBlacklistRegex.get)
         ) {
-            log.info(
+            log.debug(
                 s"$target table ${target.partition.table} matches table blacklist regex " +
                 s"'${tableBlacklistRegex.get}', skipping."
             )
@@ -529,7 +530,7 @@ object JsonRefine {
                 )
             }
             else {
-                log.info(
+                log.debug(
                     s"$target does not have new data since the last refine at " +
                     s"${target.doneFlagMTime().getOrElse("_unknown_")}, skipping."
                 )
@@ -558,14 +559,21 @@ object JsonRefine {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val recordCount = SparkJsonToHive(
+                val targetDf = readJsonDataFrame(
                     hiveContext,
                     target.inputPath.toString,
+                    target.inputIsSequenceFile
+                )
+
+                val insertedDf = DataFrameToHive(
+                    hiveContext,
+                    targetDf,
                     target.partition,
-                    target.inputIsSequenceFile,
+//                    target.inputIsSequenceFile,
                     () => target.writeDoneFlag(),
                     transformFunctions
                 )
+                val recordCount = insertedDf.count
 
                 log.info(
                     s"Finished refinement of JSON dataset $target. " +
@@ -573,7 +581,6 @@ object JsonRefine {
                 )
 
                 target.success(recordCount)
-
             }
             catch {
                 case e: Exception => {
@@ -583,6 +590,51 @@ object JsonRefine {
                 }
             }
         })
+    }
+
+    /**
+      * Reads a JSON data set out of path.  If isSequenceFile is true, the data should
+      * be in Hadoop Sequence file format, instead of text.
+      *
+      * @param sqlContext       Spark SQLContext
+      *
+      * @param path             Path to JSON data
+      *
+      * @param isSequenceFile   If true (default), path is expected to contain Hadoop
+      *                         Sequence Files with JSON record strings as values, else
+      *                         just JSON text files.
+      *
+      * @param schema           Optional schema to use for reading data.  If not given,
+      *                         Spark's JSON reading logic will infer the schema by passing over
+      *                         all data and examining fields in each record.
+      *
+      * @return
+      */
+    def readJsonDataFrame(
+        sqlContext: SQLContext,
+        path: String,
+        isSequenceFile: Boolean = true,
+        schema: Option[StructType] = None
+    ): DataFrame = {
+        // If we have a schema, then use it to read JSON data,
+        // else just infer schemas while reading.
+        val dfReader = if (schema.isDefined) {
+            sqlContext.read.schema(schema.get)
+        }
+        else {
+            sqlContext.read
+        }
+
+        if (isSequenceFile) {
+            // Load DataFrame from JSON data in path
+            dfReader.json(
+                // Expect data to be SequenceFiles with JSON strings as values.
+                sqlContext.sparkContext.sequenceFile[Long, String](path).map(t => t._2)
+            )
+        }
+        else {
+            dfReader.json(path)
+        }
     }
 
 

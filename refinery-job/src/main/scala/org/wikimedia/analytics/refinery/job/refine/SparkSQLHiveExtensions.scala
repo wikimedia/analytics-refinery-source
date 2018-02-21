@@ -1,9 +1,9 @@
-package org.wikimedia.analytics.refinery.core
+package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.log4j.LogManager
-
-import org.apache.spark.sql.types._
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion
+import org.apache.spark.sql.types._
 
 
 
@@ -54,24 +54,44 @@ object SparkSQLHiveExtensions {
             field.copy(nullable=nullable)
 
         /**
-          * Normalizes (toLowerCase and makeNullable) a copy of this StructField.
+          * If possible, widens the field's type.  This currently only
+          * widens integers to longs and floats to doubles.
+          * @return
+          */
+        def widen(): StructField = {
+            field.dataType match {
+                case IntegerType    => field.copy(dataType=LongType)
+                case FloatType      => field.copy(dataType=DoubleType)
+                case _              => field
+            }
+        }
+
+        /**
+          * Normalizes a copy of this StructField.
+          * Here, normalizing means:
+          * - conditionally convert field name to lower case
+          * - convert hyphens to underscores
+          * - widen some types (ints -> longs, floats -> doubles)
+          * - makeNullable true
+          *
           * Ints are converted to Longs, Floats are converted to Doubles.
           * Longs and Doubles will handle more cases where field values
           * look like an int or float during one iteration, and a long or double later.
           *
-          * Hyphens will be converted to underscores.
           * @param lowerCase if true, the field name will be lower cases.  Default: true
           * @return
           */
         def normalize(lowerCase: Boolean = true): StructField = {
-            val f = {field.dataType match {
-                case IntegerType    => field.copy(dataType=LongType)
-                case FloatType      => field.copy(dataType=DoubleType)
-                case _              => field
-            }}.copy(name=field.name.replace('-', '_')).makeNullable(nullable=true)
+            val f = field
+                // convert hyphens to underscores
+                .copy(name=field.name.replace('-', '_'))
+                // widen types
+                .widen()
+                // make nullable
+                .makeNullable()
+            // conditionally to lower case
             if (lowerCase) f.toLowerCase else f
         }
-
 
         /**
           * Builds a Hive DDL string representing the Spark field, useful in
@@ -83,7 +103,6 @@ object SparkSQLHiveExtensions {
             s"`${field.name}` ${field.typeString}" +
                 s"${if (field.nullable) "" else " NOT NULL"}"
         }
-
 
         /**
           * Spark's DataType.simpleString mostly works for Hive field types.  But, since
@@ -100,7 +119,6 @@ object SparkSQLHiveExtensions {
                 field.dataType.simpleString
             }
         }
-
 
         /**
           * Returns true if this field.dataType is a StructType, else False.
@@ -146,32 +164,52 @@ object SparkSQLHiveExtensions {
 
         /**
           * Returns a copy of this struct with all fields 'normalized'.
-          * If lowerCase is true, then the field name will be lower cased.
+          * If lowerCaseTopLevel is true, then top level field names will be lower cased.
           * This function recurses on sub structs, and normalizes them
           * with lowerCase = false, keeping the cases on sub struct field names.
           *
           * All ints will be converted to longs, and all floats will be
           * converted to doubles.  A field value that may
           * at one time look like an int, may during a later iteration
-          * look like a long.  We choose to always use the larger data type.
+          * look like a long.  We choose to always use the wider data type.
           *
-          * @param lowerCase Default: false
+          * @param lowerCaseTopLevel Default: true
           * @return
           */
-        def normalize(lowerCase: Boolean = true): StructType = {
-            StructType(struct.foldLeft(Seq.empty[StructField])(
-                (fields: Seq[StructField], field: StructField) => {
-                    // toLowerCase and makeNullable this field.
-                    val fieldNormalized = field.normalize(lowerCase=lowerCase)
+        def normalize(lowerCaseTopLevel: Boolean = true): StructType = {
+            struct.convert((field, depth) => {
+                if (depth == 0) field.normalize(lowerCase=lowerCaseTopLevel)
+                else field.normalize(lowerCase=false)
+            })
+        }
 
-                    if (field.isStructType) {
-                        fields :+ fieldNormalized.copy(
-                            dataType=fieldNormalized.dataType.asInstanceOf[StructType]
-                                .normalize(lowerCase=false)
+        /**
+          * Recursively sets nullablity on every field in this schema and returns the new schema.
+          * @param nullable
+          * @return
+          */
+        def makeNullable(nullable: Boolean = true): StructType = {
+            struct.convert((field, _) => field.makeNullable(nullable))
+        }
+
+        /**
+          * Recursively applies fn to each StructField in this schema and
+          * replaces the field with the result of fn.
+          *
+          * @param fn convert a given field to a new field.
+          * @param depth current depth of recursion
+          *
+          * @return The converted StructType schema
+          */
+        def convert(fn: (StructField, Int) => StructField, depth: Int = 0): StructType = {
+            StructType(struct.foldLeft(Seq.empty[StructField])(
+                (convertedFields: Seq[StructField], field: StructField) => {
+                    val convertedField = fn(field, depth)
+                    convertedField.dataType match {
+                        case StructType(_) => convertedFields :+ convertedField.copy(
+                            dataType=convertedField.dataType.asInstanceOf[StructType].convert(fn, depth + 1)
                         )
-                    }
-                    else {
-                        fields :+ fieldNormalized
+                        case _ => convertedFields :+ convertedField
                     }
                 }
             ))
@@ -200,13 +238,17 @@ object SparkSQLHiveExtensions {
           *
           * @param otherStruct  Spark StructType schema
           *
-          * @param normalize    If False, the returned schema will contain the original
-          *                     (non lowercased) field names. Comparison of fields will
-          *                     still be done case insensitive.
+          * @param lowerCaseTopLevel    If false, the returned schema will contain the original
+          *                             (non lowercased) top level field names. If true (default)
+          *                             top level field names will be lower cased.  All fields
+          *                             in the merged schema will be 'normalized', in that they
+          *                             will be made nullable and have certain types widened.
+          *                             Comparison of fields between schemas will always be done
+          *                             case insensitive.
           *
           * @return
           */
-        def merge(otherStruct: StructType, normalize: Boolean = true): StructType = {
+        def merge(otherStruct: StructType, lowerCaseTopLevel: Boolean = true): StructType = {
             val combined = StructType(struct ++ otherStruct)
             val combinedNormalized = combined.normalize()
 
@@ -235,11 +277,11 @@ object SparkSQLHiveExtensions {
                                     // seem to be nullable by default anyway.
                                     // If we did normalize, then we'd have to recursively
                                     // un-normalize if the original caller passed normalize=false.
-                                    merged.merge(current, normalize = false)
+                                    merged.merge(current, lowerCaseTopLevel = false)
                                 )
 
                             // Convert the StructType back into a StructField with this field name.
-                            StructField(name, mergedStruct, nullable = true)
+                            StructField(name, mergedStruct, nullable=true)
                         }
                         case fields => {
                             // Find the tightest common type for Hive. If there is there is only
@@ -249,9 +291,9 @@ object SparkSQLHiveExtensions {
                             // and a DoubleType, this will return DoubleType.
                             val commonDataType = fields.head.tightestCommonType(fields.tail)
                             // If there is no common type between these fields, then fail now.
-                            if (!commonDataType.isDefined) {
+                            if (commonDataType.isEmpty) {
                                 throw new IllegalStateException(
-                                    s"merge failed - ${name} has repeat types which are not " +
+                                    s"merge failed - $name has repeat types which are not " +
                                     s"resolvable:\n  ${fields.mkString("  \n")}"
                                 )
                             }
@@ -261,7 +303,7 @@ object SparkSQLHiveExtensions {
                             // a Hive table schema).
                             else if (commonDataType.get != fields.head.dataType) {
                                 log.warn(
-                                    s"${name} has repeat types which are resolvable.  " +
+                                    s"$name has repeat types which are resolvable.  " +
                                     s"Choosing ${fields.head.dataType} for schema merge.  " +
                                     s"Other fields were:\n  ${fields.tail.mkString("  \n")}\n" +
                                     "NOTE: Data loaded into the merged schema might " +
@@ -278,7 +320,7 @@ object SparkSQLHiveExtensions {
             )
 
             // If we want the normalized (lower cased) field names, return mergedStruct now.
-            if (normalize) {
+            if (lowerCaseTopLevel) {
                 mergedStruct
             }
             // Else we want the mergedStruct returned with the original
@@ -334,12 +376,19 @@ object SparkSQLHiveExtensions {
           * Since Hive is case insensitive, the top level field names will lowercased.
           * To ease integration with missing fields in data, all fields are made nullable.
           *
+          * @param tableName        Fully qualified Hive database.table name.
+          * @param locationPath     HDFS path to external Hive table.
+          * @param partitionNames   List of partition column names.
+          * @param storageFormat    Hive storage format string to use in `STORED AS ` clause.
+          *                         See: https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-StorageFormatsStorageFormatsRowFormat,StorageFormat,andSerDe
+          *
           * @return CREATE statement DDL string
           */
         def hiveCreateDDL(
             tableName: String,
             locationPath: String = "",
-            partitionNames: Seq[String] = Seq.empty
+            partitionNames: Seq[String] = Seq.empty,
+            storageFormat: String = "PARQUET"
         ): String = {
             val schemaNormalized = struct.normalize()
             val partitionNamesNormalized = partitionNames.map(_.toLowerCase)
@@ -376,7 +425,7 @@ object SparkSQLHiveExtensions {
                |$columnsClause
                |)
                |$partitionClause
-               |STORED AS PARQUET$locationClause""".stripMargin
+               |STORED AS $storageFormat$locationClause""".stripMargin
         }
 
 
@@ -456,7 +505,181 @@ object SparkSQLHiveExtensions {
                 addStatements ++ changeStatements
             }
         }
+
+
+        /**
+          * Given a subsetSchema, recursively find any fields in it that are not in this
+          * struct superSchema, or that have incompatible DataTypes.
+          *
+          * @param subsetSchema     Subset schema to check.
+          *
+          * @param fieldNamePrefix  Used when recursing into sub structs to report any offending
+          *                         field names as fully qualified, e.g. event.newField.
+          *                         Should be blank when first called.
+          *
+          * @return Seq[(StructField, String)] bad field from subsetSchema and reason why the field was incompatible.
+          */
+        def findIncompatibleFields(
+            subsetSchema: StructType,
+            fieldNamePrefix: String = ""
+        ): Seq[(StructField, String)] = {
+
+            val superSchema = struct
+            // Recursively iterate through all the fields in smallerSchema and
+            // compare them against superSchema.
+            subsetSchema.fields.foldLeft(Seq.empty[(StructField, String)])((incompatibleFields, field) => {
+                val name = field.name
+                val fullName = fieldNamePrefix + name
+
+                // If field from smallerSchema is present in superSchema, we need to check it.
+                if (superSchema.fieldNames.contains(name)) {
+                    val superSchemaField = superSchema(name)
+
+                    val fieldType = field.dataType
+                    val superSchemaFieldType = superSchemaField.dataType
+                    // If DataTypes are incompatible and not StructTypes.
+                    if (!fieldType.isInstanceOf[StructType] &&
+                        !superSchemaFieldType.isInstanceOf[StructType] &&
+                        field.tightestCommonType(Seq(superSchemaField)).isEmpty
+                    ) {
+                        incompatibleFields :+ (
+                            field,
+                            s"""`$fullName` is DataType $superSchemaFieldType in super schema,
+                               |but in subset schema is incompatible $fieldType.""".stripMargin
+                        )
+                    }
+
+                    // If the nullable-ness of the fields are different
+                    else if (field.nullable != superSchemaField.nullable) {
+                        incompatibleFields :+ (
+                            field,
+                            s"""`$fullName` nullable=${superSchemaField.nullable} in super schema,
+                                |but is nullable=${field.nullable} in subset schema.""".stripMargin
+                        )
+                    }
+
+                    // If both are a StructType, then we recurse into the struct to check sub fields.
+                    else if (fieldType.isInstanceOf[StructType]) {
+                        incompatibleFields ++ superSchemaFieldType.asInstanceOf[StructType].findIncompatibleFields(
+                            // search the smallerSchema's struct field
+                            fieldType.asInstanceOf[StructType],
+                            // Prefix any found bad fields with the current field name.
+                            s"$fullName."
+                        )
+                    }
+
+                    // Else we didn't find anything wrong with this field, so don't
+                    // add anything new to incompatibleFields.
+                    else {
+                        incompatibleFields
+                    }
+                }
+                // Else this is a field in the smallerSchema, but not in the bigger one.
+                else {
+                    incompatibleFields :+ (
+                        field,
+                        s"`$fullName` is missing in bigger schema, but is present in subset schema."
+                    )
+                }
+            })
+        }
+
+    }
+
+    implicit class DataFrameExtensions(df: DataFrame) {
+        /**
+          * Converts a DataFrame to schema.
+          * The schema is expected to be an unordered superset of df's schema, i.e.
+          * all fields from df.schema must exist in schema with compatible types
+          * and similar nullableness.  Fields that exist in schema but not
+          * in df.schema will be set to NULL (and as such must be nullable).  If this
+          * condition does not match, this will throw an AssertionError.
+          *
+          * @param schema   schema to convert this df to
+          *
+          * @return         a DataFrame abiding to this struct (reordered fields and NULL new fields)
+          */
+        def convertToSchema(schema: StructType): DataFrame = {
+
+            // Build a tree keeping indices of the srcSchema for the given dstSchema (if any)
+            def buildConversionTreeRec(srcSchema: StructType, dstSchema: StructType): Array[Node] = {
+                dstSchema.fields.map(field => {
+                    val idx = srcSchema.fieldNames.indexOf(field.name)
+                    if (idx == -1) TLeaf(None)
+                    else field.dataType match {
+                        case fieldType: StructType => TInner(idx, buildConversionTreeRec(
+                            srcSchema(idx).dataType.asInstanceOf[StructType],
+                            fieldType
+                        ))
+                        case _ => TLeaf(Some(idx))
+                    }
+                })
+            }
+
+            val incompatibilities = schema.findIncompatibleFields(df.schema).map(_._2)
+            if (incompatibilities.nonEmpty) {
+                throw new AssertionError(
+                    s"""This schema struct is not an unordered superset of the DataFrame's schema.
+                       |Cannot convert the DataFrame to match schema.\n
+                       |${incompatibilities.mkString("\n")}""".stripMargin
+                )
+            }
+
+            // We use idx = -1 for tree-root by convention
+            val convTree: Node = TInner(-1, buildConversionTreeRec(df.schema, schema))
+            val convRdd = df.rdd.map(row => convTree.valueFromRow(row).asInstanceOf[Row])
+            df.sqlContext.createDataFrame(convRdd, schema)
+        }
+
+        def makeNullable(): DataFrame = {
+            df.sqlContext.createDataFrame(df.rdd, df.schema.makeNullable())
+        }
+
+        def normalize(): DataFrame = {
+            df.sqlContext.createDataFrame(df.rdd, df.schema.normalize())
+        }
     }
 }
 
+/**
+  * Trait and subclasses providing schema-conversion utilities
+  * (see DataFrameExtensions.convertToSchema)
+  *
+  * Super awful hack to make this work wih Spark DataFrames:
+  *  - For leafs (not structs), use Options for nulls
+  *  - For inner-nodes (structs), use null for null rows
+  *
+  * Spark does not like nulls for non struct fields, but requires them for structs.
+  */
+sealed trait Node {
+    def valueFromRow(r: Row): Any
+}
 
+/**
+  * Tree leaf has no sub-object, and is either None or the index
+  * to get the value from the dataframe (at the same sub-object level)
+  * @param idx Optional index to get existing value in DF (same sub-object level)
+  */
+case class TLeaf(idx: Option[Int]) extends Node {
+    def valueFromRow(r: Row): Any = {
+        if (idx.isEmpty || r.isNullAt(idx.get)) None
+        else Some(r.get(idx.get))
+    }
+}
+
+/**
+  * Tree inner node is a sub-object field that exist in both src (at index) and dst
+  * schemas. The children array of nodes keeps track of the sub-object.
+  * @param idx the idx of the field being a sub-object (-1 for the tree root by convention)
+  * @param children the sub-object fields represented as an array of Nodes
+  */
+case class TInner(idx: Int, children: Array[Node]) extends Node {
+    def valueFromRow(r: Row): Any = {
+        if (idx != -1 && r.isNullAt(idx)) null
+        else {
+            // -1 idx is root by convention
+            val toWork = if (idx == -1) r else r.getStruct(idx)
+            Row.fromSeq(children.map(_.valueFromRow(toWork)))
+        }
+    }
+}
