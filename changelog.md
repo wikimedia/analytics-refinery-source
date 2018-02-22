@@ -1,3 +1,7 @@
+## v0.0.59
+* JsonRefine has been made data source agnostic, and now lives in a
+  refine module in refinery-job.  The Spark job is now just called 'Refine'.
+
 ## v0.0.58
 * Refactor geo-coding function and add ISP
 * Update camus part checker topic name normalization
