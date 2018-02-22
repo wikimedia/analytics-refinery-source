@@ -83,7 +83,7 @@ case class HivePartition(
     }
 
     override def toString: String = {
-        s"$table ($hiveQL)"
+        s"$tableName ($hiveQL)"
     }
 }
 

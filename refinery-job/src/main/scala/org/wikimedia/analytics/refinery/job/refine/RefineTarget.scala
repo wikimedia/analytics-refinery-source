@@ -42,9 +42,9 @@ case class RefineTarget(
     fs: FileSystem,
     inputPath: Path,
     partition: HivePartition,
-    doneFlag: String = "_REFINED",
+    doneFlag: String    = "_REFINED",
     failureFlag: String = "_REFINE_FAILED"
-) {
+) extends LogHelper {
     /**
       * Easy access to the fully qualified Hive table name.
       */
@@ -218,12 +218,15 @@ case class RefineTarget(
       *
       * @return
       */
-    def shouldRefine(shouldIgnoreFailureFlag: Boolean = false): Boolean = {
+    private def shouldRefine(
+        shouldIgnoreFailureFlag: Boolean
+    ): Boolean = {
+
         // This could be written and returned as a single boolean conditional statement,
         // keeping track of possible states was confusing.  This is clearer.
 
         // If the outputExists, check for existent status flag files
-        if (outputExists) {
+        if (outputExists()) {
             // If doneFlag exists, and the input mtime has changed, then we need to refine.
             if (doneFlagExists()) {
                 return inputMTimeCached != doneFlagMTime()
@@ -237,6 +240,64 @@ case class RefineTarget(
 
         // If none of the above conditions return, we will refine.
         true
+    }
+
+    /**
+      * Given a RefineTarget, and option whitelist regex and blacklist regex,
+      * this returns true if the RefineTarget should be refined, based on regex matching and
+      * on output existence and doneFlag content.
+      *
+      * @param tableWhitelistRegex Option[Regex]
+      * @param tableBlacklistRegex Option[Regex]
+      * @return
+      */
+    def shouldRefine(
+        tableWhitelistRegex: Option[Regex] = None,
+        tableBlacklistRegex: Option[Regex] = None,
+        shouldIgnoreFailureFlag: Boolean = false
+    ): Boolean = {
+
+
+        // Filter for targets that will refine to tables that match the whitelist
+        if (tableWhitelistRegex.isDefined &&
+            !RefineTarget.regexMatches(partition.table, tableWhitelistRegex.get)
+        ) {
+            log.debug(
+                s"$this table ${partition.table} does not match table whitelist regex " +
+                    s"${tableWhitelistRegex.get}', skipping."
+            )
+            return false
+        }
+        // Filter out targets that will refine to tables that match the blacklist
+        else if (tableBlacklistRegex.isDefined &&
+            RefineTarget.regexMatches(partition.table, tableBlacklistRegex.get)
+        ) {
+            log.debug(
+                s"$this table ${partition.table} matches table blacklist regex " +
+                    s"'${tableBlacklistRegex.get}', skipping."
+            )
+            return false
+        }
+
+        // Finally filter for those that need to be refined (have new data).
+        if (!shouldRefine(shouldIgnoreFailureFlag)) {
+            if (!shouldIgnoreFailureFlag && failureFlagExists) {
+                log.warn(
+                    s"$this previously failed refinement and does not have new data since the " +
+                        s"last refine at ${failureFlagMTime().getOrElse("_unknown_")}, skipping."
+                )
+                false
+            }
+            else {
+                log.debug(
+                    s"$this does not have new data since the last refine at " +
+                        s"${doneFlagMTime().getOrElse("_unknown_")}, skipping."
+                )
+                false
+            }
+        }
+        else
+            true
     }
 
 
@@ -389,14 +450,6 @@ object RefineTarget {
       *
       * @param databaseName                 Hive database name
       *
-      * @param doneFlag                     Done flag file.  A successful refinement will
-      *                                     write this file to the output path with
-      *                                     the Long timestamp of the inputPath's current mod time.
-      *
-      * @param failureFlag                  Failure flag file.  A failed refinement will
-      *                                     write this file to the output path with
-      *                                     the Long timestamp of the inputPath's current mod time.
-      *
       * @param inputPathDateTimeFormatter   Formatter used to construct input partition paths
       *                                     in the given time range.
       *
@@ -407,6 +460,7 @@ object RefineTarget {
       *
       * @param untilDateTime                End date time to look for input partitions.
       *                                     Defaults to DateTime.now
+      *
       * @return
       */
     def find(
@@ -414,8 +468,6 @@ object RefineTarget {
         baseInputPath: Path,
         baseTableLocationPath: Path,
         databaseName: String,
-        doneFlag: String,
-        failureFlag: String,
         inputPathDateTimeFormatter: DateTimeFormatter,
         inputPathRegex: Regex,
         sinceDateTime: DateTime,
@@ -449,9 +501,7 @@ object RefineTarget {
                 RefineTarget(
                     fs,
                     partitionPath,
-                    partition,
-                    doneFlag,
-                    failureFlag
+                    partition
                 )
             })
             // We only care about input partition paths that actually exist,
@@ -521,6 +571,19 @@ object RefineTarget {
         hoursInBetween(d1, d2)
             .map(hour => new Path(pathPrefix + "/" + fmt.print(hour)))
             .distinct
+    }
+
+    /**
+      * Returns true of s matches r, else false.
+      * @param s    String to match
+      * @param r    Regex
+      * @return
+      */
+    def regexMatches(s: String, r: Regex): Boolean = {
+        s match {
+            case r(_*) => true
+            case _     => false
+        }
     }
 }
 

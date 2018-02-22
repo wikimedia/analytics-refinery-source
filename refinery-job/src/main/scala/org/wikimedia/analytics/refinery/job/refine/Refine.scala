@@ -41,8 +41,6 @@ object Refine extends LogHelper {
         tableWhitelistRegex: Option[Regex]         = None,
         tableBlacklistRegex: Option[Regex]         = None,
         transformFunctions: Seq[String]            = Seq(),
-        doneFlag: String                           = "_REFINED",
-        failureFlag: String                        = "_REFINE_FAILED",
         shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
@@ -188,29 +186,10 @@ object Refine extends LogHelper {
                to a new ones, applying various transformations along the way.
             """.stripMargin.replace("\n", "\n\t") + "\n"
 
-        opt[String]('D', "done-flag") optional() valueName "<filename>" action { (x, p) =>
-            p.copy(doneFlag = x)
-        } text
-            """When a partition is successfully refined, this file will be created in the
-              |output partition path with the binary timestamp of the input source partition's
-              |modification timestamp.  This allows subsequent runs that to detect if the input
-              |data has changed meaning the partition needs to be re-refined.
-              |Default: _REFINED""".stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[String]('X', "failure-flag") optional() valueName "<filename>" action { (x, p) =>
-            p.copy(failureFlag = x)
-        } text
-            """When a partition fails refinement, this file will be created in the
-              |output partition path with the binary timestamp of the input source partition's
-              |modification timestamp.  Any partition with this flag will be excluded
-              |from refinement if the input data's modtime hasn't changed.  If the
-              |modtime has changed, this will re-attempt refinement anyway.
-              |Default: _REFINE_FAILED""".stripMargin.replace("\n", "\n\t") + "\n"
-
         opt[Unit]('I', "ignore-failure-flag") optional() action { (_, p) =>
             p.copy(shouldIgnoreFailureFlag = true)
         } text
-            """Set this if you want all discovered partitions with --failure-flag files to be
+            """Set this if you want all discovered partitions with _REFINE_FAILED files to be
                |(re)refined. Default: false""".stripMargin.replace("\n", "\n\t") + "\n"
 
         opt[Int]('P', "parallelism") optional() valueName "<parallelism>" action { (x, p) =>
@@ -299,8 +278,6 @@ object Refine extends LogHelper {
         tableWhitelistRegex: Option[Regex]         = None,
         tableBlacklistRegex: Option[Regex]         = None,
         transformFunctions: Seq[String]            = Seq(),
-        doneFlag: String                           = "_REFINED",
-        failureFlag: String                        = "_REFINE_FAILED",
         shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
@@ -365,8 +342,6 @@ object Refine extends LogHelper {
             new Path(inputBasePath),
             new Path(outputBasePath),
             databaseName,
-            doneFlag,
-            failureFlag,
             inputPathDateTimeFormat,
             inputPathRegex,
             sinceDateTime,
@@ -374,11 +349,8 @@ object Refine extends LogHelper {
         )
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
-        .filter(target => shouldRefineTarget(
-            target,
-            tableWhitelistRegex,
-            tableBlacklistRegex,
-            shouldIgnoreFailureFlag
+        .filter(_.shouldRefine(
+            tableWhitelistRegex, tableBlacklistRegex, shouldIgnoreFailureFlag
         ))
 
         // At this point, targetsToRefine will be a Seq of RefineTargets in our targeted
@@ -485,65 +457,6 @@ object Refine extends LogHelper {
 
         // Return true if no failures, false otherwise.
         !hasFailures
-    }
-
-
-    /**
-      * Given a RefineTarget, and option whitelist regex and blacklist regex,
-      * this returns true if the RefineTarget should be refined, based on regex matching and
-      * on output existence and doneFlag content.
-      *
-      * @param target RefineTarget
-      * @param tableWhitelistRegex Option[Regex]
-      * @param tableBlacklistRegex Option[Regex]
-      * @return
-      */
-    def shouldRefineTarget(
-        target: RefineTarget,
-        tableWhitelistRegex: Option[Regex],
-        tableBlacklistRegex: Option[Regex],
-        shouldIgnoreFailureFlag: Boolean
-    ): Boolean = {
-
-        // Filter for targets that will refine to tables that match the whitelist
-        if (tableWhitelistRegex.isDefined &&
-            !regexMatches(target.partition.table, tableWhitelistRegex.get)
-        ) {
-            log.debug(
-                s"$target table ${target.partition.table} does not match table whitelist regex " +
-                s"${tableWhitelistRegex.get}', skipping."
-            )
-            false
-        }
-        // Filter out targets that will refine to tables that match the blacklist
-        else if (tableBlacklistRegex.isDefined &&
-            regexMatches(target.partition.table, tableBlacklistRegex.get)
-        ) {
-            log.debug(
-                s"$target table ${target.partition.table} matches table blacklist regex " +
-                s"'${tableBlacklistRegex.get}', skipping."
-            )
-            false
-        }
-        // Finally filter for those that need to be refined (have new data).
-        else if (!target.shouldRefine(shouldIgnoreFailureFlag)) {
-            if (!shouldIgnoreFailureFlag && target.failureFlagExists()) {
-                log.warn(
-                    s"$target previously failed refinement and does not have new data since the " +
-                    s"last refine at ${target.failureFlagMTime().getOrElse("_unknown_")}, skipping."
-                )
-            }
-            else {
-                log.debug(
-                    s"$target does not have new data since the last refine at " +
-                    s"${target.doneFlagMTime().getOrElse("_unknown_")}, skipping."
-                )
-            }
-            false
-        }
-        else {
-            true
-        }
     }
 
 
