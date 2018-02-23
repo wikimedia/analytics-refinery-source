@@ -54,11 +54,6 @@ object Refine extends LogHelper {
         toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
     )
 
-
-    // Support implicit Regex conversion from CLI opt.
-    implicit val scoptRegexRead: scopt.Read[Regex] =
-        scopt.Read.reads { _.r }
-
     // Support implicit Option[Regex] conversion from CLI opt.
     implicit val scoptOptionRegexRead: scopt.Read[Option[Regex]] =
         scopt.Read.reads {s => Some(s.r) }
@@ -279,7 +274,7 @@ object Refine extends LogHelper {
         }
 
         // Exit non-zero if if any refinements failed.
-        if (apply(params))
+        if ((apply _).tupled(Params.unapply(params).get))
             sys.exit(0)
         else
             sys.exit(1)
@@ -288,26 +283,48 @@ object Refine extends LogHelper {
 
 
     /**
-      * Given params, refine all discovered RefineTargets.
+      * Refine all discovered RefineTargets.
       *
-      * @param params Params
       * @return true if all targets needing refinement succeeded, false otherwise.
       */
-    def apply(params: Params): Boolean = {
+    def apply(
+        inputBasePath: String,
+        outputBasePath: String,
+        databaseName: String                       = "default",
+        sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
+        untilDateTime: DateTime                    = DateTime.now,
+        inputPathPattern: String                   = ".*/(.+)/hourly/(\\d{4})/(\\d{2})/(\\d{2})/(\\d{2}).*",
+        inputPathPatternCaptureGroups: Seq[String] = Seq("table", "year", "month", "day", "hour"),
+        inputPathDateTimeFormat: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
+        tableWhitelistRegex: Option[Regex]         = None,
+        tableBlacklistRegex: Option[Regex]         = None,
+        transformFunctions: Seq[String]            = Seq(),
+        doneFlag: String                           = "_REFINED",
+        failureFlag: String                        = "_REFINE_FAILED",
+        shouldIgnoreFailureFlag: Boolean           = false,
+        parallelism: Option[Int]                   = None,
+        compressionCodec: String                   = "snappy",
+        limit: Option[Int]                         = None,
+        dryRun: Boolean                            = false,
+        shouldEmailReport: Boolean                 = false,
+        smtpURI: String                            = "mx1001.wikimedia.org:25",
+        fromEmail: String                          = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
+        toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
+    ): Boolean = {
         // Initial setup - Spark, HiveContext, Hadoop FileSystem
         val conf = new SparkConf()
         val sc = new SparkContext(conf)
 
         val fs = FileSystem.get(sc.hadoopConfiguration)
         val hiveContext = new HiveContext(sc)
-        hiveContext.setConf("spark.sql.parquet.compression.codec", params.compressionCodec)
+        hiveContext.setConf("spark.sql.parquet.compression.codec", compressionCodec)
 
         // Ensure that inputPathPatternCaptureGroups contains "table", as this is needed
         // to determine the Hive table name we will refine into.
-        if (!params.inputPathPatternCaptureGroups.contains("table")) {
+        if (!inputPathPatternCaptureGroups.contains("table")) {
             throw new RuntimeException(
-                s"Invalid <input-capture> ${params.inputPathPatternCaptureGroups}. " +
-                s"Must at least contain 'table' as a named capture group."
+                s"Invalid <input-capture> $inputPathPatternCaptureGroups. " +
+                 "Must at least contain 'table' as a named capture group."
             )
         }
 
@@ -315,15 +332,15 @@ object Refine extends LogHelper {
         // will use aliases for the named groups.  This will be used to extract
         // table and partitions out of the inputPath.
         val inputPathRegex = new Regex(
-            params.inputPathPattern,
-            params.inputPathPatternCaptureGroups: _*
+            inputPathPattern,
+            inputPathPatternCaptureGroups: _*
         )
 
         // If we are given any transform function names, they should be fully
         // qualified package.objectName to an object with an apply method that
         // takes a DataFrame and HiveParititon, and returns a DataFrame.
         // Map these String names to callable functions.
-        val transformFunctions = params.transformFunctions.map { objectName =>
+        val transformers = transformFunctions.map { objectName =>
             val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
             // Lookup the object's apply method as a reflect MethodMirror, and wrap
             // it in a anonymous function that has the signature expected by
@@ -338,30 +355,30 @@ object Refine extends LogHelper {
         }
 
         log.info(
-            s"Looking for targets to refine in ${params.inputBasePath} between " +
-            s"${params.sinceDateTime} and ${params.untilDateTime}"
+            s"Looking for targets to refine in $inputBasePath between " +
+            s"$sinceDateTime and $untilDateTime"
         )
 
         // Need RefineTargets for every existent input partition since pastCutoffDateTime
         val targetsToRefine = RefineTarget.find(
             fs,
-            new Path(params.inputBasePath),
-            new Path(params.outputBasePath),
-            params.databaseName,
-            params.doneFlag,
-            "_REFINED_FAILED", //params.failureFlag,
-            params.inputPathDateTimeFormat,
+            new Path(inputBasePath),
+            new Path(outputBasePath),
+            databaseName,
+            doneFlag,
+            failureFlag,
+            inputPathDateTimeFormat,
             inputPathRegex,
-            params.sinceDateTime,
-            params.untilDateTime
+            sinceDateTime,
+            untilDateTime
         )
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
         .filter(target => shouldRefineTarget(
             target,
-            params.tableWhitelistRegex,
-            params.tableBlacklistRegex,
-            params.shouldIgnoreFailureFlag
+            tableWhitelistRegex,
+            tableBlacklistRegex,
+            shouldIgnoreFailureFlag
         ))
 
         // At this point, targetsToRefine will be a Seq of RefineTargets in our targeted
@@ -370,23 +387,23 @@ object Refine extends LogHelper {
 
         // Return now if we didn't find any targets to refine.
         if (targetsToRefine.isEmpty) {
-            log.debug(s"No targets needing refinement were found in ${params.inputBasePath}")
+            log.debug(s"No targets needing refinement were found in $inputBasePath")
             return true
         }
 
         // Locally parallelize the targets.
-        // If params.limit, then take only the first limit input targets.
+        // If limit, then take only the first limit input targets.
         // This is mainly only useful for testing.
-        val targets = params.limit match {
-            case Some(_) => targetsToRefine.take(params.limit.get).par
+        val targets = limit match {
+            case Some(_) => targetsToRefine.take(limit.get).par
             case None    => targetsToRefine.par
         }
 
         // If custom parallelism was specified, create a new ForkJoinPool for this
         // parallel collection with the provided parallelism level.
-        if (params.parallelism.isDefined) {
+        if (parallelism.isDefined) {
             targets.tasksupport = new ForkJoinTaskSupport(
-                new ForkJoinPool(params.parallelism.get)
+                new ForkJoinPool(parallelism.get)
             )
         }
 
@@ -398,8 +415,8 @@ object Refine extends LogHelper {
             s"parallelism of ${targets.tasksupport.parallelismLevel}..."
         )
 
-        if (params.dryRun)
-            log.warn("NOTE: --dry-run was specified, nothing will actually be refined!")
+        if (dryRun)
+            log.warn("NOTE: --dry-run was specified, nothing will actually be refined.")
 
         // Loop over the inputs in parallel and refine them to
         // their Hive table partitions.  jobStatuses should be a
@@ -409,8 +426,8 @@ object Refine extends LogHelper {
             // not yet exist, we want the first target here to issue a CREATE, while the
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
-            if (!params.dryRun)
-                table -> refineTargets(hiveContext, tableTargets.seq, transformFunctions)
+            if (!dryRun)
+                table -> refineTargets(hiveContext, tableTargets.seq, transformers)
             // If --dry-run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -451,17 +468,17 @@ object Refine extends LogHelper {
 
         // If we should send this as a failure email report
         // (and this is not a dry run), do it!
-        if (hasFailures && params.shouldEmailReport && !params.dryRun) {
-            val smtpHost = params.smtpURI.split(":")(0)
-            val smtpPort = params.smtpURI.split(":")(1)
+        if (hasFailures && shouldEmailReport && !dryRun) {
+            val smtpHost = smtpURI.split(":")(0)
+            val smtpPort = smtpURI.split(":")(1)
 
-            log.info(s"Sending failure email report to ${params.toEmails.mkString(",")}")
+            log.info(s"Sending failure email report to ${toEmails.mkString(",")}")
             Utilities.sendEmail(
                 smtpHost,
                 smtpPort,
-                params.fromEmail,
-                params.toEmails.toArray,
-                s"Refine failure report for ${params.inputBasePath} -> ${params.outputBasePath}",
+                fromEmail,
+                toEmails.toArray,
+                s"Refine failure report for $inputBasePath -> $outputBasePath",
                 failureMessages
             )
         }
