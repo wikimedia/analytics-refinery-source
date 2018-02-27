@@ -50,6 +50,10 @@ object MediawikiHistoryRunner {
   import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized._
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.{PageEvent, PageState}
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.{UserEvent, UserState}
+
+  @transient
+  lazy val log: Logger = Logger.getLogger(this.getClass)
+
   /**
     * Case class handling job parameters
     */
@@ -175,6 +179,29 @@ object MediawikiHistoryRunner {
         val pageHistoryPath = outputBasePath + "/page_history" + snapshotPartition
         val userHistoryPath = outputBasePath + "/user_history" + snapshotPartition
 
+        val denormalizedHistoryStatsPath = outputBasePath + "/history_stats" + snapshotPartition
+        val pageHistoryStatsPath = outputBasePath + "/page_history_stats" + snapshotPartition
+        val userHistoryStatsPath = outputBasePath + "/user_history_stats" + snapshotPartition
+
+        val denormalizedHistoryErrorsPath = outputBasePath + "/history_errors" + snapshotPartition
+        val pageHistoryErrorsPath = outputBasePath + "/page_history_errors" + snapshotPartition
+        val userHistoryErrorsPath = outputBasePath + "/user_history_errors" + snapshotPartition
+
+        log.info(
+          s"""
+             |Starting MediawikiHistoryRunner with params:
+             |  mediawiki-base-path:    ${params.mediawikiBasePath}
+             |  output-base-path:       ${params.outputBasePath}
+             |  wikis:                  ${params.wikiConstraint}
+             |  snapshot:               ${params.snapshot}
+             |  temporary-path:         ${params.tmpPath}
+             |  num-partitions:         ${params.numPartitions}
+             |  debug:                  ${params.debug}
+             |  users-history:          $runUsersHistory
+             |  pages-history:          $runPagesHistory
+             |  revisions-denormalize:  $runDenormalize
+               """.stripMargin
+        )
 
         // Spark setup
         val conf = new SparkConf()
@@ -199,8 +226,6 @@ object MediawikiHistoryRunner {
         val spark = SparkSession.builder().config(conf).getOrCreate()
         spark.sparkContext.setCheckpointDir(tmpPath)
 
-
-
         // Launch jobs as needed
 
         // User History
@@ -212,7 +237,9 @@ object MediawikiHistoryRunner {
             userGroupsDataPath,
             revisionDataPath,
             userHistoryPath,
-            numPartitions
+            numPartitions,
+            userHistoryErrorsPath,
+            userHistoryStatsPath
           )
 
         // Page history
@@ -224,7 +251,9 @@ object MediawikiHistoryRunner {
             revisionDataPath,
             namespacesPath,
             pageHistoryPath,
-            numPartitions
+            numPartitions,
+            pageHistoryErrorsPath,
+            pageHistoryStatsPath
           )
 
         // Revisions and denormalization
@@ -236,8 +265,12 @@ object MediawikiHistoryRunner {
             userHistoryPath,
             pageHistoryPath,
             denormalizedHistoryPath,
-            numPartitions * 8
+            numPartitions * 8,
+            denormalizedHistoryErrorsPath,
+            denormalizedHistoryStatsPath
           )
+
+        log.info("MediawikiHistoryRunner job done.")
 
       case None => sys.exit(1) // If args parsing fail (parser prints nice error)
     }

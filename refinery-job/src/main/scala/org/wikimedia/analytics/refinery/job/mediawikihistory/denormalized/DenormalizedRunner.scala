@@ -1,6 +1,8 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
 
 /**
   * This class defines the functions for revisions-denormalization process.
@@ -16,9 +18,10 @@ import org.apache.spark.sql.SparkSession
   *
   * It finally writes the union of those denormalized data in parquet format.
   */
-class DenormalizedRunner(spark: SparkSession) extends Serializable {
+class DenormalizedRunner(val spark: SparkSession) extends StatsHelper with Serializable {
 
-  import org.apache.spark.sql.SaveMode
+  import org.apache.spark.sql.{SaveMode, Row}
+  import org.apache.spark.sql.types.{StringType, StructField, StructType}
   import scala.reflect.ClassTag
   import com.databricks.spark.avro._
   import org.apache.log4j.Logger
@@ -32,6 +35,20 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
+
+  val METRIC_LIVE_REVISIONS = "rev.live.count"
+  val METRIC_ARCHIVED_REVISIONS = "rev.archived.count"
+  val METRIC_ARCHIVED_REVISIONS_DEDUP = "rev.archivedDeduplicated.count"
+  val METRIC_ARCHIVED_REVISIONS_DUP = "rev.archivedDuplicates.count"
+  val METRIC_WRONG_IDS_PAGE_STATES = "pages.states.wrongIds"
+  val METRIC_FILTERED_OUT_USER_STATES = "users.states.filteredOut"
+  val METRIC_FILTERED_OUT_PAGE_STATES = "pages.states.filteredOut"
+  val METRIC_USER_STATES = "users.states.count"
+  val METRIC_PAGE_STATES = "pages.states.count"
+  val METRIC_BY_YEAR_USER_STATES = "users.states.byYear"
+  val METRIC_BY_YEAR_PAGE_STATES = "pages.states.byYear"
+  val METRIC_WRITTEN_ROWS = "denorm.writtenRows.count"
+
 
 
   /**
@@ -48,7 +65,8 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
     */
   def filterStates[S <: TimeBoundaries](
                                          states: RDD[S],
-                                         getStateKey: S => StateKey
+                                         getStateKey: S => StateKey,
+                                         metricName: String
                                       )(implicit cTagS: ClassTag[S]): RDD[S] = {
     // TODO -- Add more complete overlapping-events filtering
 
@@ -78,10 +96,14 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
     // Left join all-states with to-be-filtered states
     // and keep only the non-joined ones.
     states
-      .keyBy(s => getStateKey(s))
-      .leftOuterJoin(toBeRemovedStates)
-      .filter(_._2._2.isEmpty)
-      .map(_._2._1)
+      .keyBy(s => getStateKey(s)) // RDD[(K, State)]
+      .leftOuterJoin(toBeRemovedStates) // RDD [(K, (State, Option[_]))]
+      .filter(t => {
+        val toKeep = t._2._2.isEmpty
+        if (! toKeep) statsAccumulator.add(s"${t._1.partitionKey.db}.$metricName", 1)
+        toKeep
+      }) // Keep only empty and record stats
+      .map(_._2._1) // RDD[State]
   }
 
   /**
@@ -107,7 +129,9 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
            userHistoryPath: String,
            pageHistoryPath: String,
            outputPath: String,
-           sqlPartitions: Int
+           sqlPartitions: Int,
+           errorsPath: String,
+           statsPath: String
   ): Unit = {
 
     log.info(s"Denormalized MW Events jobs starting")
@@ -129,12 +153,20 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
 
     val userStatesDf = spark.read.parquet(userHistoryPath).where(s"TRUE $wikiClause")
     val userStatesToFilter = userStatesDf.rdd.map(UserState.fromRow)
-    val userStates = filterStates[UserState](userStatesToFilter, DenormalizedKeysHelper.userStateKeyNoYear)
+    val userStates = filterStates[UserState](
+      userStatesToFilter, DenormalizedKeysHelper.userStateKeyNoYear, METRIC_FILTERED_OUT_USER_STATES
+    )
 
     val pageStatesDf = spark.read.parquet(pageHistoryPath).where(s"TRUE $wikiClause")
     val pageStatesToFilter = pageStatesDf.rdd.map(PageState.fromRow)
-      .filter(state => state.pageId.getOrElse(0L) > 0 && state.pageIdArtificial.isEmpty)
-    val pageStates = filterStates[PageState](pageStatesToFilter, DenormalizedKeysHelper.pageStateKeyNoYear)
+      .filter(state => {
+        val validId = state.pageId.getOrElse(0L) > 0 && state.pageIdArtificial.isEmpty
+        if (!validId) statsAccumulator.add(s"${state.wikiDb}.$METRIC_WRONG_IDS_PAGE_STATES", 1)
+        validId
+      })
+    val pageStates = filterStates[PageState](
+      pageStatesToFilter, DenormalizedKeysHelper.pageStateKeyNoYear, METRIC_FILTERED_OUT_PAGE_STATES
+    )
 
     val liveRevisions = spark.sql(
       s"""
@@ -172,7 +204,11 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
     rev_content_format
         """)
       .rdd
-      .map(MediawikiEvent.fromRevisionRow)
+      .map(row => {
+        val wikiDb = row.getString(0)
+        statsAccumulator.add((s"$wikiDb.$METRIC_LIVE_REVISIONS", 1L))
+        MediawikiEvent.fromRevisionRow(row)
+      })
 
 
     val archivedRevisions = spark.sql(
@@ -221,19 +257,38 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
     ar_content_format
       """)
       .rdd
-      .map(MediawikiEvent.fromArchiveRow)
+      .map(row => {
+        val wikiDb = row.getString(0)
+        statsAccumulator.add((s"$wikiDb.$METRIC_ARCHIVED_REVISIONS", 1L))
+        MediawikiEvent.fromArchiveRow(row)
+      })
       // Remove duplicate revision Ids in archive, use the most recent one
       .keyBy(r => DenormalizedKeysHelper.revisionMediawikiEventKeyNoYear(r).partitionKey)
       .groupByKey()
       .flatMap { case (k, revisionsIterator) =>
-        if (k.id > 0) // Keep only most recent revision if multiple
-          Seq(revisionsIterator.toVector.sortBy(r => r.eventTimestamp).last)
-        else // Don't touch fake Ids
-          revisionsIterator.toVector
+        if (k.id > 0) {
+          // Keep only most recent revision if multiple
+          val revs = revisionsIterator.toVector.sortBy(r => r.eventTimestamp)
+          val keptRev = revs.last
+          statsAccumulator.add((s"${keptRev.wikiDb}.$METRIC_ARCHIVED_REVISIONS_DEDUP", 1L))
+          statsAccumulator.add((s"${keptRev.wikiDb}.$METRIC_ARCHIVED_REVISIONS_DUP", revs.length - 1))
+          Seq(keptRev)
+        } else {
+          // Don't touch fake Ids
+          val revs = revisionsIterator.toVector
+          statsAccumulator.add((s"${revs.head.wikiDb}.$METRIC_ARCHIVED_REVISIONS_DEDUP", revs.length))
+          revs
+        }
       }
 
-    val userMediawikiEvents = userStates.map(MediawikiEvent.fromUserState)
-    val pageMediawikiEvents = pageStates.map(MediawikiEvent.fromPageState)
+    val userMediawikiEvents = userStates.map(userState => {
+      statsAccumulator.add((s"${userState.wikiDb}.$METRIC_USER_STATES", 1))
+      MediawikiEvent.fromUserState(userState)
+    })
+    val pageMediawikiEvents = pageStates.map(pageState => {
+      statsAccumulator.add((s"${pageState.wikiDb}.$METRIC_PAGE_STATES", 1))
+      MediawikiEvent.fromPageState(pageState)
+    })
 
     log.info(s"Denormalized MW Events data defined")
 
@@ -248,41 +303,52 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
     val mediawikiEventPartitioner = new PartitionKeyPartitioner[MediawikiEventKey](sqlPartitions)
 
     // Partitioned-sorted user and page states for future zipping
-    val sortedUserStates = userStates
-      .flatMap(s => DenormalizedKeysHelper.userStateKeys(s).map(k => (k, s)))
+    val sortedByYearUserStates = userStates
+      .flatMap(userState => {
+        val keysAndStates = DenormalizedKeysHelper.userStateKeys(userState).map(k => (k, userState))
+        statsAccumulator.add((s"${keysAndStates.head._2.wikiDb}.$METRIC_BY_YEAR_USER_STATES", keysAndStates.length))
+        keysAndStates
+      })
       .repartitionAndSortWithinPartitions(statePartitioner)
-    val sortedPageStates = pageStates
-      .flatMap(s => DenormalizedKeysHelper.pageStateKeys(s).map(k => (k, s)))
+    val sortedByYearPageStates = pageStates
+      .flatMap(pageState => {
+        val keysAndStates = DenormalizedKeysHelper.pageStateKeys(pageState).map(k => (k, pageState))
+        statsAccumulator.add((s"${keysAndStates.head._2.wikiDb}.$METRIC_BY_YEAR_PAGE_STATES", keysAndStates.length))
+        keysAndStates
+
+      })
       .repartitionAndSortWithinPartitions(statePartitioner)
 
     // user and page iterate functions setup
     val userIterate = DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventAndStateKeys,
-      MediawikiEvent.updateWithOptionalUser) _
+      MediawikiEvent.updateWithOptionalUser(Some(statsAccumulator))) _
     val pageIterate = DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventAndStateKeys,
-      MediawikiEvent.updateWithOptionalPage) _
+      MediawikiEvent.updateWithOptionalPage(Some(statsAccumulator))) _
 
     //***********************************
     // Run revision updates
     //***********************************
 
-    val revisions = DenormalizedRevisionsBuilder
-      .run(liveRevisions, archivedRevisions, pageStates, mediawikiEventPartitioner)
+    val revisions = new DenormalizedRevisionsBuilder(statsAccumulator).run(
+      liveRevisions,
+      archivedRevisions,
+      pageStates,
+      mediawikiEventPartitioner
+    )
 
     log.info(s"Repartitioning and sorting denormalized revisions, zipping with user states")
     val revisionsWithUserData = revisions
       .keyBy(r => DenormalizedKeysHelper.userMediawikiEventKey(r))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedUserStates)((it1, it2) => userIterate(it1, it2))
-    log.info(s"Revisions with User data: ${revisionsWithUserData.count()}")
+      .zipPartitions(sortedByYearUserStates)((it1, it2) => userIterate(it1, it2))
 
     log.info(s"Repartitioning and sorting denormalized revisions, zipping with page states")
     val revisionsWithUserAndPageData = revisionsWithUserData
       .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedPageStates)((it1, it2) => pageIterate(it1, it2))
-    log.info(s"Revisions with User and Page data: ${revisionsWithUserAndPageData.count()}")
+      .zipPartitions(sortedByYearPageStates)((it1, it2) => pageIterate(it1, it2))
 
     //***********************************
     // Run user and page history updates
@@ -292,32 +358,46 @@ class DenormalizedRunner(spark: SparkSession) extends Serializable {
     val userMediawikiEventsWithUserData = userMediawikiEvents
       .keyBy(u => DenormalizedKeysHelper.userMediawikiEventKey(u))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedUserStates)((it1, it2) => userIterate(it1, it2))
-    log.info(s"Users with User data: ${userMediawikiEventsWithUserData.count()}")
-
+      .zipPartitions(sortedByYearUserStates)((it1, it2) => userIterate(it1, it2))
 
     log.info(s"Repartitioning and sorting denormalized pages, zipping with user states")
     val pageMediawikiEventsWithUserData = pageMediawikiEvents
       .keyBy(p => DenormalizedKeysHelper.userMediawikiEventKey(p))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedUserStates)((it1, it2) => userIterate(it1, it2))
-    log.info(s"Pages with User data: ${pageMediawikiEventsWithUserData.count()}")
+      .zipPartitions(sortedByYearUserStates)((it1, it2) => userIterate(it1, it2))
 
     //***********************************
-    // Join revisions, user and page and write result
+    // Join revisions, user and page and write results and errors
     //***********************************
 
-    log.info(s"Union-ing denormalized revisions, pages and users, and writing results")
+    log.info(s"Union-ing denormalized revisions, pages and users, and writing results and errors")
     val denormalizedMediawikiEventsRdd = revisionsWithUserAndPageData
       .union(userMediawikiEventsWithUserData)
       .union(pageMediawikiEventsWithUserData)
-    log.info(s"Denormalized revisions, pages and users union: ${denormalizedMediawikiEventsRdd.count()}")
 
     val denormalizedMediawikiEventsDf = spark.createDataFrame(
-        denormalizedMediawikiEventsRdd.map(_.toRow),
+        denormalizedMediawikiEventsRdd.
+          filter(_.eventErrors.isEmpty).
+          map(event => {
+          statsAccumulator.add((s"${event.wikiDb}.$METRIC_WRITTEN_ROWS", 1))
+          event.toRow
+        }),
         MediawikiEvent.schema)
-
     denormalizedMediawikiEventsDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
+    log.info(s"Denormalized MW Events results written")
+
+    val errorDf = spark.createDataFrame(
+      denormalizedMediawikiEventsRdd.
+        filter(_.eventErrors.nonEmpty).
+        map(e => Row(e.wikiDb, "zipping", e.toString)),
+      StructType(Seq(
+        StructField("wiki_db", StringType, nullable = false),
+        StructField("error_type", StringType, nullable = false),
+        StructField("event", StringType, nullable = false)
+      ))
+    )
+    errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
+    log.info(s"Denormalized MW Events errors written")
 
     log.info(s"Denormalized MW Events jobs done")
 

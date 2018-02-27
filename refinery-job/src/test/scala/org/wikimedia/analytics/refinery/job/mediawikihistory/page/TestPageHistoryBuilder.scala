@@ -1,20 +1,30 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 
-class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
+
+class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach with DataFrameSuiteBase {
 
   import org.apache.spark.sql.SparkSession
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
   import java.sql.Timestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
   // Implicit needed to sort by timestamps
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
+  //import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
+  implicit def sumLongs = (a: Long, b: Long) => a + b
+  var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]
   var pageHistoryBuilder = null.asInstanceOf[PageHistoryBuilder]
 
   override def beforeEach(): Unit = {
-    pageHistoryBuilder = new PageHistoryBuilder(null.asInstanceOf[SparkSession])
+    statsAccumulator = new MapAccumulator[String, Long]
+    spark.sparkContext.register(statsAccumulator)
+    pageHistoryBuilder = new PageHistoryBuilder(
+      null.asInstanceOf[SparkSession],
+    statsAccumulator
+    )
   }
 
   /**
@@ -689,6 +699,26 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
      *   pU2 ||          |          |          |          |   +B*   |   restB  ||    B
      */
 
+  }
+
+  it should "count successes and failures" in {
+    val events = pageEventSet()(
+      "time  eventType  oldTitle  newTitleWP  adminId",
+      "02    move       Title1    Title2      10",
+      "03    move       Title2    Title1      20",
+      "04    move       Title1    Title3      30",
+      "04    move       TitleX    TitleY      30"
+    )
+    val states = pageStateSet()(
+      "titleH  id  creation  eventType  adminId",
+      "Title3  1   01        create     40"
+    )
+
+    process(events, states)
+    val stats = statsAccumulator.value
+    stats.size() should equal(2)
+    stats.get("testwiki.pages.eventsMatching.OK") should equal(3)
+    stats.get("testwiki.pages.eventsMatching.KO") should equal(1)
   }
 
 }

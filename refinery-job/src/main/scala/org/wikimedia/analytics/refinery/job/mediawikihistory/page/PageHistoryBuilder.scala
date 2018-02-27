@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
 
 
 /**
@@ -13,7 +14,10 @@ import org.apache.spark.sql.SparkSession
   * It returns the [[PageState]] RDD of joined results of every partition and either
   * the errors found on the way, or their count.
   */
-class PageHistoryBuilder(spark: SparkSession) extends Serializable {
+class PageHistoryBuilder(
+                          spark: SparkSession,
+                          statsAccumulator: MapAccumulator[String, Long]
+                        ) extends Serializable {
 
   import org.apache.log4j.Logger
   import java.util.UUID.randomUUID
@@ -24,6 +28,8 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
+  val METRIC_EVENTS_MATCHING_OK = "pages.eventsMatching.OK"
+  val METRIC_EVENTS_MATCHING_KO = "pages.eventsMatching.KO"
 
   /**
     * This case class contains the various state dictionary and list needed to
@@ -34,13 +40,13 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
     * @param potentialStates States that can be joined to events
     * @param restoredStates States from restore events
     * @param knownStates States that have already been joined to events
-    * @param unmatchedEvents Events having not match any state (or their count)
+    * @param unmatchedEvents Events having not match any state
     */
   case class ProcessingStatus(
     potentialStates: Map[PageHistoryBuilder.KEY, PageState],
     restoredStates: Map[PageHistoryBuilder.KEY, PageState],
     knownStates: Seq[PageState],
-    unmatchedEvents: Either[Long, Seq[PageEvent]]
+    unmatchedEvents: Seq[PageEvent]
   )
 
 
@@ -86,6 +92,7 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
     if (status1.restoredStates.contains(toKey)) {
       // Move happening after a restore
       // Flush move event and make restoredState a potential one
+      statsAccumulator.add((s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
       val state = status1.restoredStates(toKey)
       val newPotentialState = state.copy(
         titleHistorical = event1.oldTitle,
@@ -107,6 +114,7 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
     } else if (status1.potentialStates.contains(toKey)) {
       // Event-state match, move potential to known state
       // and create new potentialState with old values
+      statsAccumulator.add((s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
       val state = status1.potentialStates(toKey)
       val newPotentialState = state.copy(
           titleHistorical = event1.oldTitle,
@@ -126,10 +134,8 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
       )
     } else {
       // No event match - updating errors
-      status1.copy(unmatchedEvents = status1.unmatchedEvents match {
-        case Left(c) => Left(c + 1)
-        case Right(l) => Right(l :+ event)
-      })
+      statsAccumulator.add((s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+      status1.copy(unmatchedEvents = status1.unmatchedEvents :+ event)
     }
   }
 
@@ -245,6 +251,7 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
     if (status.restoredStates.contains(toKey)) {
       // Conflicting restored state, flush current and update to new
       val conflictingRestoredState = status.restoredStates(toKey)
+      statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
       status.copy(
         restoredStates = status.restoredStates - toKey + (toKey -> conflictingRestoredState.copy(
           endTimestamp = Some(event.timestamp)
@@ -260,6 +267,7 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
       // Event-state match, move state to known state,
       // remove it from potential states,
       // and create new restoredState
+      statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
       val state = status.potentialStates(toKey)
       val newRestoredState = state.copy(
         endTimestamp = Some(event.timestamp)
@@ -276,10 +284,8 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
       )
     } else {
       // No event match - updating errors
-      status.copy(unmatchedEvents = status.unmatchedEvents match {
-        case Left(c) => Left(c + 1)
-        case Right(l) => Right(l :+ event)
-      })
+      statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+      status.copy(unmatchedEvents = status.unmatchedEvents :+ event)
     }
   }
 
@@ -322,10 +328,9 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
       case "move" => processMoveEvent(status1, event)
       case "delete" => processDeleteEvent(status1, event)
       case "restore" => processRestoreEvent(status1, event)
-      case _ => status1.copy(unmatchedEvents = status1.unmatchedEvents match {
-        case Left(c) => Left(c + 1)
-        case Right(l) => Right(l :+ event)
-      })
+      case _ =>
+        statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+        status1.copy(unmatchedEvents = status1.unmatchedEvents :+ event)
     }
   }
 
@@ -401,17 +406,14 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
     *
     * @param events The page events iterable
     * @param states The page states iterable
-    * @param outputErrors Whether to output error events or their count
-    * @return The reconstructed page state history (for the given partition)
-    *         and errors or their count
+    * @return The reconstructed page state history (for the given partition) and errors
     */
   def processSubgraph(
     events: Iterable[PageEvent],
-    states: Iterable[PageState],
-    outputErrors: Boolean = false
+    states: Iterable[PageState]
   ): (
     Seq[PageState], // processed states
-    Either[Long, Seq[PageEvent]] // unmatched events
+    Seq[PageEvent] // unmatched events
   ) = {
     val statesMap = states.map(s => s.key -> s).toMap
     val sortedEvents = events.toList.sortWith {
@@ -429,7 +431,7 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
       potentialStates = statesMap,
       restoredStates = Map.empty[PageHistoryBuilder.KEY, PageState],
       knownStates = Seq.empty[PageState],
-      unmatchedEvents = if (outputErrors) Right(Seq.empty[PageEvent]) else Left(0L)
+      unmatchedEvents = Seq.empty[PageEvent]
     )
     val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
     val finalStates = finalStatus.knownStates ++
@@ -446,28 +448,26 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
     *
     * @param events The page events RDD to be used for reconstruction
     * @param states The initial page states RDD to be used for reconstruction
-    * @param outputErrors Whether to output error events or their count
-    * @return The reconstructed page states history and errors or their count.
+    * @return The reconstructed page states history and errors.
     */
   def run(
     events: RDD[PageEvent],
-    states: RDD[PageState],
-    outputErrors: Boolean = false
+    states: RDD[PageState]
   ): (
     RDD[PageState],
-    Either[Long, RDD[PageEvent]]
+    RDD[PageEvent]
   ) = {
     log.info(s"Page history building jobs starting")
 
-    val partitioner = new SubgraphPartitioner[PageHistoryBuilder.KEY, PageEvent, PageState](spark, PageHistoryBuilder.PageRowKeyFormat)
+    val partitioner = new SubgraphPartitioner[
+      PageHistoryBuilder.KEY, PageHistoryBuilder.STATS_GROUP, PageEvent, PageState](
+      spark, PageHistoryBuilder.PageRowKeyFormat, Some(statsAccumulator))
     val subgraphs = partitioner.run(events, states)
 
     log.info(s"Processing partitioned page histories")
-    val processedSubgraphs = subgraphs.map(g => processSubgraph(g._1, g._2, outputErrors))
+    val processedSubgraphs = subgraphs.map(g => processSubgraph(g._1, g._2))
     val processedStates = processedSubgraphs.flatMap(_._1)
-    val matchingErrors =
-      if (outputErrors) Right(processedSubgraphs.flatMap(_._2.right.get))
-      else Left(processedSubgraphs.map(_._2.left.get).sum.toLong)
+    val matchingErrors = processedSubgraphs.flatMap(_._2)
 
     log.info(s"Page history building jobs done")
 
@@ -480,15 +480,18 @@ class PageHistoryBuilder(spark: SparkSession) extends Serializable {
   * and the needed conversions of this type between RDD and dataframe to
   * be used in graph partitioning.
   */
-object PageHistoryBuilder extends Serializable{
+object PageHistoryBuilder extends Serializable {
 
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types._
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.RowKeyFormat
 
   type KEY = (String, String, Int)
+  type STATS_GROUP = String
 
-  object PageRowKeyFormat extends RowKeyFormat[KEY] with Serializable {
+  val METRIC_SUBGRAPH_PARTITIONS = "pages.subgraphPartitions.count"
+
+  object PageRowKeyFormat extends RowKeyFormat[KEY, STATS_GROUP] with Serializable {
     val struct = StructType(Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("page_title_historical", StringType, nullable = false),
@@ -496,5 +499,7 @@ object PageHistoryBuilder extends Serializable{
     ))
     def toRow(k: KEY): Row = Row.fromTuple(k)
     def toKey(r: Row): KEY = (r.getString(0), r.getString(1), r.getInt(2))
+    def statsGroup(k: KEY): STATS_GROUP = s"${k._1}.$METRIC_SUBGRAPH_PARTITIONS"
   }
+
 }

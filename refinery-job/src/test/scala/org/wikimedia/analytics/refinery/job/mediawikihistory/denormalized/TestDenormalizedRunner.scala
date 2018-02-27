@@ -33,7 +33,7 @@ class TestDenormalizedRunner
     ))
 
     val result = denormalizedRunner
-      .filterStates[UserState](userStates, DenormalizedKeysHelper.userStateKeyNoYear)
+      .filterStates[UserState](userStates, DenormalizedKeysHelper.userStateKeyNoYear, "test_user")
       .collect()
 
     val expectedResults = Seq(
@@ -51,7 +51,7 @@ class TestDenormalizedRunner
     ))
 
     val result = denormalizedRunner
-      .filterStates[UserState](userStates, DenormalizedKeysHelper.userStateKeyNoYear)
+      .filterStates[UserState](userStates, DenormalizedKeysHelper.userStateKeyNoYear, "test_user")
       .collect()
 
     result.length should be(0)
@@ -66,7 +66,7 @@ class TestDenormalizedRunner
     val userStatesRdd = sc.parallelize(userStates)
 
     val result = denormalizedRunner
-      .filterStates[UserState](userStatesRdd, DenormalizedKeysHelper.userStateKeyNoYear)
+      .filterStates[UserState](userStatesRdd, DenormalizedKeysHelper.userStateKeyNoYear, "test_user")
       .collect()
 
     result.length should be(3)

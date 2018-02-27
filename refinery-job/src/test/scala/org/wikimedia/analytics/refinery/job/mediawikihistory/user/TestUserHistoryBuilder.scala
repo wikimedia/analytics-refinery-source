@@ -1,21 +1,29 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
 
-class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
+class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach with DataFrameSuiteBase {
 
-  import org.apache.spark.sql.SparkSession
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.TestUserHistoryHelpers._
   import java.sql.Timestamp
+
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.TestUserHistoryHelpers._
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   // Implicit needed to sort by timestamps
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
-
+  implicit def sumLongs = (a: Long, b: Long) => a + b
+  var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]
   var userHistoryBuilder = null.asInstanceOf[UserHistoryBuilder]
 
   override def beforeEach(): Unit = {
-    userHistoryBuilder = new UserHistoryBuilder(null.asInstanceOf[SparkSession])
+    statsAccumulator = new MapAccumulator[String, Long]
+    spark.sparkContext.register(statsAccumulator)
+    userHistoryBuilder = new UserHistoryBuilder(
+      spark,
+      statsAccumulator
+    )
   }
 
   /**
@@ -284,5 +292,32 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       expectedResultsUser2,
       expectedResultsUser3
     ))
+  }
+
+  it should "count successes and failures" in {
+    val events = userEventSet()(
+      "time  eventType  oldName  newName",
+      "01    create     UserA    UserA", // Non-historical names! Created with name: UserA (coincidence).
+      "02    create     UserC    UserC", // Non-historical names! Created with name: UserB.
+      "03    rename     UserA    UserC", // Renames user created at 01.
+      "04    create     UserB    UserB", // Non-historical names! Created with name: UserA.
+      "05    rename     UserB    UserD", // Renames user created at 02.
+      "06    rename     UserA    UserB", // Renames user created at 04.
+      "07    rename     UserC    UserA",
+      "08    rename     UserD    UserC",
+      "10    rename     UserX    UserY" // Unliked event to check for count
+    )
+    val states = userStateSet()(
+      "nameH  id  registration",
+      "UserA  1   01", // User created with name: UserA (at 01).
+      "UserC  2   02", // User created with name: UserB.
+      "UserB  3   04"  // User created with name: UserA (at 04).
+    )
+
+    process(events, states)
+    val stats = statsAccumulator.value
+    stats.size() should equal(2)
+    stats.get("testwiki.users.eventsMatching.OK") should equal(8)
+    stats.get("testwiki.users.eventsMatching.KO") should equal(1)
   }
 }

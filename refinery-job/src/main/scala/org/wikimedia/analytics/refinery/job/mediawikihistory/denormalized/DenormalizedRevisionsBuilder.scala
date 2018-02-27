@@ -1,22 +1,23 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
 
 /**
   * This file defines the functions for revisions-enrichment.
   *
-  * The [[DenormalizedRevisionsBuilder.run]] first updates archived revisions
-  * with deleteTimestamp in [[DenormalizedRevisionsBuilder.populateDeleteTime()]],
+  * The [[run]] method first updates archived revisions
+  * with deleteTimestamp in [[populateDeleteTime()]],
   * then joins archived and live revisions. This joint data is then populated
-  * with text bytes diff in [[DenormalizedRevisionsBuilder.populateByteDiff()]],
+  * with text bytes diff in [[populateByteDiff()]],
   * and then finally updated with revert information using the partition-and-sort-
   * within-partition/zip-partitions trick over reverts prepared in
-  * [[DenormalizedRevisionsBuilder.prepareRevertsLists]], using
-  * [[DenormalizedRevisionsBuilder.updateRevisionWithOptionalRevertsList]]
+  * [[prepareRevertsLists]], using
+  * [[updateRevisionWithOptionalRevertsList]]
   * as joining function.
   *
   * It then returned the updated revisions RDD to the [[DenormalizedRunner]].
   */
-object DenormalizedRevisionsBuilder extends Serializable {
+class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long]) extends Serializable {
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
@@ -27,11 +28,20 @@ object DenormalizedRevisionsBuilder extends Serializable {
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   import scala.annotation.tailrec
 
-  // Mutable ordered set to manage reverts by timestamp
-  type MutableOrderedReverts = scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
+
+  val METRIC_ARCHIVE_DELETE_TS_EVENT_TS = "archiveRev.deleteTs.eventTs"
+  val METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS = "archiveRev.deleteTs.maxArchiveTs"
+  val METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS = "archiveRev.deleteTs.pageDeleteTs"
+  val METRIC_BYTES_DIFF_OK = "rev.bytesDiff.OK"
+  val METRIC_BYTES_DIFF_KO = "rev.bytesDiff.KO"
+  val METRIC_REVERTS_LISTS_COUNT = "rev.revertsLists.count"
+  val METRIC_NO_REVERT_COUNT = "rev.noRevert.count"
+  val METRIC_REVERT_COUNT = "rev.revert.count"
+  val METRIC_REVERTED_COUNT = "rev.reverted.count"
+  val METRIC_REVERT_REVERTED_COUNT = "rev.revertAndReverted.count"
 
   /**
     * Return the first value from sortedTimestamps
@@ -104,15 +114,23 @@ object DenormalizedRevisionsBuilder extends Serializable {
     archivedRevisionsByPage
       .leftOuterJoin(pageTimestamps) // keep all archived revisions
       .map {
-        case (_, (r, None)) => r.isDeleted(r.eventTimestamp) // No delete nor max timestamp -- Use event one
+        case (_, (r, None)) => // No delete nor max timestamp -- Use event one (should never happen)
+          statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_EVENT_TS", 1)
+          r.isDeleted(r.eventTimestamp)
         case (_, (r, Some((maxTs, deleteTs)))) =>
-          if (deleteTs.isEmpty) r.isDeleted(maxTs)  // No delete timestamp -- Use max archived revision one
-          else {
+          if (deleteTs.isEmpty) { // No delete timestamp -- Use max archived revision one
+            statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
+            r.isDeleted(maxTs)
+          } else {
             // In case event timestamp is empty, firstBigger will return deleteTs first value
             val foundDeleteTs = firstBigger(r.eventTimestamp.map(_.getTime).getOrElse(-1L), deleteTs.get).map(new Timestamp(_))
             foundDeleteTs match {
-              case None => r.isDeleted(maxTs) // No delete timestamp -- Use max archived revision one
-              case _ => r.isDeleted(foundDeleteTs) // Use delete timestamp
+              case None => // No delete timestamp -- Use max archived revision one
+                statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
+                r.isDeleted(maxTs)
+              case _ => // Use delete timestamp
+                statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS", 1)
+                r.isDeleted(foundDeleteTs)
             }
           }
       }
@@ -161,11 +179,16 @@ object DenormalizedRevisionsBuilder extends Serializable {
       .leftOuterJoin(revisionsBytesDiffById) // Keep all revisions
       .map {
         case (_, (r, None)) =>
-          if (r.revisionDetails.revParentId.getOrElse(0L) > 0)
+          if (r.revisionDetails.revParentId.getOrElse(0L) > 0) {
+            statsAccumulator.add(s"${r.wikiDb}.$METRIC_BYTES_DIFF_KO", 1)
             r.textBytesDiff(None) // set None instead of textBytes since parentId is not 0 but no link found
-          else
+          } else {
+            statsAccumulator.add(s"${r.wikiDb}.$METRIC_BYTES_DIFF_OK", 1)
             r // Keep already existing textBytes
-        case (_, (r, diff)) =>  r.textBytesDiff(diff)
+          }
+        case (_, (r, diff)) =>
+          statsAccumulator.add(s"${r.wikiDb}.$METRIC_BYTES_DIFF_OK", 1)
+          r.textBytesDiff(diff)
       }
   }
 
@@ -210,6 +233,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
               override def endTimestamp: Option[Timestamp] = reverts.last._1
             })
             // Generate one revert-list event by year to be zipped with revisions-by-year
+            statsAccumulator.add(s"${revertKey.partitionKey.db}.$METRIC_REVERTS_LISTS_COUNT", yearsSpanned.size)
             yearsSpanned.map(y => {
               (
                 MediawikiEventKey(revertKey.partitionKey.copy(year = y), baseRevision._1, baseRevision._2),
@@ -229,9 +253,14 @@ object DenormalizedRevisionsBuilder extends Serializable {
     * @param reverts The ordered reverts as a sorted list of ((revertTimestamp, revertRevisionId), baseRevisionId)
     * @return The updated revision -- Side effects on reverts list
     */
-  def updateRevisionAndReverts(revision: MediawikiEvent, reverts: MutableOrderedReverts): MediawikiEvent = {
-    if (reverts.isEmpty) revision // No revert after this revision, no update
-    else if (reverts.head._1 == (revision.eventTimestamp, revision.revisionDetails.revId)) {
+  def updateRevisionAndReverts(
+                                revision: MediawikiEvent,
+                                reverts: DenormalizedRevisionsBuilder.MutableOrderedReverts
+                              ): MediawikiEvent = {
+    if (reverts.isEmpty) { // No revert after this revision, no update
+      statsAccumulator.add(s"${revision.wikiDb}.$METRIC_NO_REVERT_COUNT", 1)
+      revision
+    } else if (reverts.head._1 == (revision.eventTimestamp, revision.revisionDetails.revId)) {
       // Worked revision is a reverting one (head of reverts)
 
       // keep revertBaseId for DIFFERENT wider revert check
@@ -239,14 +268,16 @@ object DenormalizedRevisionsBuilder extends Serializable {
       // Remove first revert from the list since reached
       reverts.remove(reverts.head)
 
-      if (reverts.isEmpty || (reverts.head._2 == revertingBaseId))
-      // Worked revision is not reverted as part of a different wider revert
+      if (reverts.isEmpty || (reverts.head._2 == revertingBaseId)) {
+        // Worked revision is not reverted as part of a different wider revert
+        statsAccumulator.add(s"${revision.wikiDb}.$METRIC_REVERT_COUNT", 1)
         revision.isIdentityRevert
-      else {
+      } else {
         // Worked revision is reverting and also reverted as part of a different wider revert
         val revertingTimestamp = reverts.head._1._1
         val revertingRevisionId = reverts.head._1._2
         val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+        statsAccumulator.add(s"${revision.wikiDb}.$METRIC_REVERT_REVERTED_COUNT", 1)
         revision.isIdentityRevert.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
       }
     } else {
@@ -254,27 +285,15 @@ object DenormalizedRevisionsBuilder extends Serializable {
       val revertingTimestamp = reverts.head._1._1
       val revertingRevisionId = reverts.head._1._2
       val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+      statsAccumulator.add(s"${revision.wikiDb}.$METRIC_REVERTED_COUNT", 1)
       revision.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
     }
   }
 
   /**
-    * To be used as inner state for [[updateRevisionWithOptionalRevertsList]].
-    *
-    * @param currentPage The page currently updated for reverts
-    * @param currentReverts The reverts currently in progress as a sorted list of
-    *                       ((revertTimestamp, revertRevisionId), baseRevisionId)
-    */
-  case class RevertsListsState(
-                                var currentPage: Option[PartitionKey] = None,
-                                currentReverts: MutableOrderedReverts = new MutableOrderedReverts
-                              )
-
-
-  /**
     *
     * Update revision revert information from potential reverts list (from [[prepareRevertsLists]]).
-    * Manages its state through a changing [[RevertsListsState]] (innerState).
+    * Manages its state through a changing [[DenormalizedRevisionsBuilder.RevertsListsState]] (innerState).
     *
     *
     * @param innerState The current state of page and reverts being worked
@@ -282,7 +301,7 @@ object DenormalizedRevisionsBuilder extends Serializable {
     * @param optionalKeyAndRevertsList The optional revert list to use to update the revision
     * @return The potentially updated revision
     */
-  def updateRevisionWithOptionalRevertsList(innerState: RevertsListsState)
+  def updateRevisionWithOptionalRevertsList(innerState: DenormalizedRevisionsBuilder.RevertsListsState)
                                            (
                                              keyAndRevision: (MediawikiEventKey, MediawikiEvent),
                                              optionalKeyAndRevertsList: Option[(MediawikiEventKey, Vector[(Option[Timestamp], Option[Long])])]
@@ -340,24 +359,21 @@ object DenormalizedRevisionsBuilder extends Serializable {
 
     log.info(s"Populating delete times for archived denormalized revisions")
     val archivedRevisionsWithDeleteTime = populateDeleteTime(archivedRevisions, pageStates)
-    log.info(s"Archived denormalized revisions with delete times: ${archivedRevisionsWithDeleteTime.count()}")
 
     log.info(s"Union-ing denormalized archived revisions and live revisions")
     val revisions = liveRevisions.union(archivedRevisionsWithDeleteTime)
-    log.info(s"Union-ed denormalized revisions: ${revisions.count()}")
 
     log.info(s"Populating text bytes diff for denormalized revisions")
     val revisionsWithDiff = populateByteDiff(revisions)
-    log.info(s"Revisions with text bytes diff: ${revisionsWithDiff.count()}")
 
     val userMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
       DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
-      MediawikiEvent.updateWithOptionalUserPrevious
+      MediawikiEvent.updateWithOptionalUserPrevious(Some(statsAccumulator))
     ) _
 
     val pageMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
       DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
-      MediawikiEvent.updateWithOptionalPagePrevious
+      MediawikiEvent.updateWithOptionalPagePrevious(Some(statsAccumulator))
     ) _
 
     log.info(s"Populating revisions per-user metrics")
@@ -365,14 +381,13 @@ object DenormalizedRevisionsBuilder extends Serializable {
       .keyBy(r => DenormalizedKeysHelper.userMediawikiEventKeyNoYear(r))
       .repartitionAndSortWithinPartitions(historyPartitioner)
       .mapPartitions(userMetricsMapperWithPrevious)
-    log.info(s"Revisions with text bytes diff and per-user metrics: ${revisionsWithDiffAndPerUserMetrics.count()}")
 
     log.info(s"Populating revisions per-page metrics")
     val revisionsWithDiffAndPerUserAndPageMetrics: RDD[MediawikiEvent] = revisionsWithDiffAndPerUserMetrics
       .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r))
       .repartitionAndSortWithinPartitions(historyPartitioner)
       .mapPartitions(pageMetricsMapperWithPrevious)
-    log.info(s"Revisions with text bytes diff, per-user and per-page metrics: ${revisionsWithDiffAndPerUserAndPageMetrics.count()}")
+
 
     // Compute reverts info
     log.info(s"Populating revert info for denormalized revisions")
@@ -380,17 +395,39 @@ object DenormalizedRevisionsBuilder extends Serializable {
       .repartitionAndSortWithinPartitions(historyPartitioner)
     val zipper = DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventKeys,
-      updateRevisionWithOptionalRevertsList(new RevertsListsState)) _
+      updateRevisionWithOptionalRevertsList(new DenormalizedRevisionsBuilder.RevertsListsState)) _
     val revisionsWithDiffAndPerUserAndPageMetricsAndRevert = revisionsWithDiffAndPerUserAndPageMetrics
       .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
       .repartitionAndSortWithinPartitions(historyPartitioner)
       .zipPartitions(revertsLists)(
         (keysAndRevisions, keysAndRevertsLists) => zipper(keysAndRevisions, keysAndRevertsLists)
       )
-    log.info(s"Revisions with text bytes diff, per-user and per-page metrics, and revert info: ${revisionsWithDiffAndPerUserAndPageMetricsAndRevert.count()}")
 
     log.info(s"Denormalized revisions jobs done")
     revisionsWithDiffAndPerUserAndPageMetricsAndRevert
   }
+
+}
+
+object DenormalizedRevisionsBuilder {
+
+  import java.sql.Timestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
+
+  // Mutable ordered set to manage reverts by timestamp
+  type MutableOrderedReverts = scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
+
+  /**
+    * To be used as inner state for [[DenormalizedRevisionsBuilder.updateRevisionWithOptionalRevertsList]].
+    *
+    * @param currentPage The page currently updated for reverts
+    * @param currentReverts The reverts currently in progress as a sorted list of
+    *                       ((revertTimestamp, revertRevisionId), baseRevisionId)
+    */
+  case class RevertsListsState(
+                                var currentPage: Option[PartitionKey] = None,
+                                currentReverts: MutableOrderedReverts = new MutableOrderedReverts
+                              )
+
 
 }

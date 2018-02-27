@@ -1,6 +1,8 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
+
 
 /**
   * This class defines the functions for the user history reconstruction process.
@@ -16,18 +18,23 @@ import org.apache.spark.sql.SparkSession
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class UserHistoryRunner(spark: SparkSession) extends Serializable {
+class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serializable {
 
-  import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
-  import org.apache.log4j.Logger
-  import org.apache.spark.sql.Row
+  import org.apache.spark.sql.{Row, SaveMode}
   import org.apache.spark.sql.types._
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+  import org.apache.log4j.Logger
+
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
+  val METRIC_VALID_LOGS_OK = "users.validLogs.OK"
+  val METRIC_VALID_LOGS_KO = "users.validLogs.KO"
+  val METRIC_EVENTS_PARSING_OK = "users.eventsParsing.OK"
+  val METRIC_EVENTS_PARSING_KO = "users.eventsParsing.KO"
+  val METRIC_STATES_COUNT = "users.states.count"
 
   /**
     * Extract and clean [[UserEvent]] and [[UserState]] RDDs,
@@ -41,7 +48,8 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
     * @param outputPath The path to output the reconstructed user history (parquet files)
     * @param sqlPartitions The number of partitions to use as a bases for raw RDDs
-    * @param errorsPath An optional path to output errors if defined (csv files)
+    * @param errorsPath An path to output errors (csv files)
+    * @param statsPath An path to output statistics (csv files)
     */
   def run(
            wikiConstraint: Seq[String],
@@ -51,11 +59,11 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
            revisionDataPath: String,
            outputPath: String,
            sqlPartitions: Int,
-           errorsPath: Option[String] = None
+           errorsPath: String,
+           statsPath: String
   ): Unit = {
 
     log.info(s"User history jobs starting")
-
 
     //***********************************
     // Prepare user events and states RDDs
@@ -110,8 +118,20 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     wiki_db
         """)
       .rdd
-      .filter(UserEventBuilder.isValidLog)
-      .map(UserEventBuilder.buildUserEvent)
+      .filter(row => {
+        val wikiDb = row.getString(7)
+        val isValid = UserEventBuilder.isValidLog(row)
+        val metricName = if (isValid) METRIC_VALID_LOGS_OK else METRIC_VALID_LOGS_KO
+        statsAccumulator.add((s"$wikiDb.$metricName", 1))
+        isValid
+      })
+      .map(row => {
+        val wikiDb = row.getString(7)
+        val userEvent = UserEventBuilder.buildUserEvent(row)
+        val metricName = if (userEvent.parsingErrors.isEmpty) METRIC_EVENTS_PARSING_OK else METRIC_EVENTS_PARSING_KO
+        statsAccumulator.add((s"$wikiDb.$metricName", 1))
+        userEvent
+      })
 
     val userEvents = parsedUserEvents.filter(_.parsingErrors.isEmpty).cache()
 
@@ -203,6 +223,8 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
         """)
       .rdd
       .map { row =>
+        val wikiDb = row.getString(3)
+        statsAccumulator.add((s"$wikiDb.$METRIC_STATES_COUNT", 1L))
         new UserState(
             userId = row.getLong(0),
             userNameHistorical = row.getString(1),
@@ -216,7 +238,7 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
             userGroups = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),
             userBlocksHistorical = Seq.empty[String],
             causedByEventType = "create",
-            wikiDb = row.getString(3)
+            wikiDb = wikiDb
         )}
       .cache()
 
@@ -232,8 +254,11 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     // Reconstruct user history
     //***********************************
 
-    val userHistoryBuilder = new UserHistoryBuilder(spark)
-    val (userHistoryRdd, unmatchedEvents) = userHistoryBuilder.run(userEvents, userStates, errorsPath.isDefined)
+    val userHistoryBuilder = new UserHistoryBuilder(
+      spark,
+      statsAccumulator
+    )
+    val (userHistoryRdd, unmatchedEvents) = userHistoryBuilder.run(userEvents, userStates)
 
     // TODO : Compute is_bot_for_other_wikis
 
@@ -244,32 +269,35 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     // Write results (and possibly errors)
     //***********************************
 
-
-
     val userHistoryDf = spark.createDataFrame(userHistoryRdd.map(_.toRow), UserState.schema)
-    //("spark.sql.parquet.compression.codec", "snappy")
     userHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"User history reconstruction results written")
 
-    val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty).cache()
-    log.info("User history parsing errors: " + parsingErrorEvents.count.toString)
-    if (errorsPath.isDefined) {
-      val matchingErrorEvents = unmatchedEvents.right.get
-      log.info("Unmatched userEvents: " + matchingErrorEvents.count.toString)
-      val errorDf = spark.createDataFrame(
-        parsingErrorEvents.map(e => Row("parsing", e.toString)).union(
-          matchingErrorEvents.map(e => Row("matching", e.toString))
-        ),
-        StructType(Seq(
-          StructField("type", StringType, nullable = false),
-          StructField("event", StringType, nullable = false)
-        ))
-      )
-      errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath.get)
-      log.info(s"User history reconstruction errors written")
-    } else {
-      log.info("Unmatched user history events: " + unmatchedEvents.left.get.toString)
-    }
+
+    //***********************************
+    // Write errors
+    //***********************************
+
+    val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty)
+    val errorDf = spark.createDataFrame(
+      parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString)).union(
+        unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
+      ),
+      StructType(Seq(
+        StructField("wiki_db", StringType, nullable = false),
+        StructField("error_type", StringType, nullable = false),
+        StructField("event", StringType, nullable = false)
+      ))
+    )
+    errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
+    log.info(s"User history reconstruction errors written")
+
+
+    //***********************************
+    // Write stats
+    //***********************************
+    statsDataframe.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
+    log.info(s"User history reconstruction stats written")
 
     log.info(s"User history jobs done")
   }

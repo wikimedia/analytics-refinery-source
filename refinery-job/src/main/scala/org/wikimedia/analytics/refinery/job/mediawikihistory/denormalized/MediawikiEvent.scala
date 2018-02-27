@@ -7,7 +7,7 @@ import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEventBuilder
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{MapAccumulator, TimestampHelpers}
 
 /**
   * This file defines case classes for denormalized ME Events objects.
@@ -531,37 +531,46 @@ object MediawikiEvent {
     */
   def updateWithOptionalState[S](
                                   updateWithState: (MediawikiEvent, S) => MediawikiEvent,
-                                  stateName: String
+                                  stateName: String,
+                                  statsAccumulator: Option[MapAccumulator[String, Long]] = None
                                  )
                                 (
                                   keyAndMwEvent: (MediawikiEventKey, MediawikiEvent),
                                   potentialKeyAndState: Option[(StateKey, S)]
                                  ): MediawikiEvent = {
     val (mwKey, mwEvent) = keyAndMwEvent
+    val metricHead = s"${mwEvent.wikiDb}.${mwEvent.eventEntity}.${stateName}Updates"
     if (mwKey.partitionKey.id <= 0L) {
       // negative or 0 ids are fake (used to shuffle among workers)  -- Don't update
+      statsAccumulator.foreach(_.add(s"$metricHead.fakeIds", 1L))
       mwEvent.copy(eventErrors = mwEvent.eventErrors :+ s"Negative MW Event id for potential $stateName update")
     } else if (potentialKeyAndState.isEmpty) {
       // No state key was found equal to this mw event key
       // Don't update MW Event content (except error messages)
+      statsAccumulator.foreach(_.add(s"$metricHead.noStates", 1L))
       mwEvent.copy(eventErrors = mwEvent.eventErrors :+ s"No $stateName match for this MW Event")
     } else {
+      statsAccumulator.foreach(_.add(s"$metricHead.updates", 1L))
       val (_, state) = potentialKeyAndState.get
       updateWithState(mwEvent, state)
     }
   }
 
   def updateWithOptionalPrevious(
-                                  updateWithOptionalPreviousInner: (MediawikiEvent, Option[MediawikiEvent]) => MediawikiEvent
+                                  updateWithOptionalPreviousInner: (MediawikiEvent, Option[MediawikiEvent]) => MediawikiEvent,
+                                  statsAccumulator: Option[MapAccumulator[String, Long]] = None
                                 )(
                                   keyAndMwEvent: (MediawikiEventKey, MediawikiEvent),
                                   previousKeyAndMwEvent: Option[(MediawikiEventKey, MediawikiEvent)]
                                 ): MediawikiEvent = {
     val (mwKey, mwEvent) = keyAndMwEvent
+    val metricHead = s"${mwEvent.wikiDb}.${mwEvent.eventEntity}.withPreviousUpdates"
     if (mwKey.partitionKey.id <= 0L) {
       // negative or 0 ids are fake (used to shuffle among workers)  -- Don't update
+      statsAccumulator.foreach(_.add(s"$metricHead.fakeIds", 1L))
       mwEvent
     } else {
+      statsAccumulator.foreach(_.add(s"$metricHead.updates", 1L))
       updateWithOptionalPreviousInner(mwEvent, previousKeyAndMwEvent.map(_._2))
     }
   }
@@ -571,11 +580,15 @@ object MediawikiEvent {
     * Predefine user and page optional update functions
     */
 
-  def updateWithOptionalUser = updateWithOptionalState[UserState](updateWithUserState, "userState") _
-  def updateWithOptionalPage = updateWithOptionalState[PageState](updateWithPageState, "pageState") _
+  def updateWithOptionalUser(statsAccumulator: Option[MapAccumulator[String, Long]] = None) =
+    updateWithOptionalState[UserState](updateWithUserState, "userState", statsAccumulator) _
+  def updateWithOptionalPage(statsAccumulator: Option[MapAccumulator[String, Long]] = None) =
+    updateWithOptionalState[PageState](updateWithPageState, "pageState", statsAccumulator) _
 
-  def updateWithOptionalUserPrevious = updateWithOptionalPrevious(updateWithOptionalUserPreviousRevision) _
-  def updateWithOptionalPagePrevious = updateWithOptionalPrevious(updateWithOptionalPagePreviousRevision) _
+  def updateWithOptionalUserPrevious(statsAccumulator: Option[MapAccumulator[String, Long]] = None) =
+    updateWithOptionalPrevious(updateWithOptionalUserPreviousRevision, statsAccumulator) _
+  def updateWithOptionalPagePrevious(statsAccumulator: Option[MapAccumulator[String, Long]] = None) =
+    updateWithOptionalPrevious(updateWithOptionalPagePreviousRevision, statsAccumulator) _
 
 
 }

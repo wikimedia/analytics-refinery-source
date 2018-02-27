@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
+
 /**
   * This object contains utility functions to parse user data
   * from the logging table.
@@ -323,3 +325,4 @@ object UserEventBuilder extends Serializable {
     )
   }
 }
+

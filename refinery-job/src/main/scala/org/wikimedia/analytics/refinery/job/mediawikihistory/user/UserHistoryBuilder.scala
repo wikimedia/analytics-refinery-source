@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
 
 
 /**
@@ -13,21 +14,24 @@ import org.apache.spark.sql.SparkSession
   * It returns the [[UserState]] RDD of joined results of every partition and either
   * the errors found on the way, or their count.
   */
-class UserHistoryBuilder(spark: SparkSession) extends Serializable {
+class UserHistoryBuilder(
+                          spark: SparkSession,
+                          statsAccumulator: MapAccumulator[String, Long]
+                          ) extends Serializable {
+
+  import java.sql.Timestamp
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
-  import org.joda.time.DateTime
-  import org.joda.time.DateTimeZone
-  import java.sql.Timestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner
+  import org.joda.time.{DateTime, DateTimeZone}
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{SubgraphPartitioner, TimestampHelpers}
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
   val presentTimestamp = new Timestamp(DateTime.now.withZone(DateTimeZone.UTC).getMillis)
-
+  val METRIC_EVENTS_MATCHING_OK = "users.eventsMatching.OK"
+  val METRIC_EVENTS_MATCHING_KO = "users.eventsMatching.KO"
 
   /**
     * This case class contains the various state dictionary and list needed to
@@ -48,7 +52,7 @@ class UserHistoryBuilder(spark: SparkSession) extends Serializable {
       currentToToday: Map[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],
       potentialStates: Map[UserHistoryBuilder.KEY, UserState],
       knownStates: Seq[UserState],
-      unmatchedEvents: Either[Long, Seq[UserEvent]]
+      unmatchedEvents: Seq[UserEvent]
   ) {
 
     /**
@@ -135,6 +139,7 @@ class UserHistoryBuilder(spark: SparkSession) extends Serializable {
         toKey: UserHistoryBuilder.KEY
     ): ProcessingStatus = {
       if (potentialStates.contains(toKey)) {
+        statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
         val state = potentialStates(toKey)
         this.copy(
             potentialStates =
@@ -157,13 +162,10 @@ class UserHistoryBuilder(spark: SparkSession) extends Serializable {
               )
         )
       } else {
-        // No event match - updating errors
-        this.copy(unmatchedEvents = unmatchedEvents match {
-          case Left(c) => Left(c + 1)
-          case Right(l) => Right(l :+ event)
-        })
+        // No event match - updating accumulator and errors
+        statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+        this.copy(unmatchedEvents = this.unmatchedEvents :+ event)
       }
-
     }
   }
 
@@ -397,17 +399,15 @@ class UserHistoryBuilder(spark: SparkSession) extends Serializable {
     *
     * @param events The user events iterable
     * @param states The user states iterable
-    * @param outputErrors Whether to output error events or their count
     * @return The reconstructed user state history (for the given partition)
-    *         and errors or their count
+    *         and errors
     */
   def processSubgraph(
       events: Iterable[UserEvent],
-      states: Iterable[UserState],
-      outputErrors: Boolean = false
+      states: Iterable[UserState]
   ): (
       Seq[UserState], // processed states
-      Either[Long, Seq[UserEvent]] // unmatched events
+      Seq[UserEvent]  // unmatched events
   ) = {
     val statesMap = states.map(s => (s.wikiDb, s.userNameHistorical) -> s).toMap
     val sortedEvents = events.toList.sortWith {
@@ -418,7 +418,7 @@ class UserHistoryBuilder(spark: SparkSession) extends Serializable {
         currentToToday = Map.empty[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],
         potentialStates = statesMap,
         knownStates = Seq.empty[UserState],
-        unmatchedEvents = if (outputErrors) Right(Seq.empty[UserEvent]) else Left(0L)
+        unmatchedEvents = Seq.empty[UserEvent]
     )
     val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
     val propagatedStates = propagateStates(
@@ -441,33 +441,30 @@ class UserHistoryBuilder(spark: SparkSession) extends Serializable {
     * It first partitions events and states RDDs using
     * [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner]],
     * then applies its [[processSubgraph]] method to every partition, and finally returns joined
-    * states results, along with error events or their count.
+    * states results, along with error events.
     *
     * @param events The user events RDD to be used for reconstruction
     * @param states The initial user states RDD to be used for reconstruction
-    * @param outputErrors Whether to output error events or their count
     * @return The reconstructed user states history and errors or their count.
     */
   def run(
     events: RDD[UserEvent],
-    states: RDD[UserState],
-    outputErrors: Boolean = false
+    states: RDD[UserState]
   ): (
     RDD[UserState],
-    Either[Long, RDD[UserEvent]]
+    RDD[UserEvent]
   ) = {
     log.info(s"User history building jobs starting")
 
-    val partitioner = new SubgraphPartitioner[UserHistoryBuilder.KEY, UserEvent, UserState](
-      spark, UserHistoryBuilder.UserRowKeyFormat)
+    val partitioner = new SubgraphPartitioner[
+      UserHistoryBuilder.KEY, UserHistoryBuilder.STATS_GROUP, UserEvent, UserState](
+      spark, UserHistoryBuilder.UserRowKeyFormat, Some(statsAccumulator))
     val subgraphs = partitioner.run(events, states)
 
     log.info(s"Processing partitioned user histories")
-    val processedSubgraphs = subgraphs.map(g => processSubgraph(g._1, g._2, outputErrors))
+    val processedSubgraphs = subgraphs.map(g => processSubgraph(g._1, g._2))
     val processedStates = processedSubgraphs.flatMap(_._1)
-    val matchingErrors =
-      if (outputErrors) Right(processedSubgraphs.flatMap(_._2.right.get))
-      else Left(processedSubgraphs.map(_._2.left.get).sum.toLong)
+    val matchingErrors = processedSubgraphs.flatMap(_._2)
 
     log.info(s"User history building jobs done")
 
@@ -487,14 +484,18 @@ object UserHistoryBuilder extends Serializable{
   import org.apache.spark.sql.types.{StringType, StructField, StructType}
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.RowKeyFormat
 
-  type KEY = (String, String)
+  val METRIC_SUBGRAPH_PARTITIONS = "users.subgraphPartitions.count"
 
-  object UserRowKeyFormat extends RowKeyFormat[KEY] with Serializable {
+  type KEY = (String, String)
+  type STATS_GROUP = String
+
+  object UserRowKeyFormat extends RowKeyFormat[KEY, STATS_GROUP] with Serializable {
     val struct = StructType(Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("username", StringType, nullable = false)
     ))
     def toRow(k: KEY): Row = Row.fromTuple(k)
     def toKey(r: Row): KEY = (r.getString(0), r.getString(1))
+    def statsGroup(k: KEY): STATS_GROUP = s"${k._1}.$METRIC_SUBGRAPH_PARTITIONS"
   }
 }

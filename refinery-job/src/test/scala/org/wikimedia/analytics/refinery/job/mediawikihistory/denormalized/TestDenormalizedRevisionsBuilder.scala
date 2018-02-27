@@ -6,14 +6,26 @@ import com.holdenkarau.spark.testing.SharedSparkContext
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 import TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{MapAccumulator, TimestampHelpers}
 // Implicit needed to sort by timestamps
 import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
-class TestDenormalizedRevisionsBuilder extends FlatSpec
-with Matchers
-with BeforeAndAfterEach
-with SharedSparkContext {
+class TestDenormalizedRevisionsBuilder
+  extends FlatSpec
+  with Matchers
+  with BeforeAndAfterEach
+  with SharedSparkContext {
+
+  implicit def sumLongs = (a: Long, b: Long) => a + b
+  var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]
+  var denormalizedRevisionsBuilder = null.asInstanceOf[DenormalizedRevisionsBuilder]
+
+  override def beforeEach(): Unit = {
+    statsAccumulator = new MapAccumulator[String, Long]
+    sc.register(statsAccumulator)
+    denormalizedRevisionsBuilder = new DenormalizedRevisionsBuilder(statsAccumulator)
+  }
+
 
   /**
     * Tests for FirstBigger function
@@ -23,7 +35,7 @@ with SharedSparkContext {
     val ref = 2L
     val vec = Vector(1L, 2L, 3L, 4L)
 
-    val result = DenormalizedRevisionsBuilder.firstBigger(ref, vec)
+    val result = denormalizedRevisionsBuilder.firstBigger(ref, vec)
     result should equal(Some(3L))
 
   }
@@ -33,7 +45,7 @@ with SharedSparkContext {
     val ref = -1L
     val vec = Vector(-1L, 1L, 2L, 3L, 4L)
 
-    val result = DenormalizedRevisionsBuilder.firstBigger(ref, vec)
+    val result = denormalizedRevisionsBuilder.firstBigger(ref, vec)
     result should equal(Some(1L))
 
   }
@@ -43,7 +55,7 @@ with SharedSparkContext {
     val ref = 5L
     val vec = Vector(-1L, 1L, 2L, 3L, 4L)
 
-    val result = DenormalizedRevisionsBuilder.firstBigger(ref, vec)
+    val result = denormalizedRevisionsBuilder.firstBigger(ref, vec)
     result should equal(None)
 
   }
@@ -72,7 +84,7 @@ with SharedSparkContext {
       "02      2       1       true         02"
     )
 
-    val results = DenormalizedRevisionsBuilder
+    val results = denormalizedRevisionsBuilder
       .populateDeleteTime(revs, pageStates)
       .collect
       .sortBy(_.revisionDetails.revId)
@@ -100,7 +112,7 @@ with SharedSparkContext {
       "None    1       2       true         01"
     )
 
-    val results = DenormalizedRevisionsBuilder
+    val results = denormalizedRevisionsBuilder
       .populateDeleteTime(revs, pageStates)
       .collect
       .sortBy(_.revisionDetails.revId)
@@ -130,7 +142,7 @@ with SharedSparkContext {
       "03      2       2       true         04"
     )
 
-    val results = DenormalizedRevisionsBuilder
+    val results = denormalizedRevisionsBuilder
       .populateDeleteTime(revs, pageStates)
       .collect
       .sortBy(_.revisionDetails.revId)
@@ -164,12 +176,38 @@ with SharedSparkContext {
       "06      4      2        true        07"
     )
 
-    val results = DenormalizedRevisionsBuilder
+    val results = denormalizedRevisionsBuilder
       .populateDeleteTime(revs, pageStates)
       .collect
       .sortBy(_.revisionDetails.revId)
 
     results should equal(expectedResults)
+  }
+
+  it should "gather stats" in {
+
+    val revs = sc.parallelize(
+      revisionMwEventSet()(
+        "time revId pageId  isDeleted",
+        "01    1      1        true",
+        "02    2      1        true",
+        "None  3      2        true"
+      ))
+
+    val pageStates = sc.parallelize(
+      pageStateSet()(
+        "id   type     start",
+        "2   delete      01"
+      ))
+
+    denormalizedRevisionsBuilder
+      .populateDeleteTime(revs, pageStates)
+      .collect
+
+    val stats = statsAccumulator.value
+    stats.size should equal(2)
+    stats.get("testwiki.archiveRev.deleteTs.maxArchiveTs") should equal(2)
+    stats.get("testwiki.archiveRev.deleteTs.pageDeleteTs") should equal(1)
   }
 
   /**
@@ -190,7 +228,7 @@ with SharedSparkContext {
       "02      3        2      80      None"
     )
 
-    val results = DenormalizedRevisionsBuilder
+    val results = denormalizedRevisionsBuilder
       .populateByteDiff(revs)
       .collect
       .sortBy(_.revisionDetails.revId)
@@ -213,7 +251,7 @@ with SharedSparkContext {
       "02      2        1      80      -10"
     )
 
-    val results = DenormalizedRevisionsBuilder
+    val results = denormalizedRevisionsBuilder
       .populateByteDiff(revs)
       .collect
       .sortBy(_.revisionDetails.revId)
@@ -221,10 +259,32 @@ with SharedSparkContext {
     results should equal(expectedResults)
   }
 
+  it should "gather stats" in {
+
+    val revs = sc.parallelize(
+      revisionMwEventSet()(
+        "time revId parentId bytes bytesDiff",
+        "01    1      0        90    90",
+        "02    2      1        80    80",
+        "01    3      0        90    90",
+        "02    5      4        80    80"
+      ))
+
+    denormalizedRevisionsBuilder
+      .populateByteDiff(revs)
+      .collect
+
+    val stats = statsAccumulator.value
+    stats.size should equal(2)
+    stats.get("testwiki.rev.bytesDiff.OK") should equal(3)
+    stats.get("testwiki.rev.bytesDiff.KO") should equal(1)
+  }
+
+
   /**
     * Tests for prepareReverts function
     */
-  "prepareReverts" should "properly prepare reverts" in {
+  "prepareReverts" should "properly prepare reverts and gather sats" in {
     val revs = sc.parallelize(
       revisionMwEventSet()(
         "db       time       revId pageId sha1",
@@ -246,7 +306,7 @@ with SharedSparkContext {
         "w2  20100103000000    3      1     s1"
       ))
 
-    val results = DenormalizedRevisionsBuilder.prepareRevertsLists(revs).collect.sortBy(_._1)
+    val results = denormalizedRevisionsBuilder.prepareRevertsLists(revs).collect.sortBy(_._1)
 
     val partw1p1 = PartitionKey("w1", 1L, 2010)
     val partw1p2_2010 = PartitionKey("w1", 2L, 2010)
@@ -268,6 +328,10 @@ with SharedSparkContext {
     )
 
     results should equal(expectedResults)
+    val stats = statsAccumulator.value
+    stats.size() should equal(2)
+    stats.get("w1.rev.revertsLists.count") should equal(5)
+    stats.get("w2.rev.revertsLists.count") should equal(1)
   }
 
   /**
@@ -283,12 +347,15 @@ with SharedSparkContext {
     val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
 
     revs.foreach(r => {
-      val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
+      val res = denormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
       res.revisionDetails.revIsIdentityRevert should equal(Some(false))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
       res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
+    val stats = statsAccumulator.value
+    stats.size() should equal(1)
+    stats.get("w1.rev.noRevert.count") should equal(1)
   }
 
   it should "update MW Event and not endReverts - isReverted case" in {
@@ -301,13 +368,16 @@ with SharedSparkContext {
     endReverts.add((TimestampHelpers.makeMediawikiTimestamp("19710101000000"), Some(2L)), None)
 
     revs.foreach(r => {
-      val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
+      val res = denormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
       res.revisionDetails.revIsIdentityRevert should equal(Some(false))
       res.revisionDetails.revIsIdentityReverted should equal(Some(true))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(2L))
       res.revisionDetails.revSecondsToIdentityRevert should equal(Some(31536000))
     })
     endReverts.size should equal(1)
+    val stats = statsAccumulator.value
+    stats.size() should equal(1)
+    stats.get("w1.rev.reverted.count") should equal(1)
   }
 
   it should "update MW Event and endReverts - isRevert case (not isReverted, no other revert)" in {
@@ -320,13 +390,16 @@ with SharedSparkContext {
     endReverts.add((TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)), None)
 
     revs.foreach(r => {
-      val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
+      val res = denormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
       res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
     endReverts.size should equal(0)
+    val stats = statsAccumulator.value
+    stats.size() should equal(1)
+    stats.get("w1.rev.revert.count") should equal(1)
   }
 
   it should "update MW Event and endReverts - isRevert case (not isReverted, same wider revert)" in {
@@ -340,13 +413,16 @@ with SharedSparkContext {
     endReverts.add((TimestampHelpers.makeMediawikiTimestamp("19700102000000"), Some(3L)), Some(1L))
 
     revs.foreach(r => {
-      val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
+      val res = denormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(false))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
       res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
     endReverts.size should equal(1)
+    val stats = statsAccumulator.value
+    stats.size() should equal(1)
+    stats.get("w1.rev.revert.count") should equal(1)
   }
 
 
@@ -361,13 +437,16 @@ with SharedSparkContext {
     endReverts.add((TimestampHelpers.makeMediawikiTimestamp("19700101100000"), Some(4L)), Some(1L))
 
     revs.foreach(r => {
-      val res = DenormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
+      val res = denormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
       res.revisionDetails.revIsIdentityRevert should equal(Some(true))
       res.revisionDetails.revIsIdentityReverted should equal(Some(true))
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(4L))
       res.revisionDetails.revSecondsToIdentityRevert should equal(Some(36000))
     })
     endReverts.size should equal(1)
+    val stats = statsAccumulator.value
+    stats.size() should equal(1)
+    stats.get("w1.rev.revertAndReverted.count") should equal(1)
   }
 
 
@@ -392,7 +471,7 @@ with SharedSparkContext {
 
     DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventKeys,
-      DenormalizedRevisionsBuilder.updateRevisionWithOptionalRevertsList(new DenormalizedRevisionsBuilder.RevertsListsState)
+      denormalizedRevisionsBuilder.updateRevisionWithOptionalRevertsList(new DenormalizedRevisionsBuilder.RevertsListsState)
     )(
       keysAndRevisions,
       keysAndRevertsLists

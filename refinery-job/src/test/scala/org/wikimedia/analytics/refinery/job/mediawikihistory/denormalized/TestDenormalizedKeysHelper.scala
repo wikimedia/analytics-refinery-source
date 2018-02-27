@@ -2,11 +2,12 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import java.sql.Timestamp
 
+import com.holdenkarau.spark.testing.SharedSparkContext
 import org.scalatest.{Matchers, FlatSpec}
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
-class TestDenormalizedKeysHelper extends FlatSpec with Matchers {
+class TestDenormalizedKeysHelper extends FlatSpec with Matchers with SharedSparkContext {
 
   // Reusable fake timestamps
   val t0 = Some(new Timestamp(0L))

@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.utils
 
 import org.apache.spark.sql.types.{LongType, StructField, StructType}
-import org.apache.spark.sql.{SparkSession, Row, SQLContext}
+import org.apache.spark.sql.{Row, SparkSession}
 
 import scala.reflect.ClassTag
 
@@ -12,12 +12,14 @@ import scala.reflect.ClassTag
 
 /**
   * [[RowKeyFormat]] trait to switch keys from
-  * RDD to dataframe and back.
+  * RDD to dataframe and back, with a function
+  * providing grouping sets for stats gathering
   */
-trait RowKeyFormat[T] {
+trait RowKeyFormat[T, S] {
   val struct: StructType
   def toRow(k: T): Row
   def toKey(r: Row): T
+  def statsGroup(k: T): S
 }
 
 /**
@@ -38,18 +40,25 @@ trait Vertex[T] {
 /**
   * Generic subgraph partitioner for RDDs of objects [[E]] and [[V]]
   * implementing [[Edge]] and [[Vertex]] traits over a key type [[T]].
+  * Stats are computed of how many subgraph partitions are generated
+  * for groups of type [[S]] (generated from key [[T]])
   *
   * For internal reasons (generating unique IDs for vertices)
   * an implicit [[Ordering]] is needed for the key type [[T]].
   *
   * Also, since this class uses Spark (RDD and GraphFrames),
-  * implicit [[ClassTag]] need to be defined for manipulated types (T, E, V).
+  * implicit [[ClassTag]] need to be defined for manipulated types (T, S, E, V).
   */
-class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, rowKeyFormatter: RowKeyFormat[T])(
+class SubgraphPartitioner[T, S, E <: Edge[T], V <: Vertex[T]](
+    spark: SparkSession,
+    rowKeyFormatter: RowKeyFormat[T, S],
+    subgraphPartitionSizesAccumulator: Option[MapAccumulator[S, Long]] = None
+)(
     implicit cmp: Ordering[T],
+    cTagS: ClassTag[S],
     cTagT: ClassTag[T],
     cTagE: ClassTag[E],
-    cTagS: ClassTag[V]
+    cTagV: ClassTag[V]
 ) extends Serializable {
 
   import org.apache.log4j.Logger
@@ -71,9 +80,9 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
 
     val verticesRdd = events
       .flatMap(e => Seq(e.fromKey, e.toKey)) // RDD[key]
-      .distinct
+      .distinct()
       .sortBy(e => e)(cmp, cTagT) // Ensure consistency if zipping happens more than once because of RDD re-computation
-      .zipWithUniqueId // RDD[(key, id)]
+      .zipWithUniqueId() // RDD[(key, id)]
       .cache()
 
     val verticesDF = spark.createDataFrame(
@@ -83,7 +92,7 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
 
     val edgesRdd = events
       .map(e => (e.fromKey, e.toKey)) // RDD[(fromKey, toKey)]
-      .distinct
+      .distinct()
       .keyBy(_._1) // RDD[(fromKey, (fromKey, toKey))]
       .join(verticesRdd.keyBy(_._1)) // RDD[(fromKey, ((fromKey, toKey), (key-fromKey, id-fromKey)))]
       .map(e => (e._2._1._2, e._2._2._2)) // RDD[(toKey, id-fromKey))]
@@ -105,16 +114,16 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
   private def extractEventsGroups(
       events: RDD[E],
       connectedComponents: RDD[(T, Long)]
-  ): RDD[(Long, E)] = {
+  ): RDD[((Long, S), E)] = {
     log.info("Translating connected components to partitioned events")
 
     val eventsWithGroupingIds = events
       .keyBy(_.fromKey) // RDD[(fromKey, event)]
       .join(connectedComponents) // RDD[(fromKey, (event, groupId-fromKey))]
-      .map(_._2) // RDD[(event, groupId-fromKey)]
+      .map(t => (t._2._1, rowKeyFormatter.statsGroup(t._1), t._2._2)) // RDD[(event, statGroup, groupId-fromKey)]
       .keyBy(_._1.toKey) // RDD[(toKey, (event, groupId-fromKey))]
-      .join(connectedComponents) // RDD[(toKey, ((event, groupId-fromKey), groupId-toKey))]
-      .map(e => (e._2._1._1, (e._2._1._2, e._2._2))) // RDD[(event, (groupId-fromKey, groupId-toKey))]
+      .join(connectedComponents) // RDD[(toKey, ((event, statGroup, groupId-fromKey), groupId-toKey))]
+      .map(e => (e._2._1._1, (e._2._1._3, e._2._2), e._2._1._2)) // RDD[(event, (groupId-fromKey, groupId-toKey), statGroup)]
       .cache()
 
     // Check events relate to only one subgraph
@@ -122,8 +131,8 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
     log.info("Checking partitioned events correctness")
     assert(eventsWithGroupingIds.filter(e => e._2._1 != e._2._2).count == 0)
 
-    // We know groupId-fromKey == groupId-toKey so we only return one of them
-    eventsWithGroupingIds.map(e => (e._2._1, e._1)) // RDD[(groupId, event)]
+    // We know groupId-fromKey == groupId-toKey so we only return one of them (same for statGroup)
+    eventsWithGroupingIds.map(e => ((e._2._1, e._3), e._1)) // RDD[(groupId, statGroup, event)]
   }
 
   /**
@@ -133,7 +142,7 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
   private def extractStatesGroups(
       states: RDD[V],
       connectedComponents: RDD[(T, Long)]
-  ): RDD[(Long, V)] = {
+  ): RDD[((Long, S), V)] = {
     log.info("Translating connected components to partitioned states")
 
     val statesWithGroupingIds = states
@@ -141,10 +150,12 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
       .leftOuterJoin(connectedComponents) // RDD[(key, (state, Option[(groupId)]))]
       .sortByKey() // Ensure consistency if zipping happens more than once because of RDD re-computation
       .zipWithIndex() // RDD[((key, (state, Option[(groupId)])), fakeId)]
-      .map { // Trick to prevent assigning all standalone states in same partition
-        case ((k, (s, Some(g))), idx) => (g, s) // RDD[(groupId, state)]
-        case ((k, (s, None)), idx) => (-idx, s) // RDD[(-fakeId, state)]
-      }
+      .map(t => {// Trick to prevent assigning all standalone states in same partition
+        val statGroup = rowKeyFormatter.statsGroup(t._1._1)
+        t match {
+          case ((k, (s, Some(g))), idx) => ((g, statGroup), s) // RDD[((groupId, statGroup), state)]
+          case ((k, (s, None)), idx) => ((-idx, statGroup), s) // RDD[((-fakeId, statGroup), state)]
+        }})
       .cache()
 
     // Check each state is joined to at most one groupId
@@ -164,16 +175,21 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
       .rdd
       .map(r => (rowKeyFormatter.toKey(r.getStruct(1)), r.getLong(2))) // RDD[(KEY, groupId)]
 
-    val eventsGroups = extractEventsGroups(events, connectedComponentsRdd) // RDD[(groupId, event)]
-    val statesGroups = extractStatesGroups(states, connectedComponentsRdd) // RDD[(groupId, state)]
+    val eventsGroups = extractEventsGroups(events, connectedComponentsRdd) // RDD[((groupId, statGroup), event)]
+    val statesGroups = extractStatesGroups(states, connectedComponentsRdd) // RDD[((groupId, statGroup), state)]
 
     val partitionedRdd = eventsGroups
-      .groupByKey() // RDD[(groupId, Iterable[event])]
-      .fullOuterJoin(statesGroups.groupByKey()) // RDD[(groupId, (Option[Iterable[event]], Option[Iterable[state]]))]
-      .map { // Transform undefined options to empty sequences
-        case (_, (e, s)) =>
-          (e.getOrElse(Seq.empty[E]), s.getOrElse(Seq.empty[V]))
-      }
+      .groupByKey() // RDD[((groupId, statGroup), Iterable[event])]
+      .fullOuterJoin(statesGroups.groupByKey()) // RDD[((groupId, statGroup), (Option[Iterable[event]], Option[Iterable[state]]))]
+      .map(tuple => {
+          // Transform undefined options to empty sequences and optionally add partition size to accumulator
+          val ((_, statGroup), (e, s)) = tuple
+          val newE = e.getOrElse(Seq.empty[E])
+          val newS = s.getOrElse(Seq.empty[V])
+          subgraphPartitionSizesAccumulator.foreach(_.add((statGroup, 1)))
+          (newE, newS)
+        }
+      )
       .cache() // RDD[(Iterable[event], Iterable[state])]
 
     log.info("Graph partitioning jobs done")

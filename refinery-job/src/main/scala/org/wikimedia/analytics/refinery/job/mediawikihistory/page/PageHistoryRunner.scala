@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
 
 
 /**
@@ -17,7 +18,7 @@ import org.apache.spark.sql.SparkSession
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class PageHistoryRunner(spark: SparkSession) extends Serializable {
+class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serializable {
 
   import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
@@ -29,6 +30,13 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
+
+  val METRIC_NAMESPACES_COUNT = "pages.namespaces.count"
+  val METRIC_MOVE_EVENTS_OK = "pages.moveEvents.OK"
+  val METRIC_MOVE_EVENTS_KO = "pages.moveEvents.KO"
+  val METRIC_DEL_REST_EVENTS_OK = "pages.delRestEvents.OK"
+  val METRIC_DEL_REST_EVENTS_KO = "pages.delRestEvents.KO"
+  val METRIC_STATES_COUNT = "pages.states.count"
 
   /**
     * Extract and clean [[PageEvent]] and [[PageState]] RDDs,
@@ -42,7 +50,8 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
     * @param namespacesPath The path of the namespaces data (CSV file)
     * @param outputPath The path to output the reconstructed page history (parquet files)
     * @param sqlPartitions The number of partitions to use as a bases for raw RDDs
-    * @param errorsPath An optional path to output errors if defined (csv files)
+    * @param errorsPath A path to output errors (csv files)
+    * @param statsPath A path to output statistics (csv files)
     */
   def run(
            wikiConstraint: Seq[String],
@@ -52,11 +61,11 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
            namespacesPath: String,
            outputPath: String,
            sqlPartitions: Int,
-           errorsPath: Option[String] = None
+           errorsPath: String,
+           statsPath: String
   ): Unit = {
 
     log.info(s"Page history jobs starting")
-
 
     //***********************************
     // Prepare page events and states RDDs
@@ -96,13 +105,17 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
       .schema(namespacesCsvSchema)
       .csv(namespacesPath)
       .rdd
-      .map(r => (
-        r.getString(1),
-        r.getInt(2),
-        if (r.isNullAt(3)) "" else r.getString(3),
-        if (r.isNullAt(4)) "" else r.getString(4),
-        r.getInt(5)))
-      .collect()
+      .map(r => {
+        val wikiDb = r.getString(1)
+        statsAccumulator.add((s"$wikiDb.$METRIC_NAMESPACES_COUNT", 1))
+        (
+          wikiDb,
+          r.getInt(2),
+          if (r.isNullAt(3)) "" else r.getString(3),
+          if (r.isNullAt(4)) "" else r.getString(4),
+          r.getInt(5)
+        )
+      }).collect()
 
     val canonicalNamespaceMap = namespaces
       .map(t => (t._1, PageEventBuilder.normalizeTitle(t._3)) -> t._2)
@@ -138,9 +151,15 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
     wiki_db
       """)
       .rdd
-      .map(PageEventBuilder.buildMovePageEvent(canonicalNamespaceMap,
-                                                      localizedNamespaceMap,
-                                                      isContentNamespaceMap))
+      .map(row => {
+        val pageEvent = PageEventBuilder.buildMovePageEvent(
+          canonicalNamespaceMap,
+          localizedNamespaceMap,
+          isContentNamespaceMap)(row)
+        val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_MOVE_EVENTS_OK else METRIC_MOVE_EVENTS_KO
+        statsAccumulator.add((s"${pageEvent.wikiDb}.$metricName", 1))
+        pageEvent
+      })
 
     val deleteAndRestorePageEventsRdd = spark.sql(
       s"""
@@ -166,7 +185,13 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
     log_action
         """)
       .rdd
-      .map(PageEventBuilder.buildSimplePageEvent(isContentNamespaceMap))
+      .map(
+        row => {
+          val pageEvent = PageEventBuilder.buildSimplePageEvent(isContentNamespaceMap)(row)
+          val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_DEL_REST_EVENTS_OK else METRIC_DEL_REST_EVENTS_KO
+          statsAccumulator.add((s"${pageEvent.wikiDb}.$metricName", 1))
+          pageEvent
+        })
 
     // DON'T REPARTITION !!!!!
     // See https://issues.apache.org/jira/browse/SPARK-10685
@@ -225,26 +250,28 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
       """)
       .rdd
       .map(row => {
-          val wikiDb = row.getString(5)
-          val title = row.getString(2)
-          val namespace = row.getInt(3)
-          val isContentNamespace = isContentNamespaceMap((wikiDb, namespace))
-          new PageState(
-                pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
-                pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
-                pageFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
-                titleHistorical = title,
-                title = title,
-                namespaceHistorical = namespace,
-                namespaceIsContentHistorical = isContentNamespace,
-                namespace = namespace,
-                namespaceIsContent = isContentNamespace,
-                isRedirect = Some(row.getBoolean(6)),
-                startTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
-                endTimestamp = None,
-                causedByEventType = "create",
-                causedByUserId = if (row.isNullAt(4)) None else Some(row.getLong(4)),
-                wikiDb = wikiDb)
+        val wikiDb = row.getString(5)
+        val title = row.getString(2)
+        val namespace = row.getInt(3)
+        val isContentNamespace = isContentNamespaceMap((wikiDb, namespace))
+        statsAccumulator.add((s"$wikiDb.$METRIC_STATES_COUNT", 1L))
+        new PageState(
+          pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
+          pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
+          pageFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
+          titleHistorical = title,
+          title = title,
+          namespaceHistorical = namespace,
+          namespaceIsContentHistorical = isContentNamespace,
+          namespace = namespace,
+          namespaceIsContent = isContentNamespace,
+          isRedirect = Some(row.getBoolean(6)),
+          startTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
+          endTimestamp = None,
+          causedByEventType = "create",
+          causedByUserId = if (row.isNullAt(4)) None else Some(row.getLong(4)),
+          wikiDb = wikiDb
+        )
       })
       .cache()
 
@@ -255,14 +282,14 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
     // Reconstruct page history
     //***********************************
 
-    val pageHistoryBuilder = new PageHistoryBuilder(spark)
-    val (pageHistoryRdd, unmatchedEvents) = pageHistoryBuilder.run(pageEvents, pageStates, errorsPath.isDefined)
+    val pageHistoryBuilder = new PageHistoryBuilder(spark, statsAccumulator)
+    val (pageHistoryRdd, unmatchedEvents) = pageHistoryBuilder.run(pageEvents, pageStates)
 
-    log.info(s"Page history reconstruction done, writing results (and errors if specified)")
+    log.info(s"Page history reconstruction done, writing results and errors")
 
 
     //***********************************
-    // Write results (and possibly errors)
+    // Write results
     //***********************************
 
     // Write history
@@ -271,24 +298,30 @@ class PageHistoryRunner(spark: SparkSession) extends Serializable {
     pageHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"Page history reconstruction results written")
 
-    // Write errors (if path provided)
-    val parsingErrorEvents = parsedPageEvents.filter(_.parsingErrors.nonEmpty).cache()
-    log.info("Page history parsing errors: " + parsingErrorEvents.count.toString)
-    if (errorsPath.isDefined) {
-      val matchingErrorEvents = unmatchedEvents.right.get
-      log.info("Unmatched events: " + matchingErrorEvents.count.toString)
-      val errorDf = spark.createDataFrame(
-        matchingErrorEvents.map(e => Row("matching", e.toString)),
-        StructType(Seq(
-          StructField("type", StringType, nullable = false),
-          StructField("event", StringType, nullable = false)
-        ))
-      )
-      errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath.get)
-      log.info(s"Page history reconstruction errors written")
-    } else {
-      log.info("Page history unmatched events: " + unmatchedEvents.left.get.toString)
-    }
+    //***********************************
+    // Write errors
+    //***********************************
+
+    val parsingErrorEvents = parsedPageEvents.filter(_.parsingErrors.nonEmpty)
+    val errorDf = spark.createDataFrame(
+        parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString)).union(
+        unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
+      ),
+      StructType(Seq(
+        StructField("wiki_db", StringType, nullable = false),
+        StructField("error_type", StringType, nullable = false),
+        StructField("event", StringType, nullable = false)
+      ))
+    )
+    errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
+    log.info(s"Page history reconstruction errors written")
+
+
+    //***********************************
+    // Write stats
+    //***********************************
+    statsDataframe.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
+    log.info(s"Page history reconstruction stats written")
 
     log.info(s"Page history jobs done")
   }

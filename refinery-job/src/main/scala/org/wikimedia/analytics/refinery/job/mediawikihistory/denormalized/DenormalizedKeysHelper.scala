@@ -4,8 +4,6 @@ import java.sql.Timestamp
 
 import org.apache.spark.Partitioner
 
-import scala.math.Ordered.orderingToOrdered
-
 /**
   * Generalisation of an object having start and end timestamp.
   * Used to generate the set of years covered by such an object.
