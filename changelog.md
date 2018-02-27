@@ -1,5 +1,7 @@
 ## v0.0.74
 * Add --table-whitelist flag to EventLoggingSanitization job
+* Add ConfigHelper to assist in configuring scala jobs with properties files
+  and CLI overrides
 
 ## v0.0.73
 * Add usability, advisory and strategy wikimedia sites to pageview definition
