@@ -27,8 +27,74 @@ import org.apache.spark.sql.types._
   *     val hiveAlterStatement = table.schema.hiveAlterDDL("mydb.mytable", df.schema)
   *     hiveContext.sql(hiveAlterStatement)
   */
-object SparkSQLHiveExtensions {
-    private val log = LogManager.getLogger("SparkSQLHiveExtensions")
+object SparkSQLHiveExtensions extends LogHelper {
+
+
+    /**
+      * ValueCaster is a function that maps from Any to Option[Any].
+      * It is used when converting a DataFrame from one schema to another,
+      * where fields might be different but castable types.
+      */
+    type ValueCaster = (Any) => Option[Any]
+
+    /**
+      * Returns Option of ValueCaster if there is a way defined to cast from src to dst DataType.
+      * If there is no defined way to cast, this returns None.  Add a case to this function
+      * if you need to define a new caster.
+      *
+      * @param src
+      * @param dst
+      * @return
+      */
+    def getValueCaster(src: DataType, dst: DataType): Option[ValueCaster] = {
+        (src, dst) match {
+            case (StringType, LongType) => Some((stringToLong _).asInstanceOf[ValueCaster])
+            case (DecimalType(), LongType) => Some((bigDecimalToLong _).asInstanceOf[ValueCaster])
+            case _ => None
+        }
+    }
+
+    /**
+      * Attempts to call v.toLong.  If cast fails due to NumberFormatException, returns None.
+      * @param v
+      * @return
+      */
+    private def stringToLong(v: String): Option[Long] = {
+        try {
+            Some(v.toLong)
+        }
+        catch {
+            case e: java.lang.NumberFormatException => {
+                log.warn(s"Failed casting String '$v' to a Long, value will be null. $e")
+                None
+            }
+        }
+    }
+
+    /**
+      * Attempts to call v.longValueExact.  A BigDecimal that doesn't
+      * fit into a Long will cause a ArithmeticException, which will result in
+      * this returning None.
+      * @param v
+      * @return
+      */
+    private def bigDecimalToLong(v: java.math.BigDecimal): Option[Long] = {
+        try {
+            Some(v.longValueExact)
+        }
+        catch {
+            case e: java.lang.ArithmeticException => {
+                if (e.getMessage == "Rounding necessary") {
+                    log.warn(s"Rounding necessary when casting BigDecimal $v to Long.")
+                    Some(v.longValue)
+                }
+                else {
+                    log.warn(s"Failed casting BigDecimal $v to a Long, value will be null. $e")
+                    None
+                }
+            }
+        }
+    }
 
     /**
       * Implicit methods extensions for Spark StructField.
@@ -131,29 +197,46 @@ object SparkSQLHiveExtensions {
             }
         }
 
-        def isLongType: Boolean = {
-            field.dataType match {
-                case(LongType) => true
-                case _ => false
-            }
-        }
-
         /**
           * Find the tightest common DataType of a Seq of StructFields by continuously applying
-          * `HiveTypeCoercion.findTightestCommonTypeOfTwo` on these types.
+          * `HiveTypeCoercion.findTightestCommonTypeOfTwo` on these types, or choosing the
+          * left most type (original) if we have a value caster defined from candidate -> original type.
+          *
           * See: https://github.com/apache/spark/blob/v1.6.0/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/HiveTypeCoercion.scala#L65-L87
           *
           * @param fields
           * @return
           */
-        def tightestCommonType(fields: Seq[StructField]): Option[DataType] = {
-            fields.map(_.dataType).foldLeft[Option[DataType]](Some(field.dataType))((r, c) => r match {
-                case None => None
-                case Some(d) => HiveTypeCoercion.findTightestCommonTypeOfTwo(d, c)
+        def chooseCompatibleType(fields: Seq[StructField]): Option[DataType] = {
+            fields.map(_.dataType).foldLeft[Option[DataType]](Some(field.dataType))((acc, candidate) => acc match {
+                case None    => None
+                case Some(original) => {
+                    // If the types of the two current fields are the same, just use original.
+                    if (original == candidate) {
+                        return Some(original)
+                    }
+
+                    // If Spark can handle type coercion from candidate -> original, then
+                    // return the type it will use.
+                    val tightest = HiveTypeCoercion.findTightestCommonTypeOfTwo(original, candidate)
+                    if (tightest.isDefined) {
+                        log.debug(s"HiveTypeCoercion is possible, choosing type ${tightest.get} for ($original, $candidate)")
+                        tightest
+                    }
+                    // Else if we have a custom caster defined from candidate -> original, then choose original.
+                    // Later, if convertDataFrame is called, we will be able to convert the candidate field
+                    // to the original DataType using this caster.
+                    else if (getValueCaster(candidate, original).isDefined) {
+                        log.debug(s"Casting is possible from $candidate -> $original, choosing $original")
+                        Some(original)
+                    }
+                    else {
+                        None
+                    }
+                }
             })
         }
     }
-
 
     /**
       * Implicit method extensions for Spark StructType.
@@ -231,8 +314,8 @@ object SparkSQLHiveExtensions {
         /**
           * Returns a new StructType with otherStruct merged into this.  Any identical duplicate
           * fields shared by both will be reduced to one field.  Non StructType Fields with the
-          * same name but different types will result in an IllegalStateException.  StructType
-          * fields with the same name will be recursively merged.  All fields will
+          * same name but different incompatible types will result in an IllegalStateException.
+          * StructType fields with the same name will be recursively merged.  All fields will
           * be made nullable.  Comparison of top level field names is done case insensitively,
           * i.e. myField is equivalent to myfield.
           *
@@ -284,12 +367,12 @@ object SparkSQLHiveExtensions {
                             StructField(name, mergedStruct, nullable=true)
                         }
                         case fields => {
-                            // Find the tightest common type for Hive. If there is there is only
+                            // Find the tightest common type for this field. If there is there is only
                             // one field for this name, this will return that field's type.
                             // If there are multiple fields, this will try to find a common
                             // type that can be cast.  E.g. if we are given an LongType
                             // and a DoubleType, this will return DoubleType.
-                            val commonDataType = fields.head.tightestCommonType(fields.tail)
+                            val commonDataType = fields.head.chooseCompatibleType(fields.tail)
                             // If there is no common type between these fields, then fail now.
                             if (commonDataType.isEmpty) {
                                 throw new IllegalStateException(
@@ -300,16 +383,19 @@ object SparkSQLHiveExtensions {
                             // Else: let's get weird.  Since we don't support type changes,
                             // We choose to keep the first field type we have.  This should
                             // be the field belonging to this struct schema (which is probably
-                            // a Hive table schema).
+                            // a Hive table schema).  Because we know that there is a compatible
+                            // DataType, then a DataFrame that uses the non original
+                            // field should still be convertable to to the original one later,
+                            // either by Spark-Hive, or by one of our custom caster functions.
                             else if (commonDataType.get != fields.head.dataType) {
                                 log.warn(
                                     s"$name has repeat types which are resolvable.  " +
                                     s"Choosing ${fields.head.dataType} for schema merge.  " +
                                     s"Other fields were:\n  ${fields.tail.mkString("  \n")}\n" +
                                     "NOTE: Data loaded into the merged schema might " +
-                                    "lose precision or nullify all fields for a " +
+                                    "lose precision or nullify fields for a " +
                                     "conflicting record, depending on the value of the " +
-                                    "DataFrameReader mode option used.  See also: " +
+                                    "DataFrameReader mode option used and available casters. See also: " +
                                     "https://spark.apache.org/docs/2.0.2/api/java/org/apache/spark/sql/DataFrameReader.html#json(java.lang.String...)"
                                 )
                             }
@@ -540,7 +626,7 @@ object SparkSQLHiveExtensions {
                     // If DataTypes are incompatible and not StructTypes.
                     if (!fieldType.isInstanceOf[StructType] &&
                         !superSchemaFieldType.isInstanceOf[StructType] &&
-                        field.tightestCommonType(Seq(superSchemaField)).isEmpty
+                        superSchemaField.chooseCompatibleType(Seq(field)).isEmpty
                     ) {
                         incompatibleFields :+ (
                             field,
@@ -603,15 +689,29 @@ object SparkSQLHiveExtensions {
 
             // Build a tree keeping indices of the srcSchema for the given dstSchema (if any)
             def buildConversionTreeRec(srcSchema: StructType, dstSchema: StructType): Array[Node] = {
-                dstSchema.fields.map(field => {
-                    val idx = srcSchema.fieldNames.indexOf(field.name)
+                dstSchema.fields.map(dstField => {
+                    val idx = srcSchema.fieldNames.indexOf(dstField.name)
                     if (idx == -1) TLeaf(None)
-                    else field.dataType match {
+                    else dstField.dataType match {
                         case fieldType: StructType => TInner(idx, buildConversionTreeRec(
                             srcSchema(idx).dataType.asInstanceOf[StructType],
                             fieldType
                         ))
-                        case _ => TLeaf(Some(idx))
+
+                        case _ => {
+                            // If we have a custom way to cast between these DataTypes,
+                            // then get the caster function and pass it to the TLeaf node.
+                            // This function will be called on every field value on incoming
+                            // DataFrame to attempt to cast it to the schema's type.
+                            val caster = getValueCaster(srcSchema(idx).dataType, dstField.dataType)
+                            if (caster.isDefined) {
+                                log.info(
+                                    s"Will attempt to cast field `${dstField.name}` from " +
+                                    s"${srcSchema(idx).dataType} to ${dstField.dataType}"
+                                )
+                            }
+                            TLeaf(Some(idx), caster)
+                        }
                     }
                 })
             }
@@ -641,6 +741,7 @@ object SparkSQLHiveExtensions {
     }
 }
 
+
 /**
   * Trait and subclasses providing schema-conversion utilities
   * (see DataFrameExtensions.convertToSchema)
@@ -651,7 +752,7 @@ object SparkSQLHiveExtensions {
   *
   * Spark does not like nulls for non struct fields, but requires them for structs.
   */
-sealed trait Node {
+sealed trait Node extends LogHelper {
     def valueFromRow(r: Row): Any
 }
 
@@ -660,10 +761,21 @@ sealed trait Node {
   * to get the value from the dataframe (at the same sub-object level)
   * @param idx Optional index to get existing value in DF (same sub-object level)
   */
-case class TLeaf(idx: Option[Int]) extends Node {
+case class TLeaf(idx: Option[Int], caster: Option[SparkSQLHiveExtensions.ValueCaster] = None) extends Node {
     def valueFromRow(r: Row): Any = {
         if (idx.isEmpty || r.isNullAt(idx.get)) None
-        else Some(r.get(idx.get))
+        else {
+            val value = r.get(idx.get)
+            caster match {
+                case Some(fn) => {
+                    log.debug(s"Attempting to cast $value...")
+                    val castValue = fn(value)
+                    log.debug(s"Successfully Cast $value to $castValue")
+                    castValue
+                }
+                case _ => value
+            }
+        }
     }
 }
 

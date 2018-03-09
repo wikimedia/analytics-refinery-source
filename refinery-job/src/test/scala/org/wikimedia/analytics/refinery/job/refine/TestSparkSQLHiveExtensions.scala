@@ -229,7 +229,6 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         schema1.merge(schema2, lowerCaseTopLevel=true) should equal(expected)
     }
 
-
     it should "build non external no partitions create DDL with single schema" in {
         val schema = StructType(Seq(
             StructField("f2", LongType, nullable = true),
@@ -415,7 +414,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
 
     it should "find incompatible fields for 'not-unordered-superset' (different types)" in {
         val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
-        val biggerSchema = StructType(StructField("a", StringType, false) :: Nil)
+        val biggerSchema = StructType(StructField("a", BooleanType, false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.head.name should equal("a")
@@ -585,6 +584,87 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
             r.getString(1) should equal("aa2")
             r.isNullAt(2) should equal(true)
         })
+    }
+
+    it should "merge to LongType from large Long, not StringType" in {
+        val sqlContext = new SQLContext(sc)
+        val events = sc.parallelize(Seq(
+            """{"id": 1, "event": {"num": 123}}""",
+            """{"id": 2, "event": {"num": 9223372036854776000}}"""
+        ))
+
+        val tableSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("num", LongType, nullable = true)
+            )))
+        ))
+
+        val df = sqlContext.read.json(events)
+        tableSchema.merge(df.schema) should equal(tableSchema)
+    }
+
+
+
+    it should "convert DataFrame with inferred StringType to LongType, nullifying only bad field" in {
+        val sqlContext = new SQLContext(sc)
+        val events = sc.parallelize(Seq(
+            """{"id": 1, "event": {"num": 123}}""",
+            """{"id": 2, "event": {"num": "456"}}""",
+            """{"id": 2, "event": {"num": 9223372036854776000}}""" // json parses this as a string!
+        ))
+
+        val tableSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("num", LongType, nullable = true)
+            )))
+        ))
+        val df = sqlContext.read.json(events)
+
+        val newDf = df.convertToSchema(tableSchema)
+        newDf.registerTempTable("newDf")
+
+        // 9223372036854776000 -> NULL, NumberFormatException
+        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(1)
+        // 123 -> 123, "456" -> 456
+        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(2)
+        // id should be cool.
+        sqlContext.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
+    }
+
+    it should "convert DataFrame with DecimalType to LongType, nullifying only bad field" in {
+        val sqlContext = new SQLContext(sc)
+        val events = sc.parallelize(Seq(
+            """{"id": 1, "event": {"num": 123}}""",
+            """{"id": 1, "event": {"num": 456.456}}""",
+            """{"id": 2, "event": {"num": 9223372036854776000}}"""
+        ))
+
+        val tableSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("num", LongType, nullable = true)
+            )))
+        ))
+
+        val eventSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("num", DataTypes.createDecimalType(20, 0), nullable = true)
+            )))
+        ))
+        val df = sqlContext.read.schema(eventSchema).json(events)
+
+        val newDf = df.convertToSchema(tableSchema)
+        newDf.registerTempTable("newDf")
+
+        // 9223372036854776000 -> NULL, Overflow
+        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(1)
+        // 123 -> 123, 456.456 -> 456
+        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(2)
+        // id should be cool.
+        sqlContext.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
     }
 }
 
