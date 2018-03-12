@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEvent
 import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
 
 
@@ -415,7 +416,6 @@ class PageHistoryBuilder(
     Seq[PageState], // processed states
     Seq[PageEvent] // unmatched events
   ) = {
-    val statesMap = states.map(s => s.key -> s).toMap
     val sortedEvents = events.toList.sortWith {
       case (a, b) =>
         a.timestamp.after(b.timestamp) ||
@@ -427,16 +427,25 @@ class PageHistoryBuilder(
           b.eventType != "move"
         )
     }
-    val initialStatus = new ProcessingStatus(
-      potentialStates = statesMap,
-      restoredStates = Map.empty[PageHistoryBuilder.KEY, PageState],
-      knownStates = Seq.empty[PageState],
-      unmatchedEvents = Seq.empty[PageEvent]
-    )
-    val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
-    val finalStates = finalStatus.knownStates ++
-      finalStatus.potentialStates.values.map(s => s.copy(startTimestamp = s.pageCreationTimestamp))
-    (updateCreateStartTimestamp(propagatePageCreation(finalStates)), finalStatus.unmatchedEvents)
+    val (fStates: Seq[PageState], unmatchedEvents: Seq[PageEvent]) = {
+      if (sortedEvents.isEmpty) {
+        val finalStates = states.map(s => s.copy(startTimestamp = s.pageCreationTimestamp)).toSeq
+        (finalStates, Seq.empty[PageEvent])
+      } else {
+        val initialStatus = new ProcessingStatus(
+          potentialStates = states.map(s => s.key -> s).toMap,
+          restoredStates = Map.empty[PageHistoryBuilder.KEY, PageState],
+          knownStates = Seq.empty[PageState],
+          unmatchedEvents = Seq.empty[PageEvent]
+        )
+        val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
+        val finalStates = finalStatus.knownStates ++
+          finalStatus.potentialStates.values.map(s => s.copy(startTimestamp = s.pageCreationTimestamp))
+        (finalStates, finalStatus.unmatchedEvents)
+      }
+    }
+    (updateCreateStartTimestamp(propagatePageCreation(fStates)), unmatchedEvents)
+
   }
 
   /**
@@ -460,8 +469,15 @@ class PageHistoryBuilder(
     log.info(s"Page history building jobs starting")
 
     val partitioner = new SubgraphPartitioner[
-      PageHistoryBuilder.KEY, PageHistoryBuilder.STATS_GROUP, PageEvent, PageState](
-      spark, PageHistoryBuilder.PageRowKeyFormat, Some(statsAccumulator))
+      PageHistoryBuilder.KEY,
+      PageHistoryBuilder.STATS_GROUP,
+      PageEvent,
+      PageState
+    ](
+      spark,
+      PageHistoryBuilder.PageRowKeyFormat,
+      Some(statsAccumulator)
+    )
     val subgraphs = partitioner.run(events, states)
 
     log.info(s"Processing partitioned page histories")

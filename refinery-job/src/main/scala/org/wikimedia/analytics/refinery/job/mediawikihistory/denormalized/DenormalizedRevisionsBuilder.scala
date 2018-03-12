@@ -17,7 +17,7 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulato
   *
   * It then returned the updated revisions RDD to the [[DenormalizedRunner]].
   */
-class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long]) extends Serializable {
+class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long], numPartitions: Int) extends Serializable {
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
@@ -361,7 +361,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
     val archivedRevisionsWithDeleteTime = populateDeleteTime(archivedRevisions, pageStates)
 
     log.info(s"Union-ing denormalized archived revisions and live revisions")
-    val revisions = liveRevisions.union(archivedRevisionsWithDeleteTime)
+    val revisions = liveRevisions.union(archivedRevisionsWithDeleteTime).repartition(numPartitions)
 
     log.info(s"Populating text bytes diff for denormalized revisions")
     val revisionsWithDiff = populateByteDiff(revisions)
@@ -397,7 +397,8 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
       DenormalizedKeysHelper.compareMediawikiEventKeys,
       updateRevisionWithOptionalRevertsList(new DenormalizedRevisionsBuilder.RevertsListsState)) _
     val revisionsWithDiffAndPerUserAndPageMetricsAndRevert = revisionsWithDiffAndPerUserAndPageMetrics
-      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
+      //.keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
+      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r))
       .repartitionAndSortWithinPartitions(historyPartitioner)
       .zipPartitions(revertsLists)(
         (keysAndRevisions, keysAndRevertsLists) => zipper(keysAndRevisions, keysAndRevertsLists)

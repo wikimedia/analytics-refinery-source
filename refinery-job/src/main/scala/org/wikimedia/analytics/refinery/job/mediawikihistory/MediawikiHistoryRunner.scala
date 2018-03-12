@@ -62,7 +62,7 @@ object MediawikiHistoryRunner {
                     wikiConstraint: Seq[String] = Seq.empty[String],
                     snapshot: Option[String] = None,
                     tmpPath: String = "hdfs://analytics-hadoop/tmp/mediawiki/history/checkpoints",
-                    numPartitions: Int = 128,
+                    baseNumPartitions: Int = 64,
                     debug: Boolean = false,
                     runUsersHistory: Boolean = false,
                     runPagesHistory: Boolean = false,
@@ -108,10 +108,12 @@ object MediawikiHistoryRunner {
     } text "Path to use as checkpoint directory for Spark (temporary data).\n\t" +
       "Defaults to hdfs://analytics-hadoop/tmp/mediawiki/history/checkpoints"
 
-    opt[Int]('n', "num-partitions") optional() action { (x, p) =>
-      p.copy(numPartitions = x)
-    } text "Number of partitions to split users and pages datasets by.\n\t" +
-      "Revisions dataset is split by 8 * num-partitions. Defaults to 64"
+    opt[Int]('n', "base-num-partitions") optional() action { (x, p) =>
+      p.copy(baseNumPartitions = x)
+    } text "Base number of partitions to split jobs.\n\t" +
+      "users history uses base-num-partitions\n\t" +
+      "pages history uses base-num-partitions * 4.\n\t" +
+      "Revisions denormalization uses base-num-partitions * 16.\n\tDefaults to 64"
 
     opt[Unit]("debug").action( (_, c) =>
       c.copy(debug = true) ).text("debug mode -- spark logs added to applicative logs (VERY verbose)")
@@ -140,9 +142,14 @@ object MediawikiHistoryRunner {
         val outputBasePath = params.outputBasePath
 
         val wikiConstraint = params.wikiConstraint
-        val snapshotPartition = if (params.snapshot.isDefined) s"/snapshot=${params.snapshot.get}" else ""
+        val snapshot = params.snapshot
+        val snapshotPartition = if (snapshot.isDefined) s"/snapshot=${snapshot.get}" else ""
 
-        val numPartitions = params.numPartitions
+        val baseNumPartitions = params.baseNumPartitions
+        val usersNumPartitions = baseNumPartitions
+        val pagesNumPartitions = baseNumPartitions * 4
+        val revisionsNumPartitions = baseNumPartitions * 16
+
         val tmpPath = params.tmpPath
         val debug = params.debug
         val runUsersHistory = params.runAll || params.runUsersHistory
@@ -190,13 +197,13 @@ object MediawikiHistoryRunner {
         log.info(
           s"""
              |Starting MediawikiHistoryRunner with params:
-             |  mediawiki-base-path:    ${params.mediawikiBasePath}
-             |  output-base-path:       ${params.outputBasePath}
-             |  wikis:                  ${params.wikiConstraint}
-             |  snapshot:               ${params.snapshot}
-             |  temporary-path:         ${params.tmpPath}
-             |  num-partitions:         ${params.numPartitions}
-             |  debug:                  ${params.debug}
+             |  mediawiki-base-path:    $mediawikiBasePath
+             |  output-base-path:       $outputBasePath
+             |  wikis:                  $wikiConstraint
+             |  snapshot:               $snapshot
+             |  temporary-path:         $tmpPath
+             |  num-partitions:         $baseNumPartitions
+             |  debug:                  $debug
              |  users-history:          $runUsersHistory
              |  pages-history:          $runPagesHistory
              |  revisions-denormalize:  $runDenormalize
@@ -225,47 +232,48 @@ object MediawikiHistoryRunner {
             classOf[UserState]))
         val spark = SparkSession.builder().config(conf).getOrCreate()
         spark.sparkContext.setCheckpointDir(tmpPath)
-
+        
         // Launch jobs as needed
 
         // User History
         if (runUsersHistory)
-          new UserHistoryRunner(spark).run(
+          new UserHistoryRunner(spark, usersNumPartitions).run(
             wikiConstraint,
             loggingDataPath,
             userDataPath,
             userGroupsDataPath,
             revisionDataPath,
             userHistoryPath,
-            numPartitions,
             userHistoryErrorsPath,
             userHistoryStatsPath
           )
 
+        spark.sqlContext.clearCache()
+
         // Page history
         if (runPagesHistory)
-          new PageHistoryRunner(spark).run(
+          new PageHistoryRunner(spark, pagesNumPartitions).run(
             wikiConstraint,
             loggingDataPath,
             pageDataPath,
             revisionDataPath,
             namespacesPath,
             pageHistoryPath,
-            numPartitions,
             pageHistoryErrorsPath,
             pageHistoryStatsPath
           )
 
+        spark.sqlContext.clearCache()
+
         // Revisions and denormalization
         if (runDenormalize)
-          new DenormalizedRunner(spark).run(
+          new DenormalizedRunner(spark, revisionsNumPartitions).run(
             wikiConstraint,
             revisionDataPath,
             archiveDataPath,
             userHistoryPath,
             pageHistoryPath,
             denormalizedHistoryPath,
-            numPartitions * 8,
             denormalizedHistoryErrorsPath,
             denormalizedHistoryStatsPath
           )

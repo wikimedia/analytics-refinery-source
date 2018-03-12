@@ -23,7 +23,7 @@ class TestDenormalizedRevisionsBuilder
   override def beforeEach(): Unit = {
     statsAccumulator = new MapAccumulator[String, Long]
     sc.register(statsAccumulator)
-    denormalizedRevisionsBuilder = new DenormalizedRevisionsBuilder(statsAccumulator)
+    denormalizedRevisionsBuilder = new DenormalizedRevisionsBuilder(statsAccumulator, 1)
   }
 
 

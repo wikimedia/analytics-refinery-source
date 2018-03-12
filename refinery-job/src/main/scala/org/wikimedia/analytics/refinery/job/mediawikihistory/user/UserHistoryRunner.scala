@@ -18,7 +18,7 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serializable {
+class UserHistoryRunner(val spark: SparkSession, numPartitions: Int) extends StatsHelper with Serializable {
 
   import com.databricks.spark.avro._
   import org.apache.spark.sql.{Row, SaveMode}
@@ -47,7 +47,6 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     * @param userGroupsDataPath The path of the user_groups data (avro files partitioned by wiki_db)
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
     * @param outputPath The path to output the reconstructed user history (parquet files)
-    * @param sqlPartitions The number of partitions to use as a bases for raw RDDs
     * @param errorsPath An path to output errors (csv files)
     * @param statsPath An path to output statistics (csv files)
     */
@@ -58,7 +57,6 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
            userGroupsDataPath: String,
            revisionDataPath: String,
            outputPath: String,
-           sqlPartitions: Int,
            errorsPath: String,
            statsPath: String
   ): Unit = {
@@ -69,7 +67,9 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     // Prepare user events and states RDDs
     //***********************************
 
-    spark.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
+    // Work with 4 times more partitions that expected for file production
+    // during events and states pre stages
+    spark.sql("SET spark.sql.shuffle.partitions=" + 4 * numPartitions)
 
     val loggingDf = spark.read.avro(loggingDataPath)
     loggingDf.createOrReplaceTempView("logging")
@@ -262,7 +262,7 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
 
     // TODO : Compute is_bot_for_other_wikis
 
-    log.info(s"User history reconstruction done, writing results (and errors if specified)")
+    log.info(s"User history reconstruction done, writing results, errors and statsde")
 
 
     //***********************************
@@ -270,7 +270,7 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     //***********************************
 
     val userHistoryDf = spark.createDataFrame(userHistoryRdd.map(_.toRow), UserState.schema)
-    userHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
+    userHistoryDf.repartition(numPartitions).write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"User history reconstruction results written")
 
 
@@ -280,8 +280,8 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
 
     val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty)
     val errorDf = spark.createDataFrame(
-      parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString)).union(
-        unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
+      parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString))
+        .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
       ),
       StructType(Seq(
         StructField("wiki_db", StringType, nullable = false),
@@ -289,14 +289,14 @@ class UserHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
         StructField("event", StringType, nullable = false)
       ))
     )
-    errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
+    errorDf.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
     log.info(s"User history reconstruction errors written")
 
 
     //***********************************
     // Write stats
     //***********************************
-    statsDataframe.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
+    statsDataframe.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
     log.info(s"User history reconstruction stats written")
 
     log.info(s"User history jobs done")

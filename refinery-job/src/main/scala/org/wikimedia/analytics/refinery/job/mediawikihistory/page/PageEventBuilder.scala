@@ -1,27 +1,25 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 /**
-  * This object contains utility functions to parse page data
+  * This class contains utility functions to parse page data
   * from the logging table.
   * It uses [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer]].
+  *
+  * @param canonicalNamespaceMap A map providing canonical namespace name for each project/namespace
+  * @param localizedNamespaceMap A map providing localized namespace name for each project/namespace
+  * @param isContentNamespaceMap A map providing isContent value for each project/namespace
+  *
   */
-object PageEventBuilder extends Serializable {
+class PageEventBuilder(
+                        canonicalNamespaceMap: Map[(String, String), Int],
+                        localizedNamespaceMap: Map[(String, String), Int],
+                        isContentNamespaceMap: Map[(String, Int), Boolean]
+                      ) extends Serializable {
 
   import org.apache.spark.sql.Row
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
   import java.sql.Timestamp
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
-
-  /**
-    * Page title normalization (trims whitespaces, swaps spaces for underscore,
-    * and removes \n1 artifact)
-    *
-    * @param title The title to normalize
-    * @return The normalized title
-    */
-  def normalizeTitle(title: String): String = {
-    title.trim.replaceAll(" ", "_").stripSuffix("\n1")
-  }
 
   /**
     * Regular expression matching a string that should contain a map of php serialized
@@ -49,34 +47,35 @@ object PageEventBuilder extends Serializable {
       case _ =>
         logParams
     }
-    (normalizeTitle(logTitle), normalizeTitle(logParamsParsed))
+    (PageEventBuilder.normalizeTitle(logTitle), PageEventBuilder.normalizeTitle(logParamsParsed))
   }
 
   /**
-    * Builds a move [[PageEvent]] from project/namespace maps and a row following this schema:
-    * (log_type, log_timestamp, user_id, old_page_title, log_params, old_page_namespace, wiki_db, event_type)
+    * Builds a move [[PageEvent]] from a row following this schema:
+    *   log_type
+    *   log_action
+    *   log_page
+    *   log_timestamp
+    *   log_user
+    *   log_title
+    *   log_params
+    *   log_namespace
+    *   wiki_db
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is so far use on.ly with move value in this function. See [[buildSimplePageEvent]].
     *
-    * @param canonicalNamespaceMap A map providing canonical namespace name for each project/namespace
-    * @param localizedNamespaceMap A map providing localized namespace name for each project/namespace
-    * @param isContentNamespaceMap A map providing isContent value for each project/namespace
     * @param log The row containing the move data
     * @return the move [[PageEvent]] built
     */
-  def buildMovePageEvent(
-      canonicalNamespaceMap: Map[(String, String), Int],
-      localizedNamespaceMap: Map[(String, String), Int],
-      isContentNamespaceMap: Map[(String, Int), Boolean]
-  )(log: Row): PageEvent = {
+  def buildMovePageEvent(log: Row): PageEvent = {
     val logType = log.getString(0)
-    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(1))
-    val logUser = if (log.isNullAt(2)) None else Some(log.getLong(2))
-    val logTitle = log.getString(3)
-    val logParams = log.getString(4)
-    val logNamespace = if (log.isNullAt(5)) Integer.MIN_VALUE else log.getInt(5)
-    val wikiDb = log.getString(6)
+    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
+    val logUser = if (log.isNullAt(4)) None else Some(log.getLong(4))
+    val logTitle = log.getString(5)
+    val logParams = log.getString(6)
+    val logNamespace = if (log.isNullAt(7)) Integer.MIN_VALUE else log.getInt(7)
+    val wikiDb = log.getString(8)
 
     // Handle timestamp possible error
     val logTimestamp = logTimestampUnchecked.getOrElse(new Timestamp(0L))
@@ -137,23 +136,30 @@ object PageEventBuilder extends Serializable {
   /**
     * Builds a [[PageEvent]] from a map isContent value for each project/namespace
     * and a row following this schema:
-    * (page_id, page_title, page_namespace, log_timestamp, user_id, wiki_db, log_type)
+    *   log_type
+    *   log_action
+    *   log_page
+    *   log_timestamp
+    *   log_user
+    *   log_title
+    *   log_params
+    *   log_namespace
+    *   wiki_db
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is to be either delete or restore in this function. See [[buildMovePageEvent]]
     *
-    * @param isContentNamespaceMap A map providing isContent value for each project/namespace
     * @param log The row containing the data
     * @return The [[PageEvent]] built
     */
-  def buildSimplePageEvent(isContentNamespaceMap: Map[(String, Int), Boolean])(log: Row): PageEvent = {
-    val wikiDb = log.getString(5)
+  def buildSimplePageEvent(log: Row): PageEvent = {
+    val wikiDb = log.getString(8)
 
     // Handle possible title error
-    val title = log.getString(1)
+    val title = log.getString(5)
     val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
 
-    val namespace = if (log.isNullAt(2)) Integer.MIN_VALUE else log.getInt(2)
+    val namespace = if (log.isNullAt(7)) Integer.MIN_VALUE else log.getInt(7)
     val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
     val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
 
@@ -162,7 +168,7 @@ object PageEventBuilder extends Serializable {
     val timestampError = if (logTimestampUnchecked.isEmpty) Seq("Could not parse timestamp") else Seq.empty[String]
 
     new PageEvent(
-      pageId = if (log.isNullAt(0)) None else Some(log.getLong(0)),
+      pageId = if (log.isNullAt(2)) None else Some(log.getLong(2)),
       oldTitle = title,
       // in delete and restore events, old title = new title
       newTitle = title,
@@ -173,11 +179,26 @@ object PageEventBuilder extends Serializable {
       newNamespace = namespace,
       newNamespaceIsContent = namespaceIsContent,
       timestamp = logTimestamp,
-      eventType = log.getString(6),
+      eventType = log.getString(1),
       causedByUserId = if (log.isNullAt(4)) None else Some(log.getLong(4)),
       wikiDb = wikiDb,
       parsingErrors = titleError ++ timestampError
     )
   }
+}
+
+object PageEventBuilder {
+
+  /**
+    * Page title normalization (trims whitespaces, swaps spaces for underscore,
+    * and removes \n1 artifact)
+    *
+    * @param title The title to normalize
+    * @return The normalized title
+    */
+  def normalizeTitle(title: String): String = {
+    title.trim.replaceAll(" ", "_").stripSuffix("\n1")
+  }
+
 
 }

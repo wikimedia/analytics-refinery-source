@@ -4,6 +4,7 @@ import org.apache.spark.sql.types.{LongType, StructField, StructType}
 import org.apache.spark.sql.{Row, SparkSession}
 
 import scala.reflect.ClassTag
+import scala.util.Random
 
 /**
   * WARNING !
@@ -88,7 +89,7 @@ class SubgraphPartitioner[T, S, E <: Edge[T], V <: Vertex[T]](
     val verticesDF = spark.createDataFrame(
       verticesRdd.map { case (key, id) => Row.fromTuple((id, rowKeyFormatter.toRow(key)))},
       StructType(Seq(StructField("id", LongType, nullable = false), StructField("key", rowKeyFormatter.struct, nullable = false)))
-    ).cache()
+    )
 
     val edgesRdd = events
       .map(e => (e.fromKey, e.toKey)) // RDD[(fromKey, toKey)]
@@ -101,7 +102,7 @@ class SubgraphPartitioner[T, S, E <: Edge[T], V <: Vertex[T]](
 
     val edgesDF = spark.createDataFrame(edgesRdd.map(Row.fromTuple(_)),
       StructType(Seq(StructField("src", LongType, nullable = false), StructField("dst", LongType, nullable = false)))
-    ).cache()
+    )
 
     GraphFrame(verticesDF, edgesDF)
 
@@ -148,13 +149,14 @@ class SubgraphPartitioner[T, S, E <: Edge[T], V <: Vertex[T]](
     val statesWithGroupingIds = states
       .keyBy(_.key) // RDD[(key, state)]
       .leftOuterJoin(connectedComponents) // RDD[(key, (state, Option[(groupId)]))]
-      .sortByKey() // Ensure consistency if zipping happens more than once because of RDD re-computation
-      .zipWithIndex() // RDD[((key, (state, Option[(groupId)])), fakeId)]
       .map(t => {// Trick to prevent assigning all standalone states in same partition
-        val statGroup = rowKeyFormatter.statsGroup(t._1._1)
+        val statGroup = rowKeyFormatter.statsGroup(t._1)
         t match {
-          case ((k, (s, Some(g))), idx) => ((g, statGroup), s) // RDD[((groupId, statGroup), state)]
-          case ((k, (s, None)), idx) => ((-idx, statGroup), s) // RDD[((-fakeId, statGroup), state)]
+          case (k, (s, Some(g))) =>
+            ((g, statGroup), s) // RDD[((groupId, statGroup), state)]
+          case (k, (s, None)) =>
+            val fakeId: Long = -math.abs(Random.nextLong())
+            ((fakeId, statGroup), s) // RDD[((-fakeId, statGroup), state)]
         }})
       .cache()
 
@@ -174,9 +176,13 @@ class SubgraphPartitioner[T, S, E <: Edge[T], V <: Vertex[T]](
       .connectedComponents.run() // DF[id: Long, key: Row, component: Long]
       .rdd
       .map(r => (rowKeyFormatter.toKey(r.getStruct(1)), r.getLong(2))) // RDD[(KEY, groupId)]
+      .cache()
 
     val eventsGroups = extractEventsGroups(events, connectedComponentsRdd) // RDD[((groupId, statGroup), event)]
     val statesGroups = extractStatesGroups(states, connectedComponentsRdd) // RDD[((groupId, statGroup), state)]
+
+    events.unpersist()
+    states.unpersist()
 
     val partitionedRdd = eventsGroups
       .groupByKey() // RDD[((groupId, statGroup), Iterable[event])]

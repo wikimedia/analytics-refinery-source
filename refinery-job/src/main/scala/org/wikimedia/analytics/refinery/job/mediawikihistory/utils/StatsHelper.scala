@@ -17,7 +17,7 @@ trait StatsHelper {
 
   val statsSchema = StructType(Seq(
     StructField("wiki_db", StringType, nullable = false),
-    StructField("statistic", LongType, nullable = false),
+    StructField("statistic", StringType, nullable = false),
     StructField("value", LongType, nullable = false)
   ))
 

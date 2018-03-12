@@ -409,30 +409,44 @@ class UserHistoryBuilder(
       Seq[UserState], // processed states
       Seq[UserEvent]  // unmatched events
   ) = {
-    val statesMap = states.map(s => (s.wikiDb, s.userNameHistorical) -> s).toMap
+
     val sortedEvents = events.toList.sortWith {
       case (a, b) => a.timestamp.after(b.timestamp)
     }
-    val initialStatus = new ProcessingStatus(
-        todayToCurrent = Map.empty[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],
-        currentToToday = Map.empty[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],
-        potentialStates = statesMap,
-        knownStates = Seq.empty[UserState],
-        unmatchedEvents = Seq.empty[UserEvent]
-    )
-    val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
-    val propagatedStates = propagateStates(
-        // Flush the states that were left in the dictionary.
-        finalStatus.potentialStates.values.toSeq.map(
+    val (fStates: Seq[UserState], unmatchedEvents: Seq[UserEvent]) = {
+      if (sortedEvents.isEmpty) {
+        val finalStates = states.map(s => s.copy(
+            startTimestamp = s.userRegistrationTimestamp,
+            causedByEventType = "create",
+            causedByUserId = None,
+            inferredFrom = Some("unclosed")
+          )).toSeq
+        (finalStates, Seq.empty[UserEvent])
+      } else {
+        val statesMap = states.map(s => (s.wikiDb, s.userNameHistorical) -> s).toMap
+        val initialStatus = new ProcessingStatus(
+          todayToCurrent = Map.empty[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],
+          currentToToday = Map.empty[UserHistoryBuilder.KEY, UserHistoryBuilder.KEY],
+          potentialStates = statesMap,
+          knownStates = Seq.empty[UserState],
+          unmatchedEvents = Seq.empty[UserEvent]
+        )
+        val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
+        val finalStates = {
+          // Flush the states that were left in the dictionary.
+          finalStatus.potentialStates.values.map(
             s =>
               s.copy(
-                  startTimestamp = s.userRegistrationTimestamp,
-                  causedByEventType = "create",
-                  causedByUserId = None,
-                  inferredFrom = Some("unclosed")
-            )) ++ finalStatus.knownStates
-    )
-    (propagatedStates, finalStatus.unmatchedEvents)
+                startTimestamp = s.userRegistrationTimestamp,
+                causedByEventType = "create",
+                causedByUserId = None,
+                inferredFrom = Some("unclosed")
+              )).toSeq ++ finalStatus.knownStates
+        }
+        (finalStates, finalStatus.unmatchedEvents)
+      }
+    }
+    (propagateStates(fStates), unmatchedEvents)
   }
 
 
@@ -457,8 +471,16 @@ class UserHistoryBuilder(
     log.info(s"User history building jobs starting")
 
     val partitioner = new SubgraphPartitioner[
-      UserHistoryBuilder.KEY, UserHistoryBuilder.STATS_GROUP, UserEvent, UserState](
-      spark, UserHistoryBuilder.UserRowKeyFormat, Some(statsAccumulator))
+      UserHistoryBuilder.KEY,
+      UserHistoryBuilder.STATS_GROUP,
+      UserEvent,
+      UserState
+    ](
+      spark,
+      UserHistoryBuilder.UserRowKeyFormat,
+      Some(statsAccumulator)
+    )
+
     val subgraphs = partitioner.run(events, states)
 
     log.info(s"Processing partitioned user histories")

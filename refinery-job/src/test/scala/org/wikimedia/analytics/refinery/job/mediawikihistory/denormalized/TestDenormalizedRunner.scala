@@ -18,7 +18,7 @@ class TestDenormalizedRunner
   var denormalizedRunner = null.asInstanceOf[DenormalizedRunner]
 
   override def beforeEach(): Unit = {
-    denormalizedRunner = new DenormalizedRunner(SparkSession.builder().getOrCreate())
+    denormalizedRunner = new DenormalizedRunner(SparkSession.builder().getOrCreate(), 1)
   }
 
   /**

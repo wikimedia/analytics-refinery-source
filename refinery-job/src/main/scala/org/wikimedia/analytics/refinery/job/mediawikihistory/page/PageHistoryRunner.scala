@@ -18,7 +18,7 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serializable {
+class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends StatsHelper with Serializable {
 
   import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
@@ -32,10 +32,8 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
   val METRIC_NAMESPACES_COUNT = "pages.namespaces.count"
-  val METRIC_MOVE_EVENTS_OK = "pages.moveEvents.OK"
-  val METRIC_MOVE_EVENTS_KO = "pages.moveEvents.KO"
-  val METRIC_DEL_REST_EVENTS_OK = "pages.delRestEvents.OK"
-  val METRIC_DEL_REST_EVENTS_KO = "pages.delRestEvents.KO"
+  val METRIC_EVENTS_OK = "pages.events.OK"
+  val METRIC_EVENTS_KO = "pages.events.KO"
   val METRIC_STATES_COUNT = "pages.states.count"
 
   /**
@@ -49,7 +47,6 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
     * @param namespacesPath The path of the namespaces data (CSV file)
     * @param outputPath The path to output the reconstructed page history (parquet files)
-    * @param sqlPartitions The number of partitions to use as a bases for raw RDDs
     * @param errorsPath A path to output errors (csv files)
     * @param statsPath A path to output statistics (csv files)
     */
@@ -60,7 +57,6 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
            revisionDataPath: String,
            namespacesPath: String,
            outputPath: String,
-           sqlPartitions: Int,
            errorsPath: String,
            statsPath: String
   ): Unit = {
@@ -71,7 +67,8 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     // Prepare page events and states RDDs
     //***********************************
 
-    spark.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
+    // Work with 2 times more partitions that expected for file production
+    spark.sql("SET spark.sql.shuffle.partitions=" + 4 * numPartitions)
 
     val loggingDf = spark.read.avro(loggingDataPath)
     loggingDf.createOrReplaceTempView("logging")
@@ -128,10 +125,17 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
       .map(t => (t._1, t._2) -> (t._5 == 1))
       .toMap.withDefaultValue(false)
 
-    val movePageEventsRdd = spark.sql(
+    val pageEventBuilder = new PageEventBuilder(
+      canonicalNamespaceMap,
+      localizedNamespaceMap,
+      isContentNamespaceMap
+    )
+    val parsedPageEvents = spark.sql(
       s"""
   SELECT
     log_type,
+    log_action,
+    log_page,
     log_timestamp,
     log_user,
     log_title,
@@ -139,10 +143,14 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     log_namespace,
     wiki_db
   FROM logging
-  WHERE log_type = 'move'
+  WHERE ((log_type = 'move')
+          OR (log_type = 'delete'
+              AND log_action IN ('delete', 'restore')))
       $wikiClause
   GROUP BY -- Grouping by to enforce expected partitioning
     log_type,
+    log_action,
+    log_page,
     log_timestamp,
     log_user,
     log_title,
@@ -151,51 +159,17 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     wiki_db
       """)
       .rdd
-      .map(row => {
-        val pageEvent = PageEventBuilder.buildMovePageEvent(
-          canonicalNamespaceMap,
-          localizedNamespaceMap,
-          isContentNamespaceMap)(row)
-        val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_MOVE_EVENTS_OK else METRIC_MOVE_EVENTS_KO
+      .map(row =>
+      {
+        val pageEvent = {
+          if (row.getString(0) == "move") pageEventBuilder.buildMovePageEvent(row)
+          else pageEventBuilder.buildSimplePageEvent(row)
+        }
+        val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_EVENTS_OK else METRIC_EVENTS_KO
         statsAccumulator.add((s"${pageEvent.wikiDb}.$metricName", 1))
         pageEvent
       })
 
-    val deleteAndRestorePageEventsRdd = spark.sql(
-      s"""
-  SELECT
-    log_page,
-    log_title,
-    log_namespace,
-    log_timestamp as start,
-    log_user,
-    wiki_db,
-    log_action
-  FROM logging
-  WHERE log_type = 'delete'
-    AND log_action IN ('delete', 'restore')
-    $wikiClause
-  GROUP BY -- Grouping by to enforce expected partitioning
-    log_page,
-    log_title,
-    log_namespace,
-    log_timestamp,
-    log_user,
-    wiki_db,
-    log_action
-        """)
-      .rdd
-      .map(
-        row => {
-          val pageEvent = PageEventBuilder.buildSimplePageEvent(isContentNamespaceMap)(row)
-          val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_DEL_REST_EVENTS_OK else METRIC_DEL_REST_EVENTS_KO
-          statsAccumulator.add((s"${pageEvent.wikiDb}.$metricName", 1))
-          pageEvent
-        })
-
-    // DON'T REPARTITION !!!!!
-    // See https://issues.apache.org/jira/browse/SPARK-10685
-    val parsedPageEvents = movePageEventsRdd.union(deleteAndRestorePageEventsRdd).cache()
     val pageEvents = parsedPageEvents.filter(_.parsingErrors.isEmpty).cache()
 
     val pageStates = spark.sql(
@@ -285,7 +259,7 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     val pageHistoryBuilder = new PageHistoryBuilder(spark, statsAccumulator)
     val (pageHistoryRdd, unmatchedEvents) = pageHistoryBuilder.run(pageEvents, pageStates)
 
-    log.info(s"Page history reconstruction done, writing results and errors")
+    log.info(s"Page history reconstruction done, writing results, errors and stats")
 
 
     //***********************************
@@ -295,7 +269,7 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
     // Write history
     val pageHistoryDf = spark.createDataFrame(pageHistoryRdd.map(_.toRow), PageState.schema)
     //spark.setConf("spark.sql.parquet.compression.codec", "snappy")
-    pageHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
+    pageHistoryDf.repartition(numPartitions).write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"Page history reconstruction results written")
 
     //***********************************
@@ -304,8 +278,8 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
 
     val parsingErrorEvents = parsedPageEvents.filter(_.parsingErrors.nonEmpty)
     val errorDf = spark.createDataFrame(
-        parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString)).union(
-        unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
+        parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString))
+          .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
       ),
       StructType(Seq(
         StructField("wiki_db", StringType, nullable = false),
@@ -313,14 +287,14 @@ class PageHistoryRunner(val spark: SparkSession) extends StatsHelper with Serial
         StructField("event", StringType, nullable = false)
       ))
     )
-    errorDf.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
+    errorDf.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
     log.info(s"Page history reconstruction errors written")
 
 
     //***********************************
     // Write stats
     //***********************************
-    statsDataframe.write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
+    statsDataframe.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
     log.info(s"Page history reconstruction stats written")
 
     log.info(s"Page history jobs done")

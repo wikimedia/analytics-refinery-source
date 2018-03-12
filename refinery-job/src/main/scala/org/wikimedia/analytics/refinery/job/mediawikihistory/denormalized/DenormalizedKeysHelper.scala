@@ -240,6 +240,7 @@ object DenormalizedKeysHelper extends Serializable {
       mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
   }
 
+
   /**
     * Generate a user-centered [[MediawikiEventKey]] for a
     * given MW Event with -1 as year using a fake
