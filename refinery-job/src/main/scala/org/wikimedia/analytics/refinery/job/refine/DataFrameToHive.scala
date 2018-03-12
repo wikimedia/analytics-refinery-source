@@ -93,8 +93,22 @@ object DataFrameToHive extends LogHelper {
             .foldLeft(inputDf)((currDf, fn) => fn(currDf, partition))
             .normalize()
 
+        // If the resulting DataFrame is empty, just exit.
+        try {
+            df.head
+        } catch {
+            case e: java.util.NoSuchElementException =>
+                log.info(
+                    s"`${partition}` DataFrame is empty after transformations. " +
+                    "No data will be written for this partition."
+                )
+                doneCallback()
+                return df
+        }
+
         // Grab the partition name keys to use for Hive partitioning.
         val partitionNames = partition.keys
+
 
         try {
             // This will create the Hive table based on df.schema if it doesn't yet exist,

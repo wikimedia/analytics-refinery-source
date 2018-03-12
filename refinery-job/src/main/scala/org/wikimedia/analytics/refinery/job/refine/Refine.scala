@@ -26,12 +26,18 @@ import org.wikimedia.analytics.refinery.core.{HivePartition, ReflectUtils, Utili
 object Refine extends LogHelper {
     private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
+    // Type for transform functions processing partitions to refine.
+    type TransformFunction = (DataFrame, HivePartition) => DataFrame
+
     /**
       * Config class for CLI argument parser using scopt
       */
     case class Params(
         inputBasePath: String                      = "",
         outputBasePath: String                     = "",
+        // This is a ugly trick facilitating launching jobs
+        // Shall be removed when using a properties configuration file
+        hiveContext: HiveContext                   = new HiveContext(new SparkContext(new SparkConf())),
         databaseName: String                       = "default",
         sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime                    = DateTime.now,
@@ -40,7 +46,7 @@ object Refine extends LogHelper {
         inputPathDateTimeFormat: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
         tableWhitelistRegex: Option[Regex]         = None,
         tableBlacklistRegex: Option[Regex]         = None,
-        transformFunctions: Seq[String]            = Seq(),
+        transformFunctions: Seq[TransformFunction] = Seq(),
         shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
@@ -69,6 +75,29 @@ object Refine extends LogHelper {
                 DateTime.now - s.toInt.hours
             else
                 DateTime.parse(s, iso8601DateFormatter)
+        }
+    }
+
+    // Support implicit transformFunctions conversion fromCLI opt.
+    // If we are given any transform function names, they should be fully
+    // qualified package.objectName to an object with an apply method that
+    // takes a DataFrame and HiveParititon, and returns a DataFrame.
+    // Map these String names to callable functions.
+    implicit val scoptTransformFunctions: scopt.Read[Seq[TransformFunction]] =
+        scopt.Read.reads { s => {
+            s.split(",").map { objectName =>
+                val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
+                // Lookup the object's apply method as a reflect MethodMirror, and wrap
+                // it in a anonymous function that has the signature expected by
+                // DataFrameToHive's transformFunction parameter.
+                val wrapperFn: TransformFunction = {
+                    case (df, hp) => {
+                        log.debug(s"Applying ${transformMirror.receiver} to $hp")
+                        transformMirror(df, hp).asInstanceOf[DataFrame]
+                    }
+                }
+                wrapperFn
+            }
         }
     }
 
@@ -177,8 +206,8 @@ object Refine extends LogHelper {
             p.copy(tableBlacklistRegex = x)
         } text "Blacklist regex of table names to skip.\n".stripMargin
 
-        opt[String]('l', "transform-functions") optional() valueName "<fn>" action { (x, p) =>
-            p.copy(transformFunctions = x.split(",").toSeq)
+        opt[Seq[TransformFunction]]('l', "transform-functions") optional() valueName "<fn>" action { (x, p) =>
+            p.copy(transformFunctions = x)
         } text
             """Comma separated list of fully qualified module.ObjectNames.  The objects'
                apply methods should take a DataFrame and a HivePartition and return
@@ -269,6 +298,7 @@ object Refine extends LogHelper {
     def apply(
         inputBasePath: String,
         outputBasePath: String,
+        hiveContext: HiveContext,
         databaseName: String                       = "default",
         sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime                    = DateTime.now,
@@ -277,7 +307,7 @@ object Refine extends LogHelper {
         inputPathDateTimeFormat: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
         tableWhitelistRegex: Option[Regex]         = None,
         tableBlacklistRegex: Option[Regex]         = None,
-        transformFunctions: Seq[String]            = Seq(),
+        transformFunctions: Seq[TransformFunction] = Seq(),
         shouldIgnoreFailureFlag: Boolean           = false,
         parallelism: Option[Int]                   = None,
         compressionCodec: String                   = "snappy",
@@ -288,12 +318,9 @@ object Refine extends LogHelper {
         fromEmail: String                          = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
         toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
     ): Boolean = {
-        // Initial setup - Spark, HiveContext, Hadoop FileSystem
-        val conf = new SparkConf()
-        val sc = new SparkContext(conf)
-
+        // Initial setup
+        val sc = hiveContext.sparkContext
         val fs = FileSystem.get(sc.hadoopConfiguration)
-        val hiveContext = new HiveContext(sc)
         hiveContext.setConf("spark.sql.parquet.compression.codec", compressionCodec)
 
         // Ensure that inputPathPatternCaptureGroups contains "table", as this is needed
@@ -312,24 +339,6 @@ object Refine extends LogHelper {
             inputPathPattern,
             inputPathPatternCaptureGroups: _*
         )
-
-        // If we are given any transform function names, they should be fully
-        // qualified package.objectName to an object with an apply method that
-        // takes a DataFrame and HiveParititon, and returns a DataFrame.
-        // Map these String names to callable functions.
-        val transformers = transformFunctions.map { objectName =>
-            val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
-            // Lookup the object's apply method as a reflect MethodMirror, and wrap
-            // it in a anonymous function that has the signature expected by
-            // DataFrameToHive's transformFunction parameter.
-            val wrapperFn: (DataFrame, HivePartition) => DataFrame = {
-                case (df, hp) => {
-                    log.debug(s"Applying ${transformMirror.receiver} to $hp")
-                    transformMirror(df, hp).asInstanceOf[DataFrame]
-                }
-            }
-            wrapperFn
-        }
 
         log.info(
             s"Looking for targets to refine in $inputBasePath between " +
@@ -399,7 +408,7 @@ object Refine extends LogHelper {
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!dryRun)
-                table -> refineTargets(hiveContext, tableTargets.seq, transformers)
+                table -> refineTargets(hiveContext, tableTargets.seq, transformFunctions)
             // If --dry-run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -470,7 +479,7 @@ object Refine extends LogHelper {
     def refineTargets(
         hiveContext: HiveContext,
         targets: Seq[RefineTarget],
-        transformFunctions: Seq[(DataFrame, HivePartition) => DataFrame]
+        transformFunctions: Seq[TransformFunction]
     ): Seq[Try[RefineTarget]] = {
         targets.map(target => {
             log.info(s"Beginning refinement of $target...")
