@@ -85,6 +85,11 @@ object DataFrameToHive extends LogHelper {
         // Set this so we can partition by fields in the DataFrame.
         hiveContext.setConf("hive.exec.dynamic.partition.mode", "nonstrict")
 
+        // Keep number of partitions  to reset it after DataFrame API changes it
+        // Since the spark context is used accross multiple jobs, we don't want
+        // to use a global setting.
+        val originalPartitionNumber = inputDf.rdd.getNumPartitions
+
         // Add the Hive partition columns and apply any other configured transform functions,
         // and then normalize (lowercase top level fields names, widen certain types, etc.).
         // (Note to non scala-ites: dataFrameWithHivePartitions _ instructs the compiler
@@ -92,6 +97,7 @@ object DataFrameToHive extends LogHelper {
         val df = (dataFrameWithHivePartitions _ +: transformFunctions)
             .foldLeft(inputDf)((currDf, fn) => fn(currDf, partition))
             .normalize()
+            .repartition(originalPartitionNumber)
 
         // If the resulting DataFrame is empty, just exit.
         try {
@@ -108,7 +114,6 @@ object DataFrameToHive extends LogHelper {
 
         // Grab the partition name keys to use for Hive partitioning.
         val partitionNames = partition.keys
-
 
         try {
             // This will create the Hive table based on df.schema if it doesn't yet exist,
