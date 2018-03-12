@@ -330,8 +330,8 @@ object DataFrameToHive extends LogHelper {
             .collect()
             // Each line is a Row[String], map it to Seq of Strings
             .map(_.toString())
-            // Find the line with "Location"
-            .find(_.contains("Location"))
+            // Find the line with "Location:"
+            .find(_.startsWith("[Location:"))
 
         // If we found Location in the string, then extract just the location path.
         if (locationLine.isDefined) {

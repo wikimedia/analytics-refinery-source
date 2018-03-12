@@ -2,6 +2,8 @@
 * JsonRefine has been made data source agnostic, and now lives in a
   refine module in refinery-job.  The Spark job is now just called 'Refine'.
 * Add Whitelist Sanitization code and an EventLogging specific job using it   
+* Add some handling to Refine for cast-able types, e.g. String -> Long, if possible.
+* Added RefineMonitor job to alert if Refine targets are not present.
 
 ## v0.0.58
 * Refactor geo-coding function and add ISP
