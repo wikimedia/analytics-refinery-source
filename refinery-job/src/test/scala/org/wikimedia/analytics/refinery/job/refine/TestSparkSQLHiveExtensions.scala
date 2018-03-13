@@ -405,32 +405,32 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
     }
 
     it should "find incompatible fields for 'not-unordered-superset' (missing)" in {
-        val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
-        val biggerSchema = StructType(StructField("b", LongType, false) :: Nil)
+        val smallerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("b", LongType, nullable=false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.head.name should equal("a")
     }
 
-    it should "find incompatible fields for 'not-unordered-superset' (different types)" in {
-        val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
-        val biggerSchema = StructType(StructField("a", BooleanType, false) :: Nil)
+    it should "not find incompatible fields for 'not-unordered-superset' with different types (casting)" in {
+        val smallerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("a", BooleanType, nullable=false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.head.name should equal("a")
+        badFields.length should equal(0)
     }
 
     it should "find incompatible fields for 'unordered-superset' with compatible different types" in {
-        val smallerSchema = StructType(StructField("a", IntegerType, false) :: Nil)
-        val biggerSchema = StructType(StructField("a", LongType, false) :: Nil)
+        val smallerSchema = StructType(StructField("a", IntegerType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.isEmpty should equal(true)
     }
 
     it should "find incompatible fields for 'not-unordered-superset' (different nullable)" in {
-        val smallerSchema = StructType(StructField("a", LongType, false) :: Nil)
-        val biggerSchema = StructType(StructField("a", LongType, true) :: Nil)
+        val smallerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("a", LongType, nullable=true) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.head.name should equal("a")
@@ -439,25 +439,25 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
     it should "find incompatible fields for 'not-unordered-superset' (sub-object)" in {
         val smallerSchema = StructType(
             StructField("a", StructType(
-                    StructField("aa", IntegerType, true) ::
-                    StructField("ab", LongType, false) ::
-                    StructField("ac", BooleanType, false) :: Nil
-                ), true
+                    StructField("aa", IntegerType, nullable=true) ::
+                    StructField("ab", LongType, nullable=false) ::
+                    StructField("ac", BooleanType, nullable=false) :: Nil
+                ), nullable=true
             ) ::
-            StructField("b", LongType, false) ::
-            StructField("c", BooleanType, false) :: Nil
+            StructField("b", LongType, nullable=false) ::
+            StructField("c", BooleanType, nullable=false) :: Nil
         )
 
         val biggerSchema = StructType(
-              StructField("b", LongType, false) ::
-              StructField("d", LongType, false) ::
+              StructField("b", LongType, nullable=false) ::
+              StructField("d", LongType, nullable=false) ::
               StructField("a", StructType(
-                      StructField("aa", IntegerType, true) ::
-                      StructField("ab", LongType, false) ::
-                      StructField("ad", LongType, false) :: Nil
-                  ), true
+                      StructField("aa", IntegerType, nullable=true) ::
+                      StructField("ab", LongType, nullable=false) ::
+                      StructField("ad", LongType, nullable=false) :: Nil
+                  ), nullable=true
               ) ::
-              StructField("c", BooleanType, false) :: Nil
+              StructField("c", BooleanType, nullable=false) :: Nil
         )
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
@@ -469,26 +469,26 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
 
         val smallerSchema = StructType(
             StructField("a", StructType(
-                    StructField("aa", IntegerType, true) ::
-                    StructField("ab", LongType, true) ::
-                    StructField("ac", BooleanType, true) :: Nil
-                ), true
+                    StructField("aa", IntegerType, nullable=true) ::
+                    StructField("ab", LongType, nullable=true) ::
+                    StructField("ac", BooleanType, nullable=true) :: Nil
+                ), nullable=true
             ) ::
-            StructField("b", LongType, true) ::
-            StructField("c", BooleanType, true) :: Nil
+            StructField("b", LongType, nullable=true) ::
+            StructField("c", BooleanType, nullable=true) :: Nil
         )
 
         val biggerSchema = StructType(
-            StructField("b", LongType, true) ::
-            StructField("d", LongType, true) ::
+            StructField("b", LongType, nullable=true) ::
+            StructField("d", LongType, nullable=true) ::
             StructField("a", StructType(
-                    StructField("aa", IntegerType, true) ::
-                    StructField("ab", LongType, true) ::
-                    StructField("ad", LongType, true) ::
-                    StructField("ac", BooleanType, true) :: Nil
-                ), true
+                    StructField("aa", IntegerType, nullable=true) ::
+                    StructField("ab", LongType, nullable=true) ::
+                    StructField("ad", LongType, nullable=true) ::
+                    StructField("ac", BooleanType, nullable=true) :: Nil
+                ), nullable=true
             ) ::
-            StructField("c", BooleanType, true) :: Nil
+            StructField("c", BooleanType, nullable=true) :: Nil
         )
 
         val rdd = sc.parallelize(Seq(
@@ -498,6 +498,8 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         )
         val df = sqlContext.createDataFrame(rdd, smallerSchema)
         val newDf = df.convertToSchema(biggerSchema)
+
+        newDf.foreach(println)
 
         newDf.count should equal(3)
         newDf.schema should equal(biggerSchema)
@@ -522,8 +524,79 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         newDf.filter("c IS NULL").take(1).foreach(r => {
             r.getLong(0) should equal(3L)
             r.isNullAt(1) should equal(true)
-            r.isNullAt(2) should equal(true)
             r.isNullAt(3) should equal(true)
+            r.getStruct(2).isNullAt(0) should equal(true)
+            r.getStruct(2).isNullAt(1) should equal(true)
+            r.getStruct(2).isNullAt(2) should equal(true)
+            r.getStruct(2).isNullAt(3) should equal(true)
+        })
+    }
+
+    it should "convert a DataFrame with complex types to superset schema" in {
+        val sqlContext = new SQLContext(sc)
+
+        val smallerSchema = StructType(
+            StructField("a", StructType(
+                StructField("aa", ArrayType(StringType, containsNull=true), nullable=true) ::
+                  StructField("ab", MapType(StringType, LongType, valueContainsNull = true), nullable=true) ::
+                  StructField("ac", BooleanType, nullable=true) :: Nil
+            ), nullable=true
+            ) ::
+              StructField("b", LongType, nullable=true) ::
+              StructField("c", BooleanType, nullable=true) :: Nil
+        )
+
+        val biggerSchema = StructType(
+            StructField("b", LongType, nullable=true) ::
+              StructField("d", LongType, nullable=true) ::
+              StructField("a", StructType(
+                  StructField("aa", ArrayType(IntegerType, containsNull=true), nullable=true) ::
+                    StructField("ab", MapType(StringType, StringType, valueContainsNull = true), nullable=true) ::
+                    StructField("ad", LongType, nullable=true) ::
+                    StructField("ac", BooleanType, nullable=true) :: Nil
+              ), nullable=true
+              ) ::
+              StructField("c", BooleanType, nullable=true) :: Nil
+        )
+
+        val rdd = sc.parallelize(Seq(
+            Row(Row(null, null, true), 1L, true),
+            Row(Row(Array("1", "2"), Map("m1" -> 1L), false), 2L, false),
+            Row(null, 3L, null))
+        )
+        val df = sqlContext.createDataFrame(rdd, smallerSchema)
+        val newDf = df.convertToSchema(biggerSchema)
+
+        newDf.foreach(println)
+
+        newDf.count should equal(3)
+        newDf.schema should equal(biggerSchema)
+        newDf.filter("c = TRUE").take(1).foreach(r => {
+            r.getLong(0) should equal(1L)
+            r.isNullAt(1) should equal(true)
+            r.getBoolean(3) should equal(true)
+            r.getStruct(2).isNullAt(0) should equal(true)
+            r.getStruct(2).isNullAt(1) should equal(true)
+            r.getStruct(2).isNullAt(2) should equal(true)
+            r.getStruct(2).getBoolean(3) should equal(true)
+        })
+        newDf.filter("c = FALSE").take(1).foreach(r => {
+            r.getLong(0) should equal(2L)
+            r.isNullAt(1) should equal(true)
+            r.getBoolean(3) should equal(false)
+            r.getStruct(2).getSeq[Int](0) should equal(Seq(1, 2))
+            r.getStruct(2).getMap[String, String](1) should equal(Map("m1" -> "1"))
+            r.getStruct(2).isNullAt(2) should equal(true)
+            r.getStruct(2).getBoolean(3) should equal(false)
+        })
+        newDf.filter("c IS NULL").take(1).foreach(r => {
+            r.getLong(0) should equal(3L)
+            r.isNullAt(1) should equal(true)
+            r.isNullAt(3) should equal(true)
+            r.getStruct(2).isNullAt(0) should equal(true)
+            r.getStruct(2).isNullAt(1) should equal(true)
+            r.getStruct(2).isNullAt(2) should equal(true)
+            r.getStruct(2).isNullAt(3) should equal(true)
         })
     }
 
@@ -606,7 +679,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
 
 
 
-    it should "convert DataFrame with inferred StringType to LongType, nullifying only bad field" in {
+    it should "convert DataFrame with inferred StringType to LongType" in {
         val sqlContext = new SQLContext(sc)
         val events = sc.parallelize(Seq(
             """{"id": 1, "event": {"num": 123}}""",
@@ -625,15 +698,15 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         val newDf = df.convertToSchema(tableSchema)
         newDf.registerTempTable("newDf")
 
-        // 9223372036854776000 -> NULL, NumberFormatException
-        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(1)
-        // 123 -> 123, "456" -> 456
-        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(2)
+        //  -> NULL, NumberFormatException
+        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(0)
+        // 123 -> 123, "456" -> 456, 9223372036854776000 -> -9223372036854775616
+        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(3)
         // id should be cool.
         sqlContext.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
     }
 
-    it should "convert DataFrame with DecimalType to LongType, nullifying only bad field" in {
+    it should "convert DataFrame with DecimalType to LongType" in {
         val sqlContext = new SQLContext(sc)
         val events = sc.parallelize(Seq(
             """{"id": 1, "event": {"num": 123}}""",
@@ -659,10 +732,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSpark
         val newDf = df.convertToSchema(tableSchema)
         newDf.registerTempTable("newDf")
 
-        // 9223372036854776000 -> NULL, Overflow
-        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(1)
-        // 123 -> 123, 456.456 -> 456
-        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(2)
+        // NO NULL expected
+        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(0)
+        // 123 -> 123, 456.456 -> 456, 9223372036854776000 -> -9223372036854775616
+        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(3)
         // id should be cool.
         sqlContext.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
     }

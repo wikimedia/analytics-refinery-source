@@ -1,7 +1,8 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import org.apache.log4j.LogManager
-import org.apache.spark.sql.{DataFrame, Row}
+import java.util.UUID
+
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.analysis.HiveTypeCoercion
 import org.apache.spark.sql.types._
 
@@ -28,73 +29,6 @@ import org.apache.spark.sql.types._
   *     hiveContext.sql(hiveAlterStatement)
   */
 object SparkSQLHiveExtensions extends LogHelper {
-
-
-    /**
-      * ValueCaster is a function that maps from Any to Option[Any].
-      * It is used when converting a DataFrame from one schema to another,
-      * where fields might be different but castable types.
-      */
-    type ValueCaster = (Any) => Option[Any]
-
-    /**
-      * Returns Option of ValueCaster if there is a way defined to cast from src to dst DataType.
-      * If there is no defined way to cast, this returns None.  Add a case to this function
-      * if you need to define a new caster.
-      *
-      * @param src
-      * @param dst
-      * @return
-      */
-    def getValueCaster(src: DataType, dst: DataType): Option[ValueCaster] = {
-        (src, dst) match {
-            case (StringType, LongType) => Some((stringToLong _).asInstanceOf[ValueCaster])
-            case (DecimalType(), LongType) => Some((bigDecimalToLong _).asInstanceOf[ValueCaster])
-            case _ => None
-        }
-    }
-
-    /**
-      * Attempts to call v.toLong.  If cast fails due to NumberFormatException, returns None.
-      * @param v
-      * @return
-      */
-    private def stringToLong(v: String): Option[Long] = {
-        try {
-            Some(v.toLong)
-        }
-        catch {
-            case e: java.lang.NumberFormatException => {
-                log.warn(s"Failed casting String '$v' to a Long, value will be null. $e")
-                None
-            }
-        }
-    }
-
-    /**
-      * Attempts to call v.longValueExact.  A BigDecimal that doesn't
-      * fit into a Long will cause a ArithmeticException, which will result in
-      * this returning None.
-      * @param v
-      * @return
-      */
-    private def bigDecimalToLong(v: java.math.BigDecimal): Option[Long] = {
-        try {
-            Some(v.longValueExact)
-        }
-        catch {
-            case e: java.lang.ArithmeticException => {
-                if (e.getMessage == "Rounding necessary") {
-                    log.warn(s"Rounding necessary when casting BigDecimal $v to Long.")
-                    Some(v.longValue)
-                }
-                else {
-                    log.warn(s"Failed casting BigDecimal $v to a Long, value will be null. $e")
-                    None
-                }
-            }
-        }
-    }
 
     /**
       * Implicit methods extensions for Spark StructField.
@@ -201,38 +135,28 @@ object SparkSQLHiveExtensions extends LogHelper {
           * Find the tightest common DataType of a Seq of StructFields by continuously applying
           * `HiveTypeCoercion.findTightestCommonTypeOfTwo` on these types, or choosing the
           * left most type (original) if we have a value caster defined from candidate -> original type.
-          *
+          * If not tightest is found, return original type.
           * See: https://github.com/apache/spark/blob/v1.6.0/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/HiveTypeCoercion.scala#L65-L87
+          *
           *
           * @param fields
           * @return
           */
-        def chooseCompatibleType(fields: Seq[StructField]): Option[DataType] = {
-            fields.map(_.dataType).foldLeft[Option[DataType]](Some(field.dataType))((acc, candidate) => acc match {
-                case None    => None
-                case Some(original) => {
-                    // If the types of the two current fields are the same, just use original.
-                    if (original == candidate) {
-                        return Some(original)
-                    }
+        def chooseCompatibleType(fields: Seq[StructField]): DataType = {
+            fields.map(_.dataType).foldLeft[DataType](field.dataType)((original, candidate) => {
+                // If the types of the two current fields are the same, just use original.
+                if (original == candidate) {
+                    return original
+                }
 
-                    // If Spark can handle type coercion from candidate -> original, then
-                    // return the type it will use.
-                    val tightest = HiveTypeCoercion.findTightestCommonTypeOfTwo(original, candidate)
-                    if (tightest.isDefined) {
-                        log.debug(s"HiveTypeCoercion is possible, choosing type ${tightest.get} for ($original, $candidate)")
-                        tightest
-                    }
-                    // Else if we have a custom caster defined from candidate -> original, then choose original.
-                    // Later, if convertDataFrame is called, we will be able to convert the candidate field
-                    // to the original DataType using this caster.
-                    else if (getValueCaster(candidate, original).isDefined) {
-                        log.debug(s"Casting is possible from $candidate -> $original, choosing $original")
-                        Some(original)
-                    }
-                    else {
-                        None
-                    }
+                // If Spark can handle type coercion from candidate -> original, then
+                // return the type it will use.
+                val tightest = HiveTypeCoercion.findTightestCommonTypeOfTwo(original, candidate)
+                if (tightest.isDefined) {
+                    log.debug(s"HiveTypeCoercion is possible, choosing type ${tightest.get} for ($original, $candidate)")
+                    tightest.get
+                } else {
+                    original
                 }
             })
         }
@@ -349,7 +273,7 @@ object SparkSQLHiveExtensions extends LogHelper {
                     fieldsByName(name) match {
                         // If all field types for this name are structs, then we attempt
                         // to recursively merge them.
-                        case fields if (fields.forall(_.isStructType)) => {
+                        case fields if fields.forall(_.isStructType) => {
                             val mergedStruct = fields
                                 // Map each StructField to its StructType DataType
                                 .map(_.dataType.asInstanceOf[StructType])
@@ -373,13 +297,7 @@ object SparkSQLHiveExtensions extends LogHelper {
                             // type that can be cast.  E.g. if we are given an LongType
                             // and a DoubleType, this will return DoubleType.
                             val commonDataType = fields.head.chooseCompatibleType(fields.tail)
-                            // If there is no common type between these fields, then fail now.
-                            if (commonDataType.isEmpty) {
-                                throw new IllegalStateException(
-                                    s"merge failed - $name has repeat types which are not " +
-                                    s"resolvable:\n  ${fields.mkString("  \n")}"
-                                )
-                            }
+
                             // Else: let's get weird.  Since we don't support type changes,
                             // We choose to keep the first field type we have.  This should
                             // be the field belonging to this struct schema (which is probably
@@ -387,7 +305,7 @@ object SparkSQLHiveExtensions extends LogHelper {
                             // DataType, then a DataFrame that uses the non original
                             // field should still be convertable to to the original one later,
                             // either by Spark-Hive, or by one of our custom caster functions.
-                            else if (commonDataType.get != fields.head.dataType) {
+                            if (commonDataType != fields.head.dataType) {
                                 log.warn(
                                     s"$name has repeat types which are resolvable.  " +
                                     s"Choosing ${fields.head.dataType} for schema merge.  " +
@@ -623,20 +541,8 @@ object SparkSQLHiveExtensions extends LogHelper {
 
                     val fieldType = field.dataType
                     val superSchemaFieldType = superSchemaField.dataType
-                    // If DataTypes are incompatible and not StructTypes.
-                    if (!fieldType.isInstanceOf[StructType] &&
-                        !superSchemaFieldType.isInstanceOf[StructType] &&
-                        superSchemaField.chooseCompatibleType(Seq(field)).isEmpty
-                    ) {
-                        incompatibleFields :+ (
-                            field,
-                            s"""`$fullName` is DataType $superSchemaFieldType in super schema,
-                               |but in subset schema is incompatible $fieldType.""".stripMargin
-                        )
-                    }
-
                     // If the nullable-ness of the fields are different
-                    else if (field.nullable != superSchemaField.nullable) {
+                    if (field.nullable != superSchemaField.nullable) {
                         incompatibleFields :+ (
                             field,
                             s"""`$fullName` nullable=${superSchemaField.nullable} in super schema,
@@ -687,48 +593,46 @@ object SparkSQLHiveExtensions extends LogHelper {
           */
         def convertToSchema(schema: StructType): DataFrame = {
 
-            // Build a tree keeping indices of the srcSchema for the given dstSchema (if any)
-            def buildConversionTreeRec(srcSchema: StructType, dstSchema: StructType): Array[Node] = {
+            def buildSQLFieldsRec(srcSchema: StructType, dstSchema: StructType, depth: Int = 0, prefix: String = ""): String = {
                 dstSchema.fields.map(dstField => {
-                    val idx = srcSchema.fieldNames.indexOf(dstField.name)
-                    if (idx == -1) TLeaf(None)
-                    else dstField.dataType match {
-                        case fieldType: StructType => TInner(idx, buildConversionTreeRec(
-                            srcSchema(idx).dataType.asInstanceOf[StructType],
-                            fieldType
-                        ))
+                    val prefixedFieldName = if (depth == 0) dstField.name else s"$prefix.${dstField.name}"
 
+                    def namedValue(value: String): String = {
+                        if (depth == 0) s"$value AS ${dstField.name}" // Not in struct, aliases ok
+                        else s"'${dstField.name}', $value"            // In named_struct, quoted-name then value
+                    }
+
+                    val idx = srcSchema.fieldNames.indexOf(dstField.name)
+                    // No field in source, setting to NULL, casted for schema coherence
+                    if (idx == -1) namedValue(s"CAST(NULL AS ${dstField.dataType.simpleString})")
+                    else dstField.dataType match {
+                        case dstChildFieldType: StructType =>
+                            val srcChildFieldType = srcSchema(idx).dataType.asInstanceOf[StructType]
+                            val childSQL = buildSQLFieldsRec(srcChildFieldType, dstChildFieldType, depth + 1, prefixedFieldName)
+                            namedValue(s"NAMED_STRUCT($childSQL)")
                         case _ => {
-                            // If we have a custom way to cast between these DataTypes,
-                            // then get the caster function and pass it to the TLeaf node.
-                            // This function will be called on every field value on incoming
-                            // DataFrame to attempt to cast it to the schema's type.
-                            val caster = getValueCaster(srcSchema(idx).dataType, dstField.dataType)
-                            if (caster.isDefined) {
-                                log.info(
-                                    s"Will attempt to cast field `${dstField.name}` from " +
-                                    s"${srcSchema(idx).dataType} to ${dstField.dataType}"
-                                )
+                            // Same types, no cast
+                            if (srcSchema(idx).dataType == dstField.dataType) {
+                                namedValue(prefixedFieldName)
+                            } else { // Different types, cast needed
+                                namedValue(s"CAST($prefixedFieldName AS ${dstField.dataType.simpleString})")
                             }
-                            TLeaf(Some(idx), caster)
                         }
                     }
-                })
+                }).mkString(", ")
             }
 
-            val incompatibilities = schema.findIncompatibleFields(df.schema).map(_._2)
-            if (incompatibilities.nonEmpty) {
-                throw new AssertionError(
-                    s"""This schema struct is not an unordered superset of the DataFrame's schema.
-                       |Cannot convert the DataFrame to match schema.\n
-                       |${incompatibilities.mkString("\n")}""".stripMargin
-                )
-            }
+            // Enforce single-usage temporary table name, starting with a letter
+            val tableName = "t_" + UUID.randomUUID.toString.replaceAll("[^a-zA-Z0-9]", "")
+            // Keep partition number to reset it after SQL transformation
+            val partitionNumber = df.rdd.getNumPartitions
 
-            // We use idx = -1 for tree-root by convention
-            val convTree: Node = TInner(-1, buildConversionTreeRec(df.schema, schema))
-            val convRdd = df.rdd.map(row => convTree.valueFromRow(row).asInstanceOf[Row])
-            df.sqlContext.createDataFrame(convRdd, schema)
+            // Convert using generated SQL over registered temporary table
+            // Warning: SQL Generated schema needs to be made nullable
+            df.registerTempTable(tableName)
+            val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema, schema)} FROM $tableName"
+            log.debug(s"Converting DataFrame using SQL query:\n${sqlQuery}")
+            df.sqlContext.sql(sqlQuery).makeNullable().repartition(partitionNumber)
         }
 
         def makeNullable(): DataFrame = {
@@ -737,61 +641,6 @@ object SparkSQLHiveExtensions extends LogHelper {
 
         def normalize(): DataFrame = {
             df.sqlContext.createDataFrame(df.rdd, df.schema.normalize())
-        }
-    }
-}
-
-
-/**
-  * Trait and subclasses providing schema-conversion utilities
-  * (see DataFrameExtensions.convertToSchema)
-  *
-  * Super awful hack to make this work wih Spark DataFrames:
-  *  - For leafs (not structs), use Options for nulls
-  *  - For inner-nodes (structs), use null for null rows
-  *
-  * Spark does not like nulls for non struct fields, but requires them for structs.
-  */
-sealed trait Node extends LogHelper {
-    def valueFromRow(r: Row): Any
-}
-
-/**
-  * Tree leaf has no sub-object, and is either None or the index
-  * to get the value from the dataframe (at the same sub-object level)
-  * @param idx Optional index to get existing value in DF (same sub-object level)
-  */
-case class TLeaf(idx: Option[Int], caster: Option[SparkSQLHiveExtensions.ValueCaster] = None) extends Node {
-    def valueFromRow(r: Row): Any = {
-        if (idx.isEmpty || r.isNullAt(idx.get)) None
-        else {
-            val value = r.get(idx.get)
-            caster match {
-                case Some(fn) => {
-                    log.debug(s"Attempting to cast $value...")
-                    val castValue = fn(value)
-                    log.debug(s"Successfully Cast $value to $castValue")
-                    castValue
-                }
-                case _ => value
-            }
-        }
-    }
-}
-
-/**
-  * Tree inner node is a sub-object field that exist in both src (at index) and dst
-  * schemas. The children array of nodes keeps track of the sub-object.
-  * @param idx the idx of the field being a sub-object (-1 for the tree root by convention)
-  * @param children the sub-object fields represented as an array of Nodes
-  */
-case class TInner(idx: Int, children: Array[Node]) extends Node {
-    def valueFromRow(r: Row): Any = {
-        if (idx != -1 && r.isNullAt(idx)) null
-        else {
-            // -1 idx is root by convention
-            val toWork = if (idx == -1) r else r.getStruct(idx)
-            Row.fromSeq(children.map(_.valueFromRow(toWork)))
         }
     }
 }
