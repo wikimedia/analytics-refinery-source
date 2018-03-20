@@ -151,6 +151,58 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result.children(2).asInstanceOf[MaskLeafNode].action == Nullify)
     }
 
+    it should "merge two sanitization masks" in {
+        val defaultsMask = MaskInnerNode(Array(
+            MaskLeafNode(Nullify),
+            MaskLeafNode(Nullify),
+            MaskLeafNode(Nullify),
+            MaskLeafNode(Identity),
+            MaskLeafNode(Identity),
+            MaskLeafNode(Identity),
+            MaskInnerNode(Array(MaskLeafNode(Identity))),
+            MaskInnerNode(Array(MaskLeafNode(Identity))),
+            MaskInnerNode(Array(
+                MaskLeafNode(Nullify),
+                MaskLeafNode(Nullify),
+                MaskLeafNode(Identity),
+                MaskLeafNode(Identity)
+            ))
+        ))
+        val specificMask = MaskInnerNode(Array(
+            MaskLeafNode(Nullify),
+            MaskLeafNode(Identity),
+            MaskInnerNode(Array(MaskLeafNode(Identity))),
+            MaskLeafNode(Nullify),
+            MaskLeafNode(Identity),
+            MaskInnerNode(Array(MaskLeafNode(Identity))),
+            MaskLeafNode(Nullify),
+            MaskLeafNode(Identity),
+            MaskInnerNode(Array(
+                MaskLeafNode(Nullify),
+                MaskLeafNode(Identity),
+                MaskLeafNode(Nullify),
+                MaskLeafNode(Identity)
+            ))
+        ))
+        val result = defaultsMask.merge(specificMask)
+        val children = result.asInstanceOf[MaskInnerNode].children
+        assert(children.length == 9)
+        assert(children(0).asInstanceOf[MaskLeafNode].action == Nullify)
+        assert(children(1).asInstanceOf[MaskLeafNode].action == Identity)
+        assert(children(2).asInstanceOf[MaskInnerNode].children.length == 1)
+        assert(children(3).asInstanceOf[MaskLeafNode].action == Identity)
+        assert(children(4).asInstanceOf[MaskLeafNode].action == Identity)
+        assert(children(5).asInstanceOf[MaskInnerNode].children.length == 1)
+        assert(children(6).asInstanceOf[MaskInnerNode].children.length == 1)
+        assert(children(7).asInstanceOf[MaskLeafNode].action == Identity)
+        val grandChildren = children(8).asInstanceOf[MaskInnerNode].children
+        assert(grandChildren.length == 4)
+        assert(grandChildren(0).asInstanceOf[MaskLeafNode].action == Nullify)
+        assert(grandChildren(1).asInstanceOf[MaskLeafNode].action == Identity)
+        assert(grandChildren(2).asInstanceOf[MaskLeafNode].action == Identity)
+        assert(grandChildren(3).asInstanceOf[MaskLeafNode].action == Identity)
+    }
+
     it should "sanitize a row by applying a sanitization mask" in {
         val mask = MaskInnerNode(Array(
             MaskLeafNode(Identity),
@@ -253,6 +305,32 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result.length == 2)
         assert(result(0) == Row(1, null))
         assert(result(1) == Row(2, null))
+    }
+
+    it should "sanitize table with proper defaults" in {
+        val dataFrame = spark.createDataFrame(
+            sc.parallelize(Seq(
+                Row(1, "hi", true),
+                Row(2, "bye", false)
+            )),
+            StructType(
+                StructField("f1", IntegerType, nullable=true) ::
+                StructField("f2", StringType, nullable=true) ::
+                StructField("f3", BooleanType, nullable=true) :: Nil
+            )
+        )
+        val result = sanitizeTable(
+            dataFrame,
+            "table",
+            Seq.empty,
+            Map(
+                "table" -> Map("f1" -> "keep"),
+                "__defaults__" -> Map("f2" -> "keep")
+            )
+        ).collect.sortBy(_.getInt(0))
+        assert(result.length == 2)
+        assert(result(0) == Row(1, "hi", null))
+        assert(result(1) == Row(2, "bye", null))
     }
 
     it should "automatically whitelist partition fields" in {
