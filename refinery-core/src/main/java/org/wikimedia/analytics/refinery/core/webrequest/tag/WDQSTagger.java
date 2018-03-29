@@ -1,14 +1,14 @@
 package org.wikimedia.analytics.refinery.core.webrequest.tag;
 
+import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
+
 import java.util.HashSet;
 import java.util.Set;
-
-import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
 /**
  * Tags for Wikidata Query Service.
  */
-@Tag(tag = {"wikidata-query", "sparql", "ldf"}, executionStage = 0)
+@Tag(tag = {"wikidata-query", "sparql", "ldf"}, executionStage = 1)
 public class WDQSTagger implements Tagger {
 
     /**
@@ -21,7 +21,11 @@ public class WDQSTagger implements Tagger {
             Set<String> tagAccumulator) {
         Set<String> tags = new HashSet<>();
 
-        if (!webrequestData.getUriHost().equals(WDQS_HOST)) {
+        if (!tagAccumulator.contains("wikidata")) {
+            return tags;
+        }
+
+        if ( !webrequestData.getUriHost().equals(WDQS_HOST)) {
             return tags;
         }
 

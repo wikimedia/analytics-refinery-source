@@ -26,7 +26,6 @@ public class TestTagger extends TestCase {
 
         TaggerChain taggerChain = new TaggerChain();
         // see fakePageviewTagger just for tests
-        assertTrue(taggerChain.chain.size() == 3);
         assertTrue(taggerChain.chain.get(0) != null);
         assertTrue(taggerChain.chain.get(1) != null);
     }
@@ -168,5 +167,45 @@ public class TestTagger extends TestCase {
             }
 
     }
+
+
+    public void testWikidataHappyCase() throws Exception{
+
+        WebrequestData data = new WebrequestData("www.wikidata.org",
+            "/",
+            "?action=compare&torev=658195202&fromrev=497699190&format=json",
+            "301",
+            "",
+            "",
+            "") ;
+
+        TaggerChain taggerChain = new TaggerChain();
+
+        Set<String> tags = taggerChain.getTags(data);
+
+        assertTrue(tags.contains("wikidata"));
+        assertFalse(tags.contains("wikidata-query"));
+
+    }
+
+    public void testWikidata() throws Exception{
+
+        WebrequestData data = new WebrequestData("wikidata.org",
+            "/",
+            "?action=compare&torev=658195202&fromrev=497699190&format=json",
+            "301",
+            "",
+            "",
+            "") ;
+
+        TaggerChain taggerChain = new TaggerChain();
+
+        Set<String> tags = taggerChain.getTags(data);
+
+        assertTrue(tags.contains("wikidata"));
+        assertFalse(tags.contains("wikidata-query"));
+
+    }
+
 
 }
