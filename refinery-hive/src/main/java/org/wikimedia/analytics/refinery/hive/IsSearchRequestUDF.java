@@ -22,6 +22,8 @@ import org.wikimedia.analytics.refinery.core.SearchRequest;
 /**
  * A hive UDF to identify in a boolean fashion whether a request
  * is a "search" request or not.
+ * @deprecated
+ *
  */
 public class IsSearchRequestUDF extends UDF {
     public boolean evaluate(

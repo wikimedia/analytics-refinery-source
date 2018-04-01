@@ -22,26 +22,26 @@ public class TestWebrequestRefererClassifier extends TestCase {
     // Helper methods ---------------------------------------------------------
 
     private void assertKind(final String url, final String expected) {
-        String actual = Webrequest.getInstance().classifyReferer(url);
+        RefererClass actual = Webrequest.getInstance().classifyReferer(url);
 
         assertEquals("Identification output does not match expected",
-                expected, actual);
+                expected, actual.getRefLabel());
     }
 
     private void assertNone(final String url) {
-        assertKind(url, Referer.NONE.getRefLabel());
+        assertKind(url, RefererClass.NONE.getRefLabel());
     }
 
     private void assertUnknown(final String url) {
-        assertKind(url, Referer.UNKNOWN.getRefLabel());
+        assertKind(url, RefererClass.UNKNOWN.getRefLabel());
     }
 
     private void assertInternal(final String url) {
-        assertKind(url, Referer.INTERNAL.getRefLabel());
+        assertKind(url, RefererClass.INTERNAL.getRefLabel());
     }
 
     private void assertExternal(final String url) {
-        assertKind(url, Referer.EXTERNAL.getRefLabel());
+        assertKind(url, RefererClass.EXTERNAL.getRefLabel());
     }
 
     // Test degernerate settings ----------------------------------------------
