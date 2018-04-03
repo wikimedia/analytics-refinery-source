@@ -39,7 +39,7 @@ public class TestTagger extends TestCase {
         Tagger t1 = taggerChain.chain.get(0);
         Tagger t2 = taggerChain.chain.get(taggerChain.chain.size() - 1);
 
-        //according to our setup  PortalTagger comes 1st, FakePageviewtagger comes after
+        //according to our setup  PortalTagger and PageviewTagger comes 1st, FakePageviewTagger comes last
 
         assertTrue("executionStage is considered when building chain",
             t1.getClass().getAnnotation(Tag.class).executionStage() <

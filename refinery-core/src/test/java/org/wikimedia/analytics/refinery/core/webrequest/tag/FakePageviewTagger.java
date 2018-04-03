@@ -13,7 +13,7 @@ import java.util.Set;
  * No need for this code to run in prod quite yet
  * Some "fake" execution stage order
  */
-@Tag(tag = {"pageview"}, executionStage = 2)
+@Tag(tag = {"fake-pageview"}, executionStage = 2)
 public class FakePageviewTagger implements Tagger {
     @Override
     public Set<String> getTags(WebrequestData webrequestData, Set<String> tagAccumulator){
@@ -21,7 +21,7 @@ public class FakePageviewTagger implements Tagger {
         Set <String> tags = new HashSet<>();
 
         if (PageviewDefinition.getInstance().isPageview(webrequestData)){
-            tags.add("pageview");
+            tags.add("fake-pageview");
         }
         return tags;
     }
