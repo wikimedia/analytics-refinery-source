@@ -2,11 +2,11 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import java.sql.Timestamp
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
+import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
 object TestHistoryEventHelpers {
 
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
   import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers._
 
   val emptyMwEvent = new MediawikiEvent(wikiDb = "", eventEntity = "", eventType = "")

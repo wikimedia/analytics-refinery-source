@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 
 /**
   * This file defines the functions for revisions-enrichment.
@@ -21,11 +21,11 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
   import java.sql.Timestamp
   // Implicit needed to sort by timestamps
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers.orderedTimestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
   import scala.annotation.tailrec
 
 
@@ -413,7 +413,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
 object DenormalizedRevisionsBuilder {
 
   import java.sql.Timestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers.orderedTimestamp
 
   // Mutable ordered set to manage reverts by timestamp
   type MutableOrderedReverts = scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]

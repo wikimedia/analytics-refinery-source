@@ -1,15 +1,14 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEvent
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 
 
 /**
   * This class implements the core algorithm of the page history reconstruction.
 
   * The [[run]] function first partitions the [[PageState]] and [[PageEvent]] RDDs
-  * using [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner]],
+  * using [[org.wikimedia.analytics.refinery.spark.utils.SubgraphPartitioner]],
   * then applies its [[processSubgraph]] method to every partition.
   *
   * It returns the [[PageState]] RDD of joined results of every partition and either
@@ -24,7 +23,7 @@ class PageHistoryBuilder(
   import java.util.UUID.randomUUID
   import java.sql.Timestamp
   import org.apache.spark.rdd.RDD
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner
+  import org.wikimedia.analytics.refinery.spark.utils.SubgraphPartitioner
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -451,7 +450,7 @@ class PageHistoryBuilder(
   /**
     * This function is the entry point of this class.
     * It first partitions events and states RDDs using
-    * [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner]],
+    * [[org.wikimedia.analytics.refinery.spark.utils.SubgraphPartitioner]],
     * then applies its [[processSubgraph]] method to every partition, and finally returns joined
     * states results, along with error events or their count.
     *
@@ -500,7 +499,7 @@ object PageHistoryBuilder extends Serializable {
 
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types._
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.RowKeyFormat
+  import org.wikimedia.analytics.refinery.spark.utils.RowKeyFormat
 
   type KEY = (String, String, Int)
   type STATS_GROUP = String

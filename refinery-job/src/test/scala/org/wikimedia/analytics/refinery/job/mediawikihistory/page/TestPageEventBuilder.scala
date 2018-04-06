@@ -4,7 +4,7 @@ import java.sql.Timestamp
 
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
 class TestPageEventBuilder extends FlatSpec with Matchers {
 

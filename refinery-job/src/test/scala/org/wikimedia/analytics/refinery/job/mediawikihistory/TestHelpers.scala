@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import java.sql.Timestamp
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
 object TestHelpers {
 

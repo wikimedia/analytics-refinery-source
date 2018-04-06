@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 /**
   * This class contains utility functions to parse page data
   * from the logging table.
-  * It uses [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer]].
+  * It uses [[org.wikimedia.analytics.refinery.core.PhpUnserializer]].
   *
   * @param canonicalNamespaceMap A map providing canonical namespace name for each project/namespace
   * @param localizedNamespaceMap A map providing localized namespace name for each project/namespace
@@ -17,9 +17,9 @@ class PageEventBuilder(
                       ) extends Serializable {
 
   import org.apache.spark.sql.Row
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
   import java.sql.Timestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+  import org.wikimedia.analytics.refinery.core.PhpUnserializer
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
   /**
     * Regular expression matching a string that should contain a map of php serialized

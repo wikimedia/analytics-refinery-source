@@ -1,5 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
+
 /**
   * Entry point for the Mediawiki History spark job(s).
   * It allows to run 3 sub-jobs (separately or jointly):
@@ -44,12 +45,10 @@ object MediawikiHistoryRunner {
   import org.apache.spark.SparkConf
   import org.apache.spark.sql.SparkSession
   import scopt.OptionParser
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageHistoryRunner
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserHistoryRunner
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.DenormalizedRunner
   import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized._
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.{PageEvent, PageState}
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.{UserEvent, UserState}
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.{PageHistoryRunner, PageState, PageEvent}
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.{UserHistoryRunner, UserState, UserEvent}
+
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -232,7 +231,7 @@ object MediawikiHistoryRunner {
             classOf[UserState]))
         val spark = SparkSession.builder().config(conf).getOrCreate()
         spark.sparkContext.setCheckpointDir(tmpPath)
-        
+
         // Launch jobs as needed
 
         // User History

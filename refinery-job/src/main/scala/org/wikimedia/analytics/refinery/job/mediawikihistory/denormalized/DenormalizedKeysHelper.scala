@@ -3,6 +3,8 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 import java.sql.Timestamp
 
 import org.apache.spark.Partitioner
+import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
+import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
 /**
   * Generalisation of an object having start and end timestamp.
@@ -142,8 +144,6 @@ class PartitionKeyPartitioner[K <: HasPartitionKey](val numPartitions: Int)
 object DenormalizedKeysHelper extends Serializable {
 
   import com.github.nscala_time.time.Imports._
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
   /**
     * Extracts the year part of a timestamp.

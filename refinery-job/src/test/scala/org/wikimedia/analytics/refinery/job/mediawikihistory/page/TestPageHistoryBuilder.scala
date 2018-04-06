@@ -1,6 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 
@@ -8,11 +7,13 @@ import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach with DataFrameSuiteBase {
 
   import org.apache.spark.sql.SparkSession
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
   import java.sql.Timestamp
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
+
+  import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
+
   // Implicit needed to sort by timestamps
-  //import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers.orderedTimestamp
 
   implicit def sumLongs = (a: Long, b: Long) => a + b
   var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]

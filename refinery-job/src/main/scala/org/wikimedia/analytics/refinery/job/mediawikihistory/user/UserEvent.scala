@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import java.sql.Timestamp
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.Edge
+import org.wikimedia.analytics.refinery.spark.utils.Edge
 
 
 /**

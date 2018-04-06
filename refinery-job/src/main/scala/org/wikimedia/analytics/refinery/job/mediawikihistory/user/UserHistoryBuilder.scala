@@ -1,14 +1,15 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 
 
 /**
   * This class implements the core algorithm of the user history reconstruction.
 
   * The [[run]] function first partitions the [[UserState]] and [[UserEvent]] RDDs
-  * using [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner]],
+  * using [[org.wikimedia.analytics.refinery.spark.utils.SubgraphPartitioner]],
   * then applies its [[processSubgraph]] method to every partition.
   *
   * It returns the [[UserState]] RDD of joined results of every partition and either
@@ -19,12 +20,11 @@ class UserHistoryBuilder(
                           statsAccumulator: MapAccumulator[String, Long]
                           ) extends Serializable {
 
-  import java.sql.Timestamp
-
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
-  import org.joda.time.{DateTime, DateTimeZone}
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{SubgraphPartitioner, TimestampHelpers}
+  import org.joda.time.{DateTime,DateTimeZone}
+  import java.sql.Timestamp
+  import org.wikimedia.analytics.refinery.spark.utils.SubgraphPartitioner
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -453,7 +453,7 @@ class UserHistoryBuilder(
   /**
     * This function is the entry point of this class.
     * It first partitions events and states RDDs using
-    * [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.SubgraphPartitioner]],
+    * [[org.wikimedia.analytics.refinery.spark.utils.SubgraphPartitioner]],
     * then applies its [[processSubgraph]] method to every partition, and finally returns joined
     * states results, along with error events.
     *
@@ -504,7 +504,7 @@ object UserHistoryBuilder extends Serializable{
 
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types.{StringType, StructField, StructType}
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.RowKeyFormat
+  import org.wikimedia.analytics.refinery.spark.utils.RowKeyFormat
 
   val METRIC_SUBGRAPH_PARTITIONS = "users.subgraphPartitions.count"
 

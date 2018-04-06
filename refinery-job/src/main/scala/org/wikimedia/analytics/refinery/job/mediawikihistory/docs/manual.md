@@ -67,7 +67,7 @@ Command line help:
 /home/joal/code/spark-1.6.3-bin-hadoop2.6/bin/spark-submit \
 --master yarn \
 --deploy-mode cluster \
---class org.wikimedia.analytics.refinery.job.mediawikihistory.MediawikiHistoryRunner \
+--class org.wikimedia.analytics.refinery.spark.mediawikihistory.MediawikiHistoryRunner \
 /home/joal/code/refinery-source/refinery-job/target/refinery-job-0.0.39-SNAPSHOT.jar \
 --help
 

@@ -1,11 +1,11 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.MapAccumulator
+
 
 /**
   * This object contains utility functions to parse user data
   * from the logging table.
-  * It uses [[org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer]].
+  * It uses [[org.wikimedia.analytics.refinery.core.PhpUnserializer]].
   */
 object UserEventBuilder extends Serializable {
 
@@ -13,8 +13,8 @@ object UserEventBuilder extends Serializable {
   import org.joda.time.DateTime
   import java.sql.Timestamp
   import org.joda.time.format.DateTimeFormat
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.PhpUnserializer
+  import org.wikimedia.analytics.refinery.core.PhpUnserializer
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
   val userRenamePattern = """^[^\[]*\[\[[^:]*:([^|]*)\|.*\]\][^\[]*\[\[[^:]*:(.*)\|.*$""".r
   val userCreatePattern = """^[^\[]*\[\[[^:]*:([^|]*)\|.*\]\].*$""".r

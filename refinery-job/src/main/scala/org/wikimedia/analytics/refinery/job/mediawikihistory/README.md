@@ -10,3 +10,6 @@ You can find documentation in the docs folder. It contains:
 * An overview.md files, describing the code architecture
   and some details about the implementation.
 * dataflow.(dia|png) files, providing a visualisation of the jobs.
+
+The main entry point for this code, MediawikiHistoryRunner.scala is available
+in the org.wikimedia.analytics.refinery.spark package.

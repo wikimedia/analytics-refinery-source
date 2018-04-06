@@ -13,6 +13,7 @@
 
   <modules>
     <module>refinery-core</module>
+    <module>refinery-spark</module>
     <module>refinery-tools</module>
     <module>refinery-hive</module>
     <module>refinery-job</module>
@@ -103,11 +104,17 @@
   <dependencyManagement>
     <dependencies>
 
-    <dependency>
-        <groupId>org.wikimedia.analytics.refinery.core</groupId>
-        <artifactId>refinery-core</artifactId>
+      <dependency>
+          <groupId>org.wikimedia.analytics.refinery.core</groupId>
+          <artifactId>refinery-core</artifactId>
+          <version>${project.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.wikimedia.analytics.refinery.spark</groupId>
+        <artifactId>refinery-spark</artifactId>
         <version>${project.version}</version>
-    </dependency>
+      </dependency>
 
       <dependency>
         <groupId>org.apache.hadoop</groupId>

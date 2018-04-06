@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job
 
 import org.apache.spark.sql.SparkSession
 import org.joda.time.DateTime
-import org.wikimedia.analytics.refinery.job.connectors.GraphiteClient
+import org.wikimedia.analytics.refinery.core.GraphiteClient
 import scopt.OptionParser
 
 import scala.collection.mutable.Map

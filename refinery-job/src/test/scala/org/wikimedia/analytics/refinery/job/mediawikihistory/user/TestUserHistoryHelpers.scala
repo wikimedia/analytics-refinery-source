@@ -2,9 +2,9 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import java.sql.Timestamp
 
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
 import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers
 import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers._
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 object TestUserHistoryHelpers {
 

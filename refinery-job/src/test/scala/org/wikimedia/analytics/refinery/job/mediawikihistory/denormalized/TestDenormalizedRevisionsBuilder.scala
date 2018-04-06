@@ -5,10 +5,12 @@ import java.sql.Timestamp
 import com.holdenkarau.spark.testing.SharedSparkContext
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 import TestHistoryEventHelpers._
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{MapAccumulator, TimestampHelpers}
+
 // Implicit needed to sort by timestamps
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
+import org.wikimedia.analytics.refinery.core.TimestampHelpers.orderedTimestamp
 
 class TestDenormalizedRevisionsBuilder
   extends FlatSpec

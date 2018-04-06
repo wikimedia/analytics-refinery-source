@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
+import org.wikimedia.analytics.refinery.spark.utils.StatsHelper
 
 
 /**
@@ -25,7 +25,7 @@ class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
   import org.apache.log4j.Logger
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types._
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
 
   @transient

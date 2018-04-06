@@ -3,11 +3,11 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 import java.sql.Timestamp
 
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
+import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEventBuilder._
 
 class TestUserEventBuilder extends FlatSpec with Matchers {
 
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEventBuilder._
   import org.apache.spark.sql.Row
 
   "isBotByName" should "correctly identify bots" in {

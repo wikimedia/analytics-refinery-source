@@ -4,11 +4,10 @@ import java.sql.Timestamp
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.wikimedia.analytics.refinery.core.TimestampHelpers
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
-import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
-import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserEventBuilder
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.{MapAccumulator, TimestampHelpers}
-
+import org.wikimedia.analytics.refinery.job.mediawikihistory.user.{UserEventBuilder, UserState}
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 
 /**
   * This file defines case classes for denormalized ME Events objects.

@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.StatsHelper
+import org.wikimedia.analytics.refinery.spark.utils.StatsHelper
 
 
 /**
@@ -22,10 +22,9 @@ class UserHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
 
   import com.databricks.spark.avro._
   import org.apache.spark.sql.{Row, SaveMode}
-  import org.apache.spark.sql.types._
-  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   import org.apache.log4j.Logger
-
+  import org.apache.spark.sql.types._
+  import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
