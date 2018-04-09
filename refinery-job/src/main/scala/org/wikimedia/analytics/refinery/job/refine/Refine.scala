@@ -36,6 +36,7 @@ object Refine extends LogHelper {
         // This is a ugly trick facilitating launching jobs
         // Shall be removed when using a properties configuration file
         spark: SparkSession                        = SparkSession.builder().enableHiveSupport().getOrCreate(),
+        hiveServerUrl: String                      = "analytics1003.eqiad.wmnet:10000",
         databaseName: String                       = "default",
         sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime                    = DateTime.now,
@@ -296,6 +297,7 @@ object Refine extends LogHelper {
         inputBasePath: String,
         outputBasePath: String,
         spark: SparkSession,
+        hiveServerUrl: String                      = "analytics1003.eqiad.wmnet:10000",
         databaseName: String                       = "default",
         sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime                    = DateTime.now,
@@ -404,7 +406,7 @@ object Refine extends LogHelper {
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!dryRun)
-                table -> refineTargets(spark, tableTargets.seq, transformFunctions)
+                table -> refineTargets(spark, hiveServerUrl, tableTargets.seq, transformFunctions)
             // If --dry-run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -468,12 +470,15 @@ object Refine extends LogHelper {
     /**
       * Given a Seq of RefineTargets, this runs DataFrameToHive on each one.
       *
-      * @param spark       SparkSession
-      * @param targets     Seq of RefineTargets to refine
+      * @param spark               SparkSession
+      * @param hiveServerUrl       The URL of the hive server to use
+      * @param targets             Seq of RefineTargets to refine
+      * @param transformFunctions  The list of transform functions to apply
       * @return
       */
     def refineTargets(
         spark: SparkSession,
+        hiveServerUrl: String,
         targets: Seq[RefineTarget],
         transformFunctions: Seq[TransformFunction]
     ): Seq[Try[RefineTarget]] = {
@@ -483,6 +488,7 @@ object Refine extends LogHelper {
             try {
                 val insertedDf = DataFrameToHive(
                     spark,
+                    hiveServerUrl,
                     target.inputDataFrame(spark),
                     target.partition,
                     () => target.writeDoneFlag(),

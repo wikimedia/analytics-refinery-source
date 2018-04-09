@@ -1,6 +1,10 @@
 package org.wikimedia.analytics.refinery.job.refine
 
+import java.sql.Connection
+import java.util.Properties
+
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
+import org.apache.hive.jdbc.HiveDriver
 import org.apache.spark.sql.{SparkSession, DataFrame}
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.StructType
@@ -48,11 +52,15 @@ import scala.util.control.Exception.{allCatch, ignoring}
   *
   */
 object DataFrameToHive extends LogHelper {
+
     /**
       * Creates or alters tableName in Hive to match any changes in the DataFrame schema
       * and then inserts the data into the table.
       *
       * @param spark              SparkSession
+      *
+      * @param hiveServerUrl      URL of the hive server to request to alter tables
+      *                           See https://issues.apache.org/jira/browse/SPARK-14130
       *
       * @param inputDf            Input DataFrame
       *
@@ -72,6 +80,7 @@ object DataFrameToHive extends LogHelper {
       */
     def apply(
         spark: SparkSession,
+        hiveServerUrl: String,
         inputDf: DataFrame,
         partition: HivePartition,
         doneCallback: () => Unit,
@@ -101,7 +110,7 @@ object DataFrameToHive extends LogHelper {
         } catch {
             case e: java.util.NoSuchElementException =>
                 log.info(
-                    s"`${partition}` DataFrame is empty after transformations. " +
+                    s"`$partition` DataFrame is empty after transformations. " +
                     "No data will be written for this partition."
                 )
                 doneCallback()
@@ -118,6 +127,7 @@ object DataFrameToHive extends LogHelper {
             // made nullable.
             prepareHiveTable(
                 spark,
+                hiveServerUrl,
                 df.schema,
                 partition.tableName,
                 partition.location,
@@ -172,6 +182,9 @@ object DataFrameToHive extends LogHelper {
       *
       * @param spark            SparkSession
       *
+      * @param hiveServerUrl      URL of the hive server to request to alter tables
+      *                           See https://issues.apache.org/jira/browse/SPARK-14130
+      *
       * @param newSchema        Spark schema representing the schema of the
       *                         table to be created or altered.
       *
@@ -186,6 +199,7 @@ object DataFrameToHive extends LogHelper {
       */
     def prepareHiveTable(
         spark: SparkSession,
+        hiveServerUrl: String,
         newSchema: StructType,
         tableName: String,
         locationPath: String = "",
@@ -197,12 +211,29 @@ object DataFrameToHive extends LogHelper {
 
         // CREATE or ALTER the Hive table if we have a change to make.
         if (ddlStatements.nonEmpty) {
-            ddlStatements.foreach { (s) =>
-                log.info(s"Running Hive DDL statement:\n$s")
-                ignoring(classOf[AlreadyExistsException]) {
-                    spark.sql(s)
+
+            // Use a hive JDBC connection since Spark doesn't accept column change in SPARK-2
+            // https://issues.apache.org/jira/browse/SPARK-14130
+            // The connection must use the current user for HDFS file permissions
+            try {
+                val hiveDriver = new HiveDriver()
+                val jdbcUser = System.getProperty("user.name")
+                val jdbcUrl = s"jdbc:hive2://$hiveServerUrl/default;user=$jdbcUser;password="
+                val connection: Connection = hiveDriver.connect(jdbcUrl, new Properties())
+                val statement = connection.createStatement()
+                ddlStatements.foreach { (s) =>
+                    log.info(s"Running Hive DDL statement:\n$s")
+                    ignoring(classOf[AlreadyExistsException]) {
+                        statement.execute(s)
+                    }
                 }
+                connection.close()
+            } catch {
+                case e: Throwable =>
+                    log.error("Error executing Hive-DDL commands\n" + e.getMessage)
+                    throw e
             }
+
             // Refresh Spark's metadata about this Hive table.
             spark.catalog.refreshTable(tableName)
             true
@@ -325,11 +356,12 @@ object DataFrameToHive extends LogHelper {
 
         // This query will return a human readable block of text about
         // this table (partition).  We need to parse out the Location information.
+        spark.catalog.refreshTable(partition.tableName)
         val locationLine: Option[String] = spark.sql(q)
             .collect()
             // Each line is a Row[String], map it to Seq of Strings
             .map(_.toString())
-            // Find the line with "Location:"
+            // Find the line with "Location"
             .find(_.startsWith("[Location"))
 
         // If we found Location in the string, then extract just the location path.
