@@ -423,6 +423,7 @@ object AppSessionMetrics {
         // Helper hashmap with all date related information to avoid passing around lots of params
         val datesInfo = HashMap("year" -> params.year, "month" -> params.month, "day" -> params.day, "periodDays" -> params.periodDays)
         // List of path strings like [".../day=1", ".../day=2"]
+        // TODO - Use hive context with partition helper when Shilad code gets merged
         val webrequestPaths = dateRangeToPathList(webrequestTextPath, datesInfo)
 
         // Get sessions data for all users, calculate stats for different metrics,

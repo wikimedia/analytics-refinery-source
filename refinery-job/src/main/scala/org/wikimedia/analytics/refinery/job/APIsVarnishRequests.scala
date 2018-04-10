@@ -21,7 +21,7 @@ object APIsVarnishRequests {
   /**
    * Config class for CLI argument parser using scopt
    */
-  case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
+  case class Params(webrequestTable: String = "wmf.webrequest",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
                     restbaseNamespace: String = "restbase.requests",
@@ -36,9 +36,9 @@ object APIsVarnishRequests {
     note("This job reports RESTBase and MW_API traffic to graphite hourly")
     help("help") text ("Prints this usage text")
 
-    opt[String]('w', "webrequest-base-path") optional() valueName ("<path>") action { (x, p) =>
-      p.copy(webrequestBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-    } text ("Base path to webrequest data on hadoop. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/webrequest")
+    opt[String]('w', "webrequest-table") optional() valueName ("<table>") action { (x, p) =>
+      p.copy(webrequestTable = x)
+    } text ("The fully qualified table name to query. Defaults to wmf.webrequest")
 
     opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
       p.copy(graphiteHost = x)
@@ -78,15 +78,26 @@ object APIsVarnishRequests {
 
   }
 
-  def countAPIsURIs(parquetData: DataFrame, spark: SparkSession): (Long, Long) = {
+  def countAPIsURIs(
+                     spark: SparkSession,
+                     webrequestTable: String,
+                     year: Int,
+                     month: Int,
+                     day: Int,
+                     hour: Int
+                     ): (Long, Long) = {
 
-    parquetData.createOrReplaceTempView("tmp_apis")
     val row = spark.sql(
-      """
+      s"""
         |SELECT
         |  SUM(CASE WHEN uri_path like '/api/rest_v1%' THEN 1 ELSE 0 END) as restbase_requests,
         |  SUM(CASE WHEN uri_path like '/w/api.php%' THEN 1 ELSE 0 END) as mwapi_requests
-        |FROM tmp_apis
+        |FROM $webrequestTable
+        |WHERE webrequest_source = 'text'
+        |  AND year = $year
+        |  AND month = $month
+        |  AND day = $day
+        |  AND hour = $hour
       """.stripMargin).collect().head
     (row.getLong(0), row.getLong(1))
   }
@@ -98,17 +109,15 @@ object APIsVarnishRequests {
         val spark = SparkSession.builder()
           .appName("APIsVarnishRequests")
           .config("spark.sql.parquet.compression.codec", "snappy")
+          .enableHiveSupport()
           .getOrCreate()
-
-        // Define the path to load data in Parquet format
-        val parquetDataPath = "%s/webrequest_source=text/year=%d/month=%d/day=%d/hour=%d"
-          .format(params.webrequestBasePath, params.year, params.month, params.day, params.hour)
 
         // Define time, metric, Compute request count
         val graphiteTimestamp = new DateTime(params.year, params.month, params.day, params.hour, 0).getMillis / 1000
         val restbaseMetric = "%s.varnish_requests".format(params.restbaseNamespace)
         val mwAPIMetric = "%s.varnish_requests".format(params.mwAPINamespace)
-        val (restbaseRequests, mwAPIRequests) = countAPIsURIs(spark.read.parquet(parquetDataPath), spark)
+        val (restbaseRequests, mwAPIRequests) = countAPIsURIs(
+          spark, params.webrequestTable, params.year, params.month, params.day, params.hour)
 
         // Send to graphite
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)

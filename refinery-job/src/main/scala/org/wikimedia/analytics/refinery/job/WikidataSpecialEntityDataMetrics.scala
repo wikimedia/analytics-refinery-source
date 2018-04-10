@@ -20,7 +20,7 @@ object WikidataSpecialEntityDataMetrics {
   /**
     * Config class for CLI argument parser using scopt
     */
-  case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
+  case class Params(webrequestTable: String = "wmf.webrequest",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
                     graphiteNamespace: String = "daily.wikidata.entitydata",
@@ -34,11 +34,11 @@ object WikidataSpecialEntityDataMetrics {
     note("This job reports use of the wikidata Special:EntityData page to graphite daily")
     help("help") text ("Prints this usage text")
 
-    opt[String]('t', "webrequest-base-path") optional() valueName ("<path>") action { (x, p) =>
-      p.copy(webrequestBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-    } text ("Path to the webrequest data in HDFS. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/webrequest")
+    opt[String]('t', "webrequest-table") optional() valueName ("<table>") action { (x, p) =>
+      p.copy(webrequestTable = x)
+    } text ("The webrequest table to query. Defaults to wmf.webrequest")
 
-    opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
+    opt[String]('g', "graphite-host") optional() valueName ("<host>") action { (x, p) =>
       p.copy(graphiteHost = x)
     } text ("Graphite host. Defaults to localhost")
 
@@ -71,27 +71,24 @@ object WikidataSpecialEntityDataMetrics {
       case Some(params) => {
         // Initial Spark setup
         val appName = s"WikidataSpecialEntityDataMetrics-${params.year}-${params.month}-${params.day}"
-        val spark = SparkSession.builder().appName(appName).getOrCreate()
+        val spark = SparkSession.builder().appName(appName).enableHiveSupport().getOrCreate()
 
-        val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
-        val parquetPath = "%s/year=%d/month=%d/day=%d/*".format(webrequestTextPath, params.year, params.month, params.day)
-        val temporaryTable = "temporaryTable"
-
-        spark.read.parquet(parquetPath).createOrReplaceTempView(temporaryTable)
-
-        val sql = """
+        val sql = s"""
   SELECT
     COUNT(1) AS count,
     agent_type,
     content_type
-  FROM %s
-  WHERE http_status = 200
+  FROM ${params.webrequestTable}
+  WHERE webrequest_source = 'text'
+    AND year = ${params.year}
+    AND month = ${params.month}
+    AND day = ${params.day}
+    AND http_status = 200
     AND normalized_host.project_class = 'wikidata'
-    AND uri_path rlike '^/wiki/Special:EntityData/.*$'
+    AND uri_path rlike '^/wiki/Special:EntityData/.*$$'
     GROUP BY
       agent_type,
-      content_type
-                  """.format(temporaryTable)
+      content_type"""
 
         val data = spark.sql(sql).collect().map(r => (r.getLong(0), r.getString(1), r.getString(2)))
 

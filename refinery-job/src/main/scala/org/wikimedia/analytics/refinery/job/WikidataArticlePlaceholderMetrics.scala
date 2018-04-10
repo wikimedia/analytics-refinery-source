@@ -22,7 +22,7 @@ object WikidataArticlePlaceholderMetrics {
   /**
     * Config class for CLI argument parser using scopt
     */
-  case class Params(webrequestBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/webrequest",
+  case class Params(webrequestTable: String = "wmf.webrequest",
                     graphiteHost: String = "localhost",
                     graphitePort: Int = 2003,
                     graphiteNamespace: String = "daily.wikidata.articleplaceholder",
@@ -36,11 +36,11 @@ object WikidataArticlePlaceholderMetrics {
     note("This job reports ArticlePlaceholder extension traffic to graphite daily")
     help("help") text ("Prints this usage text")
 
-    opt[String]('t', "webrequest-base-path") optional() valueName ("<path>") action { (x, p) =>
-      p.copy(webrequestBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-    } text ("Path to the webrequest data in HDFS. Defaults to hdfs://analytics-hadoop/wmf/data/wmf/webrequest")
+    opt[String]('t', "webrequest-table") optional() valueName ("<table>") action { (x, p) =>
+      p.copy(webrequestTable = x)
+    } text ("The webrequest table to query. Defaults to wmf.webrequest")
 
-    opt[String]('g', "graphite-host") optional() valueName ("<path>") action { (x, p) =>
+    opt[String]('g', "graphite-host") optional() valueName ("<host>") action { (x, p) =>
       p.copy(graphiteHost = x)
     } text ("Graphite host. Defaults to localhost")
 
@@ -73,31 +73,28 @@ object WikidataArticlePlaceholderMetrics {
       case Some(params) => {
         // Initial Spark setup
         val appName = s"WikidataArticlePlaceholderMetrics-${params.year}-${params.month}-${params.day}"
-        val spark = SparkSession.builder().appName(appName).getOrCreate()
-
-        val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
-        val parquetPath = s"${webrequestTextPath}/year=${params.year}/month=${params.month}/day=${params.day}/*"
-        val temporaryTable = "temporaryTable"
-
-        spark.read.parquet(parquetPath).createOrReplaceTempView(temporaryTable)
+        val spark = SparkSession.builder().appName(appName).enableHiveSupport().getOrCreate()
 
         // Currently limited to wikipedia as ArticlePlaceholder is only deployed to wikipedias
-        val sql = """
+        val sql = s"""
   SELECT
     pageview_info["project"],
     agent_type,
-    (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$') as from_search,
+    (referer rlike '^.*search=.*$$' AND referer rlike '^.*\.wikipedia\.org.*$$') as from_search,
     COUNT(1)
-  FROM %s
-  WHERE is_pageview = TRUE
+  FROM ${params.webrequestTable}
+  WHERE webrequest_source = 'text'
+    AND year = ${params.year}
+    AND month = ${params.month}
+    AND day = ${params.day}
+    AND is_pageview = TRUE
     AND x_analytics_map["ns"] = '-1'
     AND x_analytics_map["special"] = 'AboutTopic'
     AND normalized_host.project_class = 'wikipedia'
   GROUP BY
     pageview_info["project"],
     agent_type,
-    (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$')
-                  """.format(temporaryTable)
+    (referer rlike '^.*search=.*$$' AND referer rlike '^.*\.wikipedia\.org.*$$')"""
 
         val queryData = spark.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
