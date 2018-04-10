@@ -2,8 +2,8 @@ package org.wikimedia.analytics.refinery.job
 
 import com.github.nscala_time.time.Imports._
 import java.io.{File, FileInputStream}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.hive.HiveContext
 import org.wikimedia.analytics.refinery.job.refine.Refine
 import org.yaml.snakeyaml.Yaml
 import scala.collection.JavaConverters._
@@ -169,9 +169,7 @@ object EventLoggingSanitization {
         val tableWhitelistRegex = new Regex("^(" + whitelist.keys.mkString("|") + ")$")
 
         // Initialize context.
-        val conf = new SparkConf()
-        val sc = new SparkContext(conf)
-        val hiveContext = new HiveContext(sc)
+        val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
 
         // Get WhitelistSanitization transform function.
         val sanitizationTransformFunction = WhitelistSanitization(whitelist)
@@ -180,7 +178,7 @@ object EventLoggingSanitization {
         Refine(
             inputBasePath = params.inputBasePath,
             outputBasePath = params.outputBasePath,
-            hiveContext = hiveContext,
+            spark = spark,
             databaseName = params.outputDatabase,
             sinceDateTime = params.sinceDateTime,
             untilDateTime = params.untilDateTime,

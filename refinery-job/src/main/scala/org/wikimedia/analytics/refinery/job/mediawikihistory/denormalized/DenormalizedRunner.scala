@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 
 /**
   * This class defines the functions for revisions-denormalization process.
@@ -16,7 +16,7 @@ import org.apache.spark.sql.SQLContext
   *
   * It finally writes the union of those denormalized data in parquet format.
   */
-class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
+class DenormalizedRunner(spark: SparkSession) extends Serializable {
 
   import org.apache.spark.sql.SaveMode
   import scala.reflect.ClassTag
@@ -116,27 +116,27 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
     // Prepare (live-archived) revisions, users and pages history RDDs
     //***********************************
 
-    sqlContext.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
+    spark.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
 
-    val revisionDf = sqlContext.read.avro(revisionDataPath)
-    revisionDf.registerTempTable("revision")
+    val revisionDf = spark.read.avro(revisionDataPath)
+    revisionDf.createOrReplaceTempView("revision")
 
-    val archiveDf = sqlContext.read.avro(archiveDataPath)
-    archiveDf.registerTempTable("archive")
+    val archiveDf = spark.read.avro(archiveDataPath)
+    archiveDf.createOrReplaceTempView("archive")
 
     val wikiClause = if (wikiConstraint.isEmpty) ""
                      else "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
 
-    val userStatesDf = sqlContext.read.parquet(userHistoryPath).where(s"TRUE $wikiClause")
+    val userStatesDf = spark.read.parquet(userHistoryPath).where(s"TRUE $wikiClause")
     val userStatesToFilter = userStatesDf.rdd.map(UserState.fromRow)
     val userStates = filterStates[UserState](userStatesToFilter, DenormalizedKeysHelper.userStateKeyNoYear)
 
-    val pageStatesDf = sqlContext.read.parquet(pageHistoryPath).where(s"TRUE $wikiClause")
+    val pageStatesDf = spark.read.parquet(pageHistoryPath).where(s"TRUE $wikiClause")
     val pageStatesToFilter = pageStatesDf.rdd.map(PageState.fromRow)
       .filter(state => state.pageId.getOrElse(0L) > 0 && state.pageIdArtificial.isEmpty)
     val pageStates = filterStates[PageState](pageStatesToFilter, DenormalizedKeysHelper.pageStateKeyNoYear)
 
-    val liveRevisions = sqlContext.sql(
+    val liveRevisions = spark.sql(
       s"""
   SELECT
     wiki_db,
@@ -175,7 +175,7 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
       .map(MediawikiEvent.fromRevisionRow)
 
 
-    val archivedRevisions = sqlContext.sql(
+    val archivedRevisions = spark.sql(
       s"""
   SELECT
     archive.wiki_db,
@@ -313,11 +313,10 @@ class DenormalizedRunner(sqlContext: SQLContext) extends Serializable {
       .union(pageMediawikiEventsWithUserData)
     log.info(s"Denormalized revisions, pages and users union: ${denormalizedMediawikiEventsRdd.count()}")
 
-    val denormalizedMediawikiEventsDf = sqlContext.createDataFrame(
+    val denormalizedMediawikiEventsDf = spark.createDataFrame(
         denormalizedMediawikiEventsRdd.map(_.toRow),
         MediawikiEvent.schema)
 
-    sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
     denormalizedMediawikiEventsDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
 
     log.info(s"Denormalized MW Events jobs done")

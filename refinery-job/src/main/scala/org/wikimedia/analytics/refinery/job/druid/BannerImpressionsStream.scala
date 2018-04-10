@@ -11,7 +11,9 @@ import org.joda.time.{DateTime, Period}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.wikimedia.analytics.refinery.core.Webrequest
+import org.wikimedia.analytics.refinery.job.connectors._
 import scopt.OptionParser
+import com.metamx.tranquility.spark.BeamRDD._
 
 /**
   *
@@ -115,10 +117,9 @@ object BannerImpressionsStream {
         }
 
       // Add this import to your Spark job to be able to propagate events from any RDD to Druid
-      import com.metamx.tranquility.spark.BeamRDD._
 
       // Output banners to druid through tranquility
-      bannerStream.foreachRDD(_.propagate(new TranquilitySingletonBeamFactory(tranquilityBeamConf)))
+      bannerStream.foreachRDD(rdd => rdd.propagate(new TranquilitySingletonBeamFactory(tranquilityBeamConf)))
 
       ssc
     }

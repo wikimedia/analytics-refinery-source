@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 
 
 /**
@@ -13,7 +13,7 @@ import org.apache.spark.sql.SQLContext
   * It returns the [[PageState]] RDD of joined results of every partition and either
   * the errors found on the way, or their count.
   */
-class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
+class PageHistoryBuilder(spark: SparkSession) extends Serializable {
 
   import org.apache.log4j.Logger
   import java.util.UUID.randomUUID
@@ -459,7 +459,7 @@ class PageHistoryBuilder(sqlContext: SQLContext) extends Serializable {
   ) = {
     log.info(s"Page history building jobs starting")
 
-    val partitioner = new SubgraphPartitioner[PageHistoryBuilder.KEY, PageEvent, PageState](sqlContext, PageHistoryBuilder.PageRowKeyFormat)
+    val partitioner = new SubgraphPartitioner[PageHistoryBuilder.KEY, PageEvent, PageState](spark, PageHistoryBuilder.PageRowKeyFormat)
     val subgraphs = partitioner.run(events, states)
 
     log.info(s"Processing partitioned page histories")

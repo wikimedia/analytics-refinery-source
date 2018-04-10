@@ -1,14 +1,13 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import java.sql.Timestamp
-
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
 
 class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
 
-  import org.apache.spark.sql.SQLContext
+  import org.apache.spark.sql.SparkSession
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.TestUserHistoryHelpers._
+  import java.sql.Timestamp
+  import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers
   // Implicit needed to sort by timestamps
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
@@ -16,7 +15,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
   var userHistoryBuilder = null.asInstanceOf[UserHistoryBuilder]
 
   override def beforeEach(): Unit = {
-    userHistoryBuilder = new UserHistoryBuilder(null.asInstanceOf[SQLContext])
+    userHistoryBuilder = new UserHistoryBuilder(null.asInstanceOf[SparkSession])
   }
 
   /**
