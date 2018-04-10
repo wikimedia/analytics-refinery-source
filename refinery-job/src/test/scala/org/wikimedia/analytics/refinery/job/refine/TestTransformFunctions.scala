@@ -2,8 +2,7 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.refine.{geocode_ip, deduplicate_eventbus, deduplicate_eventlogging}
-import org.wikimedia.analytics.refinery.spark.sql.HivePartition
+import org.wikimedia.analytics.refinery.core.HivePartition
 
 import scala.collection.immutable.ListMap
 

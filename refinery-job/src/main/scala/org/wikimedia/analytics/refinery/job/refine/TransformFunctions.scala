@@ -10,9 +10,8 @@ package org.wikimedia.analytics.refinery.job.refine
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{MapType, StringType}
 import org.apache.spark.sql.{AnalysisException, DataFrame, Row}
-import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory
-import org.wikimedia.analytics.refinery.spark.sql.HivePartition
 
 import scala.collection.JavaConverters._
 

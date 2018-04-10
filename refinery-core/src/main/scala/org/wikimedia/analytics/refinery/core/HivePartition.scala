@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.spark.sql
+package org.wikimedia.analytics.refinery.core
 
 import scala.collection.immutable.ListMap
 import scala.util.matching.Regex

@@ -6,8 +6,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.spark.sql.HivePartition
+import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}

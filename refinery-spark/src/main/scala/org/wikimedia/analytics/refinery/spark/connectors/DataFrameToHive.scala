@@ -8,8 +8,8 @@ import org.apache.hive.jdbc.HiveDriver
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.spark.sql.{HivePartition, SparkSQLHiveExtensions}
+import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+import org.wikimedia.analytics.refinery.spark.sql.SparkSQLHiveExtensions
 import SparkSQLHiveExtensions._
 
 import scala.util.control.Exception.{allCatch, ignoring}

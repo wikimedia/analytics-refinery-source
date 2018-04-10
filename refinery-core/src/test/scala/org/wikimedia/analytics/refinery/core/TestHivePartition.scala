@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.spark.sql
+package org.wikimedia.analytics.refinery.core
 
 import org.scalatest.{FlatSpec, Matchers}
 

@@ -4,7 +4,6 @@ import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.refine.WhitelistSanitization
 import WhitelistSanitization.SanitizationAction._
 import WhitelistSanitization._
 

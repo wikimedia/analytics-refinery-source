@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.wikimedia.analytics.refinery.spark.sql.HivePartition
+import org.wikimedia.analytics.refinery.core.HivePartition
 
 
 /**
