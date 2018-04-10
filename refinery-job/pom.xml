@@ -116,6 +116,13 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-streaming-kafka-0-8_2.11</artifactId>
             <version>${spark.version}</version>
+            <exclusions>
+                <!-- Excluded for dependency conflict with spark -->
+                <exclusion>
+                    <groupId>net.jpountz.lz4</groupId>
+                    <artifactId>lz4</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -210,19 +217,6 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.5.3</version>
-        </dependency>
-
-        <dependency>
-            <groupId>io.druid</groupId>
-            <artifactId>tranquility-spark_2.11</artifactId>
-            <version>0.8.2</version>
-            <exclusions>
-                <!-- Excluded for dependicy conflict with spark -->
-                <exclusion>
-                    <groupId>org.apache.derby</groupId>
-                    <artifactId>derby</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
         <!--

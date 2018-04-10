@@ -1,5 +1,6 @@
 ## v0.0.61
 * Fix sys.exit bug in Refine
+* Fix LZ4 version bug with maven exclusion in refinery-spark and refinery-job
 
 ## v0.0.60
 * Big refactor of scala and spark code
