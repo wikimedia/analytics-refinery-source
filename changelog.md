@@ -1,3 +1,14 @@
+## v0.0.60
+* Big refactor of scala and spark code
+** add refinery-spark module for spark oriented libs
+** Move non-spark dependent code to refinery-core
+* Tweak Mediawiki-history job for performance (mostly partitioning)
+* Update Mediawiki-history job to use accumulator to gather stats
+* Add Hive JDBC connection to Refine for it to work with Spark 2 
+* Update spark code to use Spark 2.3.0
+* Add new wikidata and pageview tags to webrequest
+* Update Refine to use SQL-casting instead of row-conversion 
+
 ## v0.0.59
 * JsonRefine has been made data source agnostic, and now lives in a
   refine module in refinery-job.  The Spark job is now just called 'Refine'.
