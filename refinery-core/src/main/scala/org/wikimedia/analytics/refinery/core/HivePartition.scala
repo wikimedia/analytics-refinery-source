@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.refine
+package org.wikimedia.analytics.refinery.core
 
 import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
@@ -21,7 +21,7 @@ case class HivePartition(
     partitions: ListMap[String, String] = ListMap()
 ) {
     val table: String = HivePartition.normalize(t)
-    val tableName: String = s"`$database`.`$table`"
+    val tableName: String = s"$database.$table"
 
     /**
       * Seq of partition keys
@@ -33,14 +33,14 @@ case class HivePartition(
       * e.g. year=2017,month=7,day=12,hour=0
       */
     val hiveQL: String = {
-        partitions.map { case (k: String, v: String) =>
+        partitions.map { case (k: String, v: String) => {
             v match {
                 // If the value looks like a number, strip leading 0s
                 case n if n.forall(_.isDigit) => (k, n.replaceFirst("^0+(?!$)", ""))
                 // Else the value should be a string, then quote it.
                 case s => (k, s""""$s"""")
             }
-        }
+        }}
         .map(p => s"${p._1}=${p._2}").mkString(",")
     }
 
@@ -49,14 +49,14 @@ case class HivePartition(
       * This is how Hive creates partition directories.
       */
     val relativePath: String = {
-        partitions.map { case (k: String, v: String) =>
+        partitions.map { case (k: String, v: String) => {
             v match {
                 // If the value looks like a number, strip leading 0s
                 case n if n.forall(_.isDigit) => (k, n.replaceFirst("^0+(?!$)", ""))
                 // Else the value should be a string, no need to quote in path.
                 case s => (k, s)
             }
-        }
+        }}
         .map(p => s"${p._1}=${p._2}").mkString("/")
     }
 

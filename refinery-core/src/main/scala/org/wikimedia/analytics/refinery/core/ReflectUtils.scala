@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.refine
+package org.wikimedia.analytics.refinery.core
 
 import scala.reflect.runtime.universe
 
@@ -19,7 +19,7 @@ object ReflectUtils {
     def getStaticMethodMirror(moduleName: String, methodName: String = "apply"): universe.MethodMirror = {
         val mirror = universe.runtimeMirror(getClass.getClassLoader)
         val module = mirror.staticModule(moduleName)
-        val method = module.typeSignature.member(universe.TermName(methodName)).asMethod
+        val method = module.typeSignature.member(universe.newTermName(methodName)).asMethod
         val methodMirror = mirror.reflect(mirror.reflectModule(module).instance).reflectMethod(method)
         if (!methodMirror.symbol.isMethod || !methodMirror.symbol.isStatic) {
             throw new RuntimeException(

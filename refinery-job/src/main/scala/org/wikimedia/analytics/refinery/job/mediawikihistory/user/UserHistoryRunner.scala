@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.SQLContext
 
 /**
   * This class defines the functions for the user history reconstruction process.
@@ -16,7 +16,7 @@ import org.apache.spark.sql.SparkSession
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class UserHistoryRunner(spark: SparkSession) extends Serializable {
+class UserHistoryRunner(sqlContext: SQLContext) extends Serializable {
 
   import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
@@ -61,25 +61,25 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     // Prepare user events and states RDDs
     //***********************************
 
-    spark.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
+    sqlContext.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
 
-    val loggingDf = spark.read.avro(loggingDataPath)
-    loggingDf.createOrReplaceTempView("logging")
+    val loggingDf = sqlContext.read.avro(loggingDataPath)
+    loggingDf.registerTempTable("logging")
 
-    val userDf = spark.read.avro(userDataPath)
-    userDf.createOrReplaceTempView("user")
+    val userDf = sqlContext.read.avro(userDataPath)
+    userDf.registerTempTable("user")
 
-    val userGroupsDf = spark.read.avro(userGroupsDataPath)
-    userGroupsDf.createOrReplaceTempView("user_groups")
+    val userGroupsDf = sqlContext.read.avro(userGroupsDataPath)
+    userGroupsDf.registerTempTable("user_groups")
 
-    val revisionDf = spark.read.avro(revisionDataPath)
-    revisionDf.createOrReplaceTempView("revision")
+    val revisionDf = sqlContext.read.avro(revisionDataPath)
+    revisionDf.registerTempTable("revision")
 
     val wikiClause = if (wikiConstraint.isEmpty) "" else {
       "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
     }
 
-    val parsedUserEvents = spark.sql(
+    val parsedUserEvents = sqlContext.sql(
       s"""
   SELECT
     log_type,
@@ -125,12 +125,14 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
       *   --> Update coalesce to in map null change (typing issue)
       */
 
+    //sqlContext.udf.register("emptyStringArray", () => Array.empty[String])
+
     val userGroupsSchema = StructType(
       Seq(StructField("wiki_db", StringType, nullable = false),
         StructField("ug_user", LongType, nullable = false),
         StructField("user_groups", ArrayType(StringType, containsNull = false), nullable = false)))
 
-    val userGroupsRdd = spark.sql(
+    val userGroupsRdd = sqlContext.sql(
       s"""
     SELECT
       wiki_db,
@@ -145,10 +147,10 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
       .reduceByKey(_ ++ _)
       .map(t => Row(t._1._1, t._1._2, t._2.distinct))
 
-      spark.createDataFrame(userGroupsRdd, userGroupsSchema).createOrReplaceTempView("grouped_user_groups")
+      sqlContext.createDataFrame(userGroupsRdd, userGroupsSchema).registerTempTable("grouped_user_groups")
 
 
-    val userStates = spark.sql(
+    val userStates = sqlContext.sql(
       s"""
   SELECT
     user_id,
@@ -232,7 +234,7 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     // Reconstruct user history
     //***********************************
 
-    val userHistoryBuilder = new UserHistoryBuilder(spark)
+    val userHistoryBuilder = new UserHistoryBuilder(sqlContext)
     val (userHistoryRdd, unmatchedEvents) = userHistoryBuilder.run(userEvents, userStates, errorsPath.isDefined)
 
     // TODO : Compute is_bot_for_other_wikis
@@ -246,8 +248,9 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
 
 
 
-    val userHistoryDf = spark.createDataFrame(userHistoryRdd.map(_.toRow), UserState.schema)
-    //("spark.sql.parquet.compression.codec", "snappy")
+    val userHistoryDf =
+      sqlContext.createDataFrame(userHistoryRdd.map(_.toRow), UserState.schema)
+    sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
     userHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"User history reconstruction results written")
 
@@ -256,7 +259,7 @@ class UserHistoryRunner(spark: SparkSession) extends Serializable {
     if (errorsPath.isDefined) {
       val matchingErrorEvents = unmatchedEvents.right.get
       log.info("Unmatched userEvents: " + matchingErrorEvents.count.toString)
-      val errorDf = spark.createDataFrame(
+      val errorDf = sqlContext.createDataFrame(
         parsingErrorEvents.map(e => Row("parsing", e.toString)).union(
           matchingErrorEvents.map(e => Row("matching", e.toString))
         ),

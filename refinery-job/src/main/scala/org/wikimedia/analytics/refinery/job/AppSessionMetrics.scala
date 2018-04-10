@@ -2,10 +2,10 @@ package org.wikimedia.analytics.refinery.job
 
 import com.github.nscala_time.time.Imports.{LocalDate, Period}
 import com.twitter.algebird.{QTree, QTreeSemigroup}
-import org.apache.hadoop.fs.Path
-import org.apache.spark.SparkConf
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 import scala.collection.immutable.HashMap
 
@@ -256,11 +256,11 @@ object AppSessionMetrics {
    * @param paths List of parquet file paths to load,
    *              Like: ["hdfs://../year=2015/month=5/day=5",
    *              "hdfs://../year=2015/month=5/day=6",...]
-   * @param spark SQL Context
+   * @param sqlContext SQL Context
    * @return DataFrame with 3 columns: os_family, wmfuuid and timestamp
    */
-  def pathListToDataframe(paths: List[String], spark: SparkSession): DataFrame = {
-    spark.read.parquet(paths: _*)
+  def pathListToDataframe(paths: List[String], sqlContext: SQLContext): DataFrame = {
+    sqlContext.read.parquet(paths: _*)
       .filter("""
         is_pageview
         and access_method = 'mobile app'
@@ -302,7 +302,7 @@ object AppSessionMetrics {
   /**
    * Save output stats to HDFS
    */
-  def saveStats(spark: SparkSession, outputFile: String, currentStats: String, reportDateRange: String) = {
+  def saveStats(sc: SparkContext, outputFile: String, currentStats: String, reportDateRange: String) = {
     @transient
     val hadoopConf = new org.apache.hadoop.conf.Configuration()
     val hdfs = new Path(outputFile).getFileSystem(hadoopConf)
@@ -313,7 +313,7 @@ object AppSessionMetrics {
     if (hdfs.exists(path)) {
       // Read data file and delete records from this date range if any
       // and convert the filtered data into a string.
-      val pastStats = spark.sparkContext.textFile(outputFile)
+      val pastStats = sc.textFile(outputFile)
         .filter(record => !record.contains(reportDateRange))
         .collect.mkString("\n")
 
@@ -412,9 +412,10 @@ object AppSessionMetrics {
         // Initial setup - Spark, SQLContext
         val conf = new SparkConf().setAppName("AppSessionMetrics")
           .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-          .set("spark.kryoserializer.buffer", "24m")
-          .set("spark.sql.parquet.compression.codec", "snappy")
-        val spark = SparkSession.builder().config(conf).getOrCreate()
+          .set("spark.kryoserializer.buffer.mb", "24")
+        val sc = new SparkContext(conf)
+        val sqlContext = new SQLContext(sc)
+        sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
 
         // Generate a list of all parquet file paths to read given the webrequest base path,
         // and all dates related information.  NOTE: As of January 2016,
@@ -427,7 +428,7 @@ object AppSessionMetrics {
 
         // Get sessions data for all users, calculate stats for different metrics,
         // and get the stats in a printable string format to output
-        val userSessionsData = userSessions(pathListToDataframe(webrequestPaths, spark), params.numPartitions).cache()
+        val userSessionsData = userSessions(pathListToDataframe(webrequestPaths, sqlContext), params.numPartitions).cache()
         val allMetricsStats = if (params.splitByOs) {
           osFamilies.map(allSessionMetricsStats(userSessionsData, _)).fold(List.empty)(_++_)
         } else {
@@ -437,7 +438,7 @@ object AppSessionMetrics {
 
         //Save output to file
         val outputFile = params.outputDir + "/session_metrics.tsv"
-        saveStats(spark, outputFile, outputStats, dateRangeToString(datesInfo))
+        saveStats(sc, outputFile, outputStats, dateRangeToString(datesInfo))
       }
       case None => sys.exit(1)
     }

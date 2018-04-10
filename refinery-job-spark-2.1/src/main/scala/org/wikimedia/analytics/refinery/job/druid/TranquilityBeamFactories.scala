@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.connectors
+package org.wikimedia.analytics.refinery.job.druid
 
 import com.metamx.common.Granularity
 import com.metamx.tranquility.beam.{ClusteredBeamTuning, Beam}

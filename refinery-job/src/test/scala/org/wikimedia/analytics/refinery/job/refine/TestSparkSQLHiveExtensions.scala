@@ -1,16 +1,17 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.apache.spark.sql.Row
+import com.holdenkarau.spark.testing.SharedSparkContext
+import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
 
 import SparkSQLHiveExtensions._
 
-class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase {
+class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with SharedSparkContext {
 
     val tableName = "test.table"
     val tableLocation = "/tmp/test/table"
+
 
     it should "normalize a field" in {
         val field = StructField("Field-1", IntegerType, nullable = false)
@@ -236,7 +237,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
         ))
 
         val expected =
-            s"""CREATE TABLE $tableName (
+            s"""CREATE TABLE `$tableName` (
                |`f2` bigint,
                |`f3` string,
                |`f1` bigint
@@ -257,7 +258,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
         ))
 
         val expected =
-            s"""CREATE EXTERNAL TABLE $tableName (
+            s"""CREATE EXTERNAL TABLE `$tableName` (
                |`f1` bigint,
                |`f2` bigint,
                |`f3` string
@@ -281,7 +282,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
         val partitions = Seq("f3", "f4")
 
         val expected =
-            s"""CREATE EXTERNAL TABLE $tableName (
+            s"""CREATE EXTERNAL TABLE `$tableName` (
                |`f1` bigint,
                |`f2` bigint
                |)
@@ -312,7 +313,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
         ))
 
         val expected = Seq(
-            s"""ALTER TABLE $tableName
+            s"""ALTER TABLE `$tableName`
                |ADD COLUMNS (
                |`f4` bigint
                |)""".stripMargin
@@ -350,7 +351,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
         ))
 
         val expected = Seq(
-            s"""ALTER TABLE $tableName
+            s"""ALTER TABLE `$tableName`
                |CHANGE COLUMN `f2` `f2` struct<`S1`:string,`s2`:string,`A1`:struct<`c1`:string,`C2`:string>,`s3`:string>""".stripMargin
         )
 
@@ -389,12 +390,12 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
         ))
 
         val expected = Seq(
-            s"""ALTER TABLE $tableName
+            s"""ALTER TABLE `$tableName`
                |ADD COLUMNS (
                |`f4` struct<`b1`:bigint>,
                |`f5` bigint
                |)""".stripMargin,
-            s"""ALTER TABLE $tableName
+            s"""ALTER TABLE `$tableName`
                |CHANGE COLUMN `f2` `f2` struct<`S1`:string,`s2`:string,`A1`:struct<`c1`:string,`c2`:string>,`s3`:string>""".stripMargin
         )
 
@@ -404,32 +405,32 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "find incompatible fields for 'not-unordered-superset' (missing)" in {
-        val smallerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("b", LongType, nullable = false) :: Nil)
+        val smallerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("b", LongType, nullable=false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.head.name should equal("a")
     }
 
-    it should "find incompatible fields for 'not-unordered-superset' (different types)" in {
-        val smallerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("a", StringType, nullable = false) :: Nil)
+    it should "not find incompatible fields for 'not-unordered-superset' with different types (casting)" in {
+        val smallerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("a", BooleanType, nullable=false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.length should equal(0)
     }
 
     it should "find incompatible fields for 'unordered-superset' with compatible different types" in {
-        val smallerSchema = StructType(StructField("a", IntegerType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
+        val smallerSchema = StructType(StructField("a", IntegerType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.isEmpty should equal(true)
     }
 
     it should "find incompatible fields for 'not-unordered-superset' (different nullable)" in {
-        val smallerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("a", LongType, nullable = true) :: Nil)
+        val smallerSchema = StructType(StructField("a", LongType, nullable=false) :: Nil)
+        val biggerSchema = StructType(StructField("a", LongType, nullable=true) :: Nil)
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.head.name should equal("a")
@@ -438,25 +439,25 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     it should "find incompatible fields for 'not-unordered-superset' (sub-object)" in {
         val smallerSchema = StructType(
             StructField("a", StructType(
-                    StructField("aa", IntegerType, nullable = true) ::
-                    StructField("ab", LongType, nullable = false) ::
-                    StructField("ac", BooleanType, nullable = false) :: Nil
-                ), nullable = true
+                    StructField("aa", IntegerType, nullable=true) ::
+                    StructField("ab", LongType, nullable=false) ::
+                    StructField("ac", BooleanType, nullable=false) :: Nil
+                ), nullable=true
             ) ::
-            StructField("b", LongType, nullable = false) ::
-            StructField("c", BooleanType, nullable = false) :: Nil
+            StructField("b", LongType, nullable=false) ::
+            StructField("c", BooleanType, nullable=false) :: Nil
         )
 
         val biggerSchema = StructType(
-              StructField("b", LongType, nullable = false) ::
-              StructField("d", LongType, nullable = false) ::
+              StructField("b", LongType, nullable=false) ::
+              StructField("d", LongType, nullable=false) ::
               StructField("a", StructType(
-                      StructField("aa", IntegerType, nullable = true) ::
-                      StructField("ab", LongType, nullable = false) ::
-                      StructField("ad", LongType, nullable = false) :: Nil
-                  ), nullable = true
+                      StructField("aa", IntegerType, nullable=true) ::
+                      StructField("ab", LongType, nullable=false) ::
+                      StructField("ad", LongType, nullable=false) :: Nil
+                  ), nullable=true
               ) ::
-              StructField("c", BooleanType, nullable = false) :: Nil
+              StructField("c", BooleanType, nullable=false) :: Nil
         )
 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
@@ -464,28 +465,30 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "convert a DataFrame to superset schema" in {
+        val sqlContext = new SQLContext(sc)
+
         val smallerSchema = StructType(
             StructField("a", StructType(
-                    StructField("aa", IntegerType, nullable = true) ::
-                    StructField("ab", LongType, nullable = true) ::
-                    StructField("ac", BooleanType, nullable = true) :: Nil
-                ), nullable = true
+                    StructField("aa", IntegerType, nullable=true) ::
+                    StructField("ab", LongType, nullable=true) ::
+                    StructField("ac", BooleanType, nullable=true) :: Nil
+                ), nullable=true
             ) ::
-            StructField("b", LongType, nullable = true) ::
-            StructField("c", BooleanType, nullable = true) :: Nil
+            StructField("b", LongType, nullable=true) ::
+            StructField("c", BooleanType, nullable=true) :: Nil
         )
 
         val biggerSchema = StructType(
-            StructField("b", LongType, nullable = true) ::
-            StructField("d", LongType, nullable = true) ::
+            StructField("b", LongType, nullable=true) ::
+            StructField("d", LongType, nullable=true) ::
             StructField("a", StructType(
-                    StructField("aa", IntegerType, nullable = true) ::
-                    StructField("ab", LongType, nullable = true) ::
-                    StructField("ad", LongType, nullable = true) ::
-                    StructField("ac", BooleanType, nullable = true) :: Nil
-                ), nullable = true
+                    StructField("aa", IntegerType, nullable=true) ::
+                    StructField("ab", LongType, nullable=true) ::
+                    StructField("ad", LongType, nullable=true) ::
+                    StructField("ac", BooleanType, nullable=true) :: Nil
+                ), nullable=true
             ) ::
-            StructField("c", BooleanType, nullable = true) :: Nil
+            StructField("c", BooleanType, nullable=true) :: Nil
         )
 
         val rdd = sc.parallelize(Seq(
@@ -493,10 +496,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
             Row(Row(2, 2L, false), 2L, false),
             Row(null, 3L, null))
         )
-        val df = spark.createDataFrame(rdd, smallerSchema)
+        val df = sqlContext.createDataFrame(rdd, smallerSchema)
         val newDf = df.convertToSchema(biggerSchema)
 
-        //newDf.foreach(println)
+        newDf.foreach(println)
 
         newDf.count should equal(3)
         newDf.schema should equal(biggerSchema)
@@ -530,6 +533,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "convert a DataFrame with complex types to superset schema" in {
+        val sqlContext = new SQLContext(sc)
 
         val smallerSchema = StructType(
             StructField("a", StructType(
@@ -560,10 +564,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
             Row(Row(Array("1", "2"), Map("m1" -> 1L), false), 2L, false),
             Row(null, 3L, null))
         )
-        val df = spark.createDataFrame(rdd, smallerSchema)
+        val df = sqlContext.createDataFrame(rdd, smallerSchema)
         val newDf = df.convertToSchema(biggerSchema)
 
-        //newDf.foreach(println)
+        newDf.foreach(println)
 
         newDf.count should equal(3)
         newDf.schema should equal(biggerSchema)
@@ -597,8 +601,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "convert DataFrame with case classes and null value to superset schema" in {
-        val tableDf = spark.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
-        val nullDf = spark.createDataFrame(sc.parallelize(Seq(Input(a2=null.asInstanceOf[String]), Input(), Input())))
+        val sqlContext = new SQLContext(sc)
+
+        val tableDf = sqlContext.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
+        val nullDf = sqlContext.createDataFrame(sc.parallelize(Seq(Input(a2=null.asInstanceOf[String]), Input(), Input())))
         val newDf = nullDf.convertToSchema(tableDf.schema)
 
         newDf.count should equal(3)
@@ -609,8 +615,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "convert DataFrame with case classes and null sub-object to superset schema" in {
-        val tableDf = spark.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
-        val nullDf = spark.createDataFrame(sc.parallelize(Seq(Input(b=null.asInstanceOf[NestedObjectA]), Input(), Input())))
+        val sqlContext = new SQLContext(sc)
+
+        val tableDf = sqlContext.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
+        val nullDf = sqlContext.createDataFrame(sc.parallelize(Seq(Input(b=null.asInstanceOf[NestedObjectA]), Input(), Input())))
         val newDf = nullDf.convertToSchema(tableDf.schema)
 
         newDf.count should equal(3)
@@ -622,8 +630,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "convert DataFrame with case classes and null sequence to superset schema" in {
-        val tableDf = spark.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
-        val nullDf = spark.createDataFrame(sc.parallelize(Seq(Input(b=NestedObjectA(b1=null.asInstanceOf[Seq[String]])), Input(), Input())))
+        val sqlContext = new SQLContext(sc)
+
+        val tableDf = sqlContext.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
+        val nullDf = sqlContext.createDataFrame(sc.parallelize(Seq(Input(b=NestedObjectA(b1=null.asInstanceOf[Seq[String]])), Input(), Input())))
         val newDf = nullDf.convertToSchema(tableDf.schema)
 
         newDf.count should equal(3)
@@ -635,8 +645,10 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "convert DataFrame with case classes and null map to superset schema" in {
-        val tableDf = spark.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
-        val nullDf = spark.createDataFrame(sc.parallelize(Seq(Input(b=NestedObjectA(b2=null.asInstanceOf[Map[Long, String]])), Input(), Input())))
+        val sqlContext = new SQLContext(sc)
+
+        val tableDf = sqlContext.createDataFrame(sc.parallelize(Seq(Table(), Table(), Table())))
+        val nullDf = sqlContext.createDataFrame(sc.parallelize(Seq(Input(b=NestedObjectA(b2=null.asInstanceOf[Map[Long, String]])), Input(), Input())))
         val newDf = nullDf.convertToSchema(tableDf.schema)
 
         newDf.count should equal(3)
@@ -648,6 +660,7 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
     }
 
     it should "merge to LongType from large Long, not StringType" in {
+        val sqlContext = new SQLContext(sc)
         val events = sc.parallelize(Seq(
             """{"id": 1, "event": {"num": 123}}""",
             """{"id": 2, "event": {"num": 9223372036854776000}}"""
@@ -660,14 +673,14 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
             )))
         ))
 
-        import spark.implicits._
-        val df = spark.read.json(spark.createDataset[String](events))
+        val df = sqlContext.read.json(events)
         tableSchema.merge(df.schema) should equal(tableSchema)
     }
 
 
 
-    it should "convert DataFrame with inferred StringType to LongType, nullifying only bad field" in {
+    it should "convert DataFrame with inferred StringType to LongType" in {
+        val sqlContext = new SQLContext(sc)
         val events = sc.parallelize(Seq(
             """{"id": 1, "event": {"num": 123}}""",
             """{"id": 2, "event": {"num": "456"}}""",
@@ -680,22 +693,21 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
                 StructField("num", LongType, nullable = true)
             )))
         ))
-
-        import spark.implicits._
-        val df = spark.read.json(spark.createDataset[String](events))
+        val df = sqlContext.read.json(events)
 
         val newDf = df.convertToSchema(tableSchema)
-        newDf.createOrReplaceTempView("newDf")
+        newDf.registerTempTable("newDf")
 
-        // 9223372036854776000 -> NULL, NumberFormatException
-        spark.sql("SELECT * from newDf where event.num IS NULL").count should equal(1)
-        // 123 -> 123, "456" -> 456
-        spark.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(2)
+        //  -> NULL, NumberFormatException
+        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(0)
+        // 123 -> 123, "456" -> 456, 9223372036854776000 -> -9223372036854775616
+        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(3)
         // id should be cool.
-        spark.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
+        sqlContext.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
     }
 
-    it should "convert DataFrame with DecimalType to LongType, nullifying only bad field" in {
+    it should "convert DataFrame with DecimalType to LongType" in {
+        val sqlContext = new SQLContext(sc)
         val events = sc.parallelize(Seq(
             """{"id": 1, "event": {"num": 123}}""",
             """{"id": 1, "event": {"num": 456.456}}""",
@@ -715,19 +727,17 @@ class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSu
                 StructField("num", DataTypes.createDecimalType(20, 0), nullable = true)
             )))
         ))
-
-        import spark.implicits._
-        val df = spark.read.schema(eventSchema).json(spark.createDataset[String](events))
+        val df = sqlContext.read.schema(eventSchema).json(events)
 
         val newDf = df.convertToSchema(tableSchema)
-        newDf.createOrReplaceTempView("newDf")
+        newDf.registerTempTable("newDf")
 
-        // 9223372036854776000 -> casted to Decimal
-        spark.sql("SELECT * from newDf where event.num IS NULL").count should equal(0)
-        // 123 -> 123, 456.456 -> 456
-        spark.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(3)
+        // NO NULL expected
+        sqlContext.sql("SELECT * from newDf where event.num IS NULL").count should equal(0)
+        // 123 -> 123, 456.456 -> 456, 9223372036854776000 -> -9223372036854775616
+        sqlContext.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(3)
         // id should be cool.
-        spark.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
+        sqlContext.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
     }
 }
 

@@ -1,11 +1,11 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.job.connectors.GraphiteClient
 import scopt.OptionParser
-
-import scala.collection.mutable.Map
+import scala.collection.mutable.Map;
 
 /**
   * Reports metrics for the ArticlePlaceholder extension to graphite
@@ -72,14 +72,16 @@ object WikidataArticlePlaceholderMetrics {
     argsParser.parse(args, Params()) match {
       case Some(params) => {
         // Initial Spark setup
-        val appName = s"WikidataArticlePlaceholderMetrics-${params.year}-${params.month}-${params.day}"
-        val spark = SparkSession.builder().appName(appName).getOrCreate()
+        val conf = new SparkConf().setAppName("WikidataArticlePlaceholderMetrics-%d-%d-%d".format(
+          params.year, params.month, params.day))
+        val sc = new SparkContext(conf)
+        val sqlContext = new SQLContext(sc)
 
         val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
-        val parquetPath = s"${webrequestTextPath}/year=${params.year}/month=${params.month}/day=${params.day}/*"
+        val parquetPath = "%s/year=%d/month=%d/day=%d/*".format(webrequestTextPath, params.year, params.month, params.day)
         val temporaryTable = "temporaryTable"
 
-        spark.read.parquet(parquetPath).createOrReplaceTempView(temporaryTable)
+        sqlContext.read.parquet(parquetPath).registerTempTable(temporaryTable)
 
         // Currently limited to wikipedia as ArticlePlaceholder is only deployed to wikipedias
         val sql = """
@@ -99,23 +101,23 @@ object WikidataArticlePlaceholderMetrics {
     (referer rlike '^.*search=.*$' AND referer rlike '^.*\.wikipedia\.org.*$')
                   """.format(temporaryTable)
 
-        val queryData = spark.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
+        val queryData = sqlContext.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
         val data = Map[String, Long]()
 
-        queryData.foreach{ case (project, agentType, fromSearch, count) =>
+        queryData.foreach{ case (project, agentType, fromSearch, count) => {
           val metric = "%s.varnish_requests.abouttopic.%s.%s".format(params.graphiteNamespace, agentType, project.replace('.','_'))
           data += data.get(metric).map(x => metric -> (x + count)).getOrElse(metric -> count)
           if(fromSearch) {
             val searchMetric = "%s.varnish_requests.abouttopic.search_referral.%s".format(params.graphiteNamespace, project.replace('.','_'))
             data += data.get(searchMetric).map(x => searchMetric -> (x + count)).getOrElse(searchMetric -> count)
           }
-        }
+        }}
 
-        data.foreach{ case (metric, count) =>
+        data.foreach{ case (metric, count) => {
           graphite.sendOnce(metric, count, time.getMillis / 1000)
-        }
+        }}
 
       }
       case None => sys.exit(1)

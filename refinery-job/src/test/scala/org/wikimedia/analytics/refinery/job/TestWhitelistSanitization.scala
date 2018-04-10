@@ -1,8 +1,9 @@
 package org.wikimedia.analytics.refinery.job
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import com.holdenkarau.spark.testing.SharedSparkContext
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.job.WhitelistSanitization._
@@ -10,14 +11,15 @@ import org.wikimedia.analytics.refinery.job.WhitelistSanitization.SanitizationAc
 
 
 class TestWhitelistSanitization extends FlatSpec
-    with Matchers with DataFrameSuiteBase {
+    with Matchers with SharedSparkContext {
 
     it should "return an empty DataFrame" in {
+        val sqlContext = new SQLContext(sc)
         val schema = StructType(
             StructField("f1", IntegerType, nullable=true) :: Nil
         )
         val result: DataFrame = emptyDataFrame(
-            spark,
+            sqlContext,
             schema
         )
         assert(result.schema == schema)
@@ -168,12 +170,13 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "sanitize a data frame" in {
+        val sqlContext = new SQLContext(sc)
         val schema = StructType(
             StructField("f1", IntegerType, nullable=true) ::
             StructField("f2", BooleanType, nullable=true) ::
             StructField("f3", StringType, nullable=true) :: Nil
         )
-        val dataFrame = spark.createDataFrame(
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(
                 Row(1, true, "muk"),
                 Row(2, true, "jji"),
@@ -196,7 +199,8 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "return the source DataFrame as is when whitelisting a table with keepall" in {
-        val dataFrame = spark.createDataFrame(
+        val sqlContext = new SQLContext(sc)
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(Row(1))),
             StructType(StructField("f1", IntegerType, nullable=true) :: Nil)
         )
@@ -211,7 +215,8 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "return an empty DataFrame when the table is not in the whitelist" in {
-        val dataFrame = spark.createDataFrame(
+        val sqlContext = new SQLContext(sc)
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(Row(1))),
             StructType(StructField("f1", IntegerType, nullable=true) :: Nil)
         )
@@ -225,7 +230,8 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "raise an error when whitelisting a table with keep tag" in {
-        val dataFrame = spark.createDataFrame(
+        val sqlContext = new SQLContext(sc)
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(Row(1))),
             StructType(StructField("f1", IntegerType, nullable=true) :: Nil)
         )
@@ -238,7 +244,8 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "partially sanitize table with a proper whitelist block" in {
-        val dataFrame = spark.createDataFrame(
+        val sqlContext = new SQLContext(sc)
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(Row(1, true), Row(2, false))),
             StructType(
                 StructField("f1", IntegerType, nullable=true) ::
@@ -257,7 +264,8 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "automatically whitelist partition fields" in {
-        val dataFrame = spark.createDataFrame(
+        val sqlContext = new SQLContext(sc)
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(Row(1, true), Row(2, false))),
             StructType(
                 StructField("f1", IntegerType, nullable=true) ::
@@ -276,7 +284,8 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "lower case table and field names before checking them against the whitelist" in {
-        val dataFrame = spark.createDataFrame(
+        val sqlContext = new SQLContext(sc)
+        val dataFrame = sqlContext.createDataFrame(
             sc.parallelize(Seq(Row(1, true), Row(2, false))),
             StructType(
                 StructField("fieldName1", IntegerType, nullable=true) ::
