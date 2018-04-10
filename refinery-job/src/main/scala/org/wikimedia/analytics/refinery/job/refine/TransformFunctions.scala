@@ -7,11 +7,14 @@ package org.wikimedia.analytics.refinery.job.refine
   *
   * See the JSONRefine --transform-function CLI option documentation.
   */
-import org.apache.spark.sql.{AnalysisException, DataFrame, Row}
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{MapType, StringType}
+
+import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory
-import collection.JavaConverters._
 
 
 /**
@@ -56,21 +59,22 @@ object geocode_ip extends LogHelper {
         try {
             df(ipColumnName)
         } catch {
-            case e: AnalysisException =>
+            case e: AnalysisException => {
                 log.warn(s"$partition does not contain an `$ipColumnName` field, cannot geocode. Skipping.")
                 return df
+            }
         }
 
         log.debug(s"Geocoding `$ipColumnName` into `$geocodedDataColumnName` in $partition")
         // create a new DataFrame
-        df.sparkSession.createDataFrame(
+        df.sqlContext.createDataFrame(
             // Map each of our input df to its Spark partitions
-            df.rdd.mapPartitions { iter =>
+            df.mapPartitions { iter =>
                 // Instantiate a Maxmind database reader for this Spark partition
                 val geocoder = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader()
                 // Map each Row in this partition to a new row that includes the geocoded IP data Map
                 iter.map { row: Row =>
-                    Row.fromSeq(row.toSeq :+ geocoder.getResponse(row.getAs[String](ipColumnName)).getMap.asScala.toMap)
+                    Row.fromSeq(row.toSeq :+ geocoder.getResponse(row.getAs[String](ipColumnName)).getMap)
                 }
             },
             // The new DataFrame will be created with the df schema + appeneded geocoded_data Map column.

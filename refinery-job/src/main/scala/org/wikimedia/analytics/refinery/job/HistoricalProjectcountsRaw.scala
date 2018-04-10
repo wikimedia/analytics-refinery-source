@@ -20,14 +20,15 @@
 
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.log4j.LogManager
-import org.apache.spark.{SparkContext, Accumulator}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.input_file_name
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{Row, SparkSession}
-import org.apache.spark.util.LongAccumulator
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
+import org.apache.spark.Accumulator
+import org.apache.log4j.LogManager
 
 object HistoricalProjectcountsRaw {
 
@@ -41,12 +42,8 @@ object HistoricalProjectcountsRaw {
     val argsParser = new OptionParser[Config]("Historical Projectcounts Raw") {
         head("Historical Projectcounts Raw", "")
         note("Generate historical projectcounts-raw by aggregating pagecounts-raw data.")
-        arg[String]("<sourceDir>").action{ (x, p) =>
-            p.copy(sourceDir = if (x.endsWith("/")) x.dropRight(1) else x)
-        }.text("Root directory of the pagecounts-raw data set.")
-        arg[String]("<destinationDir>").action{ (x, p) =>
-            p.copy(destinationDir = if (x.endsWith("/")) x.dropRight(1) else x)
-        }.text("Directory where to write the output files.")
+        arg[String]("<sourceDir>").text("Root directory of the pagecounts-raw data set.")
+        arg[String]("<destinationDir>").text("Directory where to write the output files.")
         help("help").text("Print this text and exit.")
     }
 
@@ -60,13 +57,13 @@ object HistoricalProjectcountsRaw {
      */
     def parsePagecountsRaw(
         sourceDir: String,
-        spark: SparkSession,
-        parsingErrors: LongAccumulator
+        sqlContext: SQLContext,
+        parsingErrors: Accumulator[Long]
     ): RDD[(Group, Long)] = {
 
         // Read all files into an RDD with the format: (absoluteFilePath, dataLine)
-        import spark.implicits._
-        val rawData = spark.read.
+        import sqlContext.implicits._
+        val rawData = sqlContext.read.
             text(sourceDir + "/*/*.gz").
             select(input_file_name, $"value").
             rdd
@@ -120,7 +117,7 @@ object HistoricalProjectcountsRaw {
         // Aggregate (fully) across all partitions and sort.
         // This function's output format remains the same as the input.
         // Coalesce resulting data into 1 partition to force 1 single output file.
-        preAggregated.reduceByKey(_ + _).sortBy(_._1, ascending = true, 1)
+        preAggregated.reduceByKey(_ + _).sortBy(_._1, true, 1)
     }
 
     /**
@@ -137,7 +134,7 @@ object HistoricalProjectcountsRaw {
     def writeProjectcountsRaw(
         projectcountsRaw: RDD[(Group, Long)],
         destinationDir: String,
-        spark: SparkSession
+        sqlContext: SQLContext
     ) = {
 
         // Define the data schema.
@@ -156,7 +153,7 @@ object HistoricalProjectcountsRaw {
         }
 
         // Write the output.
-        val df = spark.createDataFrame(rows, schema)
+        val df = sqlContext.createDataFrame(rows, schema)
         df.write.
             format("csv").
             option("delimiter", "\t").
@@ -170,10 +167,12 @@ object HistoricalProjectcountsRaw {
                 val log = LogManager.getRootLogger
 
                 // Initial Spark setup.
-                val spark = SparkSession.builder().appName("HistoricalProjectcountsRaw").getOrCreate()
+                val conf = new SparkConf().setAppName("HistoricalProjectcountsRaw")
+                val sc = new SparkContext(conf)
+                val sqlContext = new SQLContext(sc)
 
                 // Accumulator to keep track of parsing errors.
-                val parsingErrors = spark.sparkContext.longAccumulator("Parsing Errors")
+                val parsingErrors = sc.accumulator(0L)
 
                 // Write 1 file for each year in the data set.
                 (2007 to 2016).foreach{ year =>
@@ -182,7 +181,7 @@ object HistoricalProjectcountsRaw {
                     // Read pagecounts-raw
                     val pagecountsRaw = parsePagecountsRaw(
                         params.sourceDir + s"/$year",
-                        spark,
+                        sqlContext,
                         parsingErrors
                     )
 
@@ -193,7 +192,7 @@ object HistoricalProjectcountsRaw {
                     writeProjectcountsRaw(
                         projectcountsRaw,
                         params.destinationDir + s"/year=$year",
-                        spark
+                        sqlContext
                     )
                 }
 

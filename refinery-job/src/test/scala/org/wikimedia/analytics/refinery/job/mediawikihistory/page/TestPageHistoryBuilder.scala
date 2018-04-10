@@ -1,20 +1,20 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
+import java.sql.Timestamp
 
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 
 class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach {
 
-  import org.apache.spark.sql.SparkSession
+  import org.apache.spark.sql.SQLContext
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.TestPageHistoryHelpers._
-  import java.sql.Timestamp
   // Implicit needed to sort by timestamps
   import org.wikimedia.analytics.refinery.job.mediawikihistory.utils.TimestampHelpers.orderedTimestamp
 
   var pageHistoryBuilder = null.asInstanceOf[PageHistoryBuilder]
 
   override def beforeEach(): Unit = {
-    pageHistoryBuilder = new PageHistoryBuilder(null.asInstanceOf[SparkSession])
+    pageHistoryBuilder = new PageHistoryBuilder(null.asInstanceOf[SQLContext])
   }
 
   /**

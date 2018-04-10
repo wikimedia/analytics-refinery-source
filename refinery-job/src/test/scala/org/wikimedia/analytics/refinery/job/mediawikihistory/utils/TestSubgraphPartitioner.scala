@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.utils
 import com.holdenkarau.spark.testing.{RDDComparisons, SharedSparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.{Row, SQLContext}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec}
 
 
@@ -36,10 +36,10 @@ class TestSubgraphPartitioner
 
   override def beforeEach(): Unit = {
     val username = System.getProperty("user.name")
-    sc.setCheckpointDir(s"/tmp/$username/unittest/refinery-source/refinery-job/TestSubgraphPartitioner")
-    val spark = SparkSession.builder().getOrCreate()
-    spark.sql("SET spark.sql.shuffle.partitions=2")
-    subgraphPartitioner = new SubgraphPartitioner[String, EventTest, StateTest](spark, StringRowKeyFormat)
+    sc.setCheckpointDir(s"/tmp/${username}/unittest/refinery-source/refinery-job/TestSubgraphPartitioner")
+    val sqlContext = new SQLContext(sc)
+    sqlContext.sql("SET spark.sql.shuffle.partitions=2")
+    subgraphPartitioner = new SubgraphPartitioner[String, EventTest, StateTest](sqlContext, StringRowKeyFormat)
   }
 
   // To prevent ordering errors

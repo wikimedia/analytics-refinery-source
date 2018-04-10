@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.utils
 
 import org.apache.spark.sql.types.{LongType, StructField, StructType}
-import org.apache.spark.sql.{SparkSession, Row, SQLContext}
+import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.reflect.ClassTag
 
@@ -45,7 +45,7 @@ trait Vertex[T] {
   * Also, since this class uses Spark (RDD and GraphFrames),
   * implicit [[ClassTag]] need to be defined for manipulated types (T, E, V).
   */
-class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, rowKeyFormatter: RowKeyFormat[T])(
+class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](sqlContext: SQLContext, rowKeyFormatter: RowKeyFormat[T])(
     implicit cmp: Ordering[T],
     cTagT: ClassTag[T],
     cTagE: ClassTag[E],
@@ -76,7 +76,7 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
       .zipWithUniqueId // RDD[(key, id)]
       .cache()
 
-    val verticesDF = spark.createDataFrame(
+    val verticesDF = sqlContext.createDataFrame(
       verticesRdd.map { case (key, id) => Row.fromTuple((id, rowKeyFormatter.toRow(key)))},
       StructType(Seq(StructField("id", LongType, nullable = false), StructField("key", rowKeyFormatter.struct, nullable = false)))
     ).cache()
@@ -90,7 +90,7 @@ class SubgraphPartitioner[T, E <: Edge[T], V <: Vertex[T]](spark: SparkSession, 
       .join(verticesRdd.keyBy(_._1)) //RDD[(toKey, (id-fromKey, (key-toKey, id-toKey)))]
       .map(e => (e._2._1, e._2._2._2)) // RDD[(id-fromKey, id-toKey)]
 
-    val edgesDF = spark.createDataFrame(edgesRdd.map(Row.fromTuple(_)),
+    val edgesDF = sqlContext.createDataFrame(edgesRdd.map(Row.fromTuple(_)),
       StructType(Seq(StructField("src", LongType, nullable = false), StructField("dst", LongType, nullable = false)))
     ).cache()
 

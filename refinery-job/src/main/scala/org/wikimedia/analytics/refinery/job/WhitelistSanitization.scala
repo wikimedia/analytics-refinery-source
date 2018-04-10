@@ -1,9 +1,12 @@
 package org.wikimedia.analytics.refinery.job
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{SparkSession, DataFrame, Row}
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types.{StructField, StructType}
-import org.wikimedia.analytics.refinery.job.refine.{HivePartition, Refine}
+import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.job.refine.Refine
 
 
 /**
@@ -172,7 +175,8 @@ object WhitelistSanitization {
         whitelist.map { case (key, value) =>
             key.toLowerCase -> (value match {
                 case tag: String => tag.replaceAll("[-_]", "").toLowerCase
-                case childWhitelist: Whitelist => makeWhitelistLowerCase(childWhitelist)
+                case childWhitelist: Whitelist =>
+                    makeWhitelistLowerCase(childWhitelist)
             })
         }
     }
@@ -185,7 +189,7 @@ object WhitelistSanitization {
     ): DataFrame = {
         whitelist.get(tableName.toLowerCase) match {
             // Table is not in the whitelist: return empty DataFrame.
-            case None => emptyDataFrame(dataFrame.sparkSession, dataFrame.schema)
+            case None => emptyDataFrame(dataFrame.sqlContext, dataFrame.schema)
             // Table is in the whitelist as keepall: return DataFrame as is.
             case Some("keepall") => dataFrame
             // Table is in the whitelist and has further specifications:
@@ -296,10 +300,10 @@ object WhitelistSanitization {
     }
 
     def emptyDataFrame(
-        spark: SparkSession,
+        sqlContext: SQLContext,
         schema: StructType
     ): DataFrame = {
-        val emptyRDD = spark.sparkContext.emptyRDD.asInstanceOf[RDD[Row]]
-        spark.createDataFrame(emptyRDD, schema)
+        val emptyRDD = sqlContext.sparkContext.emptyRDD.asInstanceOf[RDD[Row]]
+        sqlContext.createDataFrame(emptyRDD, schema)
     }
 }

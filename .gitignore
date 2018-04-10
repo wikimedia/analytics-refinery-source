@@ -18,5 +18,5 @@ out/
 # vim
 *.swp
 
-# Spark
-**/derby.log
+# spark
+refinery-job/derby.log

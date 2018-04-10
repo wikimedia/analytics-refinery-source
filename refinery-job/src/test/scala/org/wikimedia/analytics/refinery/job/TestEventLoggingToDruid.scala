@@ -1,13 +1,16 @@
-package org.wikimedia.analytics.refinery.job.druid
+package org.wikimedia.analytics.refinery.job
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
-import org.apache.spark.sql.{DataFrame, Row}
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import com.holdenkarau.spark.testing.SharedSparkContext
+import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.types.{StructType, StringType, IntegerType, LongType}
+import org.scalatest.{FlatSpec, Matchers, BeforeAndAfterEach}
 
 
 class TestEventLoggingToDruid extends FlatSpec
-    with Matchers with BeforeAndAfterEach with DataFrameSuiteBase {
+    with Matchers with BeforeAndAfterEach with SharedSparkContext {
 
     var testDf: DataFrame = null.asInstanceOf[DataFrame]
 
@@ -30,7 +33,8 @@ class TestEventLoggingToDruid extends FlatSpec
             Row(Row("page3", "read", 50), "2017-01-01T00:00:04", "es.wikimedia.org", "UA5", 2017)
         ))
 
-        testDf = spark.createDataFrame(testRDD, testSchema)
+        val sqlContext = new SQLContext(sc)
+        testDf = sqlContext.createDataFrame(testRDD, testSchema)
     }
 
 
