@@ -1,3 +1,6 @@
+## v0.0.61
+* Fix sys.exit bug in Refine
+
 ## v0.0.60
 * Big refactor of scala and spark code
 ** add refinery-spark module for spark oriented libs

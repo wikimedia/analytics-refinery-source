@@ -280,11 +280,11 @@ object Refine extends LogHelper {
                 argsParser.parse(args, Params()).getOrElse(sys.exit(1))
         }
 
-        // Exit non-zero if if any refinements failed.
-        if ((apply _).tupled(Params.unapply(params).get))
-            sys.exit(0)
-        else
-            sys.exit(1)
+        val allSucceeded = (apply _).tupled(Params.unapply(params).get)
+        if (params.spark.conf.get("spark.master") != "yarn") {
+            if (allSucceeded) sys.exit(0) else sys.exit(1)
+        }
+
     }
 
 
