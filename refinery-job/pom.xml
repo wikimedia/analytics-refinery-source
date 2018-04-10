@@ -220,6 +220,23 @@
             <artifactId>commons-lang3</artifactId>
             <version>3.5</version>
         </dependency>
+
+        <!-- Needed to query Hive instead of Spark for ALTER TABLE in Refine job -->
+        <dependency>
+            <groupId>org.apache.hive</groupId>
+            <artifactId>hive-jdbc</artifactId>
+            <version>${hive.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Needed to prevent warnings from hive-jdbc at test time -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-annotations</artifactId>
+            <version>${hadoop.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
