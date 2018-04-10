@@ -1,11 +1,10 @@
-package org.wikimedia.analytics.refinery.job.sql
+package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.{ReflectUtils, LogHelper, Utilities}
-import org.wikimedia.analytics.refinery.job.sql._
+import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.HivePartition
 import scopt.OptionParser

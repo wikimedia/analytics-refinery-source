@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.sql
+package org.wikimedia.analytics.refinery.job.refine
 
 /**
   * This file contains objects with apply methods suitable for passing

@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.sql
+package org.wikimedia.analytics.refinery.job.refine
 
 import java.io.{File, FileInputStream}
 

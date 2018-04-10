@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.sql
+package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StructField, StructType}

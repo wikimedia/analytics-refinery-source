@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job.sql
+package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports.{DateTime, _}
 import org.apache.hadoop.fs.{FileSystem, Path}

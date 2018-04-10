@@ -1,11 +1,12 @@
-package org.wikimedia.analytics.refinery.job.sql
+package org.wikimedia.analytics.refinery.job.refine
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.job.sql.WhitelistSanitization.SanitizationAction._
-import org.wikimedia.analytics.refinery.job.sql.WhitelistSanitization._
+import org.wikimedia.analytics.refinery.job.refine.WhitelistSanitization
+import WhitelistSanitization.SanitizationAction._
+import WhitelistSanitization._
 
 
 class TestWhitelistSanitization extends FlatSpec
