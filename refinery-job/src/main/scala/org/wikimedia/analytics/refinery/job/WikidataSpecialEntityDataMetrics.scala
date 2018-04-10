@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.sql.SparkSession
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.job.connectors.GraphiteClient
 import scopt.OptionParser
@@ -71,16 +70,14 @@ object WikidataSpecialEntityDataMetrics {
     argsParser.parse(args, Params()) match {
       case Some(params) => {
         // Initial Spark setup
-        val conf = new SparkConf().setAppName("WikidataSpecialEntityDataMetrics-%d-%d-%d".format(
-          params.year, params.month, params.day))
-        val sc = new SparkContext(conf)
-        val sqlContext = new SQLContext(sc)
+        val appName = s"WikidataSpecialEntityDataMetrics-${params.year}-${params.month}-${params.day}"
+        val spark = SparkSession.builder().appName(appName).getOrCreate()
 
         val webrequestTextPath = params.webrequestBasePath + "/webrequest_source=text"
         val parquetPath = "%s/year=%d/month=%d/day=%d/*".format(webrequestTextPath, params.year, params.month, params.day)
         val temporaryTable = "temporaryTable"
 
-        sqlContext.read.parquet(parquetPath).registerTempTable(temporaryTable)
+        spark.read.parquet(parquetPath).createOrReplaceTempView(temporaryTable)
 
         val sql = """
   SELECT
@@ -96,28 +93,27 @@ object WikidataSpecialEntityDataMetrics {
       content_type
                   """.format(temporaryTable)
 
-        val data = sqlContext.sql(sql).collect().map(r => (r.getLong(0), r.getString(1), r.getString(2)))
+        val data = spark.sql(sql).collect().map(r => (r.getLong(0), r.getString(1), r.getString(2)))
 
         val metrics = data.foldLeft(Map.empty[String, Long])((acc, v) => {
           v match {
             case (0L, _, _) => acc
-            case (count, agentType, contentType) => {
+            case (count, agentType, contentType) =>
               val formatKey = "format." + normalizeFormat( contentType )
               val agentTypeKey = "agent_types." + agentType
               acc +
                 (formatKey -> (acc.withDefaultValue(0L)(formatKey) + count)) +
                 (agentTypeKey -> (acc.withDefaultValue(0L)(agentTypeKey) + count))
-            }
           }
         })
 
         val graphite = new GraphiteClient(params.graphiteHost, params.graphitePort)
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
 
-        metrics.foreach { case (metricName, count) => {
+        metrics.foreach { case (metricName, count) =>
           val metric = "%s.%s".format(params.graphiteNamespace, metricName)
           graphite.sendOnce(metric, count, time.getMillis / 1000)
-        }}
+        }
 
       }
       case None => sys.exit(1)

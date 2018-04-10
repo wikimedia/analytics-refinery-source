@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 
 
 /**
@@ -17,7 +17,7 @@ import org.apache.spark.sql.SQLContext
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
+class PageHistoryRunner(spark: SparkSession) extends Serializable {
 
   import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
@@ -62,19 +62,19 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
     // Prepare page events and states RDDs
     //***********************************
 
-    sqlContext.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
+    spark.sql("SET spark.sql.shuffle.partitions=" + sqlPartitions)
 
-    val loggingDf = sqlContext.read.avro(loggingDataPath)
-    loggingDf.registerTempTable("logging")
-    sqlContext.table("logging")
+    val loggingDf = spark.read.avro(loggingDataPath)
+    loggingDf.createOrReplaceTempView("logging")
+    spark.table("logging")
 
-    val pageDf = sqlContext.read.avro(pageDataPath)
-    pageDf.registerTempTable("page")
-    sqlContext.table("page")
+    val pageDf = spark.read.avro(pageDataPath)
+    pageDf.createOrReplaceTempView("page")
+    spark.table("page")
 
-    val revisionDf = sqlContext.read.avro(revisionDataPath)
-    revisionDf.registerTempTable("revision")
-    sqlContext.table("revision")
+    val revisionDf = spark.read.avro(revisionDataPath)
+    revisionDf.createOrReplaceTempView("revision")
+    spark.table("revision")
 
     val wikiClause = if (wikiConstraint.isEmpty) "" else {
       "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
@@ -92,12 +92,16 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
                         nullable = false),
             StructField("is_content", IntegerType, nullable = false)))
 
-    val namespaces = sqlContext.read
-      .format("com.databricks.spark.csv")
+    val namespaces = spark.read
       .schema(namespacesCsvSchema)
-      .load(namespacesPath)
+      .csv(namespacesPath)
       .rdd
-      .map(r => (r.getString(1), r.getInt(2), r.getString(3), r.getString(4), r.getInt(5)))
+      .map(r => (
+        r.getString(1),
+        r.getInt(2),
+        if (r.isNullAt(3)) "" else r.getString(3),
+        if (r.isNullAt(4)) "" else r.getString(4),
+        r.getInt(5)))
       .collect()
 
     val canonicalNamespaceMap = namespaces
@@ -111,7 +115,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
       .map(t => (t._1, t._2) -> (t._5 == 1))
       .toMap.withDefaultValue(false)
 
-    val movePageEventsRdd = sqlContext.sql(
+    val movePageEventsRdd = spark.sql(
       s"""
   SELECT
     log_type,
@@ -138,7 +142,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
                                                       localizedNamespaceMap,
                                                       isContentNamespaceMap))
 
-    val deleteAndRestorePageEventsRdd = sqlContext.sql(
+    val deleteAndRestorePageEventsRdd = spark.sql(
       s"""
   SELECT
     log_page,
@@ -169,7 +173,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
     val parsedPageEvents = movePageEventsRdd.union(deleteAndRestorePageEventsRdd).cache()
     val pageEvents = parsedPageEvents.filter(_.parsingErrors.isEmpty).cache()
 
-    val pageStates = sqlContext.sql(
+    val pageStates = spark.sql(
       s"""
   SELECT
     page_id,
@@ -251,7 +255,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
     // Reconstruct page history
     //***********************************
 
-    val pageHistoryBuilder = new PageHistoryBuilder(sqlContext)
+    val pageHistoryBuilder = new PageHistoryBuilder(spark)
     val (pageHistoryRdd, unmatchedEvents) = pageHistoryBuilder.run(pageEvents, pageStates, errorsPath.isDefined)
 
     log.info(s"Page history reconstruction done, writing results (and errors if specified)")
@@ -262,8 +266,8 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
     //***********************************
 
     // Write history
-    val pageHistoryDf = sqlContext.createDataFrame(pageHistoryRdd.map(_.toRow), PageState.schema)
-    sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
+    val pageHistoryDf = spark.createDataFrame(pageHistoryRdd.map(_.toRow), PageState.schema)
+    //spark.setConf("spark.sql.parquet.compression.codec", "snappy")
     pageHistoryDf.write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"Page history reconstruction results written")
 
@@ -273,7 +277,7 @@ class PageHistoryRunner(sqlContext: SQLContext) extends Serializable {
     if (errorsPath.isDefined) {
       val matchingErrorEvents = unmatchedEvents.right.get
       log.info("Unmatched events: " + matchingErrorEvents.count.toString)
-      val errorDf = sqlContext.createDataFrame(
+      val errorDf = spark.createDataFrame(
         matchingErrorEvents.map(e => Row("matching", e.toString)),
         StructType(Seq(
           StructField("type", StringType, nullable = false),

@@ -1,7 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
-
-
 /**
   * Entry point for the Mediawiki History spark job(s).
   * It allows to run 3 sub-jobs (separately or jointly):
@@ -43,8 +41,8 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory
 object MediawikiHistoryRunner {
 
   import org.apache.log4j.{Level, Logger}
-  import org.apache.spark.{SparkConf, SparkContext}
-  import org.apache.spark.sql.SQLContext
+  import org.apache.spark.SparkConf
+  import org.apache.spark.sql.SparkSession
   import scopt.OptionParser
   import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageHistoryRunner
   import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserHistoryRunner
@@ -181,6 +179,7 @@ object MediawikiHistoryRunner {
         // Spark setup
         val conf = new SparkConf()
           .setAppName(s"MediawikiHistoryRunner-${params.snapshot.getOrElse("NoSnapshot")}")
+          .set("spark.sql.parquet.compression.codec", "snappy")
           .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
           .registerKryoClasses(Array(
             // Keys
@@ -197,16 +196,16 @@ object MediawikiHistoryRunner {
             classOf[PageState],
             classOf[UserEvent],
             classOf[UserState]))
-        val sqlContext = new SQLContext(new SparkContext(conf))
-        sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
-        sqlContext.sparkContext.setCheckpointDir(tmpPath)
+        val spark = SparkSession.builder().config(conf).getOrCreate()
+        spark.sparkContext.setCheckpointDir(tmpPath)
+
 
 
         // Launch jobs as needed
 
         // User History
         if (runUsersHistory)
-          new UserHistoryRunner(sqlContext).run(
+          new UserHistoryRunner(spark).run(
             wikiConstraint,
             loggingDataPath,
             userDataPath,
@@ -218,7 +217,7 @@ object MediawikiHistoryRunner {
 
         // Page history
         if (runPagesHistory)
-          new PageHistoryRunner(sqlContext).run(
+          new PageHistoryRunner(spark).run(
             wikiConstraint,
             loggingDataPath,
             pageDataPath,
@@ -230,7 +229,7 @@ object MediawikiHistoryRunner {
 
         // Revisions and denormalization
         if (runDenormalize)
-          new DenormalizedRunner(sqlContext).run(
+          new DenormalizedRunner(spark).run(
             wikiConstraint,
             revisionDataPath,
             archiveDataPath,

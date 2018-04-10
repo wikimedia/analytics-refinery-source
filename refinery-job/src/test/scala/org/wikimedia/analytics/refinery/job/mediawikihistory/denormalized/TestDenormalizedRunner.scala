@@ -3,9 +3,9 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 import java.sql.Timestamp
 
 import com.holdenkarau.spark.testing.SharedSparkContext
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
-import TestHistoryEventHelpers._
+import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
 
@@ -18,7 +18,7 @@ class TestDenormalizedRunner
   var denormalizedRunner = null.asInstanceOf[DenormalizedRunner]
 
   override def beforeEach(): Unit = {
-    denormalizedRunner = new DenormalizedRunner(new SQLContext(sc))
+    denormalizedRunner = new DenormalizedRunner(SparkSession.builder().getOrCreate())
   }
 
   /**
