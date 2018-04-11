@@ -80,7 +80,7 @@ object WikidataArticlePlaceholderMetrics {
   SELECT
     pageview_info["project"],
     agent_type,
-    (referer rlike '^.*search=.*$$' AND referer rlike '^.*\.wikipedia\.org.*$$') as from_search,
+    (referer rlike '^.*search=.*$$' AND referer rlike '^.*\\.wikipedia\\.org.*$$') as from_search,
     COUNT(1)
   FROM ${params.webrequestTable}
   WHERE webrequest_source = 'text'
@@ -94,7 +94,7 @@ object WikidataArticlePlaceholderMetrics {
   GROUP BY
     pageview_info["project"],
     agent_type,
-    (referer rlike '^.*search=.*$$' AND referer rlike '^.*\.wikipedia\.org.*$$')"""
+    (referer rlike '^.*search=.*$$' AND referer rlike '^.*\\.wikipedia\\.org.*$$')"""
 
         val queryData = spark.sql(sql).collect().map(r => (r.getString(0), r.getString(1), r.getBoolean(2), r.getLong(3)))
         val time = new DateTime(params.year, params.month, params.day, 0, 0)
