@@ -1,11 +1,13 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports.{DateTime, _}
+import java.io.{BufferedReader, InputStreamReader}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
+
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 
 import scala.util.matching.Regex
@@ -301,27 +303,49 @@ case class RefineTarget(
 
 
     /**
-      * Reads the first line of inputPath as a string, and examines it to
+      * Reads the first bytes in inputPath as chars, and examines them to
       * infer the file format.  This will only work if the first file
       * is Parquet, JSON text, or SequenceFile with JSON string values.
-      * If the directory is empty, this will return "json".
+      * If the directory is empty, this will return "empty".
       *
       * Kinda hacky, but should work! :)
       *
-      * @param spark SparkSession
+      * @return One of "parquet", "sequence_json", "json", "empty", or "text".
       *
-      * @return One of "parquet", "sequence_json", "json", "empty" (if inputPath is empty, or
-      *         default to "text" if could format not be inferred.
       */
-    def inferInputFormat(spark: SparkSession): String = {
-        spark.sparkContext.textFile(inputPath.toString).take(1) match {
-            case first if first.isEmpty                => "empty"
-            case first if first.head.startsWith("PAR") => "parquet"
-            case first if first.head.startsWith("SEQ") => "sequence_json"
-            case first if first.head.startsWith("{") || first.head.startsWith("[") => "json"
-            case _                                     => "text"
+    def inferInputFormat: String = {
+        // Get a list of all data file Paths at inputPath.
+        // If inputPath is a file, this will just be inputPath, else it will
+        // Be the first file that does not start with an underscore and also
+        // has a non zero size.
+        val inputDataFiles = fs.listStatus(inputPath)
+            .filter(f => !f.getPath.toString.startsWith("_") && f.getLen > 0)
+            .map(_.getPath)
+
+        // If we didn't find any data files at inputPath, then return "empty".
+        if (inputDataFiles.isEmpty) return "empty"
+
+        // Read the first few characters out of the first data file.
+        val buffer = new Array[Char](3)
+        val in = new BufferedReader(new InputStreamReader(fs.open(inputDataFiles.head)))
+        val bytesRead = in.read(buffer, 0, buffer.length)
+        in.close()
+
+        // Return empty we can't read any bytes from the first data file.
+        // This probably shoudln't happen, since we filtered where f.getLen > 0,
+        // but is good just in case.
+        if (bytesRead <= 0) return "empty"
+
+        // Infer the format of inputPath's data based on the first few characters
+        // in the first data file.
+        buffer match {
+            case Array('P','A','R')                         => "parquet"
+            case Array('S','E','Q')                         => "sequence_json"
+            case _ if buffer(0) == '{' || buffer(0) == '['  => "json"
+            case _                                          => "text"
         }
     }
+
 
     /**
       * Reads inputPath into a DataFrame.
@@ -356,12 +380,11 @@ case class RefineTarget(
             spark.read
         }
 
-
         // import spark implicits for dataset/dataframe conversion
         import spark.implicits._
         // Read inputPath either as JSON, SequenceFile JSON, or Parquet, based
         // provided value of inputFormat, or inferred from first line in inputPath.
-        inputFormat.getOrElse(inferInputFormat(spark)) match {
+        inputFormat.getOrElse(inferInputFormat) match {
             case "empty"         =>
                 if (schema.isDefined) spark.createDataFrame(spark.sparkContext.emptyRDD[Row], schema.get)
                 else spark.emptyDataFrame
@@ -376,6 +399,7 @@ case class RefineTarget(
             case "parquet"       => dfReader.parquet(inputPath.toString)
         }
     }
+
 
     /**
       * Returns a Failure with e wrapped in a new more descriptive Exception
