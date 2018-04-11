@@ -156,18 +156,15 @@ object DataFrameToHive extends LogHelper {
         val outputDf = df.convertToSchema(compatibleSchema)
 
         log.info(
-            s"""Inserting into ${partition.tableName} DataFrame with schema:\n
-               |${outputDf.schema.treeString} for partition $partition""".stripMargin
+            s"Writing DataFrame to ${partition.path} with schema:\n${outputDf.schema.treeString}"
         )
 
-        // Insert data into Hive table.
-        outputDf.write.mode("overwrite")
-            .insertInto(partition.tableName)
-
-        log.info(
-            s"Finished inserting into ${partition.tableName} DataFrame, " +
-            s"wrote to external location ${hivePartitionPath(spark, partition)}."
-        )
+        // Avoid using Hive Parquet writer by writing using Spark parquet directly to
+        // partition path, and then add the partition to the Hive table.
+        // This avoids bugs in Hive Parquet like https://issues.apache.org/jira/browse/HIVE-11625
+        outputDf.write.mode("overwrite").parquet(partition.path)
+        spark.sql(partition.addPartitionQL)
+        log.info(s"Wrote DataFrame to ${partition.path} and added partition $partition")
 
         // call doneCallback
         doneCallback()
@@ -292,22 +289,6 @@ object DataFrameToHive extends LogHelper {
     }
 
 
-    /**
-      * Returns true if the fully qualified tableName exists in Hive, else false.
-      *
-      * @param spark       SparkSession
-      *
-      * @param tableName   Fully qualified Hive table name
-      *
-      * @return
-      */
-    def hiveTableExists(spark: SparkSession, tableName: String): Boolean = {
-        allCatch.opt(spark.table(tableName)) match {
-            case Some(_) => true
-            case _       => false
-        }
-    }
-
 
     /**
       * Returns a new DataFrame with constant Hive partitions added as columns.  If any
@@ -334,46 +315,20 @@ object DataFrameToHive extends LogHelper {
         }
     }
 
-    def normalizeDataFrame(df: DataFrame, lowerCaseTopLevel: Boolean = false): DataFrame = {
-        df.sparkSession.createDataFrame(df.rdd, df.schema.normalize(lowerCaseTopLevel))
-    }
-
 
     /**
-      * Runs a DESCRIBE FORMATTED query and extracts path to a
-      * Hive table partition.
+      * Returns true if the fully qualified tableName exists in Hive, else false.
       *
-      * @param spark        SparkSession
-      * @param partition    HivePartition
+      * @param spark       SparkSession
+      *
+      * @param tableName   Fully qualified Hive table name
+      *
       * @return
       */
-    def hivePartitionPath(
-        spark: SparkSession,
-        partition: HivePartition
-    ): String = {
-        var q = s"DESCRIBE FORMATTED ${partition.tableName}"
-        if (partition.nonEmpty) {
-            q += s" PARTITION (${partition.hiveQL})"
-        }
-
-        // This query will return a human readable block of text about
-        // this table (partition).  We need to parse out the Location information.
-        spark.catalog.refreshTable(partition.tableName)
-        val locationLine: Option[String] = spark.sql(q)
-            .collect()
-            // Each line is a Row[String], map it to Seq of Strings
-            .map(_.toString())
-            // Find the line with "Location"
-            .find(_.startsWith("[Location"))
-
-        // If we found Location in the string, then extract just the location path.
-        if (locationLine.isDefined) {
-            locationLine.get.filterNot("[]".toSet).trim.split(",").last
-        }
-        // Else throw an Exception.  This shouldn't happen, as the Hive query
-        // will fail earlier if if the partition doesn't exist.
-        else {
-            throw new RuntimeException(s"Failed finding path of Hive table partition $partition")
+    def hiveTableExists(spark: SparkSession, tableName: String): Boolean = {
+        allCatch.opt(spark.table(tableName)) match {
+            case Some(_) => true
+            case _       => false
         }
     }
 

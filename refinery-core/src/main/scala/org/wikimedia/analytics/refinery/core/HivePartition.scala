@@ -66,6 +66,11 @@ case class HivePartition(
     val path: String = location + "/" + relativePath
 
     /**
+      * A SQL statement to add this partition to tableName.
+      */
+    val addPartitionQL: String = s"ALTER TABLE $tableName ADD IF NOT EXISTS PARTITION ($hiveQL) LOCATION '$path'"
+
+    /**
       * Get a partition value by key
       * @param key partition key
       * @return
