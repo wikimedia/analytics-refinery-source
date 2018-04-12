@@ -9,14 +9,13 @@ import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
-import org.wikimedia.analytics.refinery.spark.sql.SparkSQLHiveExtensions
-import SparkSQLHiveExtensions._
-
-import scala.util.control.Exception.{allCatch, ignoring}
-
 // Import implicit StructType and StructField conversions.
 // This allows us use these types with an extendend API
 // that includes schema merging and Hive DDL statement generation.
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+
+import scala.util.control.Exception.{allCatch, ignoring}
+
 
 /**
   * Converts A DataFrame to a partition in a Hive table by 'evolving' a Hive table to

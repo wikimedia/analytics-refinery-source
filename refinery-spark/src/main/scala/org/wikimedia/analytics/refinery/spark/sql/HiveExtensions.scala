@@ -15,7 +15,7 @@ import org.wikimedia.analytics.refinery.core.LogHelper
   *
   * Usage:
   *
-  *     import org.wikimedia.analytics.refinery.core.SparkSQLHiveExtensions._
+  *     import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
   *
   *     val df: DataFrame = // read original source data
   *     val hiveCreateStatement = df.schema.hiveCreateDDL("mydb.mytable")
@@ -27,7 +27,7 @@ import org.wikimedia.analytics.refinery.core.LogHelper
   *     val hiveAlterStatement = table.schema.hiveAlterDDL("mydb.mytable", df.schema)
   *     hiveContext.sql(hiveAlterStatement)
   */
-object SparkSQLHiveExtensions extends LogHelper {
+object HiveExtensions extends LogHelper {
 
     /**
       * Implicit methods extensions for Spark StructField.

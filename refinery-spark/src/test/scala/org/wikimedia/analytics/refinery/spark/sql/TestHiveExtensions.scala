@@ -4,9 +4,9 @@ import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.spark.sql.SparkSQLHiveExtensions._
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
-class TestSparkSQLHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase {
+class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase {
 
     val tableName = "test.table"
     val tableLocation = "/tmp/test/table"
