@@ -92,7 +92,7 @@ object DataFrameToHive extends LogHelper {
         // Set this so we can partition by fields in the DataFrame.
         spark.conf.set("hive.exec.dynamic.partition.mode", "nonstrict")
 
-        // Keep number of partitions  to reset it after DataFrame API changes it
+        // Keep number of partitions to reset it after DataFrame API changes it
         // Since the spark context is used accross multiple jobs, we don't want
         // to use a global setting.
         val originalPartitionNumber = inputDf.rdd.getNumPartitions
@@ -106,17 +106,14 @@ object DataFrameToHive extends LogHelper {
             .normalize()
             .repartition(originalPartitionNumber)
 
-        // If the resulting DataFrame is empty, just exit.
-        try {
-            df.head
-        } catch {
-            case e: java.util.NoSuchElementException =>
-                log.info(
-                    s"`$partition` DataFrame is empty after transformations. " +
+        // If the resulting DataFrame is empty, just return.
+        if (df.take(1).isEmpty) {
+            log.info(
+                s"DataFrame for $partition is empty after transformations. " +
                     "No data will be written for this partition."
-                )
-                doneCallback()
-                return df
+            )
+            doneCallback()
+            return df
         }
 
         // Grab the partition name keys to use for Hive partitioning.
