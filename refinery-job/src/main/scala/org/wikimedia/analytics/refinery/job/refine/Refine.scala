@@ -444,6 +444,8 @@ object Refine extends LogHelper {
 
                 hasFailures = true
             }
+
+            failureMessages += s"\n\napplicationId: ${spark.sparkContext.applicationId}"
         }
 
         // If we should send this as a failure email report
