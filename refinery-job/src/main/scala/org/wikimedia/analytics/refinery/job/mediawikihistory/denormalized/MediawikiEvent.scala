@@ -639,16 +639,16 @@ object MediawikiEvent {
                                 )(
                                   keyAndMwEvent: (MediawikiEventKey, MediawikiEvent),
                                   previousKeyAndMwEvent: Option[(MediawikiEventKey, MediawikiEvent)]
-                                ): MediawikiEvent = {
+                                ): (MediawikiEventKey, MediawikiEvent) = {
     val (mwKey, mwEvent) = keyAndMwEvent
     val metricHead = s"${mwEvent.wikiDb}.${mwEvent.eventEntity}.withPreviousUpdates"
     if (mwKey.partitionKey.id <= 0L) {
       // negative or 0 ids are fake (used to shuffle among workers)  -- Don't update
       statsAccumulator.foreach(_.add(s"$metricHead.fakeIds", 1L))
-      mwEvent
+      (mwKey, mwEvent)
     } else {
       statsAccumulator.foreach(_.add(s"$metricHead.updates", 1L))
-      updateWithOptionalPreviousInner(mwEvent, previousKeyAndMwEvent.map(_._2))
+      (mwKey, updateWithOptionalPreviousInner(mwEvent, previousKeyAndMwEvent.map(_._2)))
     }
   }
 
