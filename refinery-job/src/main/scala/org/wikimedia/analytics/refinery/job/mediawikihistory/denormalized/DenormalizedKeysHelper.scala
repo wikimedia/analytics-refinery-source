@@ -31,12 +31,11 @@ trait HasPartitionKey {
   *
   * @param db The wiki db of the row (we don't mix wikis)
   * @param id The interesting id (can be userId, pageId, revId...)
-  * @param year The year (because whole-time groups are too big)
   */
-case class PartitionKey(db: String, id: Long, year: Int)
+case class PartitionKey(db: String, id: Long)
   extends Ordered[PartitionKey] {
   override def compare(that: PartitionKey): Int =
-    implicitly[Ordering[(String, Long, Int)]].compare((this.db, this.id, this.year), (that.db, that.id, that.year))
+    implicitly[Ordering[(String, Long)]].compare((this.db, this.id), (that.db, that.id))
 }
 
 
@@ -143,34 +142,6 @@ class PartitionKeyPartitioner[K <: HasPartitionKey](val numPartitions: Int)
   */
 object DenormalizedKeysHelper extends Serializable {
 
-  import com.github.nscala_time.time.Imports._
-
-  /**
-    * Extracts the year part of a timestamp.
-    *
-    * @param timestamp the timestamp to extract the year from
-    * @param default The value to return in case of None timestamp
-    * @return The year or the default value
-    */
-  def year(timestamp: Option[Timestamp], default: Integer): Int = timestamp match {
-    case None => default
-    case Some(validTimestamp) => new DateTime(validTimestamp.getTime).getYear
-  }
-
-
-  /**
-    * 1999 to current-year year list used to generate years covered
-    * by an object implementing [[TimeBoundaries]].
-    */
-  val yearList = 1999 to DateTime.now.getYear
-  def years[B <: TimeBoundaries](boundaries: B): Seq[Int] =
-    yearList.filter(y =>
-      // default to a year smaller than any valid one
-      y >= year(boundaries.startTimestamp, -1) &&
-      // default to a year bigger than any valid one
-      y <= year(boundaries.endTimestamp, 10000))
-
-
   /**
     * Returns the given id if valid (defined and strictly positive),
     * or a negative hash value as fake id if invalid.
@@ -190,90 +161,37 @@ object DenormalizedKeysHelper extends Serializable {
     */
 
   /**
-    * Generate a list of user-centered [[StateKey]] for
-    * a given [[UserState]], having the same values except
-    * for the year and using a fake value in place of
-    * user id if invalid (see [[idOrHashNegative]]).
-    *
-    * @param userState The user state to generate keys for
-    * @return The sequence of keys for userState
-    */
-  def userStateKeys(userState: UserState): Seq[StateKey] = {
-    val userId: Long = idOrHashNegative(Some(userState.userId), userState)
-    years(userState).map(y =>
-      StateKey(PartitionKey(userState.wikiDb, userId, y),
-        userState.startTimestamp, userState.endTimestamp))
-  }
-
-
-  /**
-    * Generate the user-centered [[StateKey]] ((wikiDb, UserId, -1), start, end)
-    * (-1 as year) using a fake value in place of user id
+    * Generate the user-centered [[StateKey]] ((wikiDb, UserId), start, end)
+    * using a fake value in place of user id
     * if invalid (see [[idOrHashNegative]]).
     *
     * @param userState The user state to generate key for
     * @return The key for the userState
     */
-  def userStateKeyNoYear(userState: UserState): StateKey = {
+  def userStateKey(userState: UserState): StateKey = {
     val userId = DenormalizedKeysHelper.idOrHashNegative(Some(userState.userId), userState)
-    StateKey(PartitionKey(userState.wikiDb, userId, -1),
+    StateKey(PartitionKey(userState.wikiDb, userId),
       userState.startTimestamp, userState.endTimestamp)
   }
 
-
   /**
     * Generate a user-centered [[MediawikiEventKey]] for a
-    * given MW event using a fake value in place of user id
-    * if invalid (see [[idOrHashNegative]]).
-    *
-    * Year value of the [[PartitionKey]] can be -1
-    * if the useYear parameter is false (default true).
+    * given MW Event with using a fake value in place of
+    * user id if invalid (see [[idOrHashNegative]]).
     *
     * @param mwEvent The MW Event to generate key for
-    * @param useYear Flag for using MW Event year (true) or
-    *                -1 (false) in [[PartitionKey]]
     * @return The MW Event key
     */
-  def userMediawikiEventKey(mwEvent: MediawikiEvent, useYear: Boolean = true): MediawikiEventKey = {
+  def userMediawikiEventKey(mwEvent: MediawikiEvent): MediawikiEventKey = {
     val userId: Long = idOrHashNegative(mwEvent.eventUserDetails.userId, mwEvent)
-    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, userId, if (useYear) year(mwEvent.eventTimestamp, 0) else -1),
+    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, userId),
       mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
-  }
-
-
-  /**
-    * Generate a user-centered [[MediawikiEventKey]] for a
-    * given MW Event with -1 as year using a fake
-    * value in place of user id if invalid (see [[idOrHashNegative]]).
-    *
-    * @param mwEvent The MW Event to generate key for
-    * @return The MW Event key
-    */
-  def userMediawikiEventKeyNoYear(mwEvent: MediawikiEvent): MediawikiEventKey = {
-    userMediawikiEventKey(mwEvent, useYear = false)
   }
 
 
   /**************************************************************
     * Page helpers
     */
-
-  /**
-    * Generate a list of page-centered [[StateKey]] for
-    * a given [[PageState]], having the same values except
-    * for the year and using a fake value in place of
-    * page id if invalid (see [[idOrHashNegative]]).
-    *
-    * @param pageState The page state to generate keys for
-    * @return The sequence of keys for pageState
-    */
-  def pageStateKeys(pageState: PageState): Seq[StateKey] = {
-    val pageId: Long = idOrHashNegative(pageState.pageId, pageState)
-    years(pageState).map(y =>
-      StateKey(PartitionKey(pageState.wikiDb, pageId, y),
-        pageState.startTimestamp, pageState.endTimestamp))
-  }
-
 
   /**
     * Generate the page-centered [[StateKey]] ((wikiDb, pageId, -1), start, end)
@@ -283,42 +201,24 @@ object DenormalizedKeysHelper extends Serializable {
     * @param pageState The page state to generate key for
     * @return The key for the pageState
     */
-  def pageStateKeyNoYear(pageState: PageState): StateKey = {
+  def pageStateKey(pageState: PageState): StateKey = {
     val pageId = DenormalizedKeysHelper.idOrHashNegative(pageState.pageId, pageState)
-    StateKey(PartitionKey(pageState.wikiDb, pageId, -1),
+    StateKey(PartitionKey(pageState.wikiDb, pageId),
       pageState.startTimestamp, pageState.endTimestamp)
   }
 
-
   /**
     * Generate a page-centered [[MediawikiEventKey]] for a
-    * given [[MediawikiEvent]] using a fake value in place
-    * of page id if invalid (see [[idOrHashNegative]]).
-    *
-    * Year value of the [[PartitionKey]] can be -1
-    * if the useYear parameter is false (default true).
+    * given MW Event using a fake value in place of page id
+    * if invalid (see [[idOrHashNegative]]).
     *
     * @param mwEvent The MW Event to generate key for
-    * @param useYear Flag for using MW Event year (true) or
-    *                -1 (false) in [[PartitionKey]]
     * @return The MW Event key
     */
-  def pageMediawikiEventKey(mwEvent: MediawikiEvent, useYear: Boolean = true): MediawikiEventKey = {
+  def pageMediawikiEventKey(mwEvent: MediawikiEvent): MediawikiEventKey = {
     val pageId: Long = idOrHashNegative(mwEvent.pageDetails.pageId, mwEvent)
-    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, pageId, if (useYear) year(mwEvent.eventTimestamp, 0) else -1),
+    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, pageId),
       mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
-  }
-
-  /**
-    * Generate a page-centered [[MediawikiEventKey]] for a
-    * given MW Event with -1 as year using a fake
-    * value in place of page id if invalid (see [[idOrHashNegative]]).
-    *
-    * @param mwEvent The MW Event to generate key for
-    * @return The MW Event key
-    */
-  def pageMediawikiEventKeyNoYear(mwEvent: MediawikiEvent): MediawikiEventKey = {
-    pageMediawikiEventKey(mwEvent, useYear = false)
   }
 
 
@@ -334,9 +234,9 @@ object DenormalizedKeysHelper extends Serializable {
     * @param mwEvent The MW Event to generate key for
     * @return The MW Event key
     */
-  def revisionMediawikiEventKeyNoYear(mwEvent: MediawikiEvent): MediawikiEventKey = {
+  def revisionMediawikiEventKey(mwEvent: MediawikiEvent): MediawikiEventKey = {
     val revisionId: Long = idOrHashNegative(mwEvent.revisionDetails.revId, mwEvent)
-    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, revisionId, -1),
+    MediawikiEventKey(PartitionKey(mwEvent.wikiDb, revisionId),
       mwEvent.eventTimestamp, mwEvent.revisionDetails.revId)
   }
 
@@ -397,11 +297,11 @@ object DenormalizedKeysHelper extends Serializable {
     */
   def mapWithPreviouslyComputed[K, V, Z](
                                 partitionKeyComparator: (K, K) => Integer,
-                                map: ((K, V), Option[(K, Z)]) => Z
+                                map: ((K, V), Option[(K, Z)]) => (K, Z)
                               )
                               (
                                 iterator: Iterator[(K, V)]
-                              ): Iterator[Z] = {
+                              ): Iterator[(K, Z)] = {
 
     // Mutable variable for previous element
     var optionalPrevious = None.asInstanceOf[Option[(K, Z)]]
@@ -413,7 +313,7 @@ object DenormalizedKeysHelper extends Serializable {
         case Some(previous) if partitionKeyComparator(previous._1, keyValue._1) == 0 => map(keyValue, optionalPrevious)
         case _ => map(keyValue, None)
       }
-      optionalPrevious = Some(keyValue._1, mappedValue)
+      optionalPrevious = Some(mappedValue)
       mappedValue
     }
   }

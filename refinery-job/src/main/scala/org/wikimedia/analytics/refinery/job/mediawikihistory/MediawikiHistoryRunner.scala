@@ -214,6 +214,12 @@ object MediawikiHistoryRunner {
           .setAppName(s"MediawikiHistoryRunner-${params.snapshot.getOrElse("NoSnapshot")}")
           .set("spark.sql.parquet.compression.codec", "snappy")
           .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+          .set("spark.ui.killEnabled", "false")  // Prevent errors in UI
+          // MapAccumulator is memory-heavy for the driver if kept at each stage / task
+          // We reduce the number of stages and tasks kept in the driver for UI inspection
+          // to prevent driver OOM.
+          .set("spark.ui.retainedStage", "20")
+          .set("spark.ui.retainedTasks", "1000")
           .registerKryoClasses(Array(
             // Keys
             classOf[PartitionKey],

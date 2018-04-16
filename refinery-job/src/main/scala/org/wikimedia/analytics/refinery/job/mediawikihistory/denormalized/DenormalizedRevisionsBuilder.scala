@@ -82,14 +82,14 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
                           pageStates: RDD[PageState]
                         ): RDD[MediawikiEvent] = {
     val archivedRevisionsByPage = archivedRevisions
-      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r).partitionKey)
+      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r).partitionKey)
 
     // Sorted list of delete events timestamps by page (when startTimestamp and pageId are defined)
     // RDD[((wikiDb, PageId), SortedVector[timestamp])]
     val pageDeletionTimestamps = pageStates
       .flatMap(p =>
         if (p.causedByEventType == "delete" && p.startTimestamp.isDefined && p.pageId.getOrElse(-1L) > 0L)
-          Seq((DenormalizedKeysHelper.pageStateKeyNoYear(p).partitionKey, p.startTimestamp.get))
+          Seq((DenormalizedKeysHelper.pageStateKey(p).partitionKey, p.startTimestamp.get))
         else Seq.empty)
       .groupByKey()
       // We assume there will not be so many deletion events per page for this sort to fail
@@ -150,7 +150,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
     val revisionsParentAndBytesById = revisions
       .flatMap(r => {
         if (r.revisionDetails.revId.getOrElse(-1L) > 0L && r.revisionDetails.revTextBytes.isDefined)
-          Seq((DenormalizedKeysHelper.revisionMediawikiEventKeyNoYear(r).partitionKey, // Key: (wikiDb, revId, "")
+          Seq((DenormalizedKeysHelper.revisionMediawikiEventKey(r).partitionKey, // Key: (wikiDb, revId, "")
             (r.revisionDetails.revTextBytes.get, r.revisionDetails.revParentId))) // Value: (textBytes, parentId)
         else Seq.empty
       })
@@ -175,7 +175,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
 
     // Update revisions with computed values
     revisions
-      .keyBy(r => DenormalizedKeysHelper.revisionMediawikiEventKeyNoYear(r).partitionKey)
+      .keyBy(r => DenormalizedKeysHelper.revisionMediawikiEventKey(r).partitionKey)
       .leftOuterJoin(revisionsBytesDiffById) // Keep all revisions
       .map {
         case (_, (r, None)) =>
@@ -212,7 +212,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
       .filter(_.pageDetails.pageId.getOrElse(-1L) > 0L) // remove invalid pageIds
       .map(r =>
           // Key: ((wikiDb, pageId), revSha1)
-          (RevertKey(DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r).partitionKey, r.revisionDetails.revTextSha1),
+          (RevertKey(DenormalizedKeysHelper.pageMediawikiEventKey(r).partitionKey, r.revisionDetails.revTextSha1),
           // Value: (revTimestamp, revId)
           (r.eventTimestamp, r.revisionDetails.revId)))
       .groupByKey() // Same pageId and sha1
@@ -227,19 +227,9 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
           }
           if (reverts.isEmpty) Seq() // No reverts, no work
           else {
-            // Years spanned by the reverts-lists (from base to last revert)
-            val yearsSpanned = DenormalizedKeysHelper.years(new TimeBoundaries {
-              override def startTimestamp: Option[Timestamp] = baseRevision._1
-              override def endTimestamp: Option[Timestamp] = reverts.last._1
-            })
             // Generate one revert-list event by year to be zipped with revisions-by-year
-            statsAccumulator.add(s"${revertKey.partitionKey.db}.$METRIC_REVERTS_LISTS_COUNT", yearsSpanned.size)
-            yearsSpanned.map(y => {
-              (
-                MediawikiEventKey(revertKey.partitionKey.copy(year = y), baseRevision._1, baseRevision._2),
-                reverts
-                )
-            })
+            statsAccumulator.add(s"${revertKey.partitionKey.db}.$METRIC_REVERTS_LISTS_COUNT", 1L)
+            Seq((MediawikiEventKey(revertKey.partitionKey, baseRevision._1, baseRevision._2), reverts))
           }
       }
   }
@@ -366,39 +356,16 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
     log.info(s"Populating text bytes diff for denormalized revisions")
     val revisionsWithDiff = populateByteDiff(revisions)
 
-    val userMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
-      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
-      MediawikiEvent.updateWithOptionalUserPrevious(Some(statsAccumulator))
-    ) _
-
-    val pageMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
-      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
-      MediawikiEvent.updateWithOptionalPagePrevious(Some(statsAccumulator))
-    ) _
-
-    log.info(s"Populating revisions per-user metrics")
-    val revisionsWithDiffAndPerUserMetrics: RDD[MediawikiEvent] = revisionsWithDiff
-      .keyBy(r => DenormalizedKeysHelper.userMediawikiEventKeyNoYear(r))
-      .repartitionAndSortWithinPartitions(historyPartitioner)
-      .mapPartitions(userMetricsMapperWithPrevious)
-
-    log.info(s"Populating revisions per-page metrics")
-    val revisionsWithDiffAndPerUserAndPageMetrics: RDD[MediawikiEvent] = revisionsWithDiffAndPerUserMetrics
-      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r))
-      .repartitionAndSortWithinPartitions(historyPartitioner)
-      .mapPartitions(pageMetricsMapperWithPrevious)
-
-
     // Compute reverts info
     log.info(s"Populating revert info for denormalized revisions")
-    val revertsLists = prepareRevertsLists(revisionsWithDiffAndPerUserAndPageMetrics)
+    val revertsLists = prepareRevertsLists(revisionsWithDiff)
       .repartitionAndSortWithinPartitions(historyPartitioner)
     val zipper = DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventKeys,
       updateRevisionWithOptionalRevertsList(new DenormalizedRevisionsBuilder.RevertsListsState)) _
-    val revisionsWithDiffAndPerUserAndPageMetricsAndRevert = revisionsWithDiffAndPerUserAndPageMetrics
+    val revisionsWithDiffAndPerUserAndPageMetricsAndRevert = revisionsWithDiff
       //.keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
-      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r))
+      .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
       .repartitionAndSortWithinPartitions(historyPartitioner)
       .zipPartitions(revertsLists)(
         (keysAndRevisions, keysAndRevertsLists) => zipper(keysAndRevisions, keysAndRevertsLists)

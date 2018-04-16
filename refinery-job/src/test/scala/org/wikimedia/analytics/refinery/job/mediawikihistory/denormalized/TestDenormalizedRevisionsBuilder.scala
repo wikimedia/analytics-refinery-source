@@ -286,7 +286,7 @@ class TestDenormalizedRevisionsBuilder
   /**
     * Tests for prepareReverts function
     */
-  "prepareReverts" should "properly prepare reverts and gather sats" in {
+  "prepareReverts" should "properly prepare reverts and gather stats" in {
     val revs = sc.parallelize(
       revisionMwEventSet()(
         "db       time       revId pageId sha1",
@@ -310,10 +310,10 @@ class TestDenormalizedRevisionsBuilder
 
     val results = denormalizedRevisionsBuilder.prepareRevertsLists(revs).collect.sortBy(_._1)
 
-    val partw1p1 = PartitionKey("w1", 1L, 2010)
-    val partw1p2_2010 = PartitionKey("w1", 2L, 2010)
-    val partw1p2_2011 = PartitionKey("w1", 2L, 2011)
-    val partw2p1 = PartitionKey("w2", 1L, 2010)
+    val partw1p1 = PartitionKey("w1", 1L)
+    val partw1p2_2010 = PartitionKey("w1", 2L)
+    val partw1p2_2011 = PartitionKey("w1", 2L)
+    val partw2p1 = PartitionKey("w2", 1L)
     val expectedResults = Seq(
       (MediawikiEventKey(partw1p1, TimestampHelpers.makeMediawikiTimestamp("20100101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("20100106000000"), Some(6L)), (TimestampHelpers.makeMediawikiTimestamp("20100109000000"), Some(12L)))),
@@ -323,8 +323,6 @@ class TestDenormalizedRevisionsBuilder
         Vector((TimestampHelpers.makeMediawikiTimestamp("20100108000000"), Some(8L)))),
       (MediawikiEventKey(partw1p2_2010, TimestampHelpers.makeMediawikiTimestamp("20100103000000"), Some(9L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("20110101000000"), Some(11L)))),
-      (MediawikiEventKey(partw1p2_2011, TimestampHelpers.makeMediawikiTimestamp("20100103000000"), Some(9L)),
-        Vector((TimestampHelpers.makeMediawikiTimestamp("20110101000000"), Some(11L)))),
       (MediawikiEventKey(partw2p1, TimestampHelpers.makeMediawikiTimestamp("20100101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("20100103000000"), Some(3L))))
     )
@@ -332,7 +330,7 @@ class TestDenormalizedRevisionsBuilder
     results should equal(expectedResults)
     val stats = statsAccumulator.value
     stats.size() should equal(2)
-    stats.get("w1.rev.revertsLists.count") should equal(5)
+    stats.get("w1.rev.revertsLists.count") should equal(4)
     stats.get("w2.rev.revertsLists.count") should equal(1)
   }
 
@@ -512,7 +510,7 @@ class TestDenormalizedRevisionsBuilder
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+      (MediawikiEventKey(PartitionKey("w1", 1L), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L))))
     )
 
@@ -541,7 +539,7 @@ class TestDenormalizedRevisionsBuilder
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+      (MediawikiEventKey(PartitionKey("w1", 1L), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L))))
     )
 
@@ -569,11 +567,11 @@ class TestDenormalizedRevisionsBuilder
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w0", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+      (MediawikiEventKey(PartitionKey("w0", 1L), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L)))),
-      (MediawikiEventKey(PartitionKey("w0", 2L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+      (MediawikiEventKey(PartitionKey("w0", 2L), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L)))),
-      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+      (MediawikiEventKey(PartitionKey("w1", 1L), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L))))
     )
 
@@ -611,11 +609,11 @@ class TestDenormalizedRevisionsBuilder
     )
 
     val reverts = Seq(
-      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
+      (MediawikiEventKey(PartitionKey("w1", 1L), TimestampHelpers.makeMediawikiTimestamp("19700101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700106000000"), Some(6L)))),
-      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700102000000"), Some(2L)),
+      (MediawikiEventKey(PartitionKey("w1", 1L), TimestampHelpers.makeMediawikiTimestamp("19700102000000"), Some(2L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700104000000"), Some(4L)))),
-      (MediawikiEventKey(PartitionKey("w1", 1L, 1970), TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L)),
+      (MediawikiEventKey(PartitionKey("w1", 1L), TimestampHelpers.makeMediawikiTimestamp("19700103000000"), Some(3L)),
         Vector((TimestampHelpers.makeMediawikiTimestamp("19700108000000"), Some(8L))))
     )
 

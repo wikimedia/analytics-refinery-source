@@ -45,8 +45,6 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
   val METRIC_FILTERED_OUT_PAGE_STATES = "pages.states.filteredOut"
   val METRIC_USER_STATES = "users.states.count"
   val METRIC_PAGE_STATES = "pages.states.count"
-  val METRIC_BY_YEAR_USER_STATES = "users.states.byYear"
-  val METRIC_BY_YEAR_PAGE_STATES = "pages.states.byYear"
   val METRIC_WRITTEN_ROWS = "denorm.writtenRows.count"
 
   val workPartitions = numPartitions * 4
@@ -112,7 +110,7 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
     val userStatesDf = spark.read.parquet(userHistoryPath).repartition(workPartitions).where(s"TRUE $wikiClause")
     val userStatesToFilter = userStatesDf.rdd.map(UserState.fromRow).cache()
     filterStates[UserState](
-      userStatesToFilter, DenormalizedKeysHelper.userStateKeyNoYear, METRIC_FILTERED_OUT_USER_STATES
+      userStatesToFilter, DenormalizedKeysHelper.userStateKey, METRIC_FILTERED_OUT_USER_STATES
     ).cache()
   }
 
@@ -127,7 +125,7 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
         validId
       }).cache()
     filterStates[PageState](
-      pageStatesToFilter, DenormalizedKeysHelper.pageStateKeyNoYear, METRIC_FILTERED_OUT_PAGE_STATES
+      pageStatesToFilter, DenormalizedKeysHelper.pageStateKey, METRIC_FILTERED_OUT_PAGE_STATES
     ).cache()
   }
 
@@ -232,7 +230,7 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
 
   def filterArchivedRevisions(archivedRevisionsNotFiltered: RDD[MediawikiEvent]): RDD[MediawikiEvent] = {
     archivedRevisionsNotFiltered.
-      keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r).partitionKey).
+      keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r).partitionKey).
       groupByKey().
       flatMap { case (k, revisionsIterator) =>
         if (k.id > 0) {
@@ -316,27 +314,12 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
     val mediawikiEventPartitioner = new PartitionKeyPartitioner[MediawikiEventKey](workPartitions)
 
     // Partitioned-sorted user and page states for future zipping
-    val sortedByYearUserStates = userStates
-      .flatMap(userState => {
-        val keysAndStates = DenormalizedKeysHelper.userStateKeys(userState).map(k => (k, userState))
-        //val keysAndStates = Seq((DenormalizedKeysHelper.userStateKeyNoYear(userState), userState))
-        if (keysAndStates.nonEmpty) {
-          statsAccumulator.add((s"${keysAndStates.head._2.wikiDb}.$METRIC_BY_YEAR_USER_STATES", keysAndStates.length))
-        }
-        keysAndStates
-      })
+    val sortedUserStates = userStates
+      .map(userState => (DenormalizedKeysHelper.userStateKey(userState), userState))
       .repartitionAndSortWithinPartitions(statePartitioner)
       .cache()
-    val sortedByYearPageStates = pageStates
-      .flatMap(pageState => {
-        val keysAndStates = DenormalizedKeysHelper.pageStateKeys(pageState).map(k => (k, pageState))
-        //val keysAndStates = Seq((DenormalizedKeysHelper.pageStateKeyNoYear(pageState),  pageState))
-        if (keysAndStates.nonEmpty) {
-          statsAccumulator.add((s"${keysAndStates.head._2.wikiDb}.$METRIC_BY_YEAR_PAGE_STATES", keysAndStates.length))
-        }
-        keysAndStates
-
-      })
+    val sortedPageStates = pageStates
+      .map(pageState => (DenormalizedKeysHelper.pageStateKey(pageState),  pageState))
       .repartitionAndSortWithinPartitions(statePartitioner)
 
     // user and page iterate functions setup
@@ -346,6 +329,18 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
     val pageIterate = DenormalizedKeysHelper.leftOuterZip(
       DenormalizedKeysHelper.compareMediawikiEventAndStateKeys,
       MediawikiEvent.updateWithOptionalPage(Some(statsAccumulator))) _
+
+    // User and page with previous functions setup
+    val userMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
+      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
+      MediawikiEvent.updateWithOptionalUserPrevious(Some(statsAccumulator))
+    ) _
+
+    val pageMetricsMapperWithPrevious = DenormalizedKeysHelper.mapWithPreviouslyComputed[MediawikiEventKey, MediawikiEvent, MediawikiEvent](
+      DenormalizedKeysHelper.compareMediawikiEventPartitionKeys,
+      MediawikiEvent.updateWithOptionalPagePrevious(Some(statsAccumulator))
+    ) _
+
 
     //***********************************
     // Run revision updates
@@ -361,19 +356,17 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
       mediawikiEventPartitioner
     )
 
-    log.info(s"Repartitioning and sorting denormalized revisions, zipping with user states")
+    log.info(s"Repartitioning and sorting denormalized revisions, adding per-user values and zipping with user states")
     val revisionsWithUserData = revisions
       .keyBy(r => DenormalizedKeysHelper.userMediawikiEventKey(r))
-      //.keyBy(r => DenormalizedKeysHelper.userMediawikiEventKeyNoYear(r))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedByYearUserStates)((it1, it2) => userIterate(it1, it2))
+      .zipPartitions(sortedUserStates)((it1, it2) => userIterate(userMetricsMapperWithPrevious(it1), it2))
 
-    log.info(s"Repartitioning and sorting denormalized revisions, zipping with page states")
+    log.info(s"Repartitioning and sorting denormalized revisions, adding per-page values and zipping with page states")
     val revisionsWithUserAndPageData = revisionsWithUserData
       .keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r))
-      //.keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKeyNoYear(r))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedByYearPageStates)((it1, it2) => pageIterate(it1, it2))
+      .zipPartitions(sortedPageStates)((it1, it2) => pageIterate(pageMetricsMapperWithPrevious(it1), it2))
 
 
     //***********************************
@@ -383,16 +376,14 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
     log.info(s"Repartitioning and sorting denormalized users, zipping with user states")
     val userMediawikiEventsWithUserData = userMediawikiEvents
       .keyBy(u => DenormalizedKeysHelper.userMediawikiEventKey(u))
-      //.keyBy(u => DenormalizedKeysHelper.userMediawikiEventKeyNoYear(u))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedByYearUserStates)((it1, it2) => userIterate(it1, it2))
+      .zipPartitions(sortedUserStates)((it1, it2) => userIterate(it1, it2))
 
     log.info(s"Repartitioning and sorting denormalized pages, zipping with user states")
     val pageMediawikiEventsWithUserData = pageMediawikiEvents
       .keyBy(p => DenormalizedKeysHelper.userMediawikiEventKey(p))
-      //.keyBy(p => DenormalizedKeysHelper.userMediawikiEventKeyNoYear(p))
       .repartitionAndSortWithinPartitions(mediawikiEventPartitioner)
-      .zipPartitions(sortedByYearUserStates)((it1, it2) => userIterate(it1, it2))
+      .zipPartitions(sortedUserStates)((it1, it2) => userIterate(it1, it2))
 
     //***********************************
     // Join revisions, user and page and write results and errors
