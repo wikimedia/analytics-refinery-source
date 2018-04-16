@@ -1,3 +1,13 @@
+## v0.0.62
+* Fix MediawikiHistory OOM issue in driver
+* Update MediawikiHistory for another performance optimization
+* Rename SparkSQLHiveExtensions to just HiveExtensions
+* Include applicationId in Refine email failure report
+* DataFrameToHive - Use df.take(1).isEmpty rather than exception
+* RefineTarget - Use Hadoop FS to infer input format rather than Spark
+* DataFrameToHive - Use DataFrame .write.parquet instead of .insertInto
+* Correct wikidata-articleplaceholder job SQL RLIKE expression
+
 ## v0.0.61
 * Fix sys.exit bug in Refine
 * Fix LZ4 version bug with maven exclusion in refinery-spark and refinery-job
