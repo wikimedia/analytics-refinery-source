@@ -4,9 +4,12 @@ import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 
 
-class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach with DataFrameSuiteBase {
+class TestPageHistoryBuilder
+  extends FlatSpec
+  with Matchers
+  with BeforeAndAfterEach
+  with DataFrameSuiteBase {
 
-  import org.apache.spark.sql.SparkSession
   import java.sql.Timestamp
 
   import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
@@ -16,16 +19,13 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
   import org.wikimedia.analytics.refinery.core.TimestampHelpers.orderedTimestamp
 
   implicit def sumLongs = (a: Long, b: Long) => a + b
-  var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]
+  var statsAccumulator = None.asInstanceOf[Option[MapAccumulator[String, Long]]]
   var pageHistoryBuilder = null.asInstanceOf[PageHistoryBuilder]
 
   override def beforeEach(): Unit = {
-    statsAccumulator = new MapAccumulator[String, Long]
-    spark.sparkContext.register(statsAccumulator)
-    pageHistoryBuilder = new PageHistoryBuilder(
-      null.asInstanceOf[SparkSession],
-    statsAccumulator
-    )
+    statsAccumulator = Some(new MapAccumulator[String, Long])
+    statsAccumulator.foreach(statsAcc => spark.sparkContext.register(statsAcc))
+    pageHistoryBuilder = new PageHistoryBuilder(spark, statsAccumulator)
   }
 
   /**
@@ -716,7 +716,7 @@ class TestPageHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     )
 
     process(events, states)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(2)
     stats.get("testwiki.pages.eventsMatching.OK") should equal(3)
     stats.get("testwiki.pages.eventsMatching.KO") should equal(1)

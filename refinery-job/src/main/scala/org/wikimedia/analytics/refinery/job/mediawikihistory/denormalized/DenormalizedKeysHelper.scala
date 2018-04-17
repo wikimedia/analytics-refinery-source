@@ -33,7 +33,7 @@ trait HasPartitionKey {
   * @param id The interesting id (can be userId, pageId, revId...)
   */
 case class PartitionKey(db: String, id: Long)
-  extends Ordered[PartitionKey] {
+  extends Ordered[PartitionKey] with Serializable {
   override def compare(that: PartitionKey): Int =
     implicitly[Ordering[(String, Long)]].compare((this.db, this.id), (that.db, that.id))
 }

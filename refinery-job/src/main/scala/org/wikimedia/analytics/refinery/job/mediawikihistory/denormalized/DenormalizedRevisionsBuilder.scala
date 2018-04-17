@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
+import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator}
 
 /**
   * This file defines the functions for revisions-enrichment.
@@ -17,7 +18,11 @@ import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
   *
   * It then returned the updated revisions RDD to the [[DenormalizedRunner]].
   */
-class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long], numPartitions: Int) extends Serializable {
+class DenormalizedRevisionsBuilder(
+                                    val spark: SparkSession,
+                                    val statsAccumulator: Option[MapAccumulator[String, Long]],
+                                    val numPartitions: Int
+                                  ) extends StatsHelper with Serializable {
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
@@ -115,21 +120,21 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
       .leftOuterJoin(pageTimestamps) // keep all archived revisions
       .map {
         case (_, (r, None)) => // No delete nor max timestamp -- Use event one (should never happen)
-          statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_EVENT_TS", 1)
+          addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_EVENT_TS", 1)
           r.isDeleted(r.eventTimestamp)
         case (_, (r, Some((maxTs, deleteTs)))) =>
           if (deleteTs.isEmpty) { // No delete timestamp -- Use max archived revision one
-            statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
+            addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
             r.isDeleted(maxTs)
           } else {
             // In case event timestamp is empty, firstBigger will return deleteTs first value
             val foundDeleteTs = firstBigger(r.eventTimestamp.map(_.getTime).getOrElse(-1L), deleteTs.get).map(new Timestamp(_))
             foundDeleteTs match {
               case None => // No delete timestamp -- Use max archived revision one
-                statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
+                addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
                 r.isDeleted(maxTs)
               case _ => // Use delete timestamp
-                statsAccumulator.add(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS", 1)
+                addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS", 1)
                 r.isDeleted(foundDeleteTs)
             }
           }
@@ -180,14 +185,14 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
       .map {
         case (_, (r, None)) =>
           if (r.revisionDetails.revParentId.getOrElse(0L) > 0) {
-            statsAccumulator.add(s"${r.wikiDb}.$METRIC_BYTES_DIFF_KO", 1)
+            addOptionalStat(s"${r.wikiDb}.$METRIC_BYTES_DIFF_KO", 1)
             r.textBytesDiff(None) // set None instead of textBytes since parentId is not 0 but no link found
           } else {
-            statsAccumulator.add(s"${r.wikiDb}.$METRIC_BYTES_DIFF_OK", 1)
+            addOptionalStat(s"${r.wikiDb}.$METRIC_BYTES_DIFF_OK", 1)
             r // Keep already existing textBytes
           }
         case (_, (r, diff)) =>
-          statsAccumulator.add(s"${r.wikiDb}.$METRIC_BYTES_DIFF_OK", 1)
+          addOptionalStat(s"${r.wikiDb}.$METRIC_BYTES_DIFF_OK", 1)
           r.textBytesDiff(diff)
       }
   }
@@ -228,7 +233,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
           if (reverts.isEmpty) Seq() // No reverts, no work
           else {
             // Generate one revert-list event by year to be zipped with revisions-by-year
-            statsAccumulator.add(s"${revertKey.partitionKey.db}.$METRIC_REVERTS_LISTS_COUNT", 1L)
+            addOptionalStat(s"${revertKey.partitionKey.db}.$METRIC_REVERTS_LISTS_COUNT", 1L)
             Seq((MediawikiEventKey(revertKey.partitionKey, baseRevision._1, baseRevision._2), reverts))
           }
       }
@@ -248,7 +253,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
                                 reverts: DenormalizedRevisionsBuilder.MutableOrderedReverts
                               ): MediawikiEvent = {
     if (reverts.isEmpty) { // No revert after this revision, no update
-      statsAccumulator.add(s"${revision.wikiDb}.$METRIC_NO_REVERT_COUNT", 1)
+      addOptionalStat(s"${revision.wikiDb}.$METRIC_NO_REVERT_COUNT", 1)
       revision
     } else if (reverts.head._1 == (revision.eventTimestamp, revision.revisionDetails.revId)) {
       // Worked revision is a reverting one (head of reverts)
@@ -260,14 +265,14 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
 
       if (reverts.isEmpty || (reverts.head._2 == revertingBaseId)) {
         // Worked revision is not reverted as part of a different wider revert
-        statsAccumulator.add(s"${revision.wikiDb}.$METRIC_REVERT_COUNT", 1)
+        addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERT_COUNT", 1)
         revision.isIdentityRevert
       } else {
         // Worked revision is reverting and also reverted as part of a different wider revert
         val revertingTimestamp = reverts.head._1._1
         val revertingRevisionId = reverts.head._1._2
         val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
-        statsAccumulator.add(s"${revision.wikiDb}.$METRIC_REVERT_REVERTED_COUNT", 1)
+        addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERT_REVERTED_COUNT", 1)
         revision.isIdentityRevert.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
       }
     } else {
@@ -275,7 +280,7 @@ class DenormalizedRevisionsBuilder(statsAccumulator: MapAccumulator[String, Long
       val revertingTimestamp = reverts.head._1._1
       val revertingRevisionId = reverts.head._1._2
       val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
-      statsAccumulator.add(s"${revision.wikiDb}.$METRIC_REVERTED_COUNT", 1)
+      addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERTED_COUNT", 1)
       revision.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
     }
   }

@@ -2,23 +2,27 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import java.sql.Timestamp
 
-import com.holdenkarau.spark.testing.SharedSparkContext
-import org.apache.spark.sql.SparkSession
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 
 
 class TestDenormalizedRunner
     extends FlatSpec
     with Matchers
     with BeforeAndAfterEach
-    with SharedSparkContext {
+    with DataFrameSuiteBase {
 
+  implicit val sumLongs = (a: Long, b: Long) => a + b
+  var statsAccumulator = None.asInstanceOf[Option[MapAccumulator[String, Long]]]
   var denormalizedRunner = null.asInstanceOf[DenormalizedRunner]
 
   override def beforeEach(): Unit = {
-    denormalizedRunner = new DenormalizedRunner(SparkSession.builder().getOrCreate(), 1)
+    statsAccumulator = Some(new MapAccumulator[String, Long])
+    denormalizedRunner = new DenormalizedRunner(spark, statsAccumulator, 1)
+    statsAccumulator.foreach(statsAcc => spark.sparkContext.register(statsAcc))
   }
 
   /**

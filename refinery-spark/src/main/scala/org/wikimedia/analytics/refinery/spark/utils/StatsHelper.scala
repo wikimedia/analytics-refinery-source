@@ -7,14 +7,10 @@ trait StatsHelper {
 
   import collection.JavaConverters._
 
-  val spark: SparkSession
-
   implicit def sumLongs(a: Long, b: Long) = a + b
 
-  // Metrics are defined as follow: wikiDb.metricName
-  // For success/failures, we use wikiDb.metricsOK / wikiDb.metricsKO
-  val statsAccumulator = new MapAccumulator[String, Long]
-  spark.sparkContext.register(statsAccumulator, "statistics")
+  @transient val spark: SparkSession
+  @transient val statsAccumulator: Option[MapAccumulator[String, Long]]
 
   val statsSchema = StructType(Seq(
     StructField("wiki_db", StringType, nullable = false),
@@ -22,17 +18,23 @@ trait StatsHelper {
     StructField("value", LongType, nullable = false)
   ))
 
-  def statsDataframe: DataFrame = {
-    // Split accumulator value using first dot
-    val statsRows = statsAccumulator.value.asScala.toSeq.map{ case (wikiAndMetric, value) =>
-      val idx = wikiAndMetric.indexOf(".")
-      assert(idx > 0)
-      val wikiDb = wikiAndMetric.substring(0, idx)
-      val metric = wikiAndMetric.substring(idx+1, wikiAndMetric.length)
-      Row(wikiDb, metric, value)
-    }
-    val statsRdd = spark.sparkContext.parallelize(statsRows.toSeq)
-    spark.createDataFrame(statsRdd, statsSchema)
+  def addOptionalStat(key: String, value: Long): Unit = {
+    statsAccumulator.foreach(_.add(key, value))
+  }
+
+  def statsDataframe: Option[DataFrame] = {
+    statsAccumulator.map(statAcc => {
+      // Split accumulator value using first dot
+      val statsRows = statAcc.value.asScala.toSeq.map { case (wikiAndMetric, value) =>
+        val idx = wikiAndMetric.indexOf(".")
+        assert(idx > 0)
+        val wikiDb = wikiAndMetric.substring(0, idx)
+        val metric = wikiAndMetric.substring(idx + 1, wikiAndMetric.length)
+        Row(wikiDb, metric, value)
+      }
+      val statsRdd = spark.sparkContext.parallelize(statsRows.toSeq)
+      spark.createDataFrame(statsRdd, statsSchema)
+    })
   }
 
 }

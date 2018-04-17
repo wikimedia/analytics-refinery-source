@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.spark.utils.StatsHelper
+import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper}
 
 
 /**
@@ -18,7 +18,11 @@ import org.wikimedia.analytics.refinery.spark.utils.StatsHelper
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends StatsHelper with Serializable {
+class PageHistoryRunner(
+                         val spark: SparkSession,
+                         val statsAccumulator: Option[MapAccumulator[String, Long]],
+                         numPartitions: Int
+                       ) extends StatsHelper with Serializable {
 
   import org.apache.spark.sql.SaveMode
   import com.databricks.spark.avro._
@@ -104,7 +108,7 @@ class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
       .rdd
       .map(r => {
         val wikiDb = r.getString(1)
-        statsAccumulator.add((s"$wikiDb.$METRIC_NAMESPACES_COUNT", 1))
+        addOptionalStat(s"$wikiDb.$METRIC_NAMESPACES_COUNT", 1)
         (
           wikiDb,
           r.getInt(2),
@@ -166,7 +170,7 @@ class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
           else pageEventBuilder.buildSimplePageEvent(row)
         }
         val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_EVENTS_OK else METRIC_EVENTS_KO
-        statsAccumulator.add((s"${pageEvent.wikiDb}.$metricName", 1))
+        addOptionalStat(s"${pageEvent.wikiDb}.$metricName", 1)
         pageEvent
       })
 
@@ -228,7 +232,7 @@ class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
         val title = row.getString(2)
         val namespace = row.getInt(3)
         val isContentNamespace = isContentNamespaceMap((wikiDb, namespace))
-        statsAccumulator.add((s"$wikiDb.$METRIC_STATES_COUNT", 1L))
+        addOptionalStat(s"$wikiDb.$METRIC_STATES_COUNT", 1L)
         new PageState(
           pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
           pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
@@ -294,7 +298,7 @@ class PageHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
     //***********************************
     // Write stats
     //***********************************
-    statsDataframe.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
+    statsDataframe.foreach(_.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath))
     log.info(s"Page history reconstruction stats written")
 
     log.info(s"Page history jobs done")
