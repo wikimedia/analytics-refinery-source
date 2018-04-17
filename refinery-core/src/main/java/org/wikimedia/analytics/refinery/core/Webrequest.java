@@ -178,37 +178,38 @@ public class Webrequest {
     /**
      * Classifies a referer
      *
+     *
      * @param url The referer url to classify
      * @return RefererClassification
      */
-    public String classifyReferer(String url) {
+    public RefererClass classifyReferer(String url) {
         if (url == null || url.isEmpty() || url.equals("-")) {
-            return Referer.NONE.getRefLabel();
+            return RefererClass.NONE;
         }
 
         String[] urlParts = StringUtils.splitPreserveAllTokens(url, '/');
         if (urlParts == null || urlParts.length <3) {
-            return Referer.UNKNOWN.getRefLabel();
+            return RefererClass.UNKNOWN;
         }
 
         if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:")) {
-            return Referer.UNKNOWN.getRefLabel();
+            return RefererClass.UNKNOWN;
         }
 
         if (!urlParts[1].isEmpty()) {
-            return Referer.UNKNOWN.getRefLabel();
+            return RefererClass.UNKNOWN;
         }
 
         String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
 
         if (domainParts == null || domainParts.length <2) {
-            return Referer.UNKNOWN.getRefLabel();
+            return RefererClass.UNKNOWN;
         }
 
         if (domainParts[domainParts.length-1].equals("org")) {
             switch (domainParts[domainParts.length-2]) {
             case "":
-                return Referer.UNKNOWN.getRefLabel();
+                return RefererClass.UNKNOWN;
             case "mediawiki":
             case "wikibooks":
             case "wikidata":
@@ -221,10 +222,10 @@ public class Webrequest {
             case "wikiversity":
             case "wikivoyage":
             case "wiktionary":
-                return Referer.INTERNAL.getRefLabel();
+                return RefererClass.INTERNAL;
             }
         }
-        return Referer.EXTERNAL.getRefLabel();
+        return RefererClass.EXTERNAL;
     }
 
     /**

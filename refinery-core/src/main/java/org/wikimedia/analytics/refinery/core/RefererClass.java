@@ -19,7 +19,7 @@ package org.wikimedia.analytics.refinery.core;
 /**
  * An enum for categorizing referers.
  */
-public enum Referer {
+public enum RefererClass {
     INTERNAL("internal"),
     EXTERNAL("external"),
     UNKNOWN("unknown"),
@@ -28,7 +28,7 @@ public enum Referer {
 
     private final String refLabel;
 
-    Referer(String refererLabel) {
+    RefererClass(String refererLabel) {
         refLabel = refererLabel;
     }
 

@@ -1,4 +1,4 @@
-test_description,referer,referer_class,is_external,search_engine
+test_description,refererClass,referer_class,is_external_search,search_engine
 Random internal link,https://zh.wikipedia.org/zh-tw/%E6%96%B9%E6%9D%B1%E6%98%87,internal,false,none
 Nada,-,none,false,none
 Google 1,https://www.google.co.id/,external (search engine),true,Google
@@ -10,3 +10,6 @@ Baidu,https://www.baidu.com/link?url=,external (search engine),true,Baidu
 Yandex,http://yandex.ru/clck/jsredir?from=yandex.ru%3Bsearch%2F%3Bweb%3B%3B,external (search engine),true,Yandex
 Duck Duck Go 1,https://duckduckgo.com,external (search engine),true,DuckDuckGo
 Duck Duck Go 2,https://duckduckgo.com/?t=palemoon&q=Atmosphere+of+Earth&ia=about,external (search engine),true,DuckDuckGo
+Ecosia,https://www.ecosia.org/search?q=foo,external (search engine),true,Ecosia
+Startpage,https://www.startpage.com/do/asearch,external (search engine),true,Startpage
+Startpage ixquick,https://www.ixquick.de/do/asearch,external (search engine),true,Startpage

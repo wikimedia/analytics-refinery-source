@@ -18,113 +18,108 @@ package org.wikimedia.analytics.refinery.core;
 
 import java.util.regex.Pattern;
 
+
 /**
  * Functions to identify traffic from external search engines
  */
 public class SearchEngineClassifier {
 
-    /*
-     * Meta-methods to enable eager instantiation in a singleton-based way.
-     */
+
     private static final SearchEngineClassifier instance = new SearchEngineClassifier();
 
+    private static Pattern searchEnginePattern;
+
     private SearchEngineClassifier() {
+
+    }
+
+    static {
+        String pattern = "";
+        for (SearchEngine se:SearchEngine.values() ){
+            pattern = pattern.concat(se.getPattern() +"|");
+        }
+
+        searchEnginePattern = Pattern.compile(pattern.substring(0, pattern.length()-1));
     }
 
     public static SearchEngineClassifier getInstance() {
         return instance;
     }
 
-    /*
-     * A simple pattern for search identification
-     */
-    private static final Pattern searchPattern = Pattern.compile("(\\.?(baidu|bing|google|duckduckgo)|search\\.yahoo|yandex)\\.");
 
     /**
      * Crudely subsets a referer to just contain the domain,
-     * rather than the path or scheme.
+     * without the path
      *
-     * @param referer the value in the referer field.
+     *  Input : https://duckduckgo.com/?t=palemoon&q=Atmosphere+of+Earth&ia=about
+     *  Output: https://duckduckgo.com
+     *
+     * @param rawReferer the value in the referer field.
      * @return String
      */
-    private String refererSubstring(String referer) {
-
-        int methodLocation = referer.indexOf("://");
+    private String extractRefererSubstring(String rawReferer) {
+        int methodLocation = rawReferer.indexOf("://");
         int pathLocation;
         if (methodLocation == -1) {
-            pathLocation = referer.indexOf("/");
+            pathLocation = rawReferer.indexOf("/");
         } else {
-            pathLocation = referer.indexOf("/", methodLocation + 3);
+            pathLocation = rawReferer.indexOf("/", methodLocation + 3);
         }
         if (pathLocation > -1) {
-            return referer.substring(0, pathLocation);
+            rawReferer = rawReferer.substring(0, pathLocation);
         }
-        return referer;
+        return rawReferer;
 
     }
 
-    /**
-     * Determines whether a request was sent from a search
-     * engine, based on the referer.
-     *
-     * @param referer the value in the referer field.
-     * @return boolean
-     */
-    public boolean isExternalSearch(String referer) {
-        return searchPattern.matcher(refererSubstring(referer)).find();
-    }
 
     /**
      * Provides a simple classification of requests based
-     * on their referer, with options of "none", "search engine"
-     * and "other".
+     * on their referer.
      *
-     * @param referer the value in the referer field.
+     * See RefererClass enum;
+     *
+     * @param rawReferer the value in the referer field.
      * @return String
      */
-    public String refererClassify(String referer) {
+    public RefererClass getRefererClass(String rawReferer) {
 
-        String ref_class = Webrequest.getInstance().classifyReferer(referer);
+        RefererClass refererClass = Webrequest.getInstance().classifyReferer(rawReferer);
 
-        if (ref_class.equals("external")) {
-            if (isExternalSearch(referer)) {
-                return Referer.SEARCH_ENGINE.getRefLabel();
+        if (refererClass.equals(RefererClass.EXTERNAL)) {
+            if (SearchEngineClassifier.searchEnginePattern.matcher(extractRefererSubstring(rawReferer)).find()) {
+               refererClass = RefererClass.SEARCH_ENGINE;
             }
         }
-
-        return ref_class;
+        return refererClass;
 
     }
 
     /**
      * Determines the search engine that served as a referer
-     * for a particular request. Options are "None" where
-     * the request fails to pass isExternalSearch, "Unknown",
-     * where no heuristic is passed, and otherwise one of
-     * "Google", "Bing", "Yandex", "Yahoo" or "Baidu".
+     * for a particular request.
      *
-     * @param referer the value in the referer field.
+     * If no search engine was found returns "none"
+     *
+     * @param rawReferer the value in the referer field.
      * @return String
      */
-    public String identifySearchEngine(String referer) {
+    public String identifySearchEngine(String rawReferer) {
 
-        if (!refererClassify(referer).equals("external (search engine)")) {
-            return Referer.NONE.getRefLabel();
-        }
+        String referer = extractRefererSubstring(rawReferer);
 
-        String filteredReferer = refererSubstring(referer);
-
-        for (SearchEngine se : SearchEngine.values()) {
-            if (se.getPattern().matcher(filteredReferer).find()) {
-                return se.getSearchEngineName();
+        if (searchEnginePattern.matcher(extractRefererSubstring(referer)).find()) {
+            for (SearchEngine se : SearchEngine.values()) {
+                Pattern pattern = Pattern.compile(se.getPattern());
+                if (pattern.matcher(referer).find()) {
+                    return se.getSearchEngineName();
+                }
             }
+
         }
 
-        /* Used in the really odd case that the referer passes isExternalSearch
-         * check but a specific search engine is not identified. May happen if
-         * searchPattern is updated, but SearchEngine enum is not.
-         */
-        return Referer.UNKNOWN.getRefLabel();
+        // for backwards compatibility
+        return "none";
 
     }
 

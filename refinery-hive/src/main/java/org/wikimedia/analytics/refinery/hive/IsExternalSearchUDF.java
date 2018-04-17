@@ -20,6 +20,7 @@ import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 
+import org.wikimedia.analytics.refinery.core.RefererClass;
 import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
 
 /**
@@ -30,7 +31,10 @@ import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
         value = "_FUNC_(url) - Returns a boolean indicating whether the referer is an external search engine.",
         extended = "argument 0 is the referer url to analyze")
 public class IsExternalSearchUDF extends UDF {
-    public boolean evaluate(String referer) {
-        return SearchEngineClassifier.getInstance().isExternalSearch(referer);
+    public boolean evaluate(String rawReferer) {
+
+        RefererClass refererClass = SearchEngineClassifier.getInstance().getRefererClass(rawReferer);
+
+          return refererClass.equals(RefererClass.SEARCH_ENGINE);
     }
 }

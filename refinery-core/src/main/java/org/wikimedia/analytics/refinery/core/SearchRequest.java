@@ -19,7 +19,9 @@ package org.wikimedia.analytics.refinery.core;
 /**
  * Functions to work with Wikimedia webrequest data.
  * These functions are optimised for identifying and categorising API requests using the search system.
+ * @deprecated
  */
+
 public class SearchRequest {
 
     /**

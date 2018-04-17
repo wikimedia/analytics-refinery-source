@@ -1,21 +1,29 @@
 package org.wikimedia.analytics.refinery.core;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import static org.junit.Assert.assertEquals;
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+
+import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestSearchEngineClassifier {
 
+    SearchEngineClassifier external_inst ;
+
+    @Before
+    public void setUp(){
+         external_inst = SearchEngineClassifier.getInstance();
+    }
+
     @Test
     @FileParameters(
-            value = "src/test/resources/referer_test_data.csv",
-            mapper = CsvWithHeaderMapper.class
+        value = "src/test/resources/referer_test_data.csv",
+        mapper = CsvWithHeaderMapper.class
     )
-
     public void testRefererClassify(
             String test_description,
             String referer,
@@ -23,36 +31,15 @@ public class TestSearchEngineClassifier {
             boolean is_external,
             String search_engine
     ) {
-        SearchEngineClassifier external_inst = SearchEngineClassifier.getInstance();
 
         assertEquals(
                 test_description,
                 referer_class,
-                external_inst.refererClassify(referer)
+                external_inst.getRefererClass(referer).getRefLabel()
         );
     }
 
-    @Test
-    @FileParameters(
-            value = "src/test/resources/referer_test_data.csv",
-            mapper = CsvWithHeaderMapper.class
-    )
 
-    public void testIsExternalSearch(
-            String test_description,
-            String referer,
-            String referer_class,
-            boolean is_external,
-            String search_engine
-    ) {
-        SearchEngineClassifier external_inst = SearchEngineClassifier.getInstance();
-
-        assertEquals(
-                test_description,
-                is_external,
-                external_inst.isExternalSearch(referer)
-        );
-    }
 
     @Test
     @FileParameters(
@@ -67,7 +54,6 @@ public class TestSearchEngineClassifier {
             boolean is_external,
             String search_engine
     ) {
-        SearchEngineClassifier external_inst = SearchEngineClassifier.getInstance();
 
         assertEquals(
                 test_description,

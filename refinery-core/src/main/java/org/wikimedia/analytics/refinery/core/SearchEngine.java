@@ -16,8 +16,6 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import java.util.regex.Pattern;
-
 /**
  * An enum for categorizing search engines in ExternalSearch, which should
  * make it trivial to add new search engines to check in identifySearchEngine
@@ -30,21 +28,25 @@ public enum SearchEngine {
     BING("Bing", "\\.bing\\."),
     YANDEX("Yandex", "yandex\\."),
     BAIDU("Baidu", "\\.baidu\\."),
-    DDG("DuckDuckGo", "\\.?duckduckgo\\.");
+    DDG("DuckDuckGo", "\\.?duckduckgo\\."),
+    ECOSIA("Ecosia", "\\.ecosia\\."),
+    STARTPAGE("Startpage", "\\.(startpage|ixquick)\\.");
 
     private final String searchEngineName;
-    private final Pattern pattern;
+    private final String pattern;
 
     SearchEngine(String name, String regex) {
         this.searchEngineName = name;
-        this.pattern = Pattern.compile(regex);
+        this.pattern = regex;
     }
 
     public String getSearchEngineName() {
         return this.searchEngineName;
     }
 
-    public Pattern getPattern() {
+    public String getPattern() {
         return this.pattern;
     }
+
+
 }
