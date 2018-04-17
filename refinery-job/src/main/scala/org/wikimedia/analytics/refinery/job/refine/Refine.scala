@@ -2,17 +2,17 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper, ReflectUtils, Utilities}
+import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import scopt.OptionParser
 
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.matching.Regex
 import scala.util.{Success, Try}
-
 
 // TODO: support append vs overwrite?
 // TODO: Hive Table Locking?
@@ -25,8 +25,7 @@ import scala.util.{Success, Try}
 object Refine extends LogHelper {
     private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
-    // Type for transform functions processing partitions to refine.
-    type TransformFunction = (DataFrame, HivePartition) => DataFrame
+    type TransformFunction = DataFrameToHive.TransformFunction
 
     /**
       * Config class for CLI argument parser using scopt
@@ -91,9 +90,9 @@ object Refine extends LogHelper {
                 // it in a anonymous function that has the signature expected by
                 // DataFrameToHive's transformFunction parameter.
                 val wrapperFn: TransformFunction = {
-                    case (df, hp) =>
-                        log.debug(s"Applying ${transformMirror.receiver} to $hp")
-                        transformMirror(df, hp).asInstanceOf[DataFrame]
+                    case (partDf) =>
+                        log.debug(s"Applying ${transformMirror.receiver} to ${partDf.partition}")
+                        transformMirror(partDf).asInstanceOf[PartitionedDataFrame]
                 }
                 wrapperFn
             }
@@ -489,15 +488,15 @@ object Refine extends LogHelper {
             log.info(s"Beginning refinement of $target...")
 
             try {
+                val partDf = new PartitionedDataFrame(target.inputDataFrame(spark), target.partition)
                 val insertedDf = DataFrameToHive(
                     spark,
                     hiveServerUrl,
-                    target.inputDataFrame(spark),
-                    target.partition,
+                    partDf,
                     () => target.writeDoneFlag(),
                     transformFunctions
                 )
-                val recordCount = insertedDf.count
+                val recordCount = insertedDf.df.count
 
                 log.info(
                     s"Finished refinement of dataset $target. " +

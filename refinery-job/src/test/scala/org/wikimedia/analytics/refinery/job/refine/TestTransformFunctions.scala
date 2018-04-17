@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 import scala.collection.immutable.ListMap
 
@@ -30,28 +31,30 @@ class TestTransformFunctions extends FlatSpec
     val data2 = TestData(uuid="b0f7848f973f5e90ac531055b45bfeba")
     val data3 = TestData(meta=SubObject(id="f6770c245746515089a6237f9fa6536b"))
 
+    val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location")
+
     val partition: HivePartition = HivePartition(
         "my_db", "my_table", "/path/to/table", ListMap("year" -> "2018")
     )
 
     it should "deduplicate_eventlogging based on uuid" in {
-        val df = spark.createDataFrame(sc.parallelize(Seq(data1, data1, data2)))
-        val transformedDf = deduplicate_eventlogging(df, partition)
-        transformedDf.count should equal(2)
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(sc.parallelize(Seq(data1, data1, data2))), fakeHivePartition)
+        val transformedDf = deduplicate_eventlogging(partDf)
+        transformedDf.df.count should equal(2)
     }
 
     it should "deduplicate_eventbus based on meta.id" in {
-        val df = spark.createDataFrame(sc.parallelize(Seq(data1, data3, data3)))
-        val transformedDf = deduplicate_eventbus(df, partition)
-        transformedDf.count should equal(2)
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(sc.parallelize(Seq(data1, data3, data3))), fakeHivePartition)
+        val transformedDf = deduplicate_eventbus(partDf)
+        transformedDf.df.count should equal(2)
     }
 
     it should "geocode_ip `ip` field" in {
-        val df = spark.createDataFrame(sc.parallelize(Seq(data1)))
-        val transformedDf = geocode_ip(df, partition)
-        transformedDf.columns.contains("geocoded_data") should equal(true)
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(sc.parallelize(Seq(data1))), fakeHivePartition)
+        val transformedDf = geocode_ip(partDf)
+        transformedDf.df.columns.contains("geocoded_data") should equal(true)
 
-        transformedDf.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
     }
 
 }
