@@ -15,15 +15,18 @@ import org.wikimedia.analytics.refinery.core.HivePartition
   * is provided as a recurive tree of Map[String, Any], following format and
   * rules described below:
   *   Map(
-  *     "tableOne" -> Map(
-  *         "fieldOne" -> "keep",
-  *         "fieldTwo" -> "keepall",
-  *         "fieldThree" -> Map(
-  *             "subFieldOne" -> "keep"
-  *        )
-  *    ),
-  *    "tableTwo" -> "keepall"
-  *  )
+  *       "tableOne" -> Map(
+  *           "fieldOne" -> "keep",
+  *           "fieldTwo" -> "keepall",
+  *           "fieldThree" -> Map(
+  *               "subFieldOne" -> "keep"
+  *           )
+  *       ),
+  *       "tableTwo" -> "keepall",
+  *       "__defaults__" -> Map(
+  *           "fieldFour" -> "keep"
+  *       )
+  *   )
   *
   *
   * TABLES:
@@ -88,6 +91,21 @@ import org.wikimedia.analytics.refinery.core.HivePartition
   *   whitelist will not validate.
   *
   *
+  * DEFAULTS SECTION
+  *
+  * - If the whitelist contains a top level key named '__defaults__', its spec
+  *   will be applied as a default to all whitelisted tables.
+  *
+  * - Fields that are present in the defaults spec and are not present in the
+  *   table-specific spec will be sanitized as indicated in the defaults spec.
+  *
+  * - Fields that are present in the table-specific spec will be sanitized as
+  *   indicated in it, regardless of the defaults spec for that field.
+  *
+  * - Tables that are not present in the whitelist, will not be applied defaults.
+  *   Hence, the transformation function will return an empty DataFrame.
+  *
+  *
   * WHY USE 2 DIFFERENT TAGS (KEEP AND KEEPALL)?
   *
   * - Different data sets might need sanitization for different reasons.
@@ -104,6 +122,8 @@ object WhitelistSanitization {
 
     type Whitelist = Map[String, Any]
 
+    val WhitelistDefaultsSectionLabel = "__defaults__"
+
     /**
       * The following tree structure stores a 'compiled' representation
       * of the whitelist. It is constructed prior to any data transformation,
@@ -112,6 +132,7 @@ object WhitelistSanitization {
       */
     sealed trait MaskNode {
         def apply(value: Any): Any
+        def merge(other: MaskNode): MaskNode
     }
     case class MaskLeafNode(action: SanitizationAction.Value) extends MaskNode {
         // For leaf nodes the apply method performs the action
@@ -120,6 +141,17 @@ object WhitelistSanitization {
             action match {
                 case SanitizationAction.Identity => value
                 case SanitizationAction.Nullify => null
+            }
+        }
+        // Merges another mask node (overlay) on top of this one (base).
+        def merge(other: MaskNode): MaskNode = {
+            other match {
+                case otherLeaf: MaskLeafNode =>
+                    otherLeaf.action match {
+                        case SanitizationAction.Nullify => this
+                        case _ => other
+                    }
+                case _: MaskInnerNode => other
             }
         }
     }
@@ -131,6 +163,20 @@ object WhitelistSanitization {
             Row.fromSeq(
               children.zip(row.toSeq).map { case (mask, v) => mask.apply(v) }
             )
+        }
+        // Merges another mask node (overlay) on top of this one (base).
+        def merge(other: MaskNode): MaskNode = {
+            other match {
+                case otherLeaf: MaskLeafNode =>
+                    otherLeaf.action match {
+                        case SanitizationAction.Nullify => this
+                        case _ => other
+                    }
+                case otherInner: MaskInnerNode =>
+                    MaskInnerNode(
+                        children.zip(otherInner.children).map { case (a, b) => a.merge(b) }
+                    )
+            }
         }
     }
     /**
@@ -190,12 +236,21 @@ object WhitelistSanitization {
             case Some("keepall") => dataFrame
             // Table is in the whitelist and has further specifications:
             case Some(tableWhitelist: Whitelist) =>
-                // Create sanitization mask (compiled whitelist).
-                val sanitizationMask = getStructMask(
+                // Create table-specific sanitization mask.
+                val tableSpecificMask = getStructMask(
                     dataFrame.schema,
                     tableWhitelist,
                     partitionKeys
                 )
+                // Merge the table-specific mask with the defaults mask,
+                // if the defaults section is present in the whitelist.
+                val defaultsWhitelist = whitelist.get(WhitelistDefaultsSectionLabel)
+                val sanitizationMask = if (defaultsWhitelist.isDefined) {
+                    getStructMask(
+                        dataFrame.schema,
+                        defaultsWhitelist.get.asInstanceOf[Whitelist]
+                    ).merge(tableSpecificMask)
+                } else tableSpecificMask
                 // Apply sanitization to the data.
                 sanitizeDataFrame(
                     dataFrame,
