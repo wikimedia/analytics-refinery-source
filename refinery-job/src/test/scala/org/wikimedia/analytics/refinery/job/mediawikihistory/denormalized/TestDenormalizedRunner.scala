@@ -73,4 +73,26 @@ class TestDenormalizedRunner
     result should contain theSameElementsAs userStates
   }
 
+  /**
+   * Tests for filterArchivedRevisions
+   */
+  "filterArchivedRevisions" should "keep only most recent revision id when multiple exist" in {
+
+    val revs = sc.parallelize(
+      revisionMwEventSet()(
+        "time revId",
+        "01    1",
+        "02    2",
+        "03    1"
+      ))
+
+
+    val result = denormalizedRunner
+      .filterArchivedRevisions(revs)
+      .collect()
+
+    result.length should be(2)
+    result.map(_.revisionDetails.revId.get) should contain theSameElementsAs Seq(1, 2)
+  }
+
 }
