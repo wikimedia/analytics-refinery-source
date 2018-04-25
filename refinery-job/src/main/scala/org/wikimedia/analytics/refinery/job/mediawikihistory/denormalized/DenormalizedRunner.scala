@@ -230,7 +230,7 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
 
   def filterArchivedRevisions(archivedRevisionsNotFiltered: RDD[MediawikiEvent]): RDD[MediawikiEvent] = {
     archivedRevisionsNotFiltered.
-      keyBy(r => DenormalizedKeysHelper.pageMediawikiEventKey(r).partitionKey).
+      keyBy(r => DenormalizedKeysHelper.revisionMediawikiEventKey(r).partitionKey).
       groupByKey().
       flatMap { case (k, revisionsIterator) =>
         if (k.id > 0) {
@@ -400,7 +400,9 @@ class DenormalizedRunner(val spark: SparkSession, val numPartitions: Int) extend
 
     val denormalizedMediawikiEventsDf = spark.createDataFrame(
         denormalizedMediawikiEventsRdd
-          .filter(_.eventErrors.isEmpty)
+          // eventErrors should not be filtered out,
+          // They would impair global stats correctness
+          //.filter(_.eventErrors.isEmpty)
           .map(event => {
             statsAccumulator.add((s"${event.wikiDb}.$METRIC_WRITTEN_ROWS", 1))
             event.toRow
