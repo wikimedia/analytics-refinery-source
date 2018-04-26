@@ -17,7 +17,7 @@ object EventLoggingSanitization {
     // Config class for CLI argument parser using scopt.
     case class Params(
         inputBasePath: String = "/wmf/data/event",
-        whitelistPath: String = "/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml",
+        whitelistPath: String = "/etc/eventlogging/whitelist.yaml",
         sinceDateTime: DateTime = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime = DateTime.now,
         outputBasePath: String = "/wmf/data/event",
@@ -78,8 +78,7 @@ object EventLoggingSanitization {
 
         opt[String]('w', "whitelist-path").optional().valueName("<path>").action { (x, p) =>
             p.copy(whitelistPath = if (x.endsWith("/")) x.dropRight(1) else x)
-        }.text("Path to EventLogging's whitelist file. Default: " +
-               "'/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml'.")
+        }.text("Path to EventLogging's whitelist file. Default: '/etc/eventlogging/whitelist.yaml'.")
 
         opt[DateTime]('s', "since").optional().valueName("<since-date-time>").action { (x, p) =>
             p.copy(sinceDateTime = x)
