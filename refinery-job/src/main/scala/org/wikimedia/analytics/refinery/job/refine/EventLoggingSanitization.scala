@@ -20,8 +20,8 @@ object EventLoggingSanitization {
         whitelistPath: String = "/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml",
         sinceDateTime: DateTime = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime = DateTime.now,
-        outputBasePath: String = "/wmf/data/event",
-        outputDatabase: String = "event",
+        outputBasePath: String = "/wmf/data/event_sanitized",
+        outputDatabase: String = "event_sanitized",
         ignoreFailureFlag: Boolean = false,
         parallelism: Option[Int] = None,
         limit: Option[Int] = None,
@@ -94,11 +94,11 @@ object EventLoggingSanitization {
         opt[String]('o', "output-base-path").optional().valueName("<path>").action { (x, p) =>
             p.copy(outputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
         }.text("Base path for sanitized EventLogging data. Each table will be created " +
-               "as a subdirectory of this path. Default: '/wmf/data/event'.")
+               "as a subdirectory of this path. Default: '/wmf/data/event_sanitized'.")
 
         opt[String]('O', "output-database").optional().valueName("<database>").action { (x, p) =>
             p.copy(outputDatabase = x)
-        }.text("Hive database name where to create or update sanitized tables. Default: 'event'.")
+        }.text("Hive database name where to create or update sanitized tables. Default: 'event_sanitized'.")
 
         opt[Unit]('f', "ignore-failure-flag").optional().action { (_, p) =>
             p.copy(ignoreFailureFlag = true)
