@@ -1,3 +1,11 @@
+## v0.0.63
+* Make mediawiki-history statistics generation optional
+* Modify output defaults for EventLoggingSanitization
+* Correct default EL whitelist path in EventLoggingSanitization
+* Correct mediawiki-history job bugs and add unittest
+* Add defaults section to WhitelistSanitization
+* Identify new search engines and refactor Referer parsing code
+
 ## v0.0.62
 * Fix MediawikiHistory OOM issue in driver
 * Update MediawikiHistory for another performance optimization
@@ -18,15 +26,15 @@
 ** Move non-spark dependent code to refinery-core
 * Tweak Mediawiki-history job for performance (mostly partitioning)
 * Update Mediawiki-history job to use accumulator to gather stats
-* Add Hive JDBC connection to Refine for it to work with Spark 2 
+* Add Hive JDBC connection to Refine for it to work with Spark 2
 * Update spark code to use Spark 2.3.0
 * Add new wikidata and pageview tags to webrequest
-* Update Refine to use SQL-casting instead of row-conversion 
+* Update Refine to use SQL-casting instead of row-conversion
 
 ## v0.0.59
 * JsonRefine has been made data source agnostic, and now lives in a
   refine module in refinery-job.  The Spark job is now just called 'Refine'.
-* Add Whitelist Sanitization code and an EventLogging specific job using it   
+* Add Whitelist Sanitization code and an EventLogging specific job using it
 * Add some handling to Refine for cast-able types, e.g. String -> Long, if possible.
 * Added RefineMonitor job to alert if Refine targets are not present.
 
