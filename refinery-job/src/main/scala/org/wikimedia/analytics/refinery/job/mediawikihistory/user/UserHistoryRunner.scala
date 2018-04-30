@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.spark.utils.StatsHelper
+import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper}
 
 
 /**
@@ -18,7 +18,11 @@ import org.wikimedia.analytics.refinery.spark.utils.StatsHelper
   * Note: You can have errors output as well by providing
   * errorsPath to the [[run]] function.
   */
-class UserHistoryRunner(val spark: SparkSession, numPartitions: Int) extends StatsHelper with Serializable {
+class UserHistoryRunner(
+                         val spark: SparkSession,
+                         val statsAccumulator: Option[MapAccumulator[String, Long]],
+                         val numPartitions: Int
+                       ) extends StatsHelper with Serializable {
 
   import com.databricks.spark.avro._
   import org.apache.spark.sql.{Row, SaveMode}
@@ -121,14 +125,14 @@ class UserHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
         val wikiDb = row.getString(7)
         val isValid = UserEventBuilder.isValidLog(row)
         val metricName = if (isValid) METRIC_VALID_LOGS_OK else METRIC_VALID_LOGS_KO
-        statsAccumulator.add((s"$wikiDb.$metricName", 1))
+        addOptionalStat(s"$wikiDb.$metricName", 1)
         isValid
       })
       .map(row => {
         val wikiDb = row.getString(7)
         val userEvent = UserEventBuilder.buildUserEvent(row)
         val metricName = if (userEvent.parsingErrors.isEmpty) METRIC_EVENTS_PARSING_OK else METRIC_EVENTS_PARSING_KO
-        statsAccumulator.add((s"$wikiDb.$metricName", 1))
+        addOptionalStat(s"$wikiDb.$metricName", 1)
         userEvent
       })
 
@@ -223,7 +227,7 @@ class UserHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
       .rdd
       .map { row =>
         val wikiDb = row.getString(3)
-        statsAccumulator.add((s"$wikiDb.$METRIC_STATES_COUNT", 1L))
+        addOptionalStat(s"$wikiDb.$METRIC_STATES_COUNT", 1L)
         new UserState(
             userId = row.getLong(0),
             userNameHistorical = row.getString(1),
@@ -295,7 +299,7 @@ class UserHistoryRunner(val spark: SparkSession, numPartitions: Int) extends Sta
     //***********************************
     // Write stats
     //***********************************
-    statsDataframe.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath)
+    statsDataframe.foreach(_.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath))
     log.info(s"User history reconstruction stats written")
 
     log.info(s"User history jobs done")

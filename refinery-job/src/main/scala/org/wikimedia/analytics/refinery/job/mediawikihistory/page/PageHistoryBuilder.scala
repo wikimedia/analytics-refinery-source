@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
+import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator}
 
 
 /**
@@ -15,9 +15,9 @@ import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
   * the errors found on the way, or their count.
   */
 class PageHistoryBuilder(
-                          spark: SparkSession,
-                          statsAccumulator: MapAccumulator[String, Long]
-                        ) extends Serializable {
+                          val spark: SparkSession,
+                          val statsAccumulator: Option[MapAccumulator[String, Long]]
+                        ) extends StatsHelper with Serializable {
 
   import org.apache.log4j.Logger
   import java.util.UUID.randomUUID
@@ -92,7 +92,7 @@ class PageHistoryBuilder(
     if (status1.restoredStates.contains(toKey)) {
       // Move happening after a restore
       // Flush move event and make restoredState a potential one
-      statsAccumulator.add((s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
+      addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       val state = status1.restoredStates(toKey)
       val newPotentialState = state.copy(
         titleHistorical = event1.oldTitle,
@@ -114,7 +114,7 @@ class PageHistoryBuilder(
     } else if (status1.potentialStates.contains(toKey)) {
       // Event-state match, move potential to known state
       // and create new potentialState with old values
-      statsAccumulator.add((s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
+      addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       val state = status1.potentialStates(toKey)
       val newPotentialState = state.copy(
           titleHistorical = event1.oldTitle,
@@ -134,7 +134,7 @@ class PageHistoryBuilder(
       )
     } else {
       // No event match - updating errors
-      statsAccumulator.add((s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+      addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1)
       status1.copy(unmatchedEvents = status1.unmatchedEvents :+ event)
     }
   }
@@ -251,7 +251,7 @@ class PageHistoryBuilder(
     if (status.restoredStates.contains(toKey)) {
       // Conflicting restored state, flush current and update to new
       val conflictingRestoredState = status.restoredStates(toKey)
-      statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
+      addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       status.copy(
         restoredStates = status.restoredStates - toKey + (toKey -> conflictingRestoredState.copy(
           endTimestamp = Some(event.timestamp)
@@ -267,7 +267,7 @@ class PageHistoryBuilder(
       // Event-state match, move state to known state,
       // remove it from potential states,
       // and create new restoredState
-      statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
+      addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       val state = status.potentialStates(toKey)
       val newRestoredState = state.copy(
         endTimestamp = Some(event.timestamp)
@@ -284,7 +284,7 @@ class PageHistoryBuilder(
       )
     } else {
       // No event match - updating errors
-      statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+      addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1)
       status.copy(unmatchedEvents = status.unmatchedEvents :+ event)
     }
   }
@@ -329,7 +329,7 @@ class PageHistoryBuilder(
       case "delete" => processDeleteEvent(status1, event)
       case "restore" => processRestoreEvent(status1, event)
       case _ =>
-        statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+        addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1)
         status1.copy(unmatchedEvents = status1.unmatchedEvents :+ event)
     }
   }
@@ -475,7 +475,7 @@ class PageHistoryBuilder(
     ](
       spark,
       PageHistoryBuilder.PageRowKeyFormat,
-      Some(statsAccumulator)
+      statsAccumulator
     )
     val subgraphs = partitioner.run(events, states)
 

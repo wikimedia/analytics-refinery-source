@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import java.sql.Timestamp
 
-import com.holdenkarau.spark.testing.SharedSparkContext
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
 import TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.core.TimestampHelpers
@@ -16,16 +16,16 @@ class TestDenormalizedRevisionsBuilder
   extends FlatSpec
   with Matchers
   with BeforeAndAfterEach
-  with SharedSparkContext {
+  with DataFrameSuiteBase {
 
-  implicit def sumLongs = (a: Long, b: Long) => a + b
-  var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]
+  implicit val sumLongs = (a: Long, b: Long) => a + b
+  var statsAccumulator = None.asInstanceOf[Option[MapAccumulator[String, Long]]]
   var denormalizedRevisionsBuilder = null.asInstanceOf[DenormalizedRevisionsBuilder]
 
   override def beforeEach(): Unit = {
-    statsAccumulator = new MapAccumulator[String, Long]
-    sc.register(statsAccumulator)
-    denormalizedRevisionsBuilder = new DenormalizedRevisionsBuilder(statsAccumulator, 1)
+    statsAccumulator = Some(new MapAccumulator[String, Long])
+    statsAccumulator.foreach(statsAcc => spark.sparkContext.register(statsAcc))
+    denormalizedRevisionsBuilder = new DenormalizedRevisionsBuilder(spark, statsAccumulator, 1)
   }
 
 
@@ -206,7 +206,7 @@ class TestDenormalizedRevisionsBuilder
       .populateDeleteTime(revs, pageStates)
       .collect
 
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size should equal(2)
     stats.get("testwiki.archiveRev.deleteTs.maxArchiveTs") should equal(2)
     stats.get("testwiki.archiveRev.deleteTs.pageDeleteTs") should equal(1)
@@ -276,7 +276,7 @@ class TestDenormalizedRevisionsBuilder
       .populateByteDiff(revs)
       .collect
 
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size should equal(2)
     stats.get("testwiki.rev.bytesDiff.OK") should equal(3)
     stats.get("testwiki.rev.bytesDiff.KO") should equal(1)
@@ -328,7 +328,7 @@ class TestDenormalizedRevisionsBuilder
     )
 
     results should equal(expectedResults)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(2)
     stats.get("w1.rev.revertsLists.count") should equal(4)
     stats.get("w2.rev.revertsLists.count") should equal(1)
@@ -353,7 +353,7 @@ class TestDenormalizedRevisionsBuilder
       res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(None)
       res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(1)
     stats.get("w1.rev.noRevert.count") should equal(1)
   }
@@ -375,7 +375,7 @@ class TestDenormalizedRevisionsBuilder
       res.revisionDetails.revSecondsToIdentityRevert should equal(Some(31536000))
     })
     endReverts.size should equal(1)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(1)
     stats.get("w1.rev.reverted.count") should equal(1)
   }
@@ -397,7 +397,7 @@ class TestDenormalizedRevisionsBuilder
       res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
     endReverts.size should equal(0)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(1)
     stats.get("w1.rev.revert.count") should equal(1)
   }
@@ -420,7 +420,7 @@ class TestDenormalizedRevisionsBuilder
       res.revisionDetails.revSecondsToIdentityRevert should equal(None)
     })
     endReverts.size should equal(1)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(1)
     stats.get("w1.rev.revert.count") should equal(1)
   }
@@ -444,7 +444,7 @@ class TestDenormalizedRevisionsBuilder
       res.revisionDetails.revSecondsToIdentityRevert should equal(Some(36000))
     })
     endReverts.size should equal(1)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(1)
     stats.get("w1.rev.revertAndReverted.count") should equal(1)
   }

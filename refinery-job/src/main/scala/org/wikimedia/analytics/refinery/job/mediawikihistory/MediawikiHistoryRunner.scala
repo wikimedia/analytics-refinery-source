@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
+import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
+
 
 /**
   * Entry point for the Mediawiki History spark job(s).
@@ -63,6 +65,7 @@ object MediawikiHistoryRunner {
                     tmpPath: String = "hdfs://analytics-hadoop/tmp/mediawiki/history/checkpoints",
                     baseNumPartitions: Int = 64,
                     debug: Boolean = false,
+                    noStats: Boolean = false,
                     runUsersHistory: Boolean = false,
                     runPagesHistory: Boolean = false,
                     runDenormalize: Boolean = false,
@@ -117,6 +120,9 @@ object MediawikiHistoryRunner {
     opt[Unit]("debug").action( (_, c) =>
       c.copy(debug = true) ).text("debug mode -- spark logs added to applicative logs (VERY verbose)")
 
+    opt[Unit]("no-stats").action( (_, c) =>
+      c.copy(noStats = true) ).text("no-stats mode -- No statistics are gathered not saved along the process (lighter in memory)")
+
     opt[Unit]("users-history").action( (_, c) =>
       c.copy(runUsersHistory = true, runAll = false)).text("Run specific step(s) -- Users History")
 
@@ -151,6 +157,7 @@ object MediawikiHistoryRunner {
 
         val tmpPath = params.tmpPath
         val debug = params.debug
+        val noStats = params.noStats
         val runUsersHistory = params.runAll || params.runUsersHistory
         val runPagesHistory = params.runAll || params.runPagesHistory
         val runDenormalize = params.runAll || params.runDenormalize
@@ -238,11 +245,19 @@ object MediawikiHistoryRunner {
         val spark = SparkSession.builder().config(conf).getOrCreate()
         spark.sparkContext.setCheckpointDir(tmpPath)
 
+        implicit def sumLongs(a: Long, b: Long) = a + b
+
+        val statsAccumulator: Option[MapAccumulator[String, Long]] = {
+          if (noStats) None
+          else Some(new MapAccumulator[String, Long]())
+        }
+        statsAccumulator.foreach(statAcc => spark.sparkContext.register(statAcc, "statistics"))
+
         // Launch jobs as needed
 
         // User History
         if (runUsersHistory)
-          new UserHistoryRunner(spark, usersNumPartitions).run(
+          new UserHistoryRunner(spark, statsAccumulator, usersNumPartitions).run(
             wikiConstraint,
             loggingDataPath,
             userDataPath,
@@ -257,7 +272,7 @@ object MediawikiHistoryRunner {
 
         // Page history
         if (runPagesHistory)
-          new PageHistoryRunner(spark, pagesNumPartitions).run(
+          new PageHistoryRunner(spark, statsAccumulator, pagesNumPartitions).run(
             wikiConstraint,
             loggingDataPath,
             pageDataPath,
@@ -272,7 +287,7 @@ object MediawikiHistoryRunner {
 
         // Revisions and denormalization
         if (runDenormalize)
-          new DenormalizedRunner(spark, revisionsNumPartitions).run(
+          new DenormalizedRunner(spark, statsAccumulator, revisionsNumPartitions).run(
             wikiConstraint,
             revisionDataPath,
             archiveDataPath,

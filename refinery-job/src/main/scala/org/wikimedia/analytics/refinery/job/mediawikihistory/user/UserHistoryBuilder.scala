@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
 import org.wikimedia.analytics.refinery.core.TimestampHelpers
-import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
+import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator}
 
 
 /**
@@ -16,9 +16,9 @@ import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
   * the errors found on the way, or their count.
   */
 class UserHistoryBuilder(
-                          spark: SparkSession,
-                          statsAccumulator: MapAccumulator[String, Long]
-                          ) extends Serializable {
+                          val spark: SparkSession,
+                          val statsAccumulator: Option[MapAccumulator[String, Long]]
+                          ) extends StatsHelper with Serializable {
 
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
@@ -139,7 +139,7 @@ class UserHistoryBuilder(
         toKey: UserHistoryBuilder.KEY
     ): ProcessingStatus = {
       if (potentialStates.contains(toKey)) {
-        statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1))
+        addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
         val state = potentialStates(toKey)
         this.copy(
             potentialStates =
@@ -163,7 +163,7 @@ class UserHistoryBuilder(
         )
       } else {
         // No event match - updating accumulator and errors
-        statsAccumulator.add((s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1))
+        addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_KO", 1)
         this.copy(unmatchedEvents = this.unmatchedEvents :+ event)
       }
     }
@@ -478,7 +478,7 @@ class UserHistoryBuilder(
     ](
       spark,
       UserHistoryBuilder.UserRowKeyFormat,
-      Some(statsAccumulator)
+      statsAccumulator
     )
 
     val subgraphs = partitioner.run(events, states)

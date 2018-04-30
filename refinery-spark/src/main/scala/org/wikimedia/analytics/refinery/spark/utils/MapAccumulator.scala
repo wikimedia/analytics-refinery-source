@@ -4,6 +4,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 import org.apache.spark.util.AccumulatorV2
 
+import scala.reflect.ClassTag
+
 /**
   * This class allows to use a Map in an accumulator.
   * The Map key type is [[K]], and it's value is [[V]].
@@ -20,7 +22,9 @@ import org.apache.spark.util.AccumulatorV2
   * @tparam V The map value type
   */
 
-class MapAccumulator[K, V](implicit val sumValues: (V, V) => V) extends AccumulatorV2[(K, V), ConcurrentHashMap[K, V]] {
+class MapAccumulator[K, V](
+                            implicit val sumValues: (V, V) => V
+                          ) extends AccumulatorV2[(K, V), ConcurrentHashMap[K, V]] {
 
   /**
     * As explained in the scala API

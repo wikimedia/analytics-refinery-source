@@ -15,16 +15,13 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
   import org.wikimedia.analytics.refinery.core.TimestampHelpers.orderedTimestamp
 
   implicit def sumLongs = (a: Long, b: Long) => a + b
-  var statsAccumulator = null.asInstanceOf[MapAccumulator[String, Long]]
+  var statsAccumulator = None.asInstanceOf[Option[MapAccumulator[String, Long]]]
   var userHistoryBuilder = null.asInstanceOf[UserHistoryBuilder]
 
   override def beforeEach(): Unit = {
-    statsAccumulator = new MapAccumulator[String, Long]
-    spark.sparkContext.register(statsAccumulator)
-    userHistoryBuilder = new UserHistoryBuilder(
-      spark,
-      statsAccumulator
-    )
+    statsAccumulator = Some(new MapAccumulator[String, Long])
+    statsAccumulator.foreach(statsAcc => spark.sparkContext.register(statsAcc))
+    userHistoryBuilder = new UserHistoryBuilder(spark, statsAccumulator)
   }
 
   /**
@@ -316,7 +313,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     )
 
     process(events, states)
-    val stats = statsAccumulator.value
+    val stats = statsAccumulator.get.value
     stats.size() should equal(2)
     stats.get("testwiki.users.eventsMatching.OK") should equal(8)
     stats.get("testwiki.users.eventsMatching.KO") should equal(1)
