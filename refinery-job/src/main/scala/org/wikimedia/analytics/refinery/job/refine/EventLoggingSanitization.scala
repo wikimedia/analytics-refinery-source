@@ -62,7 +62,7 @@ object EventLoggingSanitization {
             |   --input-database      event \
             |   --whitelist-path      /wmf/path/to/whitelist \
             |   --output-base-path    /user/mforns/sanitized' \
-            |   --output-database     event \
+            |   --output-database     mforns \
             |   --since               24
             |
             |""".stripMargin, "")

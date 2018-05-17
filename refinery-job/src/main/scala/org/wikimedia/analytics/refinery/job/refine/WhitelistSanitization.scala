@@ -248,7 +248,8 @@ object WhitelistSanitization {
                 val sanitizationMask = if (defaultsWhitelist.isDefined) {
                     getStructMask(
                         dataFrame.schema,
-                        defaultsWhitelist.get.asInstanceOf[Whitelist]
+                        defaultsWhitelist.get.asInstanceOf[Whitelist],
+                        partitionKeys
                     ).merge(tableSpecificMask)
                 } else tableSpecificMask
                 // Apply sanitization to the data.
