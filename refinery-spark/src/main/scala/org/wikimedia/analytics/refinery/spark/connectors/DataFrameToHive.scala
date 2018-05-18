@@ -5,10 +5,11 @@ import java.util.Properties
 
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
 import org.apache.hive.jdbc.HiveDriver
-import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+
 // Import implicit StructType and StructField conversions.
 // This allows us use these types with an extendend API
 // that includes schema merging and Hive DDL statement generation.
@@ -52,7 +53,11 @@ import scala.util.control.Exception.{allCatch, ignoring}
   * new input data, an IllegalStateException Exception will be thrown.
   *
   */
+
 object DataFrameToHive extends LogHelper {
+
+    // Type for transform functions processing partitions to refine.
+    type TransformFunction = ((PartitionedDataFrame) => PartitionedDataFrame)
 
     /**
       * Creates or alters tableName in Hive to match any changes in the DataFrame schema
@@ -63,12 +68,7 @@ object DataFrameToHive extends LogHelper {
       * @param hiveServerUrl      URL of the hive server to request to alter tables
       *                           See https://issues.apache.org/jira/browse/SPARK-14130
       *
-      * @param inputDf            Input DataFrame
-      *
-      *
-      * @param partition          HivePartition.  This helper class contains
-      *                           database and table name, as well as external location
-      *                           and partition keys and values.
+      * @param inputPartDf        Input Partitioned DataFrame
       *
       * @param doneCallback       Function to call after a successful run
       *
@@ -82,11 +82,10 @@ object DataFrameToHive extends LogHelper {
     def apply(
         spark: SparkSession,
         hiveServerUrl: String,
-        inputDf: DataFrame,
-        partition: HivePartition,
+        inputPartDf: PartitionedDataFrame,
         doneCallback: () => Unit,
-        transformFunctions: Seq[(DataFrame, HivePartition) => DataFrame] = Seq()
-    ): DataFrame = {
+        transformFunctions: Seq[TransformFunction] = Seq()
+    ): PartitionedDataFrame = {
 
         // Set this so we can partition by fields in the DataFrame.
         spark.conf.set("hive.exec.dynamic.partition.mode", "nonstrict")
@@ -94,29 +93,33 @@ object DataFrameToHive extends LogHelper {
         // Keep number of partitions to reset it after DataFrame API changes it
         // Since the spark context is used accross multiple jobs, we don't want
         // to use a global setting.
-        val originalPartitionNumber = inputDf.rdd.getNumPartitions
+        val originalPartitionNumber = inputPartDf.df.rdd.getNumPartitions
 
         // Add the Hive partition columns and apply any other configured transform functions,
         // and then normalize (lowercase top level fields names, widen certain types, etc.).
         // (Note to non scala-ites: dataFrameWithHivePartitions _ instructs the compiler
         // to implicitly convert  dataFrameWithHivePartitions from a method to a function.)
-        val df = (dataFrameWithHivePartitions _ +: transformFunctions)
-            .foldLeft(inputDf)((currDf, fn) => fn(currDf, partition))
-            .normalize()
-            .repartition(originalPartitionNumber)
+        val transformedPartDf = transformFunctions
+          .foldLeft(inputPartDf.applyPartitions)((currPartDf, fn) => fn(currPartDf))
+
+        val partDf = transformedPartDf.copy(
+            df = transformedPartDf.df
+              .normalize()
+              .repartition(originalPartitionNumber)
+        )
 
         // If the resulting DataFrame is empty, just return.
-        if (df.take(1).isEmpty) {
+        if (partDf.df.take(1).isEmpty) {
             log.info(
-                s"DataFrame for $partition is empty after transformations. " +
+                s"DataFrame for ${partDf.partition} is empty after transformations. " +
                     "No data will be written for this partition."
             )
             doneCallback()
-            return df
+            return partDf
         }
 
         // Grab the partition name keys to use for Hive partitioning.
-        val partitionNames = partition.keys
+        val partitionNames = partDf.partition.keys
 
         try {
             // This will create the Hive table based on df.schema if it doesn't yet exist,
@@ -126,16 +129,16 @@ object DataFrameToHive extends LogHelper {
             prepareHiveTable(
                 spark,
                 hiveServerUrl,
-                df.schema,
-                partition.tableName,
-                partition.location,
+                partDf.df.schema,
+                partDf.partition.tableName,
+                partDf.partition.location,
                 partitionNames
             )
         } catch {
             case e: IllegalStateException =>
                 log.fatal(
-                    s"""Failed preparing Hive table ${partition.tableName} with
-                       |input schema:\n${df.schema.treeString}""".stripMargin, e)
+                    s"""Failed preparing Hive table ${partDf.partition.tableName} with
+                       |input schema:\n${partDf.df.schema.treeString}""".stripMargin, e)
                 throw e
         }
 
@@ -146,21 +149,21 @@ object DataFrameToHive extends LogHelper {
 
         // Merge (and normalize) the table schema with the df schema.
         // This is the schema that we need df to look like for successful insertion into Hive.
-        val compatibleSchema = spark.table(partition.tableName).schema.merge(df.schema)
+        val compatibleSchema = spark.table(partDf.partition.tableName).schema.merge(partDf.df.schema)
 
         // Recursively convert the df to match the Hive compatible schema.
-        val outputDf = df.convertToSchema(compatibleSchema)
+        val outputDf = partDf.copy(df = partDf.df.convertToSchema(compatibleSchema))
 
         log.info(
-            s"Writing DataFrame to ${partition.path} with schema:\n${outputDf.schema.treeString}"
+            s"Writing DataFrame to ${outputDf.partition.path} with schema:\n${outputDf.df.schema.treeString}"
         )
 
         // Avoid using Hive Parquet writer by writing using Spark parquet directly to
         // partition path, and then add the partition to the Hive table.
         // This avoids bugs in Hive Parquet like https://issues.apache.org/jira/browse/HIVE-11625
-        outputDf.write.mode("overwrite").parquet(partition.path)
-        spark.sql(partition.addPartitionQL)
-        log.info(s"Wrote DataFrame to ${partition.path} and added partition $partition")
+        outputDf.df.write.mode("overwrite").parquet(outputDf.partition.path)
+        spark.sql(outputDf.partition.addPartitionQL)
+        log.info(s"Wrote DataFrame to ${outputDf.partition.path} and added partition ${outputDf.partition}")
 
         // call doneCallback
         doneCallback()
@@ -283,34 +286,6 @@ object DataFrameToHive extends LogHelper {
             alterDDLs
         }
     }
-
-
-
-    /**
-      * Returns a new DataFrame with constant Hive partitions added as columns.  If any
-      * column values are convertable to Ints, they will be added as an Int, otherwise String.
-      *
-      * @param df           Input DataFrame
-      *
-      * @param partition    HivePartition
-      *
-      * @return
-      */
-    def dataFrameWithHivePartitions(
-        df: DataFrame,
-        partition: HivePartition
-    ): DataFrame = {
-        // Add partitions to DataFrame.
-        partition.keys.foldLeft(df) {
-            case (currentDf, (key: String)) =>
-                val value = partition.get(key).get
-                // If the partition value looks like an Int, convert it,
-                // else just use as a String.  lit() will convert the Scala
-                // value (Int or String here) into a Spark Column type.
-                currentDf.withColumn(key, lit(allCatch.opt(value.toLong).getOrElse(value)))
-        }
-    }
-
 
     /**
       * Returns true if the fully qualified tableName exists in Hive, else false.

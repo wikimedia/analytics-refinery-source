@@ -6,10 +6,14 @@ import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
 import WhitelistSanitization.SanitizationAction._
 import WhitelistSanitization._
+import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 
 class TestWhitelistSanitization extends FlatSpec
     with Matchers with DataFrameSuiteBase {
+
+    val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location")
 
     it should "return an empty DataFrame" in {
         val schema = StructType(
@@ -224,21 +228,20 @@ class TestWhitelistSanitization extends FlatSpec
             StructField("f2", BooleanType, nullable=true) ::
             StructField("f3", StringType, nullable=true) :: Nil
         )
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(
                 Row(1, true, "muk"),
                 Row(2, true, "jji"),
                 Row(3, true, "ppa")
             )),
-            schema
-        )
+            schema), fakeHivePartition)
         val mask = MaskInnerNode(Array(
             MaskLeafNode(Identity),
             MaskLeafNode(Nullify),
             MaskLeafNode(Identity)
         ))
-        val result = sanitizeDataFrame(dataFrame, mask)
-            .collect
+        val result = sanitizeDataFrame(partDf, mask)
+            .df.collect
             .sortBy(_.getInt(0))
         assert(result.length == 3)
         assert(result(0) == Row(1, null, "muk"))
@@ -247,41 +250,41 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "return the source DataFrame as is when whitelisting a table with keepall" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(Row(1))),
             StructType(StructField("f1", IntegerType, nullable=true) :: Nil)
-        )
+        ), fakeHivePartition)
         val result = sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq.empty,
             Map("table" -> "keepall")
-        ).collect
+        ).df.collect
         assert(result.length == 1)
         assert(result(0) == Row(1))
     }
 
     it should "return an empty DataFrame when the table is not in the whitelist" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(Row(1))),
             StructType(StructField("f1", IntegerType, nullable=true) :: Nil)
-        )
+        ), fakeHivePartition)
         val result = sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq.empty,
             Map()
-        ).collect
+        ).df.collect
         assert(result.length == 0)
     }
 
     it should "raise an error when whitelisting a table with keep tag" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(Row(1))),
             StructType(StructField("f1", IntegerType, nullable=true) :: Nil)
-        )
+        ), fakeHivePartition)
         an[Exception] should be thrownBy sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq.empty,
             Map("table" -> "keep")
@@ -289,26 +292,26 @@ class TestWhitelistSanitization extends FlatSpec
     }
 
     it should "partially sanitize table with a proper whitelist block" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(Row(1, true), Row(2, false))),
             StructType(
                 StructField("f1", IntegerType, nullable=true) ::
                 StructField("f2", BooleanType, nullable=true) :: Nil
             )
-        )
+        ), fakeHivePartition)
         val result = sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq.empty,
             Map("table" -> Map("f1" -> "keep"))
-        ).collect.sortBy(_.getInt(0))
+        ).df.collect.sortBy(_.getInt(0))
         assert(result.length == 2)
         assert(result(0) == Row(1, null))
         assert(result(1) == Row(2, null))
     }
 
     it should "sanitize table with proper defaults" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(
                 Row(1, "hi", true),
                 Row(2, "bye", false)
@@ -318,54 +321,54 @@ class TestWhitelistSanitization extends FlatSpec
                 StructField("f2", StringType, nullable=true) ::
                 StructField("f3", BooleanType, nullable=true) :: Nil
             )
-        )
+        ), fakeHivePartition)
         val result = sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq.empty,
             Map(
                 "table" -> Map("f1" -> "keep"),
                 "__defaults__" -> Map("f2" -> "keep")
             )
-        ).collect.sortBy(_.getInt(0))
+        ).df.collect.sortBy(_.getInt(0))
         assert(result.length == 2)
         assert(result(0) == Row(1, "hi", null))
         assert(result(1) == Row(2, "bye", null))
     }
 
     it should "automatically whitelist partition fields" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(Row(1, true), Row(2, false))),
             StructType(
                 StructField("f1", IntegerType, nullable=true) ::
                 StructField("f2", BooleanType, nullable=true) :: Nil
             )
-        )
+        ), fakeHivePartition)
         val result = sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq("f1"),
             Map("table" -> Map("f2" -> "keep"))
-        ).collect.sortBy(_.getInt(0))
+        ).df.collect.sortBy(_.getInt(0))
         assert(result.length == 2)
         assert(result(0) == Row(1, true))
         assert(result(1) == Row(2, false))
     }
 
     it should "lower case table and field names before checking them against the whitelist" in {
-        val dataFrame = spark.createDataFrame(
+        val partDf = new PartitionedDataFrame(spark.createDataFrame(
             sc.parallelize(Seq(Row(1, true), Row(2, false))),
             StructType(
                 StructField("fieldName1", IntegerType, nullable=true) ::
                 StructField("FIELDNAME2", BooleanType, nullable=true) :: Nil
             )
-        )
+        ), fakeHivePartition)
         val result = sanitizeTable(
-            dataFrame,
+            partDf,
             "table",
             Seq(),
             Map("table" -> Map("fieldname1" -> "keep", "fieldname2" -> "keep"))
-        ).collect.sortBy(_.getInt(0))
+        ).df.collect.sortBy(_.getInt(0))
         assert(result.length == 2)
         assert(result(0) == Row(1, true))
         assert(result(1) == Row(2, false))

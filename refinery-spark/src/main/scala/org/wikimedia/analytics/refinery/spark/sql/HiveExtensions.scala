@@ -2,11 +2,10 @@ package org.wikimedia.analytics.refinery.spark.sql
 
 import java.util.UUID
 
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.core.LogHelper
-
 
 /**
   * Implicit method extensions to Spark's StructType and StructField.
@@ -608,14 +607,13 @@ object HiveExtensions extends LogHelper {
                             val srcChildFieldType = srcSchema(idx).dataType.asInstanceOf[StructType]
                             val childSQL = buildSQLFieldsRec(srcChildFieldType, dstChildFieldType, depth + 1, prefixedFieldName)
                             namedValue(s"NAMED_STRUCT($childSQL)")
-                        case _ => {
+                        case _ =>
                             // Same types, no cast
                             if (srcSchema(idx).dataType == dstField.dataType) {
                                 namedValue(prefixedFieldName)
                             } else { // Different types, cast needed
                                 namedValue(s"CAST($prefixedFieldName AS ${dstField.dataType.simpleString})")
                             }
-                        }
                     }
                 }).mkString(", ")
             }
@@ -629,7 +627,7 @@ object HiveExtensions extends LogHelper {
             // Warning: SQL Generated schema needs to be made nullable
             df.createOrReplaceTempView(tableName)
             val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema, schema)} FROM $tableName"
-            log.debug(s"Converting DataFrame using SQL query:\n${sqlQuery}")
+            log.debug(s"Converting DataFrame using SQL query:\n$sqlQuery")
             df.sqlContext.sql(sqlQuery).makeNullable().repartition(partitionNumber)
         }
 
@@ -641,4 +639,5 @@ object HiveExtensions extends LogHelper {
             df.sparkSession.createDataFrame(df.rdd, df.schema.normalize())
         }
     }
+
 }

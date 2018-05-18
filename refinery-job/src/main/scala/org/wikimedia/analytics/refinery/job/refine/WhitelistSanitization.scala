@@ -3,8 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-import org.wikimedia.analytics.refinery.core.HivePartition
-
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 /**
   * This module returns a transformation function that can be applied
@@ -198,13 +197,13 @@ object WhitelistSanitization {
      */
     def apply(
         whitelist: Whitelist
-    ): (DataFrame, HivePartition) => DataFrame = {
+    ): PartitionedDataFrame => PartitionedDataFrame = {
         val lowerCaseWhitelist = makeWhitelistLowerCase(whitelist)
-        (dataFrame: DataFrame, hivePartition: HivePartition) => {
+        (partDf: PartitionedDataFrame) => {
             sanitizeTable(
-                dataFrame,
-                hivePartition.table,
-                hivePartition.keys,
+                partDf,
+                partDf.partition.table,
+                partDf.partition.keys,
                 lowerCaseWhitelist
             )
         }
@@ -224,21 +223,21 @@ object WhitelistSanitization {
     }
 
     def sanitizeTable(
-        dataFrame: DataFrame,
+        partDf: PartitionedDataFrame,
         tableName: String,
         partitionKeys: Seq[String],
         whitelist: Whitelist
-    ): DataFrame = {
+    ): PartitionedDataFrame = {
         whitelist.get(tableName.toLowerCase) match {
             // Table is not in the whitelist: return empty DataFrame.
-            case None => emptyDataFrame(dataFrame.sparkSession, dataFrame.schema)
+            case None => partDf.copy(df = emptyDataFrame(partDf.df.sparkSession, partDf.df.schema))
             // Table is in the whitelist as keepall: return DataFrame as is.
-            case Some("keepall") => dataFrame
+            case Some("keepall") => partDf
             // Table is in the whitelist and has further specifications:
             case Some(tableWhitelist: Whitelist) =>
                 // Create table-specific sanitization mask.
                 val tableSpecificMask = getStructMask(
-                    dataFrame.schema,
+                    partDf.df.schema,
                     tableWhitelist,
                     partitionKeys
                 )
@@ -247,14 +246,14 @@ object WhitelistSanitization {
                 val defaultsWhitelist = whitelist.get(WhitelistDefaultsSectionLabel)
                 val sanitizationMask = if (defaultsWhitelist.isDefined) {
                     getStructMask(
-                        dataFrame.schema,
+                        partDf.df.schema,
                         defaultsWhitelist.get.asInstanceOf[Whitelist],
                         partitionKeys
                     ).merge(tableSpecificMask)
                 } else tableSpecificMask
                 // Apply sanitization to the data.
                 sanitizeDataFrame(
-                    dataFrame,
+                    partDf,
                     sanitizationMask
                 )
             case _ => throw new Exception(
@@ -334,12 +333,12 @@ object WhitelistSanitization {
       * Applies a sanitization mask (compiled whitelist) to a DataFrame.
       */
     def sanitizeDataFrame(
-        dataFrame: DataFrame,
+        partDf: PartitionedDataFrame,
         sanitizationMask: MaskNode
-    ): DataFrame = {
-        val schema = dataFrame.schema
-        dataFrame.sqlContext.createDataFrame(
-            dataFrame.rdd.map { row =>
+    ): PartitionedDataFrame = {
+        val schema = partDf.df.schema
+        partDf.copy(df = partDf.df.sparkSession.createDataFrame(
+            partDf.df.rdd.map { row =>
                 sanitizationMask.apply(row).asInstanceOf[Row]
             },
             // Note that the dataFrame object can not be referenced from
@@ -348,7 +347,7 @@ object WhitelistSanitization {
             // results in ugly exceptions. That's why the schema is
             // extracted into a variable.
             schema
-        )
+        ))
     }
 
     def emptyDataFrame(
