@@ -1,3 +1,9 @@
+## v0.0.64
+* Update regular expressions used to parse User Agent Strings
+* Add PartitionedDataFrame to Spark refine job
+* Fix bug when merging partition fields in WhitelistSanitization.scala
+* Update pageview regex to accept more characters (previously restricted to 2)
+
 ## v0.0.63
 * Make mediawiki-history statistics generation optional
 * Modify output defaults for EventLoggingSanitization
