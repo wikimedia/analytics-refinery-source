@@ -718,8 +718,8 @@ class TestPageHistoryBuilder
     process(events, states)
     val stats = statsAccumulator.get.value
     stats.size() should equal(2)
-    stats.get("testwiki.pages.eventsMatching.OK") should equal(3)
-    stats.get("testwiki.pages.eventsMatching.KO") should equal(1)
+    stats.get("testwiki.pageHistory.eventsMatching.OK") should equal(3)
+    stats.get("testwiki.pageHistory.eventsMatching.KO") should equal(1)
   }
 
 }

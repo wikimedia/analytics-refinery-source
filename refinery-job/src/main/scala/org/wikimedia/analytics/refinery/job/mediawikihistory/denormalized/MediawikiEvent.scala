@@ -616,18 +616,18 @@ object MediawikiEvent {
                                   potentialKeyAndState: Option[(StateKey, S)]
                                  ): MediawikiEvent = {
     val (mwKey, mwEvent) = keyAndMwEvent
-    val metricHead = s"${mwEvent.wikiDb}.${mwEvent.eventEntity}.${stateName}Updates"
+    val metricHead = s"${mwEvent.wikiDb}.denormalize.${mwEvent.eventEntity}.${stateName}Updates"
     if (mwKey.partitionKey.id <= 0L) {
       // negative or 0 ids are fake (used to shuffle among workers)  -- Don't update
-      statsAccumulator.foreach(_.add(s"$metricHead.fakeIds", 1L))
+      statsAccumulator.foreach(_.add(s"$metricHead.fakeId", 1L))
       mwEvent.copy(eventErrors = mwEvent.eventErrors :+ s"Negative MW Event id for potential $stateName update")
     } else if (potentialKeyAndState.isEmpty) {
       // No state key was found equal to this mw event key
       // Don't update MW Event content (except error messages)
-      statsAccumulator.foreach(_.add(s"$metricHead.noStates", 1L))
+      statsAccumulator.foreach(_.add(s"$metricHead.noState", 1L))
       mwEvent.copy(eventErrors = mwEvent.eventErrors :+ s"No $stateName match for this MW Event")
     } else {
-      statsAccumulator.foreach(_.add(s"$metricHead.updates", 1L))
+      statsAccumulator.foreach(_.add(s"$metricHead.update", 1L))
       val (_, state) = potentialKeyAndState.get
       updateWithState(mwEvent, state)
     }
@@ -635,19 +635,20 @@ object MediawikiEvent {
 
   def updateWithOptionalPrevious(
                                   updateWithOptionalPreviousInner: (MediawikiEvent, Option[MediawikiEvent]) => MediawikiEvent,
-                                  statsAccumulator: Option[MapAccumulator[String, Long]] = None
+                                  statsAccumulator: Option[MapAccumulator[String, Long]] = None,
+                                  groupByMetricDescription: String
                                 )(
                                   keyAndMwEvent: (MediawikiEventKey, MediawikiEvent),
                                   previousKeyAndMwEvent: Option[(MediawikiEventKey, MediawikiEvent)]
                                 ): (MediawikiEventKey, MediawikiEvent) = {
     val (mwKey, mwEvent) = keyAndMwEvent
-    val metricHead = s"${mwEvent.wikiDb}.${mwEvent.eventEntity}.withPreviousUpdates"
+    val metricHead = s"${mwEvent.wikiDb}.denormalize.${mwEvent.eventEntity}.$groupByMetricDescription.withPrevious"
     if (mwKey.partitionKey.id <= 0L) {
       // negative or 0 ids are fake (used to shuffle among workers)  -- Don't update
-      statsAccumulator.foreach(_.add(s"$metricHead.fakeIds", 1L))
+      statsAccumulator.foreach(_.add(s"$metricHead.fakeId", 1L))
       (mwKey, mwEvent)
     } else {
-      statsAccumulator.foreach(_.add(s"$metricHead.updates", 1L))
+      statsAccumulator.foreach(_.add(s"$metricHead.update", 1L))
       (mwKey, updateWithOptionalPreviousInner(mwEvent, previousKeyAndMwEvent.map(_._2)))
     }
   }
@@ -662,9 +663,9 @@ object MediawikiEvent {
     updateWithOptionalState[PageState](updateWithPageState, "pageState", statsAccumulator) _
 
   def updateWithOptionalUserPrevious(statsAccumulator: Option[MapAccumulator[String, Long]] = None) =
-    updateWithOptionalPrevious(updateWithOptionalUserPreviousRevision, statsAccumulator) _
+    updateWithOptionalPrevious(updateWithOptionalUserPreviousRevision, statsAccumulator, "byUser") _
   def updateWithOptionalPagePrevious(statsAccumulator: Option[MapAccumulator[String, Long]] = None) =
-    updateWithOptionalPrevious(updateWithOptionalPagePreviousRevision, statsAccumulator) _
+    updateWithOptionalPrevious(updateWithOptionalPagePreviousRevision, statsAccumulator, "byPage") _
 
 
 }

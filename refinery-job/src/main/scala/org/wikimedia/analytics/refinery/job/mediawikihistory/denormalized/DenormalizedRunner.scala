@@ -39,16 +39,19 @@ class DenormalizedRunner(
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
-  val METRIC_LIVE_REVISIONS = "rev.live.count"
-  val METRIC_ARCHIVED_REVISIONS = "rev.archived.count"
-  val METRIC_ARCHIVED_REVISIONS_DEDUP = "rev.archivedDeduplicated.count"
-  val METRIC_ARCHIVED_REVISIONS_DUP = "rev.archivedDuplicates.count"
-  val METRIC_WRONG_IDS_PAGE_STATES = "pages.states.wrongIds"
-  val METRIC_FILTERED_OUT_USER_STATES = "users.states.filteredOut"
-  val METRIC_FILTERED_OUT_PAGE_STATES = "pages.states.filteredOut"
-  val METRIC_USER_STATES = "users.states.count"
-  val METRIC_PAGE_STATES = "pages.states.count"
-  val METRIC_WRITTEN_ROWS = "denorm.writtenRows.count"
+  val METRIC_INITIAL_LIVE_REVISIONS = "denormalize.initialLiveRevisions"
+  val METRIC_INITIAL_ARCHIVED_REVISIONS = "denormalize.initialArchivedRevisions"
+
+  val METRIC_INITIAL_PAGE_STATES = "denormalize.pageStates.initial"
+  val METRIC_WRONG_IDS_PAGE_STATES = "denormalize.pageStates.wrongIds"
+  val METRIC_FILTERED_OUT_PAGE_STATES = "denormalize.pageStates.filteredOut"
+  val METRIC_INITIAL_PAGE = "denormalize.page.initial"
+
+  val METRIC_INITIAL_USER_STATES = "denormalize.userStates.initial"
+  val METRIC_FILTERED_OUT_USER_STATES = "denormalize.userStates.filteredOut"
+  val METRIC_INITIAL_USER = "denormalize.user.initial"
+
+  val METRIC_WRITTEN_ROWS = "denormalize.writtenRows"
 
   val workPartitions = numPartitions * 4
 
@@ -111,7 +114,11 @@ class DenormalizedRunner(
 
   def getUserStates(userHistoryPath: String, wikiClause: String): RDD[UserState] = {
     val userStatesDf = spark.read.parquet(userHistoryPath).repartition(workPartitions).where(s"TRUE $wikiClause")
-    val userStatesToFilter = userStatesDf.rdd.map(UserState.fromRow).cache()
+    val userStatesToFilter = userStatesDf.rdd.map(r => {
+      val state = UserState.fromRow(r)
+      addOptionalStat(s"${state.wikiDb}.$METRIC_INITIAL_USER_STATES", 1)
+      state
+    }).cache()
     filterStates[UserState](
       userStatesToFilter, DenormalizedKeysHelper.userStateKey, METRIC_FILTERED_OUT_USER_STATES
     ).cache()
@@ -121,7 +128,11 @@ class DenormalizedRunner(
   def getPageStates(pageHistoryPath: String, wikiClause: String): RDD[PageState] = {
     val pageStatesDf = spark.read.parquet(pageHistoryPath).repartition(workPartitions).where(s"TRUE $wikiClause")
     val pageStatesToFilter = pageStatesDf.rdd
-      .map(PageState.fromRow)
+      .map(r => {
+        val state = PageState.fromRow(r)
+        addOptionalStat(s"${state.wikiDb}.$METRIC_INITIAL_PAGE_STATES", 1)
+        state
+      })
       .filter(state => {
         val validId = state.pageId.getOrElse(0L) > 0 && state.pageIdArtificial.isEmpty
         if (!validId) addOptionalStat(s"${state.wikiDb}.$METRIC_WRONG_IDS_PAGE_STATES", 1)
@@ -171,7 +182,7 @@ class DenormalizedRunner(
       .rdd
       .map(row => {
         val wikiDb = row.getString(0)
-        addOptionalStat(s"$wikiDb.$METRIC_LIVE_REVISIONS", 1L)
+        addOptionalStat(s"$wikiDb.$METRIC_INITIAL_LIVE_REVISIONS", 1L)
         MediawikiEvent.fromRevisionRow(row)
       })
   }
@@ -226,7 +237,7 @@ class DenormalizedRunner(
       .rdd
       .map(row => {
         val wikiDb = row.getString(0)
-        addOptionalStat(s"$wikiDb.$METRIC_ARCHIVED_REVISIONS", 1L)
+        addOptionalStat(s"$wikiDb.$METRIC_INITIAL_ARCHIVED_REVISIONS", 1L)
         MediawikiEvent.fromArchiveRow(row)
       })
   }
@@ -268,8 +279,7 @@ class DenormalizedRunner(
            userHistoryPath: String,
            pageHistoryPath: String,
            outputPath: String,
-           errorsPath: String,
-           statsPath: String
+           errorsPathOption: Option[String]
   ): Unit = {
 
     log.info(s"Denormalized MW Events jobs starting")
@@ -298,11 +308,11 @@ class DenormalizedRunner(
 
 
     val userMediawikiEvents = userStates.map(userState => {
-      addOptionalStat(s"${userState.wikiDb}.$METRIC_USER_STATES", 1)
+      addOptionalStat(s"${userState.wikiDb}.$METRIC_INITIAL_USER", 1)
       MediawikiEvent.fromUserState(userState)
     })
     val pageMediawikiEvents = pageStates.map(pageState => {
-      addOptionalStat(s"${pageState.wikiDb}.$METRIC_PAGE_STATES", 1)
+      addOptionalStat(s"${pageState.wikiDb}.$METRIC_INITIAL_PAGE", 1)
       MediawikiEvent.fromPageState(pageState)
     })
 
@@ -415,27 +425,23 @@ class DenormalizedRunner(
     log.info(s"Denormalized MW Events results written")
 
     //***********************************
-    // Write errors
+    // Optionally write errors
     //***********************************
+    errorsPathOption.foreach(errorsPath => {
+      val errorDf = spark.createDataFrame(
+        denormalizedMediawikiEventsRdd
+          .filter(_.eventErrors.nonEmpty)
+          .map(e => Row(e.wikiDb, "zipping", e.toString)),
+        StructType(Seq(
+          StructField("wiki_db", StringType, nullable = false),
+          StructField("error_type", StringType, nullable = false),
+          StructField("event", StringType, nullable = false)
+        ))
+      )
+      errorDf.repartition(numPartitions / 16).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
+      log.info(s"Denormalized MW Events errors written")
+    })
 
-    val errorDf = spark.createDataFrame(
-      denormalizedMediawikiEventsRdd
-        .filter(_.eventErrors.nonEmpty)
-        .map(e => Row(e.wikiDb, "zipping", e.toString)),
-      StructType(Seq(
-        StructField("wiki_db", StringType, nullable = false),
-        StructField("error_type", StringType, nullable = false),
-        StructField("event", StringType, nullable = false)
-      ))
-    )
-    errorDf.repartition(numPartitions / 16).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
-    log.info(s"Denormalized MW Events errors written")
-
-    //***********************************
-    // Write stats
-    //***********************************
-    statsDataframe.foreach(_.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath))
-    log.info(s"Denormalized MW Events stats written")
 
     log.info(s"Denormalized MW Events jobs done")
 

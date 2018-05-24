@@ -30,8 +30,8 @@ class UserHistoryBuilder(
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
   val presentTimestamp = new Timestamp(DateTime.now.withZone(DateTimeZone.UTC).getMillis)
-  val METRIC_EVENTS_MATCHING_OK = "users.eventsMatching.OK"
-  val METRIC_EVENTS_MATCHING_KO = "users.eventsMatching.KO"
+  val METRIC_EVENTS_MATCHING_OK = "userHistory.eventsMatching.OK"
+  val METRIC_EVENTS_MATCHING_KO = "userHistory.eventsMatching.KO"
 
   /**
     * This case class contains the various state dictionary and list needed to
@@ -506,7 +506,7 @@ object UserHistoryBuilder extends Serializable{
   import org.apache.spark.sql.types.{StringType, StructField, StructType}
   import org.wikimedia.analytics.refinery.spark.utils.RowKeyFormat
 
-  val METRIC_SUBGRAPH_PARTITIONS = "users.subgraphPartitions.count"
+  val METRIC_SUBGRAPH_PARTITIONS = "userHistory.subgraphPartitions"
 
   type KEY = (String, String)
   type STATS_GROUP = String

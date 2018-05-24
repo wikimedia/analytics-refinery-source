@@ -33,11 +33,12 @@ class UserHistoryRunner(
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
-  val METRIC_VALID_LOGS_OK = "users.validLogs.OK"
-  val METRIC_VALID_LOGS_KO = "users.validLogs.KO"
-  val METRIC_EVENTS_PARSING_OK = "users.eventsParsing.OK"
-  val METRIC_EVENTS_PARSING_KO = "users.eventsParsing.KO"
-  val METRIC_STATES_COUNT = "users.states.count"
+  val METRIC_VALID_LOGS_OK = "userHistory.validLogs.OK"
+  val METRIC_VALID_LOGS_KO = "userHistory.validLogs.KO"
+  val METRIC_EVENTS_PARSING_OK = "userHistory.eventsParsing.OK"
+  val METRIC_EVENTS_PARSING_KO = "userHistory.eventsParsing.KO"
+  val METRIC_INITIAL_STATES = "userHistory.initialStates"
+  val METRIC_WRITTEN_ROWS = "userHistory.writtenRows"
 
   /**
     * Extract and clean [[UserEvent]] and [[UserState]] RDDs,
@@ -50,8 +51,7 @@ class UserHistoryRunner(
     * @param userGroupsDataPath The path of the user_groups data (avro files partitioned by wiki_db)
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
     * @param outputPath The path to output the reconstructed user history (parquet files)
-    * @param errorsPath An path to output errors (csv files)
-    * @param statsPath An path to output statistics (csv files)
+    * @param errorsPathOption An optional path to output errors (csv files) if defined
     */
   def run(
            wikiConstraint: Seq[String],
@@ -60,8 +60,7 @@ class UserHistoryRunner(
            userGroupsDataPath: String,
            revisionDataPath: String,
            outputPath: String,
-           errorsPath: String,
-           statsPath: String
+           errorsPathOption: Option[String]
   ): Unit = {
 
     log.info(s"User history jobs starting")
@@ -227,7 +226,7 @@ class UserHistoryRunner(
       .rdd
       .map { row =>
         val wikiDb = row.getString(3)
-        addOptionalStat(s"$wikiDb.$METRIC_STATES_COUNT", 1L)
+        addOptionalStat(s"$wikiDb.$METRIC_INITIAL_STATES", 1L)
         new UserState(
             userId = row.getLong(0),
             userNameHistorical = row.getString(1),
@@ -269,38 +268,43 @@ class UserHistoryRunner(
 
 
     //***********************************
-    // Write results (and possibly errors)
+    // Write results
     //***********************************
 
-    val userHistoryDf = spark.createDataFrame(userHistoryRdd.map(_.toRow), UserState.schema)
-    userHistoryDf.repartition(numPartitions).write.mode(SaveMode.Overwrite).parquet(outputPath)
+    spark.createDataFrame(userHistoryRdd.map(state => {
+          addOptionalStat(s"${state.wikiDb}.$METRIC_WRITTEN_ROWS", 1)
+          state.toRow
+        }), UserState.schema)
+      .repartition(numPartitions)
+      .write
+      .mode(SaveMode.Overwrite)
+      .parquet(outputPath)
     log.info(s"User history reconstruction results written")
 
-
     //***********************************
-    // Write errors
+    // Optionally write errors
     //***********************************
 
-    val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty)
-    val errorDf = spark.createDataFrame(
-      parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString))
-        .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
-      ),
-      StructType(Seq(
-        StructField("wiki_db", StringType, nullable = false),
-        StructField("error_type", StringType, nullable = false),
-        StructField("event", StringType, nullable = false)
-      ))
-    )
-    errorDf.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
-    log.info(s"User history reconstruction errors written")
-
-
-    //***********************************
-    // Write stats
-    //***********************************
-    statsDataframe.foreach(_.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath))
-    log.info(s"User history reconstruction stats written")
+    errorsPathOption.foreach(errorsPath => {
+      val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty)
+      val errorDf = spark.createDataFrame(
+        parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString))
+          .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
+          ),
+        StructType(Seq(
+          StructField("wiki_db", StringType, nullable = false),
+          StructField("error_type", StringType, nullable = false),
+          StructField("event", StringType, nullable = false)
+        ))
+      )
+      errorDf.repartition(1)
+        .write
+        .mode(SaveMode.Overwrite)
+        .format("csv")
+        .option("sep", "\t")
+        .save(errorsPath)
+      log.info(s"User history reconstruction errors written")
+    })
 
     log.info(s"User history jobs done")
   }

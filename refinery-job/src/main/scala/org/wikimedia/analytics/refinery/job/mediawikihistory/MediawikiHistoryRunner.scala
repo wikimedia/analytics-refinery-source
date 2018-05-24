@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
-import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
+import org.apache.spark.sql.SaveMode
+import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator}
 
 
 /**
@@ -66,6 +67,7 @@ object MediawikiHistoryRunner {
                     baseNumPartitions: Int = 64,
                     debug: Boolean = false,
                     noStats: Boolean = false,
+                    writeErrors: Boolean = false,
                     runUsersHistory: Boolean = false,
                     runPagesHistory: Boolean = false,
                     runDenormalize: Boolean = false,
@@ -121,7 +123,10 @@ object MediawikiHistoryRunner {
       c.copy(debug = true) ).text("debug mode -- spark logs added to applicative logs (VERY verbose)")
 
     opt[Unit]("no-stats").action( (_, c) =>
-      c.copy(noStats = true) ).text("no-stats mode -- No statistics are gathered not saved along the process (lighter in memory)")
+      c.copy(noStats = true) ).text("no-stats mode -- No statistics gathering along the process (lighter in memory)")
+
+    opt[Unit]("write-errors").action( (_, c) =>
+      c.copy(writeErrors = true) ).text("Write error rows in historyType_errors folders as csv files")
 
     opt[Unit]("users-history").action( (_, c) =>
       c.copy(runUsersHistory = true, runAll = false)).text("Run specific step(s) -- Users History")
@@ -158,6 +163,7 @@ object MediawikiHistoryRunner {
         val tmpPath = params.tmpPath
         val debug = params.debug
         val noStats = params.noStats
+        val writeErrors = params.writeErrors
         val runUsersHistory = params.runAll || params.runUsersHistory
         val runPagesHistory = params.runAll || params.runPagesHistory
         val runDenormalize = params.runAll || params.runDenormalize
@@ -192,13 +198,11 @@ object MediawikiHistoryRunner {
         val pageHistoryPath = outputBasePath + "/page_history" + snapshotPartition
         val userHistoryPath = outputBasePath + "/user_history" + snapshotPartition
 
-        val denormalizedHistoryStatsPath = outputBasePath + "/history_stats" + snapshotPartition
-        val pageHistoryStatsPath = outputBasePath + "/page_history_stats" + snapshotPartition
-        val userHistoryStatsPath = outputBasePath + "/user_history_stats" + snapshotPartition
+        val denormalizedHistoryErrorsPath = if (writeErrors) Some(outputBasePath + "/history_errors" + snapshotPartition) else None
+        val pageHistoryErrorsPath = if (writeErrors) Some(outputBasePath + "/page_history_errors" + snapshotPartition) else None
+        val userHistoryErrorsPath = if (writeErrors) Some(outputBasePath + "/user_history_errors" + snapshotPartition) else None
 
-        val denormalizedHistoryErrorsPath = outputBasePath + "/history_errors" + snapshotPartition
-        val pageHistoryErrorsPath = outputBasePath + "/page_history_errors" + snapshotPartition
-        val userHistoryErrorsPath = outputBasePath + "/user_history_errors" + snapshotPartition
+        val statsPath = outputBasePath + "/history_stats" + snapshotPartition
 
         log.info(
           s"""
@@ -210,6 +214,7 @@ object MediawikiHistoryRunner {
              |  temporary-path:         $tmpPath
              |  num-partitions:         $baseNumPartitions
              |  debug:                  $debug
+             |  write-errors:           $writeErrors
              |  users-history:          $runUsersHistory
              |  pages-history:          $runPagesHistory
              |  revisions-denormalize:  $runDenormalize
@@ -222,11 +227,14 @@ object MediawikiHistoryRunner {
           .set("spark.sql.parquet.compression.codec", "snappy")
           .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
           .set("spark.ui.killEnabled", "false")  // Prevent errors in UI
-          // MapAccumulator is memory-heavy for the driver if kept at each stage / task
-          // We reduce the number of stages and tasks kept in the driver for UI inspection
-          // to prevent driver OOM.
-          .set("spark.ui.retainedStage", "20")
-          .set("spark.ui.retainedTasks", "1000")
+          // MapAccumulator is memory-heavy for the driver and moves 'a lot' of data between
+          // tasks and driver. Two things need to be confirgured:
+          //  - number of stages and tasks kept in the driver for UI inspection
+          //    Keeping a lot of them means keeping a lot of memory-heavy details
+          //  - Maximum data exchanged between task and driver, as the maps can be big
+          .set("spark.ui.retainedStage", "5")
+          .set("spark.ui.retainedTasks", "100")
+          .set("spark.driver.maxResultSize", "4g")
           .registerKryoClasses(Array(
             // Keys
             classOf[PartitionKey],
@@ -264,8 +272,7 @@ object MediawikiHistoryRunner {
             userGroupsDataPath,
             revisionDataPath,
             userHistoryPath,
-            userHistoryErrorsPath,
-            userHistoryStatsPath
+            userHistoryErrorsPath
           )
 
         spark.sqlContext.clearCache()
@@ -279,8 +286,7 @@ object MediawikiHistoryRunner {
             revisionDataPath,
             namespacesPath,
             pageHistoryPath,
-            pageHistoryErrorsPath,
-            pageHistoryStatsPath
+            pageHistoryErrorsPath
           )
 
         spark.sqlContext.clearCache()
@@ -294,9 +300,26 @@ object MediawikiHistoryRunner {
             userHistoryPath,
             pageHistoryPath,
             denormalizedHistoryPath,
-            denormalizedHistoryErrorsPath,
-            denormalizedHistoryStatsPath
+            denormalizedHistoryErrorsPath
           )
+
+        //***********************************
+        // Write stats
+        //***********************************
+        // Rename variables to prevent recursive binding
+        val (sp, statsAcc) = (spark, statsAccumulator)
+
+        new StatsHelper {
+          override val spark: SparkSession = sp
+          override val statsAccumulator: Option[MapAccumulator[String, Long]] = statsAcc
+        }.statsDataframe.foreach(
+          _.repartition(1).write
+            .mode(SaveMode.Overwrite)
+            .format("csv")
+            .option("sep", "\t")
+            .option("codec", "none") // Enforce no compression for stats
+            .save(statsPath))
+        log.info(s"Denormalized MW Events stats written")
 
         log.info("MediawikiHistoryRunner job done.")
 

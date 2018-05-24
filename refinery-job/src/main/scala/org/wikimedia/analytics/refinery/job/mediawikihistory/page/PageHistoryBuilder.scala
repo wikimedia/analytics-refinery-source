@@ -28,8 +28,8 @@ class PageHistoryBuilder(
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
-  val METRIC_EVENTS_MATCHING_OK = "pages.eventsMatching.OK"
-  val METRIC_EVENTS_MATCHING_KO = "pages.eventsMatching.KO"
+  val METRIC_EVENTS_MATCHING_OK = "pageHistory.eventsMatching.OK"
+  val METRIC_EVENTS_MATCHING_KO = "pageHistory.eventsMatching.KO"
 
   /**
     * This case class contains the various state dictionary and list needed to
@@ -199,6 +199,7 @@ class PageHistoryBuilder(
     // We therefore assign a new fake Id to its lineage
     val fakeId = randomUUID.toString
 
+    addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
     // Create a new known delete state and new potential create one
     val newPotentialCreateState = new PageState(
       wikiDb = event1.wikiDb,
@@ -504,7 +505,7 @@ object PageHistoryBuilder extends Serializable {
   type KEY = (String, String, Int)
   type STATS_GROUP = String
 
-  val METRIC_SUBGRAPH_PARTITIONS = "pages.subgraphPartitions.count"
+  val METRIC_SUBGRAPH_PARTITIONS = "pageHistory.subgraphPartitions"
 
   object PageRowKeyFormat extends RowKeyFormat[KEY, STATS_GROUP] with Serializable {
     val struct = StructType(Seq(

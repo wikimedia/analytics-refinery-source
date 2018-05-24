@@ -37,16 +37,16 @@ class DenormalizedRevisionsBuilder(
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
-  val METRIC_ARCHIVE_DELETE_TS_EVENT_TS = "archiveRev.deleteTs.eventTs"
-  val METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS = "archiveRev.deleteTs.maxArchiveTs"
-  val METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS = "archiveRev.deleteTs.pageDeleteTs"
-  val METRIC_BYTES_DIFF_OK = "rev.bytesDiff.OK"
-  val METRIC_BYTES_DIFF_KO = "rev.bytesDiff.KO"
-  val METRIC_REVERTS_LISTS_COUNT = "rev.revertsLists.count"
-  val METRIC_NO_REVERT_COUNT = "rev.noRevert.count"
-  val METRIC_REVERT_COUNT = "rev.revert.count"
-  val METRIC_REVERTED_COUNT = "rev.reverted.count"
-  val METRIC_REVERT_REVERTED_COUNT = "rev.revertAndReverted.count"
+  val METRIC_ARCHIVE_DELETE_TS_EVENT_TS = "denormalize.archivedRevision.deleteTs.eventTs"
+  val METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS = "denormalize.archivedRevision.deleteTs.maxArchiveTs"
+  val METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS = "denormalize.archivedRevision.deleteTs.pageDeleteTs"
+  val METRIC_BYTES_DIFF_OK = "denormalize.revision.bytesDiff.OK"
+  val METRIC_BYTES_DIFF_KO = "denormalize.revision.bytesDiff.KO"
+  val METRIC_REVERTS_LISTS_COUNT = "denormalize.revision.revertsList"
+  val METRIC_NO_REVERT_COUNT = "denormalize.revision.revertInfo.noRevert"
+  val METRIC_REVERT_COUNT = "denormalize.revision.revertInfo.revert"
+  val METRIC_REVERTED_COUNT = "denormalize.revision.revertInfo.reverted"
+  val METRIC_REVERT_REVERTED_COUNT = "denormalize.revision.revertInfo.revertAndReverted"
 
   /**
     * Return the first value from sortedTimestamps

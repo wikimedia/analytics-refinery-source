@@ -35,10 +35,11 @@ class PageHistoryRunner(
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
 
-  val METRIC_NAMESPACES_COUNT = "pages.namespaces.count"
-  val METRIC_EVENTS_OK = "pages.events.OK"
-  val METRIC_EVENTS_KO = "pages.events.KO"
-  val METRIC_STATES_COUNT = "pages.states.count"
+  val METRIC_LOCALIZED_NAMESPACES = "pageHistory.localizedNamespaces"
+  val METRIC_EVENTS_PARSING_OK = "pageHistory.eventsParsing.OK"
+  val METRIC_EVENTS_PARSING_KO = "pageHistory.eventsParsing.KO"
+  val METRIC_INITIAL_STATES = "pageHistory.initialStates"
+  val METRIC_WRITTEN_ROWS = "pageHistory.writtenRows"
 
   /**
     * Extract and clean [[PageEvent]] and [[PageState]] RDDs,
@@ -51,8 +52,7 @@ class PageHistoryRunner(
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
     * @param namespacesPath The path of the namespaces data (CSV file)
     * @param outputPath The path to output the reconstructed page history (parquet files)
-    * @param errorsPath A path to output errors (csv files)
-    * @param statsPath A path to output statistics (csv files)
+    * @param errorsPathOption An optional path to output errors (csv files) if defined
     */
   def run(
            wikiConstraint: Seq[String],
@@ -61,8 +61,7 @@ class PageHistoryRunner(
            revisionDataPath: String,
            namespacesPath: String,
            outputPath: String,
-           errorsPath: String,
-           statsPath: String
+           errorsPathOption: Option[String]
   ): Unit = {
 
     log.info(s"Page history jobs starting")
@@ -108,7 +107,7 @@ class PageHistoryRunner(
       .rdd
       .map(r => {
         val wikiDb = r.getString(1)
-        addOptionalStat(s"$wikiDb.$METRIC_NAMESPACES_COUNT", 1)
+        addOptionalStat(s"$wikiDb.$METRIC_LOCALIZED_NAMESPACES", 1)
         (
           wikiDb,
           r.getInt(2),
@@ -169,7 +168,7 @@ class PageHistoryRunner(
           if (row.getString(0) == "move") pageEventBuilder.buildMovePageEvent(row)
           else pageEventBuilder.buildSimplePageEvent(row)
         }
-        val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_EVENTS_OK else METRIC_EVENTS_KO
+        val metricName = if (pageEvent.parsingErrors.isEmpty) METRIC_EVENTS_PARSING_OK else METRIC_EVENTS_PARSING_KO
         addOptionalStat(s"${pageEvent.wikiDb}.$metricName", 1)
         pageEvent
       })
@@ -232,7 +231,7 @@ class PageHistoryRunner(
         val title = row.getString(2)
         val namespace = row.getInt(3)
         val isContentNamespace = isContentNamespaceMap((wikiDb, namespace))
-        addOptionalStat(s"$wikiDb.$METRIC_STATES_COUNT", 1L)
+        addOptionalStat(s"$wikiDb.$METRIC_INITIAL_STATES", 1L)
         new PageState(
           pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
           pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
@@ -271,35 +270,39 @@ class PageHistoryRunner(
     //***********************************
 
     // Write history
-    val pageHistoryDf = spark.createDataFrame(pageHistoryRdd.map(_.toRow), PageState.schema)
-    //spark.setConf("spark.sql.parquet.compression.codec", "snappy")
-    pageHistoryDf.repartition(numPartitions).write.mode(SaveMode.Overwrite).parquet(outputPath)
+    spark.createDataFrame(pageHistoryRdd.map(state => {
+          addOptionalStat(s"${state.wikiDb}.$METRIC_WRITTEN_ROWS", 1)
+          state.toRow
+        }), PageState.schema)
+      .repartition(numPartitions)
+      .write
+      .mode(SaveMode.Overwrite)
+      .parquet(outputPath)
     log.info(s"Page history reconstruction results written")
 
     //***********************************
-    // Write errors
+    // Optionally Write errors
     //***********************************
-
-    val parsingErrorEvents = parsedPageEvents.filter(_.parsingErrors.nonEmpty)
-    val errorDf = spark.createDataFrame(
+    errorsPathOption.foreach(errorsPath => {
+      val parsingErrorEvents = parsedPageEvents.filter(_.parsingErrors.nonEmpty)
+      val errorDf = spark.createDataFrame(
         parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString))
           .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
-      ),
-      StructType(Seq(
-        StructField("wiki_db", StringType, nullable = false),
-        StructField("error_type", StringType, nullable = false),
-        StructField("event", StringType, nullable = false)
-      ))
-    )
-    errorDf.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
-    log.info(s"Page history reconstruction errors written")
-
-
-    //***********************************
-    // Write stats
-    //***********************************
-    statsDataframe.foreach(_.repartition(1).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(statsPath))
-    log.info(s"Page history reconstruction stats written")
+          ),
+        StructType(Seq(
+          StructField("wiki_db", StringType, nullable = false),
+          StructField("error_type", StringType, nullable = false),
+          StructField("event", StringType, nullable = false)
+        ))
+      )
+      errorDf.repartition(1)
+        .write
+        .mode(SaveMode.Overwrite)
+        .format("csv")
+        .option("sep", "\t")
+        .save(errorsPath)
+      log.info(s"Page history reconstruction errors written")
+    })
 
     log.info(s"Page history jobs done")
   }

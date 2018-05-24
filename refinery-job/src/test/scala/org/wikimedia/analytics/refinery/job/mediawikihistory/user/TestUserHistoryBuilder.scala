@@ -315,7 +315,7 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     process(events, states)
     val stats = statsAccumulator.get.value
     stats.size() should equal(2)
-    stats.get("testwiki.users.eventsMatching.OK") should equal(8)
-    stats.get("testwiki.users.eventsMatching.KO") should equal(1)
+    stats.get("testwiki.userHistory.eventsMatching.OK") should equal(8)
+    stats.get("testwiki.userHistory.eventsMatching.KO") should equal(1)
   }
 }

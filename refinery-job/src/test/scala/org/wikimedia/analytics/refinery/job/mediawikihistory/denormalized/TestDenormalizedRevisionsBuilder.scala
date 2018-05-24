@@ -208,8 +208,8 @@ class TestDenormalizedRevisionsBuilder
 
     val stats = statsAccumulator.get.value
     stats.size should equal(2)
-    stats.get("testwiki.archiveRev.deleteTs.maxArchiveTs") should equal(2)
-    stats.get("testwiki.archiveRev.deleteTs.pageDeleteTs") should equal(1)
+    stats.get("testwiki.denormalize.archivedRevision.deleteTs.maxArchiveTs") should equal(2)
+    stats.get("testwiki.denormalize.archivedRevision.deleteTs.pageDeleteTs") should equal(1)
   }
 
   /**
@@ -278,8 +278,8 @@ class TestDenormalizedRevisionsBuilder
 
     val stats = statsAccumulator.get.value
     stats.size should equal(2)
-    stats.get("testwiki.rev.bytesDiff.OK") should equal(3)
-    stats.get("testwiki.rev.bytesDiff.KO") should equal(1)
+    stats.get("testwiki.denormalize.revision.bytesDiff.OK") should equal(3)
+    stats.get("testwiki.denormalize.revision.bytesDiff.KO") should equal(1)
   }
 
 
@@ -330,8 +330,8 @@ class TestDenormalizedRevisionsBuilder
     results should equal(expectedResults)
     val stats = statsAccumulator.get.value
     stats.size() should equal(2)
-    stats.get("w1.rev.revertsLists.count") should equal(4)
-    stats.get("w2.rev.revertsLists.count") should equal(1)
+    stats.get("w1.denormalize.revision.revertsList") should equal(4)
+    stats.get("w2.denormalize.revision.revertsList") should equal(1)
   }
 
   /**
@@ -355,7 +355,7 @@ class TestDenormalizedRevisionsBuilder
     })
     val stats = statsAccumulator.get.value
     stats.size() should equal(1)
-    stats.get("w1.rev.noRevert.count") should equal(1)
+    stats.get("w1.denormalize.revision.revertInfo.noRevert") should equal(1)
   }
 
   it should "update MW Event and not endReverts - isReverted case" in {
@@ -377,7 +377,7 @@ class TestDenormalizedRevisionsBuilder
     endReverts.size should equal(1)
     val stats = statsAccumulator.get.value
     stats.size() should equal(1)
-    stats.get("w1.rev.reverted.count") should equal(1)
+    stats.get("w1.denormalize.revision.revertInfo.reverted") should equal(1)
   }
 
   it should "update MW Event and endReverts - isRevert case (not isReverted, no other revert)" in {
@@ -399,7 +399,7 @@ class TestDenormalizedRevisionsBuilder
     endReverts.size should equal(0)
     val stats = statsAccumulator.get.value
     stats.size() should equal(1)
-    stats.get("w1.rev.revert.count") should equal(1)
+    stats.get("w1.denormalize.revision.revertInfo.revert") should equal(1)
   }
 
   it should "update MW Event and endReverts - isRevert case (not isReverted, same wider revert)" in {
@@ -422,7 +422,7 @@ class TestDenormalizedRevisionsBuilder
     endReverts.size should equal(1)
     val stats = statsAccumulator.get.value
     stats.size() should equal(1)
-    stats.get("w1.rev.revert.count") should equal(1)
+    stats.get("w1.denormalize.revision.revertInfo.revert") should equal(1)
   }
 
 
@@ -446,7 +446,7 @@ class TestDenormalizedRevisionsBuilder
     endReverts.size should equal(1)
     val stats = statsAccumulator.get.value
     stats.size() should equal(1)
-    stats.get("w1.rev.revertAndReverted.count") should equal(1)
+    stats.get("w1.denormalize.revision.revertInfo.revertAndReverted") should equal(1)
   }
 
 
