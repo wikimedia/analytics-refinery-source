@@ -319,7 +319,7 @@ case class RefineTarget(
         // Be the first file that does not start with an underscore and also
         // has a non zero size.
         val inputDataFiles = fs.listStatus(inputPath)
-            .filter(f => !f.getPath.toString.startsWith("_") && f.getLen > 0)
+            .filter(f => !f.getPath.getName.startsWith("_") && f.getLen > 0)
             .map(_.getPath)
 
         // If we didn't find any data files at inputPath, then return "empty".
