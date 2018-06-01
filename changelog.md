@@ -1,3 +1,7 @@
+## v0.0.65
+* Update mediawiki-history statistics for better names and more consistent probing
+* Fix RefineTarget.inferInputFormat filtering out fiels starting with _ 
+
 ## v0.0.64
 * Update regular expressions used to parse User Agent Strings
 * Add PartitionedDataFrame to Spark refine job
