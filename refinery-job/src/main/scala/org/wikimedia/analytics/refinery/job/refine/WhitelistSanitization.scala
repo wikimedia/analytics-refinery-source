@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types.{MapType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
@@ -132,30 +132,45 @@ object WhitelistSanitization {
     sealed trait MaskNode {
         def apply(value: Any): Any
         def merge(other: MaskNode): MaskNode
+        def equals(other: MaskNode): Boolean
     }
-    case class MaskLeafNode(action: SanitizationAction.Value) extends MaskNode {
-        // For leaf nodes the apply method performs the action
+
+    case class ValueMaskNode(action: SanitizationAction.Value) extends MaskNode {
+        // For value nodes the apply method performs the action
         // to sanitize the given value.
         def apply(value: Any): Any = {
             action match {
                 case SanitizationAction.Identity => value
-                case SanitizationAction.Nullify => null
+                case SanitizationAction.Nullify =>
+                    value match {
+                        case _: Map[String, Any] => Map()
+                        case _ => null
+                    }
             }
         }
         // Merges another mask node (overlay) on top of this one (base).
         def merge(other: MaskNode): MaskNode = {
             other match {
-                case otherLeaf: MaskLeafNode =>
-                    otherLeaf.action match {
+                case otherValue: ValueMaskNode =>
+                    otherValue.action match {
                         case SanitizationAction.Nullify => this
                         case _ => other
                     }
-                case _: MaskInnerNode => other
+                case _: StructMaskNode => other
+                case _: MapMaskNode => other
+            }
+        }
+        // For testing.
+        def equals(other: MaskNode): Boolean = {
+            other match {
+                case otherValue: ValueMaskNode => action == otherValue.action
+                case _ => false
             }
         }
     }
-    case class MaskInnerNode(children: Array[MaskNode]) extends MaskNode {
-        // For inner nodes the apply function calls the apply function
+
+    case class StructMaskNode(children: Array[MaskNode]) extends MaskNode {
+        // For struct nodes the apply function calls the apply function
         // on all fields of the given row.
         def apply(value: Any): Any = {
             val row = value.asInstanceOf[Row]
@@ -166,20 +181,80 @@ object WhitelistSanitization {
         // Merges another mask node (overlay) on top of this one (base).
         def merge(other: MaskNode): MaskNode = {
             other match {
-                case otherLeaf: MaskLeafNode =>
-                    otherLeaf.action match {
+                case otherValue: ValueMaskNode =>
+                    otherValue.action match {
                         case SanitizationAction.Nullify => this
                         case _ => other
                     }
-                case otherInner: MaskInnerNode =>
-                    MaskInnerNode(
-                        children.zip(otherInner.children).map { case (a, b) => a.merge(b) }
+                case otherStruct: StructMaskNode =>
+                    StructMaskNode(
+                        children.zip(otherStruct.children).map { case (a, b) => a.merge(b) }
                     )
             }
         }
+        // For testing.
+        def equals(other: MaskNode): Boolean = {
+            other match {
+                case otherStruct: StructMaskNode => (
+                    children.size == otherStruct.children.size &&
+                    children.zip(otherStruct.children).foldLeft(true) {
+                        case (result, pair) => result && pair._1.equals(pair._2)
+                    }
+                )
+                case _ => false
+            }
+        }
     }
+
+    case class MapMaskNode(whitelist: Whitelist) extends MaskNode {
+        // For map nodes the apply function applies the map whitelist
+        // on all key-value pairs of the given map.
+        def apply(value: Any): Any = {
+            val valueMap = value.asInstanceOf[Map[String, Any]]
+            valueMap.flatMap { case (key, value) =>
+                if (whitelist.contains(key)) {
+                    Seq(
+                        key -> (whitelist(key) match {
+                            case SanitizationAction.Identity => value
+                            case childMask: MapMaskNode => childMask.apply(value)
+                        })
+                    )
+                } else Seq.empty
+            }
+        }
+        // Merges another mask node (overlay) on top of this one (base).
+        def merge(other: MaskNode): MaskNode = {
+            other match {
+                case otherValue: ValueMaskNode =>
+                    otherValue.action match {
+                        case SanitizationAction.Nullify => this
+                        case _ => other
+                    }
+                case otherMap: MapMaskNode =>
+                    val otherWhitelist = otherMap.whitelist
+                    MapMaskNode(
+                        whitelist.filterKeys(k => !otherWhitelist.contains(k)) ++
+                        otherWhitelist.filterKeys(k => !whitelist.contains(k)) ++
+                        whitelist.keys.filter(k => otherWhitelist.contains(k)).map { k =>
+                            (whitelist(k), otherWhitelist(k)) match {
+                                case (a: MapMaskNode, b: MapMaskNode) => k -> a.merge(b)
+                                case _ => k -> otherWhitelist(k)
+                            }
+                        }.toMap
+                    )
+            }
+        }
+        // For testing.
+        def equals(other: MaskNode): Boolean = {
+            other match {
+                case otherMap: MapMaskNode => whitelist == otherMap.whitelist
+                case _ => false
+            }
+        }
+    }
+
     /**
-      * Sanitization actions for the MaskLeafNode to apply.
+      * Sanitization actions for the ValueMaskNode to apply.
       */
     object SanitizationAction extends Enumeration {
         val Identity, Nullify = Value
@@ -202,8 +277,6 @@ object WhitelistSanitization {
         (partDf: PartitionedDataFrame) => {
             sanitizeTable(
                 partDf,
-                partDf.partition.table,
-                partDf.partition.keys,
                 lowerCaseWhitelist
             )
         }
@@ -224,11 +297,9 @@ object WhitelistSanitization {
 
     def sanitizeTable(
         partDf: PartitionedDataFrame,
-        tableName: String,
-        partitionKeys: Seq[String],
         whitelist: Whitelist
     ): PartitionedDataFrame = {
-        whitelist.get(tableName.toLowerCase) match {
+        whitelist.get(partDf.partition.table.toLowerCase) match {
             // Table is not in the whitelist: return empty DataFrame.
             case None => partDf.copy(df = emptyDataFrame(partDf.df.sparkSession, partDf.df.schema))
             // Table is in the whitelist as keepall: return DataFrame as is.
@@ -239,7 +310,7 @@ object WhitelistSanitization {
                 val tableSpecificMask = getStructMask(
                     partDf.df.schema,
                     tableWhitelist,
-                    partitionKeys
+                    partDf.partition.keys
                 )
                 // Merge the table-specific mask with the defaults mask,
                 // if the defaults section is present in the whitelist.
@@ -248,7 +319,7 @@ object WhitelistSanitization {
                     getStructMask(
                         partDf.df.schema,
                         defaultsWhitelist.get.asInstanceOf[Whitelist],
-                        partitionKeys
+                        partDf.partition.keys
                     ).merge(tableSpecificMask)
                 } else tableSpecificMask
                 // Apply sanitization to the data.
@@ -256,8 +327,8 @@ object WhitelistSanitization {
                     partDf,
                     sanitizationMask
                 )
-            case _ => throw new Exception(
-                s"Invalid whitelist value for table '$tableName'."
+            case _ => throw new IllegalArgumentException(
+                s"Invalid whitelist value for table '${partDf.partition.table}'."
             )
         }
     }
@@ -266,64 +337,98 @@ object WhitelistSanitization {
       * Returns a sanitization mask (compiled whitelist) for a given StructType and whitelist.
       * The `partitions` parameter enforces whitelisting partition columns.
       *
-      * NOTICE: This function actually validates that the given whitelist is correctly defined.
-      *
+      * NOTICE: This function also validates that the given whitelist is correctly defined.
       */
     def getStructMask(
         struct: StructType,
         whitelist: Whitelist,
         partitions: Seq[String] = Seq.empty
     ): MaskNode = {
-        MaskInnerNode(
+        StructMaskNode(
             struct.fields.map { field =>
-                if (partitions.contains(field.name)) MaskLeafNode(SanitizationAction.Identity)
-                else getFieldMask(field, whitelist)
+                if (partitions.contains(field.name)) {
+                    // The field is a partition field and should be kept.
+                    ValueMaskNode(SanitizationAction.Identity)
+                } else {
+                    val lowerCaseFieldName = field.name.toLowerCase
+                    if (whitelist.contains(lowerCaseFieldName)) {
+                        // The field is in the whitelist and should be fully or partially kept.
+                        getValueMask(field, whitelist(lowerCaseFieldName))
+                    } else {
+                        // The field is not in the whitelist and should be purged.
+                        if (field.nullable) {
+                            ValueMaskNode(SanitizationAction.Nullify)
+                        } else {
+                            throw new RuntimeException(
+                                s"Field '${field.name}' needs to be nullified but is not nullable."
+                            )
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    def getMapMask(
+        map: MapType,
+        whitelist: Whitelist
+    ): MaskNode = {
+        MapMaskNode(
+            map.valueType match {
+                case MapType(_, _, _) => whitelist.map { case (key, value) =>
+                    value match {
+                        case "keepall" => key -> SanitizationAction.Identity
+                        case childWhitelist: Whitelist =>
+                            key -> getMapMask(map.valueType.asInstanceOf[MapType], childWhitelist)
+                        case _ => throw new IllegalArgumentException(
+                            s"Invalid whitelist value for map key '${key}'."
+                        )
+                    }
+                }
+                case _ => whitelist.map { case (key, value) =>
+                    value match {
+                        case "keep" => key -> SanitizationAction.Identity
+                        case _ => throw new IllegalArgumentException(
+                            s"Invalid whitelist value for map key '${key}'."
+                        )
+                    }
+                }
             }
         )
     }
 
     /**
       * Returns a sanitization mask (compiled whitelist) for a given StructField and whitelist.
+      *
+      * NOTICE: This function also validates that the given whitelist is correctly defined.
       */
-    def getFieldMask(
+    def getValueMask(
         field: StructField,
-        whitelist: Whitelist
+        whitelistValue: Any
     ): MaskNode = {
-        val lowerCaseFieldName = field.name.toLowerCase
-        if (whitelist.contains(lowerCaseFieldName)) {
-            // The field is in the whitelist and should be fully or partially kept.
-            field.dataType match {
-                case StructType(_) =>
-                    // The field contains a nested object.
-                    whitelist(lowerCaseFieldName) match {
-                        // The field is to be kept entirely: apply identity.
-                        case "keepall" => MaskLeafNode(SanitizationAction.Identity)
-                        // The field has further specifications: continue recursively.
-                        case childWhitelist: Whitelist =>
-                            val struct = field.dataType.asInstanceOf[StructType]
-                            getStructMask(struct, childWhitelist)
-                        // Invalid whitelist value.
-                        case _ => throw new IllegalArgumentException(
-                            s"Invalid whitelist value for nested field '${field.name}'."
+        field.dataType match {
+            case StructType(_) | MapType(_, _, _) => whitelistValue match {
+                case "keepall" => ValueMaskNode(SanitizationAction.Identity)
+                case childWhitelist: Whitelist => field.dataType match {
+                    case StructType(_) =>
+                        getStructMask(
+                            field.dataType.asInstanceOf[StructType],
+                            childWhitelist
                         )
-                    }
-                case _ =>
-                    // The field contains a simple value.
-                    whitelist(lowerCaseFieldName) match {
-                        // The field is to be kept: apply identity.
-                        case "keep" => MaskLeafNode(SanitizationAction.Identity)
-                        // Invalid whitelist value.
-                        case _ => throw new Exception(
-                            s"Invalid whitelist value for non-nested field '${field.name}'."
+                    case MapType(_, _, _) =>
+                        getMapMask(
+                            field.dataType.asInstanceOf[MapType],
+                            childWhitelist
                         )
-                    }
+                }
+                case _ => throw new IllegalArgumentException(
+                    s"Invalid whitelist value for nested field '${field.name}'."
+                )
             }
-        } else {
-            // The field is not in the whitelist and should be purged:
-            // apply nullify or fail if field is not nullable.
-            if (field.nullable) MaskLeafNode(SanitizationAction.Nullify) else {
-                throw new Exception(
-                    s"Field '${field.name}' needs to be nullified but is not nullable."
+            case _ => whitelistValue match {
+                case "keep" => ValueMaskNode(SanitizationAction.Identity)
+                case _ => throw new IllegalArgumentException(
+                    s"Invalid whitelist value for non-nested field '${field.name}'."
                 )
             }
         }

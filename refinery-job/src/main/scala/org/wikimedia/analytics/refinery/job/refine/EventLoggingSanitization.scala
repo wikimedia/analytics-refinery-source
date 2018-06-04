@@ -1,14 +1,12 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import java.io.{File, FileInputStream}
-
 import com.github.nscala_time.time.Imports._
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 import org.yaml.snakeyaml.Yaml
-import scopt.OptionParser
-
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
+import scopt.OptionParser
 
 
 object EventLoggingSanitization {
@@ -147,8 +145,11 @@ object EventLoggingSanitization {
                 argsParser.parse(args, Params()).getOrElse(sys.exit(1))
         }
 
-        // Exit non-zero if anything failed.
-        if (apply(params)) sys.exit(0) else sys.exit(1)
+        val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
+        val allSucceeded = apply(params, spark)
+        if (spark.conf.get("spark.master") != "yarn") {
+            sys.exit(if (allSucceeded) 0 else 1)
+        }
     }
 
 
@@ -156,11 +157,16 @@ object EventLoggingSanitization {
       * Apply sanitization to EventLogging database with the specified params.
       *
       * @param params Params
+      * @param spark Spark session
       * @return true if the sanitization succeeded, false otherwise.
       */
-    def apply(params: Params): Boolean = {
+    def apply(
+        params: Params,
+        spark: SparkSession
+    ): Boolean = {
         // Read whitelist from yaml file.
-        val whitelistStream = new FileInputStream(new File(params.whitelistPath))
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        val whitelistStream = fs.open(new Path(params.whitelistPath))
         val javaObject = new Yaml().load(whitelistStream)
         val whitelist = validateWhitelist(javaObject)
 
@@ -168,9 +174,6 @@ object EventLoggingSanitization {
         // This prevents Refine to collect RefineTargets for those tables
         // and to create a tree of directories just to store success files.
         val tableWhitelistRegex = new Regex("^(" + whitelist.keys.mkString("|") + ")$")
-
-        // Initialize context.
-        val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
 
         // Get WhitelistSanitization transform function.
         val sanitizationTransformFunction = WhitelistSanitization(whitelist)
