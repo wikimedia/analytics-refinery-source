@@ -5,16 +5,21 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.DenormalizedHistoryChecker
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageHistoryChecker
+import org.wikimedia.analytics.refinery.job.mediawikihistory.reduced.ReducedHistoryChecker
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserHistoryChecker
 import scopt.OptionParser
 
 
 /**
   * Job checking a mediawiki-history snapshot versus a previously generated one (expected correct).
-  * This job can check either user_history, page_history and history (the fully denormalized one)
-  * as single steps, or all-together. The three datasets are grouped by wiki and event entity and
- * type (user create, user rename, page create, page move, revision create, etc) and metrics are
- * computed against the groups:
+  * This job can check either user_history, page_history, denormalized-history or reduced-history.
+  *
+  * There is one difference about the reduced-history run: instead of appending results to the output
+  * folders as user,page or denormalized checkers do (since they are run altogether in the same oozie
+  * job), the reduced-checkers overwrite its result folder (as it is run alone).
+  *
+  * The datasets are grouped by wiki and event entity and type (user create, user rename, page create,
+  * page move, revision create, etc) and metrics are computed against the groups:
   *  - user_history:   Number of events, distinct number of user_ids, distinct number of user_texts
   *                    distinct number of bots, number of bot events, number of anonymous events
   *  - page_history:   Number of events, distinct number of page_ids and artificial page ids
@@ -22,6 +27,8 @@ import scopt.OptionParser
   *  - denorm_history: Number of events, same metrics as for user_history and page_history (for user
   *                    and page event entities, as the dataset is denormalized), number of deleted
   *                    revisions, number reverted revisions, and number of reverts revisions.
+  *  - reduced_history: Same as denorm_history, with additition of specific fields for digests events.
+  *
   *  Each of those metrics is expected to grow from the previous snapshot to the next. Since we know
   *  there are unexpected cases (real data deletion, and page-id/page-artificial-id artifact because
   *  of page deletion), the lower accepted threshold for metrics-growth is set to -0.01%. The higher
@@ -29,7 +36,7 @@ import scopt.OptionParser
   *  of events. Another check is made on how many wiki/metrics have been reported in error: less than
   *  5% of the dataset rows in error is not reported.
   *  In order to better differenciate signal from noise, we concentrate on the wikis with he most
-  *  edit activity, taking the top 100 by default.
+  *  edit activity, taking the top 50 by default.
   *
   *  usage example (using joal settings):
   *
@@ -43,8 +50,9 @@ import scopt.OptionParser
   *     --class org.wikimedia.analytics.refinery.job.mediawikihistory.MediawikiHistoryChecker \
   *     /home/joal/code/refinery-source/refinery-job/target/refinery-job-0.0.66-SNAPSHOT.jar \
   *     -i /wmf/data/wmf/mediawiki \
-  *     -p 2018-04
-  *     -n 2018-05
+  *     -p 2018-04 \
+  *     -n 2018-05 \
+  *     --check-denormalized-history
   *
   */
 object MediawikiHistoryChecker {
@@ -65,7 +73,7 @@ object MediawikiHistoryChecker {
                     checkUserHistory: Boolean = false,
                     checkPageHistory: Boolean = false,
                     checkDenormHistory: Boolean = false,
-                    checkAll: Boolean = true,
+                    checkReducedHistory: Boolean = false,
                     debug: Boolean = false
                    )
 
@@ -116,13 +124,16 @@ object MediawikiHistoryChecker {
     } text "The ratio above which error-rows-ratio raise an error (default to 0.05)"
 
     opt[Unit]("check-user-history").action( (_, c) =>
-      c.copy(checkUserHistory = true, checkAll = false)).text("Run specific check(s) -- User History")
+      c.copy(checkUserHistory = true)).text("Check User History")
 
     opt[Unit]("check-page-history").action( (_, c) =>
-      c.copy(checkPageHistory = true, checkAll = false) ).text("Run specific check(s) -- Pages History")
+      c.copy(checkPageHistory = true)).text("Check Pages History")
 
     opt[Unit]("check-denormalized-history").action( (_, c) =>
-      c.copy(checkDenormHistory = true, checkAll = false) ).text("Run specific check(s) -- Denormalized history")
+      c.copy(checkDenormHistory = true)).text("Check Denormalized history")
+
+    opt[Unit]("check-reduced-history").action( (_, c) =>
+      c.copy(checkReducedHistory = true)).text("Check Reduced history")
 
     opt[Unit]("debug").action( (_, c) =>
       c.copy(debug = true) ).text("debug mode -- spark logs added to applicative logs (VERY verbose)")
@@ -167,7 +178,7 @@ object MediawikiHistoryChecker {
             | checkUserHistory = ${params.checkUserHistory}
             | checkPageHistory = ${params.checkPageHistory}
             | checkDenormHistory = ${params.checkDenormHistory}
-            | checkAll = ${params.checkAll}
+            | checkReducedHistory = ${params.checkReducedHistory}
           """.stripMargin)
 
         val previousSnapshot = params.previousSnapshot
@@ -182,7 +193,7 @@ object MediawikiHistoryChecker {
 
         val spark = SparkSession.builder().config(conf).enableHiveSupport().getOrCreate()
 
-        if (params.checkAll || params.checkUserHistory) {
+        if (params.checkUserHistory) {
           new UserHistoryChecker(spark,
             params.mediawikiHistoryBasePath,
             previousSnapshot,
@@ -194,7 +205,7 @@ object MediawikiHistoryChecker {
           ).checkUserHistory()
         }
 
-        if (params.checkAll || params.checkPageHistory) {
+        if (params.checkPageHistory) {
           new PageHistoryChecker(spark,
             params.mediawikiHistoryBasePath,
             previousSnapshot,
@@ -206,7 +217,7 @@ object MediawikiHistoryChecker {
           ).checkPageHistory()
         }
 
-        if (params.checkAll || params.checkDenormHistory) {
+        if (params.checkDenormHistory) {
           new DenormalizedHistoryChecker(spark,
             params.mediawikiHistoryBasePath,
             previousSnapshot,
@@ -216,6 +227,18 @@ object MediawikiHistoryChecker {
             params.maxEventsGrowthThreshold,
             params.wrongRowsRatioThreshold
           ).checkDenormHistory()
+        }
+
+        if (params.checkReducedHistory) {
+          new ReducedHistoryChecker(spark,
+            params.mediawikiHistoryBasePath,
+            previousSnapshot,
+            newSnapshot,
+            params.wikisToCheck,
+            params.minEventsGrowthThreshold,
+            params.maxEventsGrowthThreshold,
+            params.wrongRowsRatioThreshold
+          ).checkReducedHistory()
         }
 
       case None => sys.exit(1) // If args parsing fail (parser prints nice error)
