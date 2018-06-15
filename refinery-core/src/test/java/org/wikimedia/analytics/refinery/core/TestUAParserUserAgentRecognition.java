@@ -141,4 +141,30 @@ public class TestUAParserUserAgentRecognition extends TestCase {
 
     }
 
+    /**
+     * Tests user_agent string longer than 512.
+     * It should return an empty map (full of -), preventing to spend too long parsing
+     * an obviously wrong value.
+     **/
+    @Test
+    public void testHandlingOfToolLongAgent() {
+
+        String longAgent = "";
+        for (int i = 0; i < 526; i++)
+            longAgent += "a";
+        Map<String, String> evaled = uaParser.getUAMap(longAgent);
+
+        String resultOSName = evaled.get("os_family");
+        String resultBrowserName = evaled.get("browser_family");
+        String resultOsMinor = evaled.get("os_minor");
+        assertEquals("OS name check", (new String("-")),
+                resultOSName.toString());
+        assertEquals("Browser name check", (new String("-")),
+                resultBrowserName.toString());
+
+        assertEquals("OS minor", (new String("-")),
+                resultOsMinor.toString());
+
+    }
+
 }

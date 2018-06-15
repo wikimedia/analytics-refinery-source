@@ -29,6 +29,8 @@ import java.util.Map;
  */
 public class UAParser {
 
+    public static final int MAX_UA_LENGTH = 512;
+
     public static final String NA = "-";
 
     private static final Logger LOG = Logger.getLogger(UAParser.class.getName());
@@ -79,6 +81,8 @@ public class UAParser {
     /**
      * Function extracting browser, device and os information from the UA string.
      * In case the uaString is null, make it an empty String.
+     * In case the uaString is longer than 512 characters, don't even try to parse,
+     * return empty map.
      * @param uaString the ua string to parse
      * @return the ua map with browser_family, browser_major, device_family,
      * os_family, os_major, os_minor, wmf_app_version keys and associated values.
@@ -94,16 +98,19 @@ public class UAParser {
         if (uaString == null)
             uaString = "";
 
-        try {
-            Client c = cachingParser.parse(uaString);
-            if (c != null) {
-                browser = c.userAgent;
-                device = c.device;
-                os = c.os;
+
+        if (uaString.length() <= MAX_UA_LENGTH) {
+            try {
+                Client c = cachingParser.parse(uaString);
+                if (c != null) {
+                    browser = c.userAgent;
+                    device = c.device;
+                    os = c.os;
+                }
+            } catch (Exception e) {
+                // catch it all to make sure job does not halt if one record is faulty
+                LOG.error(e.getMessage(), e);
             }
-        } catch (Exception e) {
-            // catch it all to make sure job does not halt if one record is faulty
-            LOG.error(e.getMessage(), e);
         }
 
         if (browser != null) {
