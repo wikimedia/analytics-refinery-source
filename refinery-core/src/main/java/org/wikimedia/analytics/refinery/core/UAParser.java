@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public class UAParser {
 
-    public static final int MAX_UA_LENGTH = 512;
+    public static final int MAX_UA_LENGTH = 1024;
 
     public static final String NA = "-";
 

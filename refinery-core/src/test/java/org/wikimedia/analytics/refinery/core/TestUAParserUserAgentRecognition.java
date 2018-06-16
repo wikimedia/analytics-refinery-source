@@ -143,14 +143,14 @@ public class TestUAParserUserAgentRecognition extends TestCase {
 
     /**
      * Tests user_agent string longer than 512.
-     * It should return an empty map (full of -), preventing to spend too long parsing
-     * an obviously wrong value.
+     * It should return an empty map (full of -), preventing
+     * to spend too much time parsing probably wrong values
      **/
     @Test
     public void testHandlingOfToolLongAgent() {
 
         String longAgent = "";
-        for (int i = 0; i < 526; i++)
+        for (int i = 0; i < UAParser.MAX_UA_LENGTH + 10; i++)
             longAgent += "a";
         Map<String, String> evaled = uaParser.getUAMap(longAgent);
 
