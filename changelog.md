@@ -1,3 +1,7 @@
+## v0.0.66
+* Add a length limit to webrequest user-agent parsing
+* Allow partial whitelisting of map fields in Whitelist sanitization
+
 ## v0.0.65
 * Update mediawiki-history statistics for better names and more consistent probing
 * Fix RefineTarget.inferInputFormat filtering out fiels starting with _ 
