@@ -5,14 +5,16 @@ import org.apache.spark.sql.types.{MapType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
+
 /**
   * This module returns a transformation function that can be applied
-  * to the Refine process to sanitize a given DataFrame and HivePartition.
+  * to the Refine process to sanitize a given PartitionedDataFrame.
   *
   * The sanitization is done using a whitelist to determine which tables
   * and fields should be purged and which ones should be kept. The whitelist
   * is provided as a recurive tree of Map[String, Any], following format and
   * rules described below:
+  *
   *   Map(
   *       "tableOne" -> Map(
   *           "fieldOne" -> "keep",
@@ -35,59 +37,57 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   * - If the table name of the given HivePartition is not present in the
   *   whitelist, the transformation function will return an empty DataFrame.
   *
-  * - If the table name of the given DataFrame is present in the whitelist and
+  * - If the table name of the given HivePartition is present in the whitelist and
   *   is tagged as 'keepall', the transformation function will return the full
   *   DataFrame as is.
   *
   * - For tables, tags different from 'keepall' will throw an exception.
   *
-  * - If the table name of the given DataFrame is present in the whitelist and
-  *   has a Map as value, the transformation function will apply the
-  *   sanitizations specified in that map to the DataFrame's fields
-  *   and return it. See: FIELDS.
+  * - If the table name of the given HivePartition is present in the whitelist
+  *   and its value is a Map, the transformation function will apply the
+  *   sanitizations specified in that Map to the DataFrame's fields and return it.
+  *   See: FIELDS.
   *
   *
   * FIELDS:
   *
-  * - The second and subsequent levels of the whitelist correspond to field
-  *   names. It's assumed from now on, that the parent table (or struct field)
-  *   is present in the whitelist, and that it has a Map as value.
+  * - The second and subsequent levels of the whitelist correspond to field names.
   *
-  * - If a field (or sub-field) name is not present in the corresponding
-  *   Map, the transformation function will set all records for that
-  *   field to null, regardless of field type.
+  * - If a field (or sub-field) name is not present in the corresponding whitelist
+  *   Map, the transformation function will set that field to null for all records,
+  *   regardless of field type.
   *
   * - Thus, all fields that are to be purged by this method, should be nullable.
   *   Otherwise, the transformation function will throw an exception.
   *
   * - If a field (or sub-field) name is present in the corresponding Map,
-  *   it will handled differently depending on its type.
+  *   it will be handled differently depending on its type.
   *
   *
-  * FIELDS OF TYPE STRUCT:
+  * FIELDS OF TYPE STRUCT OR MAP:
   *
-  * - If a field name of type struct is present in the corresponding indented
-  *   block and is tagged 'keepall', the transformation function will fully
-  *   copy the full struct content of that field to the returned DataFrame.
+  * - If a field name of type Struct/Map is present in the corresponding whitelist
+  *   Map and is tagged 'keepall', the transformation function will copy the full
+  *   Struct/Map content of that field to the returned DataFrame.
   *
-  * - For fields of struct type, tags different from 'keepall' will throw an exception.
+  * - For fields of type Struct/Map, tags different from 'keepall' will throw an exception.
   *
-  * - Struct type fields, like tables, can have a Map as value as well.
-  *   If a field name of struct type is present in the whitelist and has
-  *   a Map value, the transformation function will apply the sanitizations
+  * - Struct/Map type fields, like tables, can have a Map as whitelist value as well.
+  *   If a field name of Struct/Map type is present in the whitelist and its value
+  *   is a Map, the transformation function will apply the sanitizations
   *   specified in that Map to its nested fields. See: FIELDS.
   *
   *
-  * FIELDS OF TYPES DIFFERENT FROM STRUCT:
+  * FIELDS OF TYPES DIFFERENT FROM STRUCT OR MAP:
   *
-  * - If a field name of non-struct type is present in the corresponding Map
-  *   and is tagged 'keep', the transformation function will copy the value of
-  *   that field to the returned DataFrame.
+  * - If a field name of non-Struct/non-Map type is present in the corresponding
+  *   whitelist Map and is tagged 'keep', the transformation function will copy
+  *   its value to the returned DataFrame.
   *
-  * - For non-sruct type fields, tags different from 'keep' will throw an exception.
+  * - For non-Struct/non-Map type fields, tags different from 'keep' will throw an exception.
   *
-  * - Non-struct type fields can not open indented blocks. If this happens, the
-  *   whitelist will not validate.
+  * - Non-Struct/non-Map type fields can not have Map values in the whitelist.
+  *   If this happens, an exception will be thrown.
   *
   *
   * DEFAULTS SECTION
@@ -95,11 +95,12 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   * - If the whitelist contains a top level key named '__defaults__', its spec
   *   will be applied as a default to all whitelisted tables.
   *
-  * - Fields that are present in the defaults spec and are not present in the
-  *   table-specific spec will be sanitized as indicated in the defaults spec.
+  * - Fields (or sub-fields) that are present in the defaults spec and are not
+  *   present in the table-specific spec will be sanitized as indicated in the
+  *   defaults spec.
   *
-  * - Fields that are present in the table-specific spec will be sanitized as
-  *   indicated in it, regardless of the defaults spec for that field.
+  * - Fields (or sub-fields) that are present in the table-specific spec will be
+  *   sanitized as indicated in it, regardless of the defaults spec for that field.
   *
   * - Tables that are not present in the whitelist, will not be applied defaults.
   *   Hence, the transformation function will return an empty DataFrame.
@@ -113,8 +114,11 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *   For other data sets, robustness will be the most important thing. In
   *   those cases, the use of 'keepall' might be dangerous, because it doesn't
   *   have control over new fields added to tables or new sub-fields added to
-  *   struct fields. Differentiating between 'keep' and 'keepall' allows to
+  *   Struct/Map fields. Differentiating between 'keep' and 'keepall' allows to
   *   easily avoid unwanted use of the 'keepall' semantics.
+  *
+  * - Also, in the future, other tags that apply anonymization transformations
+  *   might be implemented. For instance: 'bucket', 'hash', 'noise', etc.
   *
   */
 object WhitelistSanitization {
@@ -123,6 +127,7 @@ object WhitelistSanitization {
 
     val WhitelistDefaultsSectionLabel = "__defaults__"
 
+
     /**
       * The following tree structure stores a 'compiled' representation
       * of the whitelist. It is constructed prior to any data transformation,
@@ -130,11 +135,15 @@ object WhitelistSanitization {
       * table and not once per row.
       */
     sealed trait MaskNode {
+        // Applies sanitization to a given value.
         def apply(value: Any): Any
+        // Merges this mask with another given one.
         def merge(other: MaskNode): MaskNode
+        // Returns whether this mask equals another given one.
         def equals(other: MaskNode): Boolean
     }
 
+    // ValueMaskNode corresponds to simple (non-nested) sanitizations.
     case class ValueMaskNode(action: SanitizationAction.Value) extends MaskNode {
         // For value nodes the apply method performs the action
         // to sanitize the given value.
@@ -169,6 +178,7 @@ object WhitelistSanitization {
         }
     }
 
+    // StructMaskNode corresponds to nested sanitizations on top of Struct values.
     case class StructMaskNode(children: Array[MaskNode]) extends MaskNode {
         // For struct nodes the apply function calls the apply function
         // on all fields of the given row.
@@ -206,6 +216,7 @@ object WhitelistSanitization {
         }
     }
 
+    // StructMaskNode corresponds to nested sanitizations on top of Map values.
     case class MapMaskNode(whitelist: Whitelist) extends MaskNode {
         // For map nodes the apply function applies the map whitelist
         // on all key-value pairs of the given map.
@@ -253,16 +264,15 @@ object WhitelistSanitization {
         }
     }
 
-    /**
-      * Sanitization actions for the ValueMaskNode to apply.
-      */
+    // Sanitization actions for the ValueMaskNode to apply.
     object SanitizationAction extends Enumeration {
         val Identity, Nullify = Value
     }
 
+
     /**
      * Returns a transformation function to be used in the Refine process
-     * to sanitize a given DataFrame and HivePartition. The sanitization is
+     * to sanitize a given PartitionedDataFrame. The sanitization is
      * based on the specified whitelist. See comment at the top of this
      * module for more details on the whitelist format.
      *
@@ -282,8 +292,9 @@ object WhitelistSanitization {
         }
     }
 
-    // Recursively transforms all whitelist keys
-    // and tag values to lower case.
+    /**
+     * Recursively transforms all whitelist keys and tag values to lower case.
+     */
     def makeWhitelistLowerCase(
         whitelist: Whitelist
     ): Whitelist = {
@@ -295,6 +306,10 @@ object WhitelistSanitization {
         }
     }
 
+
+    /**
+     * Sanitizes a given PartitionedDataFrame with the specified whitelist.
+     */
     def sanitizeTable(
         partDf: PartitionedDataFrame,
         whitelist: Whitelist
@@ -337,7 +352,7 @@ object WhitelistSanitization {
       * Returns a sanitization mask (compiled whitelist) for a given StructType and whitelist.
       * The `partitions` parameter enforces whitelisting partition columns.
       *
-      * NOTICE: This function also validates that the given whitelist is correctly defined.
+      * This function also validates that the given whitelist is correctly defined.
       */
     def getStructMask(
         struct: StructType,
@@ -369,6 +384,15 @@ object WhitelistSanitization {
         )
     }
 
+    /**
+      * Returns a sanitization mask (compiled whitelist) for a given MapType and whitelist.
+      * As opposed to the StructMask (that uses implicit indexes), this mask uses lookups
+      * to determine which fields to keep or purge. The reason being that Maps do not
+      * guarantee the order their elements are iterated.
+      * Thus, Maps are less performant than Structs in this case.
+      *
+      * This function also validates that the given whitelist is correctly defined.
+      */
     def getMapMask(
         map: MapType,
         whitelist: Whitelist
@@ -376,6 +400,8 @@ object WhitelistSanitization {
         MapMaskNode(
             map.valueType match {
                 case MapType(_, _, _) => whitelist.map { case (key, value) =>
+                    // The whitelist for this field indicates the field is nested.
+                    // Build the MaskNode accordingly. If necessary, call recursively.
                     value match {
                         case "keepall" => key -> SanitizationAction.Identity
                         case childWhitelist: Whitelist =>
@@ -386,6 +412,8 @@ object WhitelistSanitization {
                     }
                 }
                 case _ => whitelist.map { case (key, value) =>
+                    // The whitelist for this field indicates the field is simple (not nested).
+                    // Build the MaskNode accordingly.
                     value match {
                         case "keep" => key -> SanitizationAction.Identity
                         case _ => throw new IllegalArgumentException(
@@ -400,7 +428,7 @@ object WhitelistSanitization {
     /**
       * Returns a sanitization mask (compiled whitelist) for a given StructField and whitelist.
       *
-      * NOTICE: This function also validates that the given whitelist is correctly defined.
+      * This function also validates that the given whitelist is correctly defined.
       */
     def getValueMask(
         field: StructField,
@@ -408,6 +436,8 @@ object WhitelistSanitization {
     ): MaskNode = {
         field.dataType match {
             case StructType(_) | MapType(_, _, _) => whitelistValue match {
+                // The field is nested, either StructType or MapType.
+                // Build the MaskNode accordingly. If necessary, call recursively.
                 case "keepall" => ValueMaskNode(SanitizationAction.Identity)
                 case childWhitelist: Whitelist => field.dataType match {
                     case StructType(_) =>
@@ -426,6 +456,7 @@ object WhitelistSanitization {
                 )
             }
             case _ => whitelistValue match {
+                // The field is not nested. Build the MaskNode accordingly.
                 case "keep" => ValueMaskNode(SanitizationAction.Identity)
                 case _ => throw new IllegalArgumentException(
                     s"Invalid whitelist value for non-nested field '${field.name}'."
@@ -455,6 +486,9 @@ object WhitelistSanitization {
         ))
     }
 
+    /**
+     * Returns an empty DataFrame.
+     */
     def emptyDataFrame(
         spark: SparkSession,
         schema: StructType

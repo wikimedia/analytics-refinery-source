@@ -50,11 +50,6 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result == expected)
     }
 
-// getStructMask
-// - partitions by default
-// - not in the whitelist -> nullify
-// - not in whitelist + non-nullable -> error
-
     it should "create a value mask for simple fields" in {
         val field = StructField("field", StringType, nullable=true)
 
