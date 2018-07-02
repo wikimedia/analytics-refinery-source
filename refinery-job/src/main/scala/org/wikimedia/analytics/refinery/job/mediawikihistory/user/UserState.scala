@@ -10,7 +10,7 @@ import org.wikimedia.analytics.refinery.spark.utils.Vertex
 /**
   * This case class represents a user state object, by opposition
   * to a user event object. It extends [[Vertex]] (for graph partitioning)
-  * with [[key]] defined as (WikiDb, username), and [[TimeBoundaries]]
+  * with [[key]] defined as (WikiDb, userText), and [[TimeBoundaries]]
   * since it has [[startTimestamp]] and [[endTimestamp]] fields.
   * It provides utility functions to read/write spark Rows.
   */
@@ -23,8 +23,8 @@ case class UserState(
                       causedByUserId: Option[Long] = None,
                       // Specific fields
                       userId: Long,
-                      userNameHistorical: String,
-                      userName: String,
+                      userTextHistorical: String,
+                      userText: String,
                       userGroupsHistorical: Seq[String] = Seq.empty[String],
                       userGroups: Seq[String] = Seq.empty[String],
                       userBlocksHistorical: Seq[String] = Seq.empty[String],
@@ -42,8 +42,8 @@ case class UserState(
   def toRow: Row = Row(
       wikiDb,
       userId,
-      userNameHistorical,
-      userName,
+      userTextHistorical,
+      userText,
       userGroupsHistorical,
       userGroups,
       userBlocksHistorical,
@@ -65,7 +65,7 @@ case class UserState(
       inferredFrom.orNull
   )
 
-  override def key: (String, String) = (wikiDb, userNameHistorical)
+  override def key: (String, String) = (wikiDb, userTextHistorical)
 }
 
 object UserState {
@@ -82,8 +82,8 @@ object UserState {
   def fromRow(row: Row): UserState = UserState(
       wikiDb = row.getString(0),
       userId = row.getLong(1),
-      userNameHistorical = row.getString(2),
-      userName = row.getString(3),
+      userTextHistorical = row.getString(2),
+      userText = row.getString(3),
       userGroupsHistorical = row.getSeq(4),
       userGroups = row.getSeq(5),
       userBlocksHistorical = row.getSeq(6),
@@ -109,8 +109,8 @@ object UserState {
     Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("user_id", LongType, nullable = false),
-      StructField("user_name_historical", StringType, nullable = false),
-      StructField("user_name", StringType, nullable = false),
+      StructField("user_text_historical", StringType, nullable = false),
+      StructField("user_text", StringType, nullable = false),
       StructField("user_groups_historical", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_groups", ArrayType(StringType, containsNull = true), nullable = false),
       StructField("user_blocks_historical", ArrayType(StringType, containsNull = true), nullable = false),

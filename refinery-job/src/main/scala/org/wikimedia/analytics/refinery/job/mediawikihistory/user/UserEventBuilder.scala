@@ -25,14 +25,14 @@ object UserEventBuilder extends Serializable {
   val weirdIdPattern = """^(#[0-9]+)$""".r
   val botUsernamePattern = """(?i)^.*bot([^a-z].*$|$)""".r
 
-  def isBotByName(userName: String): Boolean = {
-    if (userName != null)
-      botUsernamePattern.findFirstIn(userName).isDefined
+  def isBotByName(userText: String): Boolean = {
+    if (userText != null)
+      botUsernamePattern.findFirstIn(userText).isDefined
     else
       false
   }
 
-  def getOldAndNewUserNames(
+  def getOldAndNewUserTexts(
       logParams: String,
       logComment: String,
       logTitle: String
@@ -49,34 +49,34 @@ object UserEventBuilder extends Serializable {
       case _: Throwable =>
         try {
           logComment match {
-            case userRenamePattern(oldName, newName) =>
-              (oldName, newName, None)
+            case userRenamePattern(oldUserText, newUserText) =>
+              (oldUserText, newUserText, None)
           }
         } catch {
           case _: Throwable =>
             if ((logTitle != null) && (logParams != null))
               (logTitle.replaceAll("_", " "), logParams, None)
             else
-              (null, null, Some("Could not get old username from null logTitle or logParams"))
+              (null, null, Some("Could not get old userText from null logTitle or logParams"))
         }
     }
   }
 
-  def getCreationNames(
+  def getCreationUserTexts(
       logComment: String,
       logTitle: String
   ): (String, String, Option[String]) = {
     try {
       logComment match {
-        case userCreatePattern(name) => (name, name, None)
+        case userCreatePattern(userText) => (userText, userText, None)
       }
     } catch {
       case _: Throwable =>
         if (logTitle != null) {
-          val userName = logTitle.replaceAll("_", " ")
-          (userName, userName, None)
+          val userText = logTitle.replaceAll("_", " ")
+          (userText, userText, None)
         } else
-          (null, null, Some("Could not get creation names from null logtitle"))
+          (null, null, Some("Could not get creation userTexts from null logtitle"))
     }
   }
 
@@ -276,17 +276,17 @@ object UserEventBuilder extends Serializable {
       case None => (new Timestamp(0L), Some("Could not parse timestamp"))
     }
 
-    val (oldUserName, newUserName, namesError) = eventType match {
+    val (oldUserText, newUserText, userTextsError) = eventType match {
       case "rename" =>
-        getOldAndNewUserNames(logParams, logComment, logTitle)
+        getOldAndNewUserTexts(logParams, logComment, logTitle)
       case "create" =>
-        getCreationNames(logComment, logTitle)
+        getCreationUserTexts(logComment, logTitle)
       case _ =>
         if (logTitle != null) {
-          val userName = logTitle.replaceAll("_", " ")
-          (userName, userName, None)
+          val userText = logTitle.replaceAll("_", " ")
+          (userText, userText, None)
         } else
-          (null, null, Some("Could not get names from null logtitle"))
+          (null, null, Some("Could not get userTexts from null logtitle"))
     }
 
     val (oldUserGroups, newUserGroups, groupsError) = eventType match {
@@ -305,15 +305,15 @@ object UserEventBuilder extends Serializable {
     val createdBySystem = createEvent && (logAction == "autocreate")
     val createdByPeer = createEvent && ((logAction == "create2") || (logAction == "byemail"))
 
-    val parsingErrors = groupsError ++ blocksError ++ namesError ++ timestampError
+    val parsingErrors = groupsError ++ blocksError ++ userTextsError ++ timestampError
 
     new UserEvent(
         wikiDb = wikiDb,
         timestamp = logTimestamp,
         eventType = eventType,
         causedByUserId = logUser,
-        oldUserName = oldUserName,
-        newUserName = newUserName,
+        oldUserText = oldUserText,
+        newUserText = newUserText,
         oldUserGroups = oldUserGroups,
         newUserGroups = newUserGroups,
         newUserBlocks = newUserBlocks,

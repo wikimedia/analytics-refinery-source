@@ -30,24 +30,24 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
     ).foreach(bot => isBotByName(bot) should equal(false))
   }
 
-  "getOldAndNewUserNames" should "parse users from php blob" in {
-    getOldAndNewUserNames(
+  "getOldAndNewUserTexts" should "parse userTexts from php blob" in {
+    getOldAndNewUserTexts(
         """a:3:{s:10:"4::olduser";s:7:"Claaser";s:10:"5::newuser";s:6:"ClaasA";s:8:"6::edits";i:0;}""",
         "",
         ""
     ) should be ("Claaser", "ClaasA", None)
   }
 
-  it should "parse users from comment" in {
-    getOldAndNewUserNames(
+  it should "parse userTexts from comment" in {
+    getOldAndNewUserTexts(
         "",
         """Renamed the user "[[User:Yurik|Yurik]]" to "[[User:YurikBot|YurikBot]]" """,
         ""
     ) should be ("Yurik", "YurikBot", None)
   }
 
-  it should "read users from title and params" in {
-    getOldAndNewUserNames(
+  it should "read userTexts from title and params" in {
+    getOldAndNewUserTexts(
         "New Name", // log_params is not normalized
         "",
         "Old_Name" // log_title is normalized
@@ -55,40 +55,40 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
   }
 
   it should "return error reading from title if null title " in {
-    getOldAndNewUserNames(
+    getOldAndNewUserTexts(
       "",
       "",
       null
-    ) should be (null, null, Some("Could not get old username from null logTitle or logParams"))
+    ) should be (null, null, Some("Could not get old userText from null logTitle or logParams"))
   }
 
   it should "return error reading from title if null params " in {
-    getOldAndNewUserNames(
+    getOldAndNewUserTexts(
       null,
       "",
       ""
-    ) should be (null, null, Some("Could not get old username from null logTitle or logParams"))
+    ) should be (null, null, Some("Could not get old userText from null logTitle or logParams"))
   }
 
-  "getCreationNames" should "parse user from comment" in {
-    getCreationNames(
+  "getCreationUserTexts" should "parse userTexts from comment" in {
+    getCreationUserTexts(
         "Created the user [[User:Fiveless|Fiveless]] [[User talk:Fiveless|Talk]]",
         ""
     ) should be ("Fiveless", "Fiveless", None)
   }
 
-  it should "read user from title" in {
-    getCreationNames(
+  it should "read userText from title" in {
+    getCreationUserTexts(
         "",
         "User_Name" // log_title is normalized
     ) should be ("User Name", "User Name", None) // result is not normalized
   }
 
   it should "return error reading from title if title is null" in {
-    getCreationNames(
+    getCreationUserTexts(
       "",
       null
-    ) should be (null, null, Some("Could not get creation names from null logtitle"))
+    ) should be (null, null, Some("Could not get creation userTexts from null logtitle"))
   }
 
   "getOldAndNewUserGroups" should "parse groups from php blob" in {
@@ -290,9 +290,9 @@ nocreate"""))
       "renameuser",
       "20160101000000",
       12345L,
-      "OldUserName",
+      "OldUserText",
       "Some comment",
-      "NewUserName",
+      "NewUserText",
       "testwiki"
     )
     buildUserEvent(row) should be (new UserEvent(
@@ -300,8 +300,8 @@ nocreate"""))
       timestamp =  TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "rename",
       causedByUserId = Some(12345L),
-      oldUserName = "OldUserName",
-      newUserName = "NewUserName",
+      oldUserText = "OldUserText",
+      newUserText = "NewUserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty
     ))
@@ -313,7 +313,7 @@ nocreate"""))
       "rights",
       "20160101000000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       """sysop
 sysop,flood""",
@@ -324,8 +324,8 @@ sysop,flood""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "altergroups",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq("sysop"),
       newUserGroups = Seq("sysop", "flood")
     ))
@@ -337,7 +337,7 @@ sysop,flood""",
       "block",
       "20160101000000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       """indefinite
 nocreate,noemail""",
@@ -348,8 +348,8 @@ nocreate,noemail""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       newUserBlocks = Seq("nocreate", "noemail"),
@@ -363,7 +363,7 @@ nocreate,noemail""",
       "autocreate",
       "20160101000000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       "Some params",
       "testwiki"
@@ -373,8 +373,8 @@ nocreate,noemail""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "create",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       createdBySystem = true
@@ -387,7 +387,7 @@ nocreate,noemail""",
       "create",
       "20160101000000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       "Some params",
       "testwiki"
@@ -398,8 +398,8 @@ nocreate,noemail""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "create",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       createdBySelf = true
@@ -412,7 +412,7 @@ nocreate,noemail""",
       "byemail",
       "20160101000000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       "Some params",
       "testwiki"
@@ -423,8 +423,8 @@ nocreate,noemail""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "create",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       createdByPeer = true
@@ -437,7 +437,7 @@ nocreate,noemail""",
       "block",
       "20160101000000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       "Invalid params",
       "testwiki"
@@ -447,8 +447,8 @@ nocreate,noemail""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       newUserBlocks = Seq.empty,
@@ -473,14 +473,14 @@ nocreate,noemail""",
       timestamp = TimestampHelpers.makeMediawikiTimestamp("20160101000000").get,
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
-      oldUserName = null,
-      newUserName = null,
+      oldUserText = null,
+      newUserText = null,
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       newUserBlocks = Seq.empty,
       blockExpiration = None,
       parsingErrors = Seq("Could not parse blocks from: Invalid params",
-        "Could not get names from null logtitle")
+        "Could not get userTexts from null logtitle")
     ))
   }
 
@@ -490,7 +490,7 @@ nocreate,noemail""",
       "block",
       "20160101000",
       12345L,
-      "UserName",
+      "UserText",
       "Some comment",
       "Invalid params",
       "testwiki"
@@ -500,8 +500,8 @@ nocreate,noemail""",
       timestamp = new Timestamp(0L),
       eventType = "alterblocks",
       causedByUserId = Some(12345L),
-      oldUserName = "UserName",
-      newUserName = "UserName",
+      oldUserText = "UserText",
+      newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       newUserBlocks = Seq.empty,

@@ -19,8 +19,8 @@ case class UserEvent(
                       causedByUserId: Option[Long],
                       parsingErrors: Seq[String] = Seq.empty[String],
                       // Specific fields
-                      oldUserName: String,
-                      newUserName: String,
+                      oldUserText: String,
+                      newUserText: String,
                       oldUserGroups: Seq[String] = Seq.empty[String],
                       newUserGroups: Seq[String] = Seq.empty[String],
                       newUserBlocks: Seq[String] = Seq.empty[String],
@@ -29,6 +29,6 @@ case class UserEvent(
                       createdBySystem: Boolean = false,
                       createdByPeer: Boolean = false
 ) extends Edge[(String, String)] {
-  override def fromKey: (String, String) = (wikiDb, oldUserName)
-  override def toKey: (String, String) = (wikiDb, newUserName)
+  override def fromKey: (String, String) = (wikiDb, oldUserText)
+  override def toKey: (String, String) = (wikiDb, newUserText)
 }

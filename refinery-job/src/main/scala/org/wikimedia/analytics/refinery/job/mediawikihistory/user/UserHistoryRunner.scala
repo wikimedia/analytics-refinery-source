@@ -170,11 +170,12 @@ class UserHistoryRunner(
       spark.createDataFrame(userGroupsRdd, userGroupsSchema).createOrReplaceTempView("grouped_user_groups")
 
 
+    // We rename user_name to user_text as it is used this way accross other tables
     val userStates = spark.sql(
       s"""
   SELECT
     user_id,
-    user_name,
+    user_name as user_text,
     user_registration,
     u.wiki_db,
     rev.rev_timestamp as first_rev_timestamp,
@@ -229,8 +230,8 @@ class UserHistoryRunner(
         addOptionalStat(s"$wikiDb.$METRIC_INITIAL_STATES", 1L)
         new UserState(
             userId = row.getLong(0),
-            userNameHistorical = row.getString(1),
-            userName = row.getString(1),
+            userTextHistorical = row.getString(1),
+            userText = row.getString(1),
             userRegistrationTimestamp = (row.getString(2), row.getString(4)) match {
               case (null, null) => None
               case (null, potentialTimestamp) => TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp)

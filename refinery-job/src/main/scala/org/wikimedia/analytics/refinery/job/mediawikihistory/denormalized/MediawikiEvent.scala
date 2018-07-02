@@ -66,8 +66,8 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                     ) {
   def updateWithUserState(userState: UserState) = this.copy(
       userId = Some(userState.userId),
-      userTextHistorical = Some(userState.userNameHistorical),
-      userText = Some(userState.userName),
+      userTextHistorical = Some(userState.userTextHistorical),
+      userText = Some(userState.userText),
       userBlocksHistorical = Some(userState.userBlocksHistorical),
       userBlocks = Some(userState.userBlocks),
       userGroupsHistorical = Some(userState.userGroupsHistorical),
@@ -509,8 +509,8 @@ object MediawikiEvent {
     ),
     userDetails = new MediawikiEventUserDetails(
       userId = Some(userState.userId),
-      userTextHistorical = Some(userState.userNameHistorical),
-      userText = Some(userState.userName),
+      userTextHistorical = Some(userState.userTextHistorical),
+      userText = Some(userState.userText),
       userBlocksHistorical = Some(userState.userBlocksHistorical),
       userBlocks = Some(userState.userBlocks),
       userGroupsHistorical = Some(userState.userGroupsHistorical),
