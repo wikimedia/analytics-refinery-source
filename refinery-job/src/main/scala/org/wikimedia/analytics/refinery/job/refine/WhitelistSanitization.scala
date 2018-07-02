@@ -216,16 +216,17 @@ object WhitelistSanitization {
         }
     }
 
-    // StructMaskNode corresponds to nested sanitizations on top of Map values.
+    // MapMaskNode corresponds to nested sanitizations on top of Map values.
     case class MapMaskNode(whitelist: Whitelist) extends MaskNode {
         // For map nodes the apply function applies the map whitelist
         // on all key-value pairs of the given map.
         def apply(value: Any): Any = {
             val valueMap = value.asInstanceOf[Map[String, Any]]
             valueMap.flatMap { case (key, value) =>
-                if (whitelist.contains(key)) {
+                val lowerCaseKey = key.toLowerCase
+                if (whitelist.contains(lowerCaseKey)) {
                     Seq(
-                        key -> (whitelist(key) match {
+                        key -> (whitelist(lowerCaseKey) match {
                             case SanitizationAction.Identity => value
                             case childMask: MapMaskNode => childMask.apply(value)
                         })

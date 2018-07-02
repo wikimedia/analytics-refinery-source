@@ -221,12 +221,25 @@ class TestWhitelistSanitization extends FlatSpec
                 ValueMaskNode(Nullify),
                 ValueMaskNode(Identity)
             )),
+            // Note lowercase f (it would be lowercased anyway by makeWhitelistLowerCase).
             MapMaskNode(Map("f1" -> Identity)),
             ValueMaskNode(Nullify)
         ))
-        val row = Row(1, false, Row(2.5, "blah"), Map("f1" -> "muk", "f2" -> "jji"), Map("f3" -> "ppa"))
+        val row = Row(
+            1,
+            false,
+            Row(2.5, "blah"),
+            Map("F1" -> "muk", "F2" -> "jji"), // Note uppercase F.
+            Map("f3" -> "ppa")
+        )
         val result = mask.apply(row).asInstanceOf[Row]
-        val expected = Row(1, null, Row(null, "blah"), Map("f1" -> "muk"), Map())
+        val expected = Row(
+            1,
+            null,
+            Row(null, "blah"),
+            Map("F1" -> "muk"), // Uppercase is respected in output.
+            Map()
+        )
         assert(result == expected)
     }
 
