@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports._
+import java.io.{BufferedReader, InputStreamReader}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 import org.yaml.snakeyaml.Yaml
@@ -20,6 +21,7 @@ object EventLoggingSanitization {
         untilDateTime: DateTime = DateTime.now,
         outputBasePath: String = "/wmf/data/event_sanitized",
         outputDatabase: String = "event_sanitized",
+        saltPath: Option[String] = None,
         ignoreFailureFlag: Boolean = false,
         parallelism: Option[Int] = None,
         limit: Option[Int] = None,
@@ -98,6 +100,10 @@ object EventLoggingSanitization {
             p.copy(outputDatabase = x)
         }.text("Hive database name where to create or update sanitized tables. Default: 'event_sanitized'.")
 
+        opt[String]('S', "salt-path").optional().valueName("<saltPath>").action { (x, p) =>
+            p.copy(saltPath = Some(x))
+        }.text("Read the cryptographic salt for hashing of fields from this path.")
+
         opt[Unit]('f', "ignore-failure-flag").optional().action { (_, p) =>
             p.copy(ignoreFailureFlag = true)
         }.text("Set this if you want all partitions with failure files to be " +
@@ -164,11 +170,19 @@ object EventLoggingSanitization {
         params: Params,
         spark: SparkSession
     ): Boolean = {
-        // Read whitelist from yaml file.
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+
+        // Read whitelist from yaml file.
         val whitelistStream = fs.open(new Path(params.whitelistPath))
         val javaObject = new Yaml().load(whitelistStream)
         val whitelist = validateWhitelist(javaObject)
+
+        // Read hashing salt if provided.
+        val hashingSalt = if (params.saltPath.isDefined) {
+            val saltStream = fs.open(new Path(params.saltPath.get))
+            val saltReader = new BufferedReader(new InputStreamReader(saltStream))
+            Some(saltReader.lines.toArray.mkString)
+        } else None
 
         // Get a Regex with all tables that are whitelisted.
         // This prevents Refine to collect RefineTargets for those tables
@@ -176,7 +190,10 @@ object EventLoggingSanitization {
         val tableWhitelistRegex = new Regex("^(" + whitelist.keys.mkString("|") + ")$")
 
         // Get WhitelistSanitization transform function.
-        val sanitizationTransformFunction = WhitelistSanitization(whitelist)
+        val sanitizationTransformFunction = WhitelistSanitization(
+            whitelist,
+            hashingSalt
+        )
 
         // Call Refine process with the sanitization transform function.
         Refine(

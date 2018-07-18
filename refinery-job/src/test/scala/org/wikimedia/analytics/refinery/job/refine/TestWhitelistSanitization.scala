@@ -7,7 +7,6 @@ import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import scala.collection.immutable.ListMap
-import WhitelistSanitization.SanitizationAction._
 import WhitelistSanitization._
 
 
@@ -54,9 +53,15 @@ class TestWhitelistSanitization extends FlatSpec
         val field = StructField("field", StringType, nullable=true)
 
         // simple field whitelisted with keep
-        val result = getValueMask(field, "keep")
-        val expected = ValueMaskNode(Identity)
-        assert(result.equals(expected))
+        val result1 = getValueMask(field, "keep")
+        val expected1 = ValueMaskNode(Identity())
+        assert(result1.equals(expected1))
+
+        // string field whitelisted with hash
+        val salt = "salt"
+        val result2 = getValueMask(field, "hash", Some(salt))
+        val expected2 = ValueMaskNode(Hash(salt))
+        assert(result2.equals(expected2))
 
         // simple field whitelisted with invalid label
         an[Exception] should be thrownBy getValueMask(field, "keepall")
@@ -69,25 +74,41 @@ class TestWhitelistSanitization extends FlatSpec
 
         // nested field whitelisted with keepall
         val result1 = getValueMask(field, "keepall")
-        val expected1 = ValueMaskNode(Identity)
+        val expected1 = ValueMaskNode(Identity())
         assert(result1.equals(expected1))
 
         // nested struct field partially whitelisted
         val result2 = getValueMask(field, Map("subfield" -> "keep"))
-        val expected2 = StructMaskNode(Array(ValueMaskNode(Identity)))
+        val expected2 = StructMaskNode(Array(ValueMaskNode(Identity())))
         assert(result2.equals(expected2))
 
         // nested field whitelisted with invalid label
         an[Exception] should be thrownBy getValueMask(field, "keep")
     }
 
+    it should "raise an error when creating a value mask with an invalid hash action" in {
+        // string field, but salt is not defined
+        val field1 = StructField("field", StringType, nullable=true)
+        an[Exception] should be thrownBy getValueMask(field1, "hash", None)
+
+        // salt is defined, but field is not string
+        val field2 = StructField("field", IntegerType, nullable=true)
+        an[Exception] should be thrownBy getValueMask(field2, "hash", Some("salt"))
+    }
+
     it should "create a map mask for a map with simple values" in {
         val mapType = MapType(StringType, StringType, false)
 
         // simple subfield whitelisted with keep
-        val result = getMapMask(mapType, Map("subfield" -> "keep"))
-        val expected = MapMaskNode(Map("subfield" -> Identity))
-        assert(result.equals(expected))
+        val result1 = getMapMask(mapType, Map("subfield" -> "keep"))
+        val expected1 = MapMaskNode(Map("subfield" -> Identity()))
+        assert(result1.equals(expected1))
+
+        // string field whitelisted with hash
+        val salt = "salt"
+        val result2 = getMapMask(mapType, Map("subfield" -> "hash"), Some(salt))
+        val expected2 = MapMaskNode(Map("subfield" -> Hash(salt)))
+        assert(result2.equals(expected2))
 
         // map subfield whitelisted with keep
         an[Exception] should be thrownBy getMapMask(mapType, Map("subfield" -> "keepall"))
@@ -102,7 +123,7 @@ class TestWhitelistSanitization extends FlatSpec
 
         // map subfield whitelisted with keepall
         val result = getMapMask(mapOfMapsType, Map("subfield" -> "keepall"))
-        val expected = MapMaskNode(Map("subfield" -> Identity))
+        val expected = MapMaskNode(Map("subfield" -> Identity()))
         assert(result.equals(expected))
 
         // map subfield whitelisted with keep
@@ -114,7 +135,7 @@ class TestWhitelistSanitization extends FlatSpec
             StructField("field", StringType, nullable=true)
         ))
         val result = getStructMask(struct, Map())
-        val expected = StructMaskNode(Array(ValueMaskNode(Nullify)))
+        val expected = StructMaskNode(Array(ValueMaskNode(Nullify())))
         assert(result.equals(expected))
     }
 
@@ -144,86 +165,103 @@ class TestWhitelistSanitization extends FlatSpec
         )
         val result = getValueMask(field, whitelist)
         val expected = StructMaskNode(Array(
-            ValueMaskNode(Identity),
+            ValueMaskNode(Identity()),
             StructMaskNode(Array(
-                ValueMaskNode(Nullify),
-                MapMaskNode(Map("fc" -> Identity))
+                ValueMaskNode(Nullify()),
+                MapMaskNode(Map("fc" -> Identity()))
             )),
-            ValueMaskNode(Nullify)
+            ValueMaskNode(Nullify())
         ))
     }
 
     it should "merge a value mask with a value mask correctly" in {
-        val nullifyMask = ValueMaskNode(Nullify)
-        val identityMask = ValueMaskNode(Identity)
-        assert(nullifyMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action == Nullify)
-        assert(nullifyMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity)
-        assert(identityMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action == Identity)
-        assert(identityMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity)
+        val nullifyMask = ValueMaskNode(Nullify())
+        val identityMask = ValueMaskNode(Identity())
+        assert(nullifyMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action == Nullify())
+        assert(nullifyMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
+        assert(identityMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action == Identity())
+        assert(identityMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
     }
 
     it should "merge a value mask with a struct mask correctly" in {
-        val nullifyMask = ValueMaskNode(Nullify)
-        val identityMask = ValueMaskNode(Identity)
+        val nullifyMask = ValueMaskNode(Nullify())
+        val identityMask = ValueMaskNode(Identity())
         val structMask = StructMaskNode(Array(nullifyMask, identityMask))
         assert(nullifyMask.merge(structMask).asInstanceOf[StructMaskNode].children.size == 2)
         assert(identityMask.merge(structMask).asInstanceOf[StructMaskNode].children.size == 2)
         assert(structMask.merge(nullifyMask).asInstanceOf[StructMaskNode].children.size == 2)
-        assert(structMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity)
+        assert(structMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
     }
 
     it should "merge a value mask with a map mask correctly" in {
-        val nullifyMask = ValueMaskNode(Nullify)
-        val identityMask = ValueMaskNode(Identity)
-        val mapMask = MapMaskNode(Map("f1" -> Nullify, "f2" -> Identity))
+        val nullifyMask = ValueMaskNode(Nullify())
+        val identityMask = ValueMaskNode(Identity())
+        val mapMask = MapMaskNode(Map("f1" -> Nullify(), "f2" -> Identity()))
         assert(nullifyMask.merge(mapMask).asInstanceOf[MapMaskNode].whitelist.size == 2)
         assert(identityMask.merge(mapMask).asInstanceOf[MapMaskNode].whitelist.size == 2)
         assert(mapMask.merge(nullifyMask).asInstanceOf[MapMaskNode].whitelist.size == 2)
-        assert(mapMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity)
+        assert(mapMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
     }
 
     it should "merge a struct mask with a struct mask correctly" in {
-        val nullifyMask = ValueMaskNode(Nullify)
-        val identityMask = ValueMaskNode(Identity)
+        val nullifyMask = ValueMaskNode(Nullify())
+        val identityMask = ValueMaskNode(Identity())
         val structMask1 = StructMaskNode(Array(nullifyMask, identityMask))
         val structMask2 = StructMaskNode(Array(identityMask, nullifyMask))
         val result = structMask1.merge(structMask2).asInstanceOf[StructMaskNode]
         assert(result.children.size == 2)
-        assert(result.children(0).asInstanceOf[ValueMaskNode].action == Identity)
-        assert(result.children(1).asInstanceOf[ValueMaskNode].action == Identity)
+        assert(result.children(0).asInstanceOf[ValueMaskNode].action == Identity())
+        assert(result.children(1).asInstanceOf[ValueMaskNode].action == Identity())
     }
 
     it should "merge a map mask with a map mask correctly" in {
         val mapMask1 = MapMaskNode(Map(
-            "f1" -> Identity,
-            "f2" -> MapMaskNode(Map("sf2" -> Identity)),
-            "f3" -> MapMaskNode(Map("sf3" -> Identity))
+            "f1" -> Identity(),
+            "f2" -> MapMaskNode(Map("sf2" -> Identity())),
+            "f3" -> MapMaskNode(Map("sf3" -> Identity()))
         ))
         val mapMask2 = MapMaskNode(Map(
-            "f2" -> Identity,
-            "f3" -> MapMaskNode(Map("sf3bis" -> Identity)),
-            "f4" -> Identity
+            "f2" -> Identity(),
+            "f3" -> MapMaskNode(Map("sf3bis" -> Identity())),
+            "f4" -> Identity()
         ))
         val result = mapMask1.merge(mapMask2).asInstanceOf[MapMaskNode]
         assert(result.whitelist == Map(
-            "f1" -> Identity,
-            "f2" -> Identity,
-            "f3" -> MapMaskNode(Map("sf3" -> Identity, "sf3bis" -> Identity)),
-            "f4" -> Identity
+            "f1" -> Identity(),
+            "f2" -> Identity(),
+            "f3" -> MapMaskNode(Map("sf3" -> Identity(), "sf3bis" -> Identity())),
+            "f4" -> Identity()
         ))
+    }
+
+    it should "correctly apply the salt and hash method" in {
+        val salt = "some salt"
+
+        // regular value
+        val result1 = Hash(salt).apply("some string value")
+        val expected1 = "3BF2B893B2A0F57586E7CF73AF0690F061FAA9546F2C385AD93174BB9A81468C"
+        assert(result1 == expected1)
+
+        // null value
+        val result2 = Hash(salt).apply(null)
+        val expected2 = null
+        assert(result2 == expected2)
     }
 
     it should "sanitize a row by applying a sanitization mask" in {
         val mask = StructMaskNode(Array(
-            ValueMaskNode(Identity),
-            ValueMaskNode(Nullify),
+            ValueMaskNode(Identity()),
+            ValueMaskNode(Nullify()),
             StructMaskNode(Array(
-                ValueMaskNode(Nullify),
-                ValueMaskNode(Identity)
+                ValueMaskNode(Nullify()),
+                ValueMaskNode(Identity())
             )),
             // Note lowercase f (it would be lowercased anyway by makeWhitelistLowerCase).
-            MapMaskNode(Map("f1" -> Identity)),
-            ValueMaskNode(Nullify)
+            MapMaskNode(Map(
+                "f1" -> Identity(),
+                "f2" -> Hash("salt")
+            )),
+            ValueMaskNode(Nullify())
         ))
         val row = Row(
             1,
@@ -237,7 +275,11 @@ class TestWhitelistSanitization extends FlatSpec
             1,
             null,
             Row(null, "blah"),
-            Map("F1" -> "muk"), // Uppercase is respected in output.
+            // Uppercase is respected in output.
+            Map(
+                "F1" -> "muk",
+                "F2" -> "69952EAF790576BC786C8B61494BD3C88EFB198B71120FD95F0B8A7FD99D1BFC"
+            ),
             Map()
         )
         assert(result == expected)
@@ -261,9 +303,9 @@ class TestWhitelistSanitization extends FlatSpec
             fakeHivePartition
         )
         val mask = StructMaskNode(Array(
-            ValueMaskNode(Identity),
-            ValueMaskNode(Nullify),
-            ValueMaskNode(Identity)
+            ValueMaskNode(Identity()),
+            ValueMaskNode(Nullify()),
+            ValueMaskNode(Identity())
         ))
         val result = sanitizeDataFrame(partDf, mask).df.collect.sortBy(_.getInt(0))
         assert(result.length == 3)
