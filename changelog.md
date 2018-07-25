@@ -1,10 +1,16 @@
+## v0.0.67
+* Add foundation.wikimedia to pageviews
+* Track number of editors from Wikipedia who also edit on Wikidata over time
+* Update user-history job from username to userText
+* Add inline comments to WhitelistSanitization
+
 ## v0.0.66
 * Add a length limit to webrequest user-agent parsing
 * Allow partial whitelisting of map fields in Whitelist sanitization
 
 ## v0.0.65
 * Update mediawiki-history statistics for better names and more consistent probing
-* Fix RefineTarget.inferInputFormat filtering out fiels starting with _ 
+* Fix RefineTarget.inferInputFormat filtering out fiels starting with _
 
 ## v0.0.64
 * Update regular expressions used to parse User Agent Strings
