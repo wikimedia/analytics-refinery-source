@@ -13,8 +13,8 @@ object TestUserHistoryHelpers {
     timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
     causedByUserId: Option[Long] = Some(0L),
-    oldUserName: Option[String] = Some("User"),
-    newUserName: Option[String] = Some("User"),
+    oldUserText: Option[String] = Some("User"),
+    newUserText: Option[String] = Some("User"),
     oldUserGroups: Option[Seq[String]] = Some(Seq.empty),
     newUserGroups: Option[Seq[String]] = Some(Seq.empty),
     newUserBlocks: Option[Seq[String]] = Some(Seq.empty),
@@ -34,8 +34,8 @@ object TestUserHistoryHelpers {
           case "time" | "timestamp" => ("timestamp" -> TestHelpers.timestamp(v))
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
-          case "oldName" | "oldUserName" => ("oldUserName" -> string(v))
-          case "newName" | "newUserName" => ("newUserName" -> string(v))
+          case "oldText" | "oldUserText" => ("oldUserText" -> string(v))
+          case "newText" | "newUserText" => ("newUserText" -> string(v))
           case "oldGroups" | "oldUserGroups" => ("oldUserGroups" -> list(v))
           case "newGroups" | "newUserGroups" => ("newUserGroups" -> list(v))
           case "newBlocks" | "newUserBlocks" => ("newUserBlocks" -> list(v))
@@ -48,8 +48,8 @@ object TestUserHistoryHelpers {
         timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
-        oldUserName = valueMap.getOrElse("oldUserName", oldUserName).get.asInstanceOf[String],
-        newUserName = valueMap.getOrElse("newUserName", newUserName).get.asInstanceOf[String],
+        oldUserText = valueMap.getOrElse("oldUserText", oldUserText).get.asInstanceOf[String],
+        newUserText = valueMap.getOrElse("newUserText", newUserText).get.asInstanceOf[String],
         oldUserGroups = valueMap.getOrElse("oldUserGroups", oldUserGroups).get.asInstanceOf[Seq[String]],
         newUserGroups = valueMap.getOrElse("newUserGroups", newUserGroups).get.asInstanceOf[Seq[String]],
         newUserBlocks = valueMap.getOrElse("newUserBlocks", newUserBlocks).get.asInstanceOf[Seq[String]],
@@ -67,8 +67,8 @@ object TestUserHistoryHelpers {
                     causedByEventType: Option[String] = Some(null),
                     causedByUserId: Option[Long] = Some(0L),
                     userId: Option[Long] = Some(1L),
-                    userNameHistorical: Option[String] = Some("User"),
-                    userName: Option[String] = None,
+                    userTextHistorical: Option[String] = Some("User"),
+                    userText: Option[String] = None,
                     userGroupsHistorical: Option[Seq[String]] = Some(Seq.empty),
                     userGroups: Option[Seq[String]] = Some(Seq.empty),
                     userBlocksHistorical: Option[Seq[String]] = Some(Seq.empty),
@@ -92,8 +92,8 @@ object TestUserHistoryHelpers {
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "id" | "userId" => ("userId" -> long(v))
-          case "nameH" | "userNameH" => ("userNameHistorical" -> string(v))
-          case "name" | "userName" => ("userName" -> string(v))
+          case "textH" | "userTextH" => ("userTextHistorical" -> string(v))
+          case "text" | "userText" => ("userText" -> string(v))
           case "groupsH" | "userGroupsH" => ("userGroupsHistorical" -> list(v))
           case "groups" | "userGroups" => ("userGroups" -> list(v))
           case "blocksH" | "userBlocksH" => ("userBlocksHistorical" -> list(v))
@@ -104,7 +104,7 @@ object TestUserHistoryHelpers {
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
         }
       }.toMap
-      val userNameHistoricalVal = valueMap.getOrElse("userNameHistorical", userNameHistorical).get.asInstanceOf[String]
+      val userTextHistoricalVal = valueMap.getOrElse("userTextHistorical", userTextHistorical).get.asInstanceOf[String]
       val userGroupsHistoricalVal = valueMap.getOrElse("userGroupsHistorical", userGroupsHistorical).get.asInstanceOf[Seq[String]]
       val userBlocksHistoricalVal = valueMap.getOrElse("userBlocksHistorical", userBlocksHistorical).get.asInstanceOf[Seq[String]]
       new UserState(
@@ -114,8 +114,8 @@ object TestUserHistoryHelpers {
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         userId = valueMap.getOrElse("userId", userId).get.asInstanceOf[Long],
-        userNameHistorical = userNameHistoricalVal,
-        userName = valueMap.getOrElse("userName", Some(userNameHistoricalVal)).get.asInstanceOf[String],
+        userTextHistorical = userTextHistoricalVal,
+        userText = valueMap.getOrElse("userText", Some(userTextHistoricalVal)).get.asInstanceOf[String],
         userGroupsHistorical = userGroupsHistoricalVal,
         userGroups = valueMap.getOrElse("userGroups", Some(userGroupsHistoricalVal)).get.asInstanceOf[Seq[String]],
         userBlocksHistorical = userBlocksHistoricalVal,
