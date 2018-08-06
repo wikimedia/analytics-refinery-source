@@ -105,7 +105,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
       "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
-    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+    val topicsAndHours = CamusPartitionChecker.getCamusPartitionsToFlag(path).topicsAndHours
 
     topicsAndHours.size should equal (4)
     // Some topics have hour to flag
@@ -122,7 +122,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.BLACKLIST_TOPICS,
       ".*_bits,.*_test")
 
-    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+    val topicsAndHours = CamusPartitionChecker.getCamusPartitionsToFlag(path).topicsAndHours
 
     topicsAndHours.size should equal (5)
     // Some topics have hour to flag
@@ -137,7 +137,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
 
     // everything whitelist and no blacklist (by default)
     // --> Should return 5 topics over 6, one topic in historical data should fail
-    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+    val topicsAndHours = CamusPartitionChecker.getCamusPartitionsToFlag(path).topicsAndHours
 
     topicsAndHours.size should equal (5)
     // Some topics have hour to flag
@@ -156,7 +156,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.BLACKLIST_TOPICS,
       ".*_test")
 
-    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+    val topicsAndHours = CamusPartitionChecker.getCamusPartitionsToFlag(path).topicsAndHours
 
     topicsAndHours.size should equal (5)
     // Some topics have hour to flag
@@ -173,7 +173,7 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
       "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
-    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+    val topicsAndHours = CamusPartitionChecker.getCamusPartitionsToFlag(path).topicsAndHours
 
     topicsAndHours.size should equal (4)
     // No hours to flag
@@ -189,12 +189,18 @@ class TestCamusPartitionChecker extends FlatSpec with Matchers with BeforeAndAft
     CamusPartitionChecker.props.setProperty(CamusPartitionChecker.WHITELIST_TOPICS,
       "webrequest_maps,webrequest_text,webrequest_upload,webrequest_misc")
 
-    val topicsAndHours = CamusPartitionChecker.getTopicsAndHoursToFlag(path)
+    val camusPartitionsToFlag = CamusPartitionChecker.getCamusPartitionsToFlag(path)
 
+    val topicsAndHours = camusPartitionsToFlag.topicsAndHours
+
+    // 2 / 4 topics have no errors, so we will only have 2 topics, with no hours.
     topicsAndHours.size should equal (2)
     // No hours to flag
     for ((t, o) <- topicsAndHours)
       o.size should equal (0)
+
+    // should have 2 error messages
+    camusPartitionsToFlag.errors.size should equal (2)
   }
 
   it should "write the file flag for a given partition hour" in {

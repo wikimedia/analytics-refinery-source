@@ -2,6 +2,8 @@
 * Fix case insensibility for MapMaskNodes in WhitelistSanitization
 * Add ability to salt and hash to eventlogging sanitization
 * Add --hive-server-url flag to Refine job
+* CamusPartitionChecker can send error email reports and override Camus
+  properties from System properties.
 
 ## v0.0.67
 * Add foundation.wikimedia to pageviews

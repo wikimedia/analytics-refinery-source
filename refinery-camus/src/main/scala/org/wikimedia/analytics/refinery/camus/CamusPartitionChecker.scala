@@ -4,6 +4,8 @@ package org.wikimedia.analytics.refinery.camus
 
 import java.io.FileInputStream
 import java.util.Properties
+import javax.mail.{Message, MessagingException, Session, Transport}
+import javax.mail.internet.{InternetAddress, MimeMessage}
 
 import com.github.nscala_time.time.Imports._
 import com.linkedin.camus.etl.kafka.CamusJob
@@ -15,7 +17,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.{LogManager, Logger}
 import org.joda.time.{DateTime, Hours}
 import scopt.OptionParser
-
+import scala.collection.JavaConverters._
 
 /**
  * Class marking checking camus runs based on a camus.properties file.
@@ -69,13 +71,24 @@ object CamusPartitionChecker {
       throw new IllegalArgumentException("Can't make partition directory with empty base or topic.")
   }
 
+  /**
+   * Simple container class for passing around topicsAndHours to flag, and any error messages
+   * encountered while finding hours to flag.
+   * @param topicsAndHours
+   * @param errors
+   */
+  case class CamusPartitionsToFlag(
+    topicsAndHours: Map[String, Seq[(Int, Int, Int, Int)]] = Map.empty,
+    errors: Seq[String] = Seq.empty
+  )
+
   /** Compute complete hours imported on a camus run by topic. Log errors if
     * the camus run state is not correct (missing topics or import-time not moving),
     * but doesn't prevent other topics to be processed
     * @param camusRunPath the camus run Path folder to use
-    * @return a map of topic -> Seq[(year, month, day, hour)]
+    * @return CamusPartitionsToFlag containing the partitions to flag and encountered errors
     */
-  def getTopicsAndHoursToFlag(camusRunPath: Path): Map[String, Seq[(Int, Int, Int, Int)]] = {
+  def getCamusPartitionsToFlag(camusRunPath: Path): CamusPartitionsToFlag = {
     // Empty Whitelist means all --> default to .* regexp
     val topicsWhitelist = "(" + props.getProperty(WHITELIST_TOPICS, ".*").replaceAll(" *, *", "|") + ")"
     // Empty Blacklist means no blacklist --> Default to empty string
@@ -87,28 +100,44 @@ object CamusPartitionChecker {
     val currentTopicsAndOldestTimes = camusReader.topicsAndOldestTimes(currentOffsets)
     val previousTopicsAndOldestTimes = camusReader.topicsAndOldestTimes(previousOffsets)
 
-    previousTopicsAndOldestTimes.foldLeft(
-      Map.empty[String, Seq[(Int, Int, Int, Int)]]) {
-      case (map, (previousTopic, previousTime)) => {
-        if ((! previousTopic.matches(topicsBlacklist)) &&
-          (previousTopic.matches(topicsWhitelist))) {
-          if ((currentTopicsAndOldestTimes.contains(previousTopic)) &&
-            (currentTopicsAndOldestTimes.get(previousTopic).get > previousTime)) {
-            val hours = finishedHoursInBetween(previousTime, currentTopicsAndOldestTimes.get(previousTopic).get)
-            map + (previousTopic -> hours)
-          } else {
-            log.error(s"Error on topic ${previousTopic} - New offset time is either missing, either not after the previous one")
-            map
+    previousTopicsAndOldestTimes.foldLeft(CamusPartitionsToFlag()) {
+
+      case (camusPartitionsToFlag, (previousTopic, previousTime)) => {
+
+        // If this topic should be checked
+        if (!previousTopic.matches(topicsBlacklist) && previousTopic.matches(topicsWhitelist)) {
+
+          // If the latest import time is greater than the previous import time,
+          // find finished hours in between.
+          if (currentTopicsAndOldestTimes.contains(previousTopic) &&
+              currentTopicsAndOldestTimes(previousTopic) > previousTime) {
+            val hours = finishedHoursInBetween(previousTime, currentTopicsAndOldestTimes(previousTopic))
+            camusPartitionsToFlag.copy(
+                topicsAndHours = camusPartitionsToFlag.topicsAndHours + (previousTopic -> hours)
+            )
           }
-        } else map
+
+          // Else there is probably a problem.
+          else {
+            val errorMessage = s"Error on topic ${previousTopic} - Latest offset time is either missing or not after the previous run's offset time. Either there has been no new data since the previous run, or Camus is failing to import data."
+            log.error(errorMessage)
+            camusPartitionsToFlag.copy(
+                errors = camusPartitionsToFlag.errors :+ errorMessage
+            )
+          }
+        }
+
+        else
+          camusPartitionsToFlag
       }
     }
-
   }
 
-  def flagFullyImportedPartitions(flag: String,
-                                  dryRun: Boolean,
-                                  topicsAndHours: Map[String, Seq[(Int, Int, Int, Int)]]): Unit = {
+  def flagFullyImportedPartitions(
+    flag: String,
+    dryRun: Boolean,
+    topicsAndHours: Map[String, Seq[(Int, Int, Int, Int)]]
+  ): Unit = {
     for ((topic, hours) <- topicsAndHours) {
       for ((year, month, day, hour) <- hours) {
         val dir = partitionDirectory(
@@ -128,13 +157,19 @@ object CamusPartitionChecker {
     }
   }
 
-  case class Params(camusPropertiesFilePath: String = "",
-                    datetimeToCheck: Option[String] = None,
-                    mostRecentRunsToCheck: Int = 1,
-                    hadoopCoreSitePath: String = "/etc/hadoop/conf/core-site.xml",
-                    hadoopHdfsSitePath: String = "/etc/hadoop/conf/hdfs-site.xml",
-                    flag: String = "_IMPORTED",
-                    dryRun: Boolean = false)
+  case class Params(
+    camusPropertiesFilePath: String   = "",
+    datetimeToCheck: Option[String]   = None,
+    mostRecentRunsToCheck: Int        = 1,
+    hadoopCoreSitePath: String        = "/etc/hadoop/conf/core-site.xml",
+    hadoopHdfsSitePath: String        = "/etc/hadoop/conf/hdfs-site.xml",
+    shouldEmailReport: Boolean        = false,
+    smtpURI: String                   = "mx1001.wikimedia.org:25",
+    fromEmail: String                 = s"camus_checker@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
+    toEmails: Seq[String]             = Seq("analytics-alerts@wikimedia.org"),
+    flag: String                      = "_IMPORTED",
+    dryRun: Boolean                   = false
+  )
 
   val argsParser = new OptionParser[Params]("Camus Checker") {
     head("Camus partition checker", "")
@@ -164,11 +199,29 @@ object CamusPartitionChecker {
       p.copy(hadoopHdfsSitePath = x)
     } text ("Hadoop hdfs-site.xml file path for configuration.")
 
+    opt[Unit]('E', "send-email-report") optional() action { (_, p) =>
+      p.copy(shouldEmailReport = true)
+    } text
+        "Set this flag if you want an email report of possibly missing hourly data."
+
+    opt[String]('T', "smtp-uri") optional() valueName "<smtp-uri>" action { (x, p) =>
+      p.copy(smtpURI = x)
+    } text "SMTP server host:port. Default: mx1001.wikimedia.org"
+
+    opt[String]('f', "from-email") optional() valueName "<from-email>" action { (x, p) =>
+      p.copy(fromEmail = x)
+    } text "Email report from sender email address."
+
+    opt[String]('t', "to-emails") optional() valueName "<to-emails>" action { (x, p) =>
+      p.copy(toEmails = x.split(","))
+    } text
+        "Email report recipient email addresses (comma separated). Default: analytics-alerts@wikimedia.org"
+
     opt[String]("flag") optional() action { (x, p) =>
       p.copy(flag = x)
     } validate { f =>
       if ((! f.isEmpty) && (f.matches("_[a-zA-Z0-9-_]+"))) success else failure("Incorrect flag file name")
-    } text ("Flag file to be used (defaults to '_IMPORTED'.")
+    } text ("Flag file name. Default: _IMPORTED")
 
     opt[Unit]("dry-run") optional() action { (_, p) =>
       p.copy(dryRun = true)
@@ -201,6 +254,9 @@ object CamusPartitionChecker {
 
           log.info("Loading camus properties file.")
           props.load(new FileInputStream(params.camusPropertiesFilePath))
+          // Merge any camus property overrides from System properties.
+          props.putAll(System.getProperties().asScala.filter(p => props.containsKey(p._1)).asJava)
+
 
           val camusPathsToCheck: Seq[Path] = {
 
@@ -221,10 +277,25 @@ object CamusPartitionChecker {
           log.info(s"Working ${camusPathsToCheck.size} camus history folders.")
           camusPathsToCheck.foreach(p => {
             log.info(s"Checking ${p.toString}")
-            val topicsAndHours = getTopicsAndHoursToFlag(p)
+            val camusPartitionsToFlag = getCamusPartitionsToFlag(p)
             log.info(s"Flagging imported partitions for ${p.toString}")
-            flagFullyImportedPartitions(params.flag, params.dryRun, topicsAndHours)
+            flagFullyImportedPartitions(params.flag, params.dryRun, camusPartitionsToFlag.topicsAndHours)
             log.info(s"Done ${p.toString}.")
+
+            if (params.shouldEmailReport) {
+              val smtpHost = params.smtpURI.split(":")(0)
+              val smtpPort = params.smtpURI.split(":")(1)
+
+              log.info(s"Sending failure email report to ${params.toEmails.mkString(",")}")
+              sendEmail(
+                smtpHost,
+                smtpPort,
+                params.fromEmail,
+                params.toEmails.toArray,
+                s"Camus failure report for ${params.camusPropertiesFilePath}",
+                camusPartitionsToFlag.errors.mkString("\n")
+              )
+            }
           })
         } catch {
           case e: Exception => {
@@ -241,5 +312,27 @@ object CamusPartitionChecker {
 
   }
 
+
+  def sendEmail(smtpHost: String, smtpPort: String, fromEmail: String, toEmails: Array[String], subject: String, body: String): Unit = {
+    val props  = new Properties
+    props.put("mail.smtp.host", smtpHost)
+    props.put("mail.smtp.auth", "false")
+    props.put("mail.smtp.port", smtpPort)
+    val session  = Session.getDefaultInstance(props)
+    try {
+      val message  = new MimeMessage(session)
+      message.setFrom(new InternetAddress(fromEmail))
+      for (email <- toEmails) {
+        message.addRecipient(Message.RecipientType.TO, new InternetAddress(email))
+      }
+      message.setSubject(subject)
+      message.setText(body)
+      Transport.send(message)
+    }
+    catch {
+      case ex: MessagingException =>
+        throw new RuntimeException(ex)
+    }
+  }
 
 }
