@@ -247,6 +247,10 @@ object Refine extends LogHelper {
               |Default: false"""
                 .stripMargin.replace("\n", "\n\t") + "\n"
 
+        opt[String]('H', "hive-server-url") optional() valueName "<hive-server-url>" action { (x, p) =>
+            p.copy(hiveServerUrl = x)
+        } text "URL of HiveServer. Default: analytisc1003.eqiad.wmnet:10000"
+
         opt[Unit]('E', "send-email-report") optional() action { (_, p) =>
             p.copy(shouldEmailReport = true)
         } text
