@@ -1,3 +1,8 @@
+## v0.0.68
+* Fix case insensibility for MapMaskNodes in WhitelistSanitization
+* Add ability to salt and hash to eventlogging sanitization
+* Add --hive-server-url flag to Refine job
+
 ## v0.0.67
 * Add foundation.wikimedia to pageviews
 * Track number of editors from Wikipedia who also edit on Wikidata over time
