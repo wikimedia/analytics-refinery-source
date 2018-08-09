@@ -1,3 +1,6 @@
+## v0.0.69
+* Fix for CamusPartitionChecker to only send email if errors are encountered
+
 ## v0.0.68
 * Fix case insensibility for MapMaskNodes in WhitelistSanitization
 * Add ability to salt and hash to eventlogging sanitization

@@ -282,7 +282,7 @@ object CamusPartitionChecker {
             flagFullyImportedPartitions(params.flag, params.dryRun, camusPartitionsToFlag.topicsAndHours)
             log.info(s"Done ${p.toString}.")
 
-            if (params.shouldEmailReport) {
+            if (params.shouldEmailReport && camusPartitionsToFlag.errors.size > 0) {
               val smtpHost = params.smtpURI.split(":")(0)
               val smtpPort = params.smtpURI.split(":")(1)
 
