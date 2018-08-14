@@ -1,3 +1,6 @@
+## v0.0.70
+* Fix for WhitelistSanitization.scala, allowing null values for struct fields
+
 ## v0.0.69
 * Fix for CamusPartitionChecker to only send email if errors are encountered
 
