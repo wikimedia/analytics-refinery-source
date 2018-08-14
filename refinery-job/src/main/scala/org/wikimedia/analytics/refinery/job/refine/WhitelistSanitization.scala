@@ -195,10 +195,14 @@ object WhitelistSanitization {
         // For struct nodes the apply function calls the apply function
         // on all fields of the given row.
         def apply(value: Any): Any = {
-            val row = value.asInstanceOf[Row]
-            Row.fromSeq(
-              children.zip(row.toSeq).map { case (mask, v) => mask.apply(v) }
-            )
+            if (value == null) {
+                null
+            } else {
+                val row = value.asInstanceOf[Row]
+                Row.fromSeq(
+                  children.zip(row.toSeq).map { case (mask, v) => mask.apply(v) }
+                )
+            }
         }
         // Merges another mask node (overlay) on top of this one (base).
         def merge(other: MaskNode): MaskNode = {
@@ -233,17 +237,21 @@ object WhitelistSanitization {
         // For map nodes the apply function applies the map whitelist
         // on all key-value pairs of the given map.
         def apply(value: Any): Any = {
-            val valueMap = value.asInstanceOf[Map[String, Any]]
-            valueMap.flatMap { case (key, value) =>
-                val lowerCaseKey = key.toLowerCase
-                if (whitelist.contains(lowerCaseKey)) {
-                    Seq(
-                        key -> (whitelist(lowerCaseKey) match {
-                            case childMask: MapMaskNode => childMask.apply(value)
-                            case action: SanitizationAction => action.apply(value)
-                        })
-                    )
-                } else Seq.empty
+            if (value == null) {
+                null
+            } else {
+                val valueMap = value.asInstanceOf[Map[String, Any]]
+                valueMap.flatMap { case (key, value) =>
+                    val lowerCaseKey = key.toLowerCase
+                    if (whitelist.contains(lowerCaseKey)) {
+                        Seq(
+                            key -> (whitelist(lowerCaseKey) match {
+                                case childMask: MapMaskNode => childMask.apply(value)
+                                case action: SanitizationAction => action.apply(value)
+                            })
+                        )
+                    } else Seq.empty
+                }
             }
         }
         // Merges another mask node (overlay) on top of this one (base).

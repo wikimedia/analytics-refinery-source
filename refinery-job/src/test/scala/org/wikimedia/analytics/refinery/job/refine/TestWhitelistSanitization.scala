@@ -248,6 +248,22 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result2 == expected2)
     }
 
+    it should "return null when a sanitization action receives null" in {
+        // StructMaskNode
+        val mask1 = StructMaskNode(Array(
+            ValueMaskNode(Nullify()),
+            ValueMaskNode(Identity())
+        ))
+        assert(mask1.apply(null) == null)
+
+        // MapMaskNode
+        val mask2 = MapMaskNode(Map(
+            "f1" -> Nullify(),
+            "f2" -> Identity()
+        ))
+        assert(mask2.apply(null) == null)
+    }
+
     it should "sanitize a row by applying a sanitization mask" in {
         val mask = StructMaskNode(Array(
             ValueMaskNode(Identity()),
