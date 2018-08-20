@@ -137,16 +137,6 @@ class UserHistoryRunner(
 
     val userEvents = parsedUserEvents.filter(_.parsingErrors.isEmpty).cache()
 
-
-
-    /** *********************************************************
-      * HACK
-      *   - collect_set function is only available in spark 1.6 using HiveContext
-      *   - HiveContext doesn't work when using Spark with Oozie
-      *   --> Reimplementing the portion of code without collect_set
-      *   --> Update coalesce to in map null change (typing issue)
-      */
-
     val userGroupsSchema = StructType(
       Seq(StructField("wiki_db", StringType, nullable = false),
         StructField("ug_user", LongType, nullable = false),
@@ -167,7 +157,9 @@ class UserHistoryRunner(
       .reduceByKey(_ ++ _)
       .map(t => Row(t._1._1, t._1._2, t._2.distinct))
 
-      spark.createDataFrame(userGroupsRdd, userGroupsSchema).createOrReplaceTempView("grouped_user_groups")
+      spark
+        .createDataFrame(userGroupsRdd, userGroupsSchema)
+        .createOrReplaceTempView("grouped_user_groups")
 
 
     // We rename user_name to user_text as it is used this way accross other tables
@@ -197,21 +189,8 @@ class UserHistoryRunner(
     ON user_id = rev_user
     AND u.wiki_db = rev.wiki_db
     LEFT JOIN grouped_user_groups ug
-      -- HACK CONTINUATION
-      --(
-      --SELECT
-      --    wiki_db,
-      --    ug_user,
-      --    collect_set(ug_group) as user_groups
-      --FROM user_groups
-      --WHERE TRUE
-      --  $wikiClause
-      --GROUP BY
-      --  wiki_db,
-      --  ug_user
-      --) ug
-    ON u.wiki_db = ug.wiki_db
-    AND user_id = ug_user
+      ON u.wiki_db = ug.wiki_db
+      AND user_id = ug_user
   WHERE user_id IS NOT NULL
     AND user_name IS NOT NULL -- to prevent any NPE when graph partitioning
     ${wikiClause.replace("wiki_db", "u.wiki_db")}
@@ -221,7 +200,6 @@ class UserHistoryRunner(
     user_registration,
     u.wiki_db,
     rev.rev_timestamp,
-    --coalesce(user_groups, emptyStringArray())
     user_groups
         """)
       .rdd
@@ -235,7 +213,17 @@ class UserHistoryRunner(
             userRegistrationTimestamp = (row.getString(2), row.getString(4)) match {
               case (null, null) => None
               case (null, potentialTimestamp) => TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp)
-              case (potentialTimestamp, _) => TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp)
+              case (potentialTimestamp, null) => TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp)
+              // If both registration and first-revision timestamps are defined, use the oldest
+              case (potentialTimestamp1, potentialTimestamp2) => {
+                val pt1 = TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp1)
+                val pt2 = TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp2)
+                if (pt1.isDefined) {
+                  if (pt2.isDefined) {
+                    if (pt1.get.before(pt2.get)) pt1 else pt2
+                  } else pt1
+                } else pt2
+              }
             },
             userGroupsHistorical = Seq.empty[String],
             userGroups = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),
