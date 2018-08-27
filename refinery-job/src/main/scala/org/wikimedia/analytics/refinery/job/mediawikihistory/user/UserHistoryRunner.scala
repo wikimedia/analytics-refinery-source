@@ -253,14 +253,19 @@ class UserHistoryRunner(
 
     // TODO : Compute is_bot_for_other_wikis
 
-    log.info(s"User history reconstruction done, writing results, errors and statsde")
+    log.info(s"User history reconstruction done, writing results, errors and stats")
 
 
     //***********************************
     // Write results
     //***********************************
 
-    spark.createDataFrame(userHistoryRdd.map(state => {
+    // Drop states having empty registration timestamp. Since registration timestamp
+    // is MIN(DB-registration-date, first-edit), no registration timestamp means no
+    // edit activity - We drop the data instead of trying to approximate it.
+    // TODO: Approximate creation dates using user-id/registration-date coherence.
+    spark.createDataFrame(
+      userHistoryRdd.filter(_.userRegistrationTimestamp.isDefined).map(state => {
           addOptionalStat(s"${state.wikiDb}.$METRIC_WRITTEN_ROWS", 1)
           state.toRow
         }), UserState.schema)
@@ -278,12 +283,16 @@ class UserHistoryRunner(
       val parsingErrorEvents = parsedUserEvents.filter(_.parsingErrors.nonEmpty)
       val errorDf = spark.createDataFrame(
         parsingErrorEvents.map(e => Row(e.wikiDb, "parsing", e.toString))
-          .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString))
+          .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString)))
+          .union(
+            userHistoryRdd
+              .filter(_.userRegistrationTimestamp.isEmpty)
+              .map(s => Row(s.wikiDb, "empty-registration", s.toString))
           ),
         StructType(Seq(
           StructField("wiki_db", StringType, nullable = false),
           StructField("error_type", StringType, nullable = false),
-          StructField("event", StringType, nullable = false)
+          StructField("data", StringType, nullable = false)
         ))
       )
       errorDf.repartition(1)
