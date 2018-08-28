@@ -1,3 +1,13 @@
+## v0.0.71
+* Update MediawikiHistoryChecker adding reduced
+* Add MediawikiHistoryChecker spark job
+* Update mediawiki-user-history empty-registration
+  Drop user-events for users having no registration date
+  (i.e. no edit activity nor registration date in DB)
+* Correct mediawiki-history user registration date
+  Use MIN(DB-registration-date, first-edit-date)
+  instead of COALESCE(DB-registration-date, first-edit-date)
+
 ## v0.0.70
 * Fix for WhitelistSanitization.scala, allowing null values for struct fields
 
