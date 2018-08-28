@@ -48,3 +48,7 @@ Is Pageview – Tablet -  iOS – new version,en.wikipedia,-,Hachiko_–_Eine_wu
 Is Not Pageview – Tablet -  iOS – new version,en.wikipedia,-,Hachiko_–_Eine_wunderbare_Freundschaft,false,false,174.62.175.83,-,en.wikipedia.org, /w/api.php,?action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, '',WikipediaApp/5.2.1.942 (iPhone OS 9.1; Phone),
 Is Not Pageview – preview,en.wikipedia,-,-,false,true,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe_crab,?action=submit,200,text/html, turnip,
 Is Pageview - Desktop,foundation.wikimedia,default,Donaties,true,false,174.62.175.82,-,foundation.wikimedia.org, /wiki/Donaties,-,200,text/html, turnip,
+Is Pageview - Mobile - strategy,strategy.wikimedia,default,SoMuchStrategies,true,true,174.62.175.82,-,strategy.wikimedia.org, /wiki/SoMuchStrategies,-,200,text/html, turnip,
+Is Pageview - Desktop - usability,usability.wikimedia,default,UsabilityYayyy,true,true,174.62.175.82,-,usability.wikimedia.org, /wiki/UsabilityYayyy,-,200,text/html, turnip,
+Is Not Pageview - Desktop - badusability,usability.badwikimedia,default,UsabilityBoooo,false,false,174.62.175.82,-,usability.badwikimedia.org, /wiki/UsabilityBoooo,-,200,text/html, turnip,
+Is Pageview - Desktop - advisory,advisory.wikimedia,default,YessAdvisory,true,true,174.62.175.82,-,advisory.wikimedia.org, /wiki/YessAdvisory,-,200,text/html, turnip,
