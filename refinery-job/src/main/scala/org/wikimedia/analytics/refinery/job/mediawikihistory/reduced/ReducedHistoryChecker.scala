@@ -44,14 +44,14 @@ class ReducedHistoryChecker(
          |    event_type AS event_type,
          |    COUNT(1) AS count_reduced_event,
          |    -- User values
-         |    COUNT(DISTINCT user_id) AS distinct_user_id,
+         |    COUNT(DISTINCT user_text) AS distinct_user_text,
          |    SUM(IF(user_type == 'anonymous', 1, 0)) AS count_user_anonymous,
          |    SUM(IF(user_type == 'group_bot', 1, 0)) AS count_user_group_bot,
          |    SUM(IF(user_type == 'name_bot', 1, 0)) AS count_user_name_bot,
          |    SUM(IF(user_type == 'user', 1, 0)) AS count_user_user,
          |    SUM(IF(ARRAY_CONTAINS(other_tags, 'self_created'), 1, 0)) AS count_user_self_created,
          |    -- Page values
-         |    COUNT(DISTINCT page_id) AS distinct_page_id,
+         |    COUNT(DISTINCT page_title) AS distinct_page_title,
          |    COUNT(DISTINCT page_namespace) AS distinct_page_namespace,
          |    SUM(IF(page_type == 'content', 1, 0)) AS count_page_content,
          |    SUM(IF(page_type == 'non_content', 1, 0)) AS count_page_non_content,
@@ -111,8 +111,8 @@ class ReducedHistoryChecker(
          |            (COALESCE(n.count_reduced_event, 0) - COALESCE(p.count_reduced_event, 0)) / COALESCE(p.count_reduced_event, 1),
          |
          |        -- User values
-         |        'growth_distinct_user_id',
-         |            (COALESCE(n.distinct_user_id, 0) - COALESCE(p.distinct_user_id, 0)) / COALESCE(p.distinct_user_id, 1),
+         |        'growth_distinct_user_text',
+         |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(p.distinct_user_text, 1),
          |        'growth_count_user_group_bot',
          |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(p.count_user_group_bot, 1),
          |        'growth_count_user_name_bot',
@@ -125,8 +125,8 @@ class ReducedHistoryChecker(
          |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(p.count_user_self_created, 1),
          |
          |        -- Page values
-         |        'growth_distinct_page_id',
-         |            (COALESCE(n.distinct_page_id, 0) - COALESCE(p.distinct_page_id, 0)) / COALESCE(p.distinct_page_id, 1),
+         |        'growth_distinct_page_title',
+         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(p.distinct_page_title, 1),
          |        'growth_distinct_page_namespace',
          |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(p.distinct_page_namespace, 1),
          |        'growth_count_page_content',
@@ -185,8 +185,8 @@ class ReducedHistoryChecker(
          |
          |    -- User values with digests
          |    OR (event_entity = 'user' AND (
-         |        growths['growth_distinct_user_id'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_user_id'] > $maxEventsGrowthThreshold
+         |        growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
+         |        OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
          |
          |        OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
          |        OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
@@ -216,8 +216,8 @@ class ReducedHistoryChecker(
          |
          |    -- Page values with digests
          |    OR (event_entity = 'page' AND (
-         |        growths['growth_distinct_page_id'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_page_id'] > $maxEventsGrowthThreshold
+         |        growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
+         |        OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
          |
          |        OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
          |        OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
