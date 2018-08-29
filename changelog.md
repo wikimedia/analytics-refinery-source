@@ -1,3 +1,6 @@
+## v0.0.72
+* Correct MediawikiHistoryChecker for reduced
+
 ## v0.0.71
 * Update MediawikiHistoryChecker adding reduced
 * Add MediawikiHistoryChecker spark job
