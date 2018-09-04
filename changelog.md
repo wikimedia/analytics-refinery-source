@@ -1,3 +1,6 @@
+## v0.0.74
+* Add --table-whitelist flag to EventLoggingSanitization job
+
 ## v0.0.73
 * Add usability, advisory and strategy wikimedia sites to pageview definition
 

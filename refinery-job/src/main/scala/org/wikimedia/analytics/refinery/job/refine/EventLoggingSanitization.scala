@@ -17,6 +17,7 @@ object EventLoggingSanitization {
     case class Params(
         inputBasePath: String = "/wmf/data/event",
         whitelistPath: String = "/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml",
+        tableWhitelistRegex: Option[Regex] = None,
         sinceDateTime: DateTime = DateTime.now - 192.hours, // 8 days ago
         untilDateTime: DateTime = DateTime.now,
         outputBasePath: String = "/wmf/data/event_sanitized",
@@ -31,6 +32,10 @@ object EventLoggingSanitization {
         fromEmail: String = s"elsanitization@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
         toEmails: Seq[String] = Seq("analytics-alerts@wikimedia.org")
     )
+
+    // Support implicit Option[Regex] conversion from CLI opt.
+    implicit val scoptOptionRegexRead: scopt.Read[Option[Regex]] =
+        scopt.Read.reads {s => Some(s.r) }
 
     // Support implicit DateTime conversion from CLI opt.
     // The opt can either be given in integer hours ago,
@@ -80,6 +85,12 @@ object EventLoggingSanitization {
             p.copy(whitelistPath = if (x.endsWith("/")) x.dropRight(1) else x)
         }.text("Path to EventLogging's whitelist file. Default: " +
                "'/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml'.")
+
+        opt[(Option[Regex])]('w', "table-whitelist") optional() valueName "<regex>" action { (x, p) =>
+            p.copy(tableWhitelistRegex = x)
+        } text("Whitelist regex of table names to refine. Usually this is taken from the config in " +
+               "--whitelist-path. Use this to further reduce the whitelist of tables to be sanitized, " +
+               "e.g. when you need to rerun a sanitize job for only a specific data source.")
 
         opt[DateTime]('s', "since").optional().valueName("<since-date-time>").action { (x, p) =>
             p.copy(sinceDateTime = x)
@@ -187,7 +198,9 @@ object EventLoggingSanitization {
         // Get a Regex with all tables that are whitelisted.
         // This prevents Refine to collect RefineTargets for those tables
         // and to create a tree of directories just to store success files.
-        val tableWhitelistRegex = new Regex("^(" + whitelist.keys.mkString("|") + ")$")
+        val tableWhitelistRegex = params.tableWhitelistRegex.getOrElse(
+            new Regex("^(" + whitelist.keys.mkString("|") + ")$")
+        )
 
         // Get WhitelistSanitization transform function.
         val sanitizationTransformFunction = WhitelistSanitization(
