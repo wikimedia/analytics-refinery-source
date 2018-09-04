@@ -1,3 +1,6 @@
+## v0.0.73
+* Add usability, advisory and strategy wikimedia sites to pageview definition
+
 ## v0.0.72
 * Correct MediawikiHistoryChecker for reduced
 
