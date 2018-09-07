@@ -2,6 +2,7 @@
 * Add --table-whitelist flag to EventLoggingSanitization job
 * Add ConfigHelper to assist in configuring scala jobs with properties files
   and CLI overrides
+* RefineMonitor now uses ConfigHelper instead of scopt
 
 ## v0.0.73
 * Add usability, advisory and strategy wikimedia sites to pageview definition
