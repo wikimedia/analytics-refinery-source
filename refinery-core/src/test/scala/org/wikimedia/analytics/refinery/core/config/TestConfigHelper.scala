@@ -235,6 +235,12 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         a [RuntimeException] should be thrownBy configure[Params](Array.empty, Array("--dt", "not a dt"))
     }
 
+    it should "throw ConfigHelperException for missing required config" in {
+        case class ParamsWithRequired(required1: String, required2: String, optional: String = "no worries")
+        a [ConfigHelperException] should be thrownBy configure[ParamsWithRequired](Array.empty, Array("--required2=got-it"))
+    }
+
+
     it should "extract --config_file" in {
         val args = Array("--hi", "there", "--config_file", "/path/to/y.yaml", "--yo=true", "--config_file=/path/to/p.properties", "--yes=no", "--config_file=/path/1.yaml,/path/2.json")
 

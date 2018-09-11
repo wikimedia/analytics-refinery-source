@@ -3,10 +3,10 @@ package org.wikimedia.analytics.refinery.core.config
 import scala.util.matching.Regex
 import com.github.nscala_time.time.Imports._
 import org.joda.time.format.DateTimeFormatter
-
 import profig._
 import cats.syntax.either._
-import io.circe.Decoder
+import io.circe.CursorOp.DownField
+import io.circe.{Decoder, DecodingFailure}
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -169,6 +169,12 @@ trait ConfigHelper {
 }
 
 /**
+ * Thrown when a required config is not provided.
+ */
+class ConfigHelperException(message: String) extends Exception(message)
+
+
+/**
   * Contains a macro for loading config files and args into a case class. Without this macro
   * the case class would have to be defined in scope of the Profig.as[...] call.  This
   * macro allows us to hide away the Profig implementation of ConfigHelper, exposing only
@@ -198,13 +204,30 @@ object ConfigHelperMacros {
         c.Expr[T](q"""
             import profig._
             ConfigHelperMacros.loadProfig($files, $args)
-            val p = Profig.as[$t]
+            val p = try {
+                Profig.as[$t]
+            } catch {
+                case e: RuntimeException =>
+                    // If this RuntimeException was caused by a missing required config, throw
+                    // a ConfigHelperException, else just rethrow the original exception.
+                    val missingConfig = ConfigHelperMacros.extractMissingConfig(e).getOrElse(throw e)
+                    throw new ConfigHelperException(
+                        "Failed loading configuration: " + missingConfig + " is required but was not provided"
+                    )
+            }
             Profig.clear()
             p
         """)
     }
 
 
+    /**
+      * Macro implementation that allows us to generate an implicit mapping from
+      * Profig configuration to T which should be a case class.  This should be used
+      * as a macro only.  Profig will load configs, instantiate T with them, and then
+      * clear globally loaded Profig configs.  This implementation looks for the configFileOpt
+      * in args and expects its value to be a config properties file.
+      */
     def configureArgsImpl[T]
         (c: blackbox.Context)
         (args: c.Expr[Array[String]])
@@ -216,12 +239,44 @@ object ConfigHelperMacros {
             import profig._
             val (f, a) = ConfigHelperMacros.extractOpts(ConfigHelperMacros.configFileOpt)($args)
             ConfigHelperMacros.loadProfig(f, a)
-            val p = Profig.as[$t]
+            val p = try {
+                Profig.as[$t]
+            } catch {
+                case e: RuntimeException =>
+                    // If this RuntimeException was caused by a missing required config, throw
+                    // a ConfigHelperException, else just rethrow the original exception.
+                    val missingConfig = ConfigHelperMacros.extractMissingConfig(e).getOrElse(throw e)
+                    throw new ConfigHelperException(
+                        "Failed loading configuration: " + missingConfig + " is required but was not provided"
+                    )
+            }
             Profig.clear()
             p
          """
         )
     }
+
+
+    /**
+     * If the RuntimeException was caused by Profig / Circe loading configs into
+      * a case class without required parameters, the RuntimeException will have been
+      * caused by a Circe DecodingFailure.  This returns an Option of the name of the
+      * missing required field.
+      * @param e
+      * @return
+      */
+    def extractMissingConfig(e: RuntimeException): Option[String] = {
+        e.getCause match {
+            case DecodingFailure(_, history) =>
+                history match {
+                    case List(DownField(missingConfig), _*) => Some(missingConfig)
+                    case _ => None
+                }
+            case _ => None
+        }
+    }
+
+
 
 
     /**
