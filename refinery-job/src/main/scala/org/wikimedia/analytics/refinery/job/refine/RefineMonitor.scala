@@ -7,6 +7,7 @@ import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.config._
 import org.wikimedia.analytics.refinery.core.{LogHelper, Utilities}
 
+import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
 
 object RefineMonitor extends LogHelper with ConfigHelper {
@@ -33,13 +34,13 @@ object RefineMonitor extends LogHelper with ConfigHelper {
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        private final val default = Config("", "")
+        final val default = Config("", "")
 
-        final val paramsHelp: Map[String, String] = Map(
+        final val propertiesDoc: ListMap[String, String] = ListMap(
             "config_file <file1.properties,files2.properties>" ->
                 """Comma separated list of paths to properties files.  These files parsed for
                   |for matching config parameters as defined here.""",
-            "input_path <input-path>" ->
+            "input_path" ->
                 """Path to input datasets.  This directory is expected to contain
                   |directories of individual (topic) table datasets.  E.g.
                   |/path/to/raw/data/{myprefix_dataSetOne,myprefix_dataSetTwo}, etc.
@@ -57,14 +58,14 @@ object RefineMonitor extends LogHelper with ConfigHelper {
                 s"""Look for refine targets until this date time.  This may either be given as an integer
                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.until}""",
             "input_path_regex" ->
-                s"""input-regex should match the input partition directory hierarchy starting from the
+                s"""This should match the input partition directory hierarchy starting from the
                   |dataset base path, and should capture the table name and the partition values.
                   |Along with input-capture, this allows arbitrary extraction of table names and and
                   |partitions from the input path.  You are required to capture at least "table"
                   |using this regex.  The default will match an hourly bucketed Camus import hierarchy,
                   |using the topic name as the table name.  Default: ${default.input_path_regex}""",
             "input_path_regex_capture_groups" ->
-                s"""input-capture should be a comma separated list of named capture groups
+                s"""This should be a comma separated list of named capture groups
                   |corresponding to the groups captured byt input-regex.  These need to be
                   |provided in the order that the groups are captured.  This ordering will
                   |also be used for partitioning.  Default: ${default.input_path_regex_capture_groups.mkString(",")}""",
@@ -89,56 +90,43 @@ object RefineMonitor extends LogHelper with ConfigHelper {
                 s"Email report from sender email address.  Default: ${default.from_email}",
             "to_emails" ->
                 s"Email report recipient email addresses (comma separated):  Default: ${default.to_emails.mkString(",")}."
-        ).mapValues(_.stripMargin.replace("\n", "\n    ") + "\n")
+        )
 
-        final val help: String = {
-            val usage = """
-                |Find missing refine targets and print or email a report.
-                |
-                |This job should be used with the same arguments as Refine in order to print out
-                |a status report about incomplete Refine jobs.  Likely you'll want to provide
-                |a delayed time range, to give any regularly scheduled Refine jobs time to
-                |finish.  The following example reads initial configs out of
-                |refine_eventlogging_eventbus.properties and then overrides individual config settings
-                |via CLI opts.
-                |
-                |Example:
-                |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.RefineMonitor refinery-job.jar \
-                |  # read configs out of this file
-                |   --config_file          /etc/refinery/refine_eventlogging_eventbus.properties \
-                |   # Override and/or set other configs on the CLI
-                |   --output_base_path     /user/otto/external/eventbus5' \
-                |   --database            event \
-                |   # Look for missing refine targets in the last 24 hours up until the last 4 hours.
-                |   --since               24 \
-                |   --until               4 \
-                |   --table_blacklist     '.*page_properties_change.*'
-                |
-                |Note: the example only uses spark-submit to ease classpath discovery;
-                |RefineMonitor does not use Spark itself.
-                |
-                |Properties:
-                |
-                |""".stripMargin
-
-            usage + paramsHelp.map(t => s"  ${t._1}\n    ${t._2}").mkString("\n")
-        }
+        val usage = """
+            |Find missing refine targets and print or email a report.
+            |
+            |This job should be used with the same arguments as Refine in order to print out
+            |a status report about incomplete Refine jobs.  Likely you'll want to provide
+            |a delayed time range, to give any regularly scheduled Refine jobs time to
+            |finish.  The following example reads initial configs out of
+            |refine_eventlogging_eventbus.properties and then overrides individual config settings
+            |via CLI opts.
+            |
+            |Example:
+            |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.RefineMonitor refinery-job.jar \
+            |  # read configs out of this file
+            |   --config_file          /etc/refinery/refine_eventlogging_eventbus.properties \
+            |   # Override and/or set other configs on the CLI
+            |   --output_base_path     /user/otto/external/eventbus5' \
+            |   --database            event \
+            |   # Look for missing refine targets in the last 24 hours up until the last 4 hours.
+            |   --since               24 \
+            |   --until               4 \
+            |   --table_blacklist     '.*page_properties_change.*'
+            |
+            |Note: the example only uses spark-submit to ease classpath discovery;
+            |RefineMonitor does not use Spark itself.
+            |"""
     }
 
 
     def main(args: Array[String]): Unit = {
         if (args.contains("--help")) {
-            println(Config.help)
+            println(help(Config.usage, Config.propertiesDoc))
             sys.exit(0)
         }
 
-        val config = try {
-            configureArgs[Config](args)
-        } catch {
-            case e: ConfigHelperException =>
-                log.fatal(e.getMessage + ". Aborting.")
-                sys.exit(1)
-        }
+        val config = loadConfig(args)
 
         // Exit non-zero if if any refinements failed.
         if ((apply _).tupled(Config.unapply(config).get))
@@ -147,21 +135,35 @@ object RefineMonitor extends LogHelper with ConfigHelper {
             sys.exit(1)
     }
 
+
+    def loadConfig(args: Array[String]): Config = {
+        val config = try {
+            configureArgs[Config](args)
+        } catch {
+            case e: ConfigHelperException =>
+                log.fatal(e.getMessage + ". Aborting.")
+                sys.exit(1)
+        }
+        log.info("Loaded configuration:\n" + prettyPrint(config))
+        config
+    }
+
+
     def apply(
         input_path: String,
         output_path: String,
-        database: String                                = "default",
-        since: DateTime                                 = DateTime.now - 192.hours, // 8 days ago
-        until: DateTime                                 = DateTime.now,
-        input_path_regex: String                        = ".*/(.+)/hourly/(\\d{4})/(\\d{2})/(\\d{2})/(\\d{2}).*",
-        input_path_regex_capture_groups: Seq[String]    = Seq("table", "year", "month", "day", "hour"),
-        input_path_datetime_format: DateTimeFormatter   = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
-        table_whitelist_regex: Option[Regex]            = None,
-        table_blacklist_regex: Option[Regex]            = None,
-        should_email_report: Boolean                    = false,
-        smtp_uri: String                                = "mx1001.wikimedia.org:25",
-        from_email: String                              = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
-        to_emails: Seq[String]                          = Seq("analytics-alerts@wikimedia.org")
+        database: String                                = Config.default.database,
+        since: DateTime                                 = Config.default.since,
+        until: DateTime                                 = Config.default.until,
+        input_path_regex: String                        = Config.default.input_path_regex,
+        input_path_regex_capture_groups: Seq[String]    = Config.default.input_path_regex_capture_groups,
+        input_path_datetime_format: DateTimeFormatter   = Config.default.input_path_datetime_format,
+        table_whitelist_regex: Option[Regex]            = Config.default.table_whitelist_regex,
+        table_blacklist_regex: Option[Regex]            = Config.default.table_blacklist_regex,
+        should_email_report: Boolean                    = Config.default.should_email_report,
+        smtp_uri: String                                = Config.default.smtp_uri,
+        from_email: String                              = Config.default.from_email,
+        to_emails: Seq[String]                          = Config.default.to_emails
     ): Boolean = {
         val fs = FileSystem.get(new Configuration())
 

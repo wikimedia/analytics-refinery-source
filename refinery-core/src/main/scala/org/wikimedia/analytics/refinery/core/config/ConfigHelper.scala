@@ -22,25 +22,44 @@ import scala.reflect.macros.blackbox
   * Usage:
   *
   * object MyApp extends ConfigHelper {
-  *     case class Params(name: String, dt: DateTime)
+  *     case class Config(path: String, dt: DateTime)
   *
   *     val propertiesFile: String = "myapp.properties"
   *
   *     def main(args: Array[String]): Unit = {
-  *         val params = configure[Params](Array(propertiesFile), args)
+  *         val config = configure[Config](Array(propertiesFile), args)
   *         // params will be a new Params instance loaded from configs found
   *         // in myapp.properties, with overrides from the CLI opts like
-  *         // --name "my name override" --dt 2018-10-01T00:00:00
+  *         // --path "my path override" --dt 2018-10-01T00:00:00
   *
   *         // Or, configure from --config_file args from args only.
   *         // myapp.properties will be loaded first, then remaining args will be merged over.
-  *         // ... --config_file", "myapp.properties" --name "my name override" --dt 2018-10-01T00:00:00
-  *         val params = configureArgs[Params](args)
+  *         // ... --config_file", "myapp.properties" --path "my path override" --dt 2018-10-01T00:00:00
+  *         val config = configureArgs[Config](args)
   *     }
+  *
+  * This trait also includes methods to nicely format a help string, given a usage example and
+  * a map of properties to doc strings:
+  *
+  *     val usage = "MyApp --path CUSTOM_PATH --dt CUSTOM_DT"
+  *     val propertiesDoc = ListMap[String, String] = ListMap(
+  *         "path" -> "Path to file",
+  *         "dt"   -> "date time to use, ISO-8601 format"
+  *     )
+  *     ...
+  *     if (args.contains('--help')) {
+  *         println(help(usage, propertiesDoc))
+  *         sys.exit(0)
+  *     }
+  *
+  * It also includes a nice prettyPrint function if you want to log the final loaded configs:
+  *     ...
+  *     val config = configureArgs[Config](args)
+  *     println("Loaded configuration:\n" + prettyPrint(config))
   *
   */
 trait ConfigHelper {
-    private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
+    private final val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
     // implicit conversion from string to Option[Regex]
     implicit val decodeOptionString: Decoder[Option[String]] = Decoder.decodeString.emap { s =>
@@ -136,6 +155,90 @@ trait ConfigHelper {
              "or an ISO-8601 formatted string."
         ))
     }
+
+
+    /**
+      * Returns a nicely formatted help message string.
+      *
+      * @param usage Free form usage heading and examples.  This will be at the
+      *              beginning of your help message.
+      * @param propertiesDoc Map of configuration property name to documentation.
+      * @return
+      */
+    def help(usage: String, propertiesDoc: Map[String, String]): String = {
+        usage.stripMargin + "\nConfiguration Properties:\n\n" + propertiesDoc
+            // Do some prettifying of property docs
+            .mapValues(_.stripMargin.replace("\n", "\n    ") + "\n")
+            // tab the properties and their docs nicely.
+            .map(t => s"  ${t._1}\n    ${t._2}").mkString("\n")
+    }
+
+    /**
+      * Pretty prints a Scala value similar to its source represention.
+      * Particularly useful for case classes.
+      *
+      * This is useful for printing out final ConfigHelper loaded configuration case classes.
+      *
+      * Taken from https://gist.github.com/carymrobbins/7b8ed52cd6ea186dbdf8
+      *
+      * @param a - The value to pretty print.
+      * @param indentSize - Number of spaces for each indent.
+      * @param maxElementWidth - Largest element size before wrapping.
+      * @param depth - Initial depth to pretty print indents.
+      * @return
+      */
+    def prettyPrint(a: Any, indentSize: Int = 2, maxElementWidth: Int = 30, depth: Int = 0): String = {
+        val indent = " " * depth * indentSize
+        val fieldIndent = indent + (" " * indentSize)
+        val thisDepth = prettyPrint(_: Any, indentSize, maxElementWidth, depth)
+        val nextDepth = prettyPrint(_: Any, indentSize, maxElementWidth, depth + 1)
+        a match {
+            // Make Strings look similar to their literal form.
+            case s: String =>
+                val replaceMap = Seq(
+                    "\n" -> "\\n",
+                    "\r" -> "\\r",
+                    "\t" -> "\\t",
+                    "\"" -> "\\\""
+                )
+                '"' + replaceMap.foldLeft(s) { case (acc, (c, r)) => acc.replace(c, r) } + '"'
+            // For an empty Seq just use its normal String representation.
+            case xs: Seq[_] if xs.isEmpty => xs.toString()
+            case xs: Seq[_] =>
+                // If the Seq is not too long, pretty print on one line.
+                val resultOneLine = xs.map(nextDepth).toString()
+                if (resultOneLine.length <= maxElementWidth) return resultOneLine
+                // Otherwise, build it with newlines and proper field indents.
+                val result = xs.map(x => s"\n$fieldIndent${nextDepth(x)}").toString()
+                result.substring(0, result.length - 1) + "\n" + indent + ")"
+            // Product should cover case classes.
+            case p: Product =>
+                val prefix = p.productPrefix
+                // We'll use reflection to get the constructor arg names and values.
+                val cls = p.getClass
+                val fields = cls.getDeclaredFields.filterNot(_.isSynthetic).map(_.getName)
+                val values = p.productIterator.toSeq
+                // If we weren't able to match up fields/values, fall back to toString.
+                if (fields.length != values.length) return p.toString
+                fields.zip(values).toList match {
+                    // If there are no fields, just use the normal String representation.
+                    case Nil => p.toString
+                    // If there is just one field, let's just print it as a wrapper.
+                    case (_, value) :: Nil => s"$prefix(${thisDepth(value)})"
+                    // If there is more than one field, build up the field names and values.
+                    case kvps =>
+                        val prettyFields = kvps.map { case (k, v) => s"$fieldIndent$k = ${nextDepth(v)}" }
+                        // If the result is not too long, pretty print on one line.
+                        val resultOneLine = s"$prefix(${prettyFields.mkString(", ")})"
+                        if (resultOneLine.length <= maxElementWidth) return resultOneLine
+                        // Otherwise, build it with newlines and proper field indents.
+                        s"$prefix(\n${prettyFields.mkString(",\n")}\n$indent)"
+                }
+            // If we haven't specialized this type, just use its toString.
+            case _ => a.toString
+        }
+    }
+
 
 
     // NOTE: It would be much nicer if we didn't have to have 2 different macros and 2 different

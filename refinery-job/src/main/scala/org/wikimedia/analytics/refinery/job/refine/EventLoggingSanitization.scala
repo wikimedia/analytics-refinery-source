@@ -2,195 +2,138 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports._
 import java.io.{BufferedReader, InputStreamReader}
+
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.core.config._
 import org.yaml.snakeyaml.Yaml
+
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
-import scopt.OptionParser
+import scala.collection.immutable.ListMap
 
-
-object EventLoggingSanitization {
-    private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
-
+object EventLoggingSanitization extends LogHelper with ConfigHelper
+{
     // Config class for CLI argument parser using scopt.
-    case class Params(
-        inputBasePath: String = "/wmf/data/event",
-        whitelistPath: String = "/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml",
-        tableWhitelistRegex: Option[Regex] = None,
-        sinceDateTime: DateTime = DateTime.now - 192.hours, // 8 days ago
-        untilDateTime: DateTime = DateTime.now,
-        outputBasePath: String = "/wmf/data/event_sanitized",
-        outputDatabase: String = "event_sanitized",
-        saltPath: Option[String] = None,
-        ignoreFailureFlag: Boolean = false,
-        parallelism: Option[Int] = None,
-        limit: Option[Int] = None,
-        dryRun: Boolean = false,
-        sendEmailReport: Boolean = false,
-        smtpURI: String = "mx1001.wikimedia.org:25",
-        fromEmail: String = s"elsanitization@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
-        toEmails: Seq[String] = Seq("analytics-alerts@wikimedia.org")
+    case class Config(
+        whitelist_path       : String = "/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml",
+        salt_path            : Option[String] = None
     )
 
-    // Support implicit Option[Regex] conversion from CLI opt.
-    implicit val scoptOptionRegexRead: scopt.Read[Option[Regex]] =
-        scopt.Read.reads {s => Some(s.r) }
+    object Config {
+        // This is just used to ease generating help message with default values.
+        // Required configs are set to dummy values.
+        // Since
+        val default = Config()
 
-    // Support implicit DateTime conversion from CLI opt.
-    // The opt can either be given in integer hours ago,
-    // or as an ISO-8601 date time.
-    implicit val scoptDateTimeRead: scopt.Read[DateTime] =
-        scopt.Read.reads { s => {
-            if (s.forall(Character.isDigit))
-                DateTime.now - s.toInt.hours
-            else
-                DateTime.parse(s, iso8601DateFormatter)
+        val propertiesDoc: ListMap[String, String] = {
+            val doc = ListMap(
+                "whitelist_path" ->
+                    s"Path to EventLogging's whitelist file. Default: ${default.whitelist_path}",
+                "salt_path" ->
+                    s"""Read the cryptographic salt for hashing of fields from this path.
+                       |Default: ${default.salt_path}"""
+            )
+            // We reuse Refine.Config and Refine.Config help documentation, but since
+            // This job will always override the following properties, remove them
+            // from this job's help message.
+            val refineDoc = Refine.Config.propertiesDoc -- Set(
+                "input_path_regex",
+                "input_path_regex_capture_groups",
+                "input_path_datetime_format"
+            )
+
+            // Combine our property help with Refine.Config's property help map
+            doc ++ refineDoc
         }
+
+        val usage: String =
+            """|Sanitize EventLogging Hive tables using a whitelist.
+               |
+               |Given an input base path for the data and one for the whitelist, this job
+               |will search all subdirectories for input partitions to sanitize. It will
+               |interpret the whitelist and apply it to keep only the tables and fields
+               |mentioned in it.
+               |
+               |Example:
+               |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingSanitization refinery-job.jar \
+               |  # read configs out of this file
+               |   --config_file                 /etc/refinery/refine/eventlogging_sanitization.properties \
+               |   # Override and/or set other configs on the CLI
+               |   --whitelist_path              /wmf/path/to/whitelist \
+               |   --input_path                  /wmf/data/raw/event \
+               |   --output_path                 /user/mforns/sanitized' \
+               |   --database                    mforns \
+               |   --since                       24 \
+               |"""
     }
 
-    // Define the command line options parser.
-    val argsParser = new OptionParser[Params](
-        "spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingSanitization refinery-job.jar"
-    ) {
-        head("""
-            |Sanitize EventLogging Hive tables using a whitelist.
-            |
-            |Given an input base path for the data and one for the whitelist, this job
-            |will search all subdirectories for input partitions to sanitize. It will
-            |interpret the whitelist and apply it to keep only the tables and fields
-            |mentioned in it.
-            |
-            |Example:
-            |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingSanitization refinery-job.jar \
-            |   --input-base-path     /wmf/data/raw/event \
-            |   --input-database      event \
-            |   --whitelist-path      /wmf/path/to/whitelist \
-            |   --output-base-path    /user/mforns/sanitized' \
-            |   --output-database     mforns \
-            |   --since               24
-            |
-            |""".stripMargin, "")
-
-        note("""NOTE: You may pass all of the described CLI options to this job in a single
-            |string with --options '<options>' flag.\n""".stripMargin)
-
-        help("help").text("Prints this usage text.")
-
-        opt[String]('i', "input-base-path").optional().valueName("<path>").action { (x, p) =>
-            p.copy(inputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-        }.text("Base path to EventLogging's data. Default: '/wmf/data/event'.")
-
-        opt[String]('w', "whitelist-path").optional().valueName("<path>").action { (x, p) =>
-            p.copy(whitelistPath = if (x.endsWith("/")) x.dropRight(1) else x)
-        }.text("Path to EventLogging's whitelist file. Default: " +
-               "'/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml'.")
-
-        opt[(Option[Regex])]('w', "table-whitelist") optional() valueName "<regex>" action { (x, p) =>
-            p.copy(tableWhitelistRegex = x)
-        } text("Whitelist regex of table names to refine. Usually this is taken from the config in " +
-               "--whitelist-path. Use this to further reduce the whitelist of tables to be sanitized, " +
-               "e.g. when you need to rerun a sanitize job for only a specific data source.")
-
-        opt[DateTime]('s', "since").optional().valueName("<since-date-time>").action { (x, p) =>
-            p.copy(sinceDateTime = x)
-        }.text("Sanitize all data found since this date time. This may either be given as an integer " +
-               "number of hours ago, or an ISO-8601 formatted date time. Default: 192 hours ago.")
-
-        opt[DateTime]('u', "until").optional().valueName("<until-date-time>").action { (x, p) =>
-            p.copy(untilDateTime = x)
-        }.text("Sanitize all data found until this date time. This may either be given as an integer " +
-               "number of hours ago, or an ISO-8601 formatted date time. Default: now.")
-
-        opt[String]('o', "output-base-path").optional().valueName("<path>").action { (x, p) =>
-            p.copy(outputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-        }.text("Base path for sanitized EventLogging data. Each table will be created " +
-               "as a subdirectory of this path. Default: '/wmf/data/event_sanitized'.")
-
-        opt[String]('O', "output-database").optional().valueName("<database>").action { (x, p) =>
-            p.copy(outputDatabase = x)
-        }.text("Hive database name where to create or update sanitized tables. Default: 'event_sanitized'.")
-
-        opt[String]('S', "salt-path").optional().valueName("<saltPath>").action { (x, p) =>
-            p.copy(saltPath = Some(x))
-        }.text("Read the cryptographic salt for hashing of fields from this path.")
-
-        opt[Unit]('f', "ignore-failure-flag").optional().action { (_, p) =>
-            p.copy(ignoreFailureFlag = true)
-        }.text("Set this if you want all partitions with failure files to be " +
-               "re-sanitized. Default: false.")
-
-        opt[Int]('P', "parallelism").optional().valueName("<parallelism>").action { (x, p) =>
-            p.copy(parallelism = Some(x))
-        }.text("Sanitize up to this many tables in parallel. Defaults to the number " +
-               "of local CPUs (i.e. what Scala parallel collections uses).")
-
-        opt[Int]('L', "limit").optional().valueName("<limit>").action { (x, p) =>
-            p.copy(limit = Some(x))
-        }.text("Only sanitize this many refine targets. This is useful while testing to reduce " +
-               "the number of sanitizations to do at once. Defaults to no limit.")
-
-        opt[Unit]('n', "dry-run").optional().action { (_, p) =>
-            p.copy(dryRun = true)
-        }.text("Set to true if no action should actually be taken. Default: false.")
-
-        opt[Unit]('E', "send-email-report").optional().action { (_, p) =>
-            p.copy(sendEmailReport = true)
-        }.text("Set this flag if you want an email report of any failures during sanitization.")
-
-        opt[String]('T', "smtp-uri").optional().valueName("<smtp-uri>").action { (x, p) =>
-            p.copy(smtpURI = x)
-        }.text("SMTP server host:port. Default: 'mx1001.wikimedia.org'.")
-
-        opt[String]('a', "from-email").optional().valueName("<from-email>").action { (x, p) =>
-            p.copy(fromEmail = x)
-        }.text("Email report from sender email address.")
-
-        opt[String]('t', "to-emails").optional().valueName("<to-emails>").action { (x, p) =>
-            p.copy(toEmails = x.split(","))
-        }.text("Email report recipient email addresses (comma separated). " +
-               "Default: analytics-alerts@wikimedia.org")
-    }
 
     def main(args: Array[String]): Unit = {
-        val params = args.headOption match {
-            case Some("--options") =>
-                // Job options are given as a single string.
-                argsParser.parse(args(1).split("\\s+"), Params()).getOrElse(sys.exit(1))
-            case _ =>
-                // Normal options usage.
-                argsParser.parse(args, Params()).getOrElse(sys.exit(1))
+        if (args.contains("--help")) {
+            println(help(Config.usage, Config.propertiesDoc))
+            sys.exit(0)
         }
 
         val spark = SparkSession.builder().enableHiveSupport().getOrCreate()
-        val allSucceeded = apply(params, spark)
+        // if not running in yarn, make spark log level quieter.
+        if (spark.conf.get("spark.master") != "yarn") {
+            spark.sparkContext.setLogLevel("WARN")
+        }
+
+        // Load EventLoggingSanitization specific configs
+        val config = loadConfig(args)
+        // Load Refine job specific configs
+        val refineConfig = Refine.loadConfig(args)
+
+        val allSucceeded = apply(spark)(
+            config.whitelist_path,
+            config.salt_path,
+            refineConfig
+        )
+
+        // Exit with proper exit val if not running in YARN.
         if (spark.conf.get("spark.master") != "yarn") {
             sys.exit(if (allSucceeded) 0 else 1)
         }
     }
 
 
+    def loadConfig(args: Array[String]): Config = {
+        val config = try {
+            configureArgs[Config] (args)
+        } catch {
+            case e: ConfigHelperException =>
+            log.fatal (e.getMessage + ". Aborting.")
+            sys.exit(1)
+        }
+        log.info("Loaded configuration:\n" + prettyPrint(config))
+        config
+    }
+
     /**
-      * Apply sanitization to EventLogging database with the specified params.
+      * Apply sanitization to EventLogging analytics tables in Hive with the specified params.
       *
-      * @param params Params
+      * @param refineConfig Refine.Config
       * @param spark Spark session
       * @return true if the sanitization succeeded, false otherwise.
       */
-    def apply(
-        params: Params,
-        spark: SparkSession
+    def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
+        whitelist_path: String,
+        salt_path     : Option[String],
+        refineConfig  : Refine.Config
     ): Boolean = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
         // Read whitelist from yaml file.
-        val whitelistStream = fs.open(new Path(params.whitelistPath))
+        val whitelistStream = fs.open(new Path(whitelist_path))
         val javaObject = new Yaml().load(whitelistStream)
         val whitelist = validateWhitelist(javaObject)
 
         // Read hashing salt if provided.
-        val hashingSalt = if (params.saltPath.isDefined) {
-            val saltStream = fs.open(new Path(params.saltPath.get))
+        val hashingSalt = if (salt_path.isDefined) {
+            val saltStream = fs.open(new Path(salt_path.get))
             val saltReader = new BufferedReader(new InputStreamReader(saltStream))
             Some(saltReader.lines.toArray.mkString)
         } else None
@@ -198,9 +141,9 @@ object EventLoggingSanitization {
         // Get a Regex with all tables that are whitelisted.
         // This prevents Refine to collect RefineTargets for those tables
         // and to create a tree of directories just to store success files.
-        val tableWhitelistRegex = params.tableWhitelistRegex.getOrElse(
+        val tableWhitelistRegex = Some(refineConfig.table_whitelist_regex.getOrElse(
             new Regex("^(" + whitelist.keys.mkString("|") + ")$")
-        )
+        ))
 
         // Get WhitelistSanitization transform function.
         val sanitizationTransformFunction = WhitelistSanitization(
@@ -208,28 +151,18 @@ object EventLoggingSanitization {
             hashingSalt
         )
 
-        // Call Refine process with the sanitization transform function.
+        // Use Refine with the sanitization transform function to sanitize EventLogging data.
         Refine(
-            inputBasePath = params.inputBasePath,
-            outputBasePath = params.outputBasePath,
-            spark = spark,
-            databaseName = params.outputDatabase,
-            sinceDateTime = params.sinceDateTime,
-            untilDateTime = params.untilDateTime,
-            inputPathPattern = "([^/]+)/year=(\\d{4})/month=(\\d{1,2})/day=(\\d{1,2})/hour=(\\d{1,2})",
-            inputPathPatternCaptureGroups = Seq("table", "year", "month", "day", "hour"),
-            inputPathDateTimeFormat = DateTimeFormat.forPattern("'year='yyyy/'month='M/'day='d/'hour='H"),
-            tableWhitelistRegex = Some(tableWhitelistRegex),
-            transformFunctions = Seq(sanitizationTransformFunction.asInstanceOf[Refine.TransformFunction]),
-            shouldIgnoreFailureFlag = params.ignoreFailureFlag,
-            parallelism = params.parallelism,
-            compressionCodec = "snappy",
-            limit = params.limit,
-            dryRun = params.dryRun,
-            shouldEmailReport = params.sendEmailReport,
-            smtpURI = params.smtpURI,
-            fromEmail = params.fromEmail,
-            toEmails = params.toEmails
+            spark,
+            // Force some Eventlogging analyics dataset configs, just in case someone tries to
+            // set them to something that won't work for EventLogging Refine.
+            refineConfig.copy(
+                input_path_regex = "([^/]+)/year=(\\d{4})/month=(\\d{1,2})/day=(\\d{1,2})/hour=(\\d{1,2})",
+                input_path_regex_capture_groups = Seq("table", "year", "month", "day", "hour"),
+                input_path_datetime_format = DateTimeFormat.forPattern("'year='yyyy/'month='M/'day='d/'hour='H"),
+                transform_functions = refineConfig.transform_functions :+ sanitizationTransformFunction.asInstanceOf[Refine.TransformFunction],
+                table_whitelist_regex = tableWhitelistRegex
+            )
         )
     }
 

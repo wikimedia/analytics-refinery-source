@@ -1,14 +1,17 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports._
+import io.circe.Decoder
+import cats.syntax.either._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
+import org.wikimedia.analytics.refinery.core.config._
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
-import scopt.OptionParser
 
+import scala.collection.immutable.ListMap
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.matching.Regex
@@ -22,68 +25,155 @@ import scala.util.{Success, Try}
   * Looks for hourly input partition directories with data that need refinement,
   * and refines them into Hive Parquet tables using DataFrameToHive.
   */
-object Refine extends LogHelper {
-    private val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
-
+object Refine extends LogHelper with ConfigHelper {
     type TransformFunction = DataFrameToHive.TransformFunction
 
     /**
-      * Config class for CLI argument parser using scopt
+      * Config class for use config files and args.
       */
-    case class Params(
-        inputBasePath: String                      = "",
-        outputBasePath: String                     = "",
-        // This is a ugly trick facilitating launching jobs
-        // Shall be removed when using a properties configuration file
-        spark: SparkSession                        = SparkSession.builder().enableHiveSupport().getOrCreate(),
-        hiveServerUrl: String                      = "analytics1003.eqiad.wmnet:10000",
-        databaseName: String                       = "default",
-        sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
-        untilDateTime: DateTime                    = DateTime.now,
-        inputPathPattern: String                   = ".*/(.+)/hourly/(\\d{4})/(\\d{2})/(\\d{2})/(\\d{2}).*",
-        inputPathPatternCaptureGroups: Seq[String] = Seq("table", "year", "month", "day", "hour"),
-        inputPathDateTimeFormat: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
-        tableWhitelistRegex: Option[Regex]         = None,
-        tableBlacklistRegex: Option[Regex]         = None,
-        transformFunctions: Seq[TransformFunction] = Seq(),
-        shouldIgnoreFailureFlag: Boolean           = false,
-        parallelism: Option[Int]                   = None,
-        compressionCodec: String                   = "snappy",
-        limit: Option[Int]                         = None,
-        dryRun: Boolean                            = false,
-        shouldEmailReport: Boolean                 = false,
-        smtpURI: String                            = "mx1001.wikimedia.org:25",
-        fromEmail: String                          = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
-        toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
+    case class Config(
+        input_path: String,
+        output_path: String,
+        hive_server_url: String                         = "analytics1003.eqiad.wmnet:10000",
+        database: String                                = "default",
+        since: DateTime                                 = DateTime.now - 192.hours, // 8 days ago
+        until: DateTime                                 = DateTime.now,
+        input_path_regex: String                        = ".*/(.+)/hourly/(\\d{4})/(\\d{2})/(\\d{2})/(\\d{2}).*",
+        input_path_regex_capture_groups: Seq[String]    = Seq("table", "year", "month", "day", "hour"),
+        input_path_datetime_format: DateTimeFormatter   = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
+        table_whitelist_regex: Option[Regex]            = None,
+        table_blacklist_regex: Option[Regex]            = None,
+        transform_functions: Seq[TransformFunction]     = Seq(),
+        ignore_failure_flag: Boolean                    = false,
+        parallelism: Option[Int]                        = None,
+        compression_codec: String                       = "snappy",
+        limit: Option[Int]                              = None,
+        dry_run: Boolean                                = false,
+        should_email_report: Boolean                    = false,
+        smtp_uri: String                                = "mx1001.wikimedia.org:25",
+        from_email: String                              = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
+        to_emails: Seq[String]                          = Seq("analytics-alerts@wikimedia.org")
     )
 
-    // Support implicit Option[Regex] conversion from CLI opt.
-    implicit val scoptOptionRegexRead: scopt.Read[Option[Regex]] =
-        scopt.Read.reads {s => Some(s.r) }
+    object Config {
+        // This is just used to ease generating help message with default values.
+        // Required configs are set to dummy values.
+        val default = Config("", "")
 
-    // Support implicit DateTimeFormatter conversion from CLI opt.
-    implicit val scoptDateTimeFormatterRead: scopt.Read[DateTimeFormatter] =
-        scopt.Read.reads { s => DateTimeFormat.forPattern(s) }
+        val propertiesDoc: ListMap[String, String] = ListMap(
+            "config_file <file1.properties,files2.properties>" ->
+                """Comma separated list of paths to properties files.  These files parsed for
+                  |for matching config parameters as defined here.""",
+            "input_path" ->
+                """Path to input datasets.  This directory is expected to contain
+                  |directories of individual (topic) table datasets.  E.g.
+                  |/path/to/raw/data/{myprefix_dataSetOne,myprefix_dataSetTwo}, etc.
+                  |Each of these subdirectories will be searched for refine target
+                  |partitions.""",
+            "output_path" ->
+                """Base path of output data and of external Hive tables.  Completed refine targets
+                  |are expected to be found here in subdirectories based on extracted table names.""",
+            "database" ->
+                s"Hive database name in which to manage refined Hive tables.  Default: ${default.database}",
+            "since" ->
+                s"""Look for refine targets since this date time.  This may either be given as an integer
+                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.since}""",
+            "until" ->
+                s"""Look for refine targets until this date time.  This may either be given as an integer
+                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.until}""",
+            "input_path_regex" ->
+                s"""This should match the input partition directory hierarchy starting from the
+                   |dataset base path, and should capture the table name and the partition values.
+                   |Along with input-capture, this allows arbitrary extraction of table names and and
+                   |partitions from the input path.  You are required to capture at least "table"
+                   |using this regex.  The default will match an hourly bucketed Camus import hierarchy,
+                   |using the topic name as the table name.  Default: ${default.input_path_regex}""",
+            "input_path_regex_capture_groups" ->
+                s"""This should be a comma separated list of named capture groups
+                   |corresponding to the groups captured byt input-regex.  These need to be
+                   |provided in the order that the groups are captured.  This ordering will
+                   |also be used for partitioning.  Default: ${default.input_path_regex_capture_groups.mkString(",")}""",
+            "input_path_datetime_format" ->
+                s"""This DateTimeFormat will be used to generate all possible partitions since
+                   |the given lookback-hours in each dataset directory.  This format will be used
+                   |to format a DateTime to input directory partition paths.  The finest granularity
+                   |supported is hourly.  Every hour in the past lookback-hours will be generated,
+                   |but if you specify a less granular format (e.g. daily, like "daily"/yyyy/MM/dd),
+                   |the code will reduce the generated partition search for that day to 1, instead of 24.
+                   |The default is suitable for generating partitions in an hourly bucketed Camus
+                   |import hierarchy.  Default: ${default.input_path_datetime_format}""",
+            "table_whitelist_regex" ->
+                "Whitelist regex of table names to look for.",
+            "table_blacklist_regex" ->
+                "Blacklist regex of table names to skip.",
+            "transform_functions" ->
+                s"""Comma separated list of fully qualified module.ObjectNames.  The objects'
+                   |apply methods should take a DataFrame and a HivePartition and return
+                   |a DataFrame.  These functions can be used to map from the input DataFrames
+                   |to a new ones, applying various transformations along the way.  Default: none""",
+            "ignore_failure_flag" ->
+                s"""Set this if you want all discovered partitions with _REFINE_FAILED files to be
+                   |(re)refined. Default: ${default.ignore_failure_flag}""",
+            "parallelism" ->
+                """Refine into up to this many tables in parallel.  Individual partitions
+                  |destined for the same Hive table will be refined serially.
+                  |Default: the number of local CPUs (i.e. what Scala parallel
+                  |collections uses).""",
+            "compression_codec" ->
+                s"Value of spark.sql.parquet.compression.codec, default: ${default.compression_codec}",
+            "limit" ->
+                s"""Only refine this many partitions directories.  This is useful while
+                   |testing to reduce the number of refinements to do at once.  Default:
+                   |no limit.""",
+            "dry_run" ->
+                s"""Set to true if no action should actually be taken.  Instead, targets
+                   |to refine will be printed, but they will not be refined.  NOTE: You
+                   |actually set this to a value, e.g. --dry_run=true.  A valueless flag
+                   |will not work.
+                   |Default: ${default.dry_run}""",
+            "hive_server_url" ->
+                s"URL of HiveServer. Default: ${default.hive_server_url}",
+            "should_email_report" ->
+                s"""Set this flag if you want an email report of any missing refine targets.
+                   |Default: ${default.should_email_report}""",
+            "smtp_uri" ->
+                s"SMTP server host:port. Default: mx1001.wikimedia.org.  Default: ${default.smtp_uri}",
+            "from_email" ->
+                s"Email report from sender email address.  Default: ${default.from_email}",
+            "to_emails" ->
+                s"Email report recipient email addresses (comma separated):  Default: ${default.to_emails.mkString(",")}."
+        )
 
-    // Support implicit DateTime conversion from CLI opt.
-    // The opt can either be given in integer hours ago, or
-    // as an ISO-8601 date time.
-    implicit val scoptDateTimeRead: scopt.Read[DateTime] =
-        scopt.Read.reads { s => {
-            if (s.forall(Character.isDigit))
-                DateTime.now - s.toInt.hours
-            else
-                DateTime.parse(s, iso8601DateFormatter)
-        }
+        val usage: String =
+            """
+            |Input Datasets -> Partitioned Hive Parquet tables.
+            |
+            |Given an input base path, this will search all subdirectories for input
+            |partitions to convert to Parquet backed Hive tables.  This was originally
+            |written to work with JSON data imported via Camus into hourly buckets, but
+            |should be configurable to work with any regular directory hierarchy.
+            |
+            |Example:
+            |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.Refine refinery-job.jar \
+            |  # read configs out of this file
+            |   --config_file                 /etc/refinery/refine_eventlogging_eventbus.properties \
+            |   # Override and/or set other configs on the CLI
+            |   --input_path                  /wmf/data/raw/event \
+            |   --output_path                 /user/otto/external/eventbus5' \
+            |   --database                    event \
+            |   --since                       24 \
+            |   --input_regex                 '.*(eqiad|codfw)_(.+)/hourly/(\d+)/(\d+)/(\d+)/(\d+)' \
+            |   --input_regex_capture_groups  'datacenter,table,year,month,day,hour' \
+            |   --table_blacklist_regex       '.*page_properties_change.*'
+            |"""
     }
 
-    // Support implicit transformFunctions conversion fromCLI opt.
-    // If we are given any transform function names, they should be fully
-    // qualified package.objectName to an object with an apply method that
-    // takes a DataFrame and HiveParititon, and returns a DataFrame.
-    // Map these String names to callable functions.
-    implicit val scoptTransformFunctions: scopt.Read[Seq[TransformFunction]] =
-        scopt.Read.reads { s => {
+
+    /**
+      * Convert from comma separated package.ObjectNames to Object callable apply() TransformFunctions.
+      */
+    implicit val decodeTransformFunctions: Decoder[Seq[TransformFunction]] = Decoder.decodeString.emap { s =>
+        Either.catchNonFatal(
             s.split(",").map { objectName =>
                 val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
                 // Lookup the object's apply method as a reflect MethodMirror, and wrap
@@ -95,241 +185,85 @@ object Refine extends LogHelper {
                         transformMirror(partDf).asInstanceOf[PartitionedDataFrame]
                 }
                 wrapperFn
-            }
-        }
-    }
-
-
-    /**
-      * Define the command line options parser.
-      */
-    val argsParser = new OptionParser[Params](
-        "spark-submit --class org.wikimedia.analytics.refinery.job.refine.Refine refinery-job.jar"
-    ) {
-        head("""
-              |Input Datasets -> Partitioned Hive Parquet tables.
-              |
-              |Given an input base path, this will search all subdirectories for input
-              |partitions to convert to Parquet backed Hive tables.  This was originally
-              |written to work with JSON data imported via Camus into hourly buckets, but
-              |should be configurable to work with any regular directory hierarchy.
-              |
-              |Example:
-              |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.Refine refinery-job.jar \
-              |   --input-base-path     /wmf/data/raw/event \
-              |   --output-base-path    /user/otto/external/eventbus5' \
-              |   --database            event \
-              |   --since               24 \
-              |   --input-regex         '.*(eqiad|codfw)_(.+)/hourly/(\d+)/(\d+)/(\d+)/(\d+)' \
-              |   --input-capture       'datacenter,table,year,month,day,hour' \
-              |   --table-blacklist     '.*page_properties_change.*'
-              |
-              |""".stripMargin, "")
-
-        note("""NOTE: You may pass all of the described CLI options to this job in a single
-               |string with --options '<options>' flag.\n""".stripMargin)
-
-        help("help") text "Prints this usage text."
-
-        opt[String]('i', "input-base-path").required().valueName("<path>").action { (x, p) =>
-            p.copy(inputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-        } text
-            """Path to input datasets.  This directory is expected to contain
-              |directories of individual (topic) table datasets.  E.g.
-              |/path/to/raw/data/{myprefix_dataSetOne,myprefix_dataSetTwo}, etc.
-              |Each of these subdirectories will be searched for partitions that
-              |need to be refined.""".stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[String]('o', "output-base-path") optional() valueName "<path>" action { (x, p) =>
-            p.copy(outputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
-        } text
-            """Base path of output data and of external Hive tables.  Each table will be created
-              |with a LOCATION in a subdirectory of this path."""
-                .stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[String]('d', "database") optional() valueName "<database>" action { (x, p) =>
-            p.copy(databaseName = if (x.endsWith("/")) x.dropRight(1) else x)
-        } text "Hive database name in which to manage refined Hive tables.\n"
-
-        opt[DateTime]('s', "since") optional() valueName "<since-date-time>" action { (x, p) =>
-            p.copy(sinceDateTime = x)
-        } text
-            """Refine all data found since this date time.  This may either be given as an integer
-              |number of hours ago, or an ISO-8601 formatted date time.  Default: 192 hours ago."""
-                .stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[DateTime]('u', "until") optional() valueName "<until-date-time>" action { (x, p) =>
-            p.copy(untilDateTime = x)
-        } text
-            """Refine all data found until this date time.  This may either be given as an integer
-              |number of hours ago, or an ISO-8601 formatted date time.  Default: now."""
-                .stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[String]('R', "input-regex") optional() valueName "<regex>" action { (x, p) =>
-            p.copy(inputPathPattern = x)
-        } text
-            """input-regex should match the input partition directory hierarchy starting from the
-              |dataset base path, and should capture the table name and the partition values.
-              |Along with input-capture, this allows arbitrary extraction of table names and and
-              |partitions from the input path.  You are required to capture at least "table"
-              |using this regex.  The default will match an hourly bucketed Camus import hierarchy,
-              |using the topic name as the table name.""".stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[String]('C', "input-capture") optional() valueName "<capture-list>" action { (x, p) =>
-            p.copy(inputPathPatternCaptureGroups = x.split(","))
-        } text
-            """input-capture should be a comma separated list of named capture groups
-              |corresponding to the groups captured byt input-regex.  These need to be
-              |provided in the order that the groups are captured.  This ordering will
-              |also be used for partitioning.""".stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[DateTimeFormatter]('F', "input-datetime-format") optional() valueName "<format>" action { (x, p) =>
-            p.copy(inputPathDateTimeFormat = x)
-        } text
-            """This DateTimeFormat will be used to generate all possible partitions since
-              |the given lookback-hours in each dataset directory.  This format will be used
-              |to format a DateTime to input directory partition paths.  The finest granularity
-              |supported is hourly.  Every hour in the past lookback-hours will be generated,
-              |but if you specify a less granular format (e.g. daily, like "daily"/yyyy/MM/dd),
-              |the code will reduce the generated partition search for that day to 1, instead of 24.
-              |The default is suitable for generating partitions in an hourly bucketed Camus
-              |import hierarchy.
-            """.stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[(Option[Regex])]('w', "table-whitelist") optional() valueName "<regex>" action { (x, p) =>
-            p.copy(tableWhitelistRegex = x)
-        } text "Whitelist regex of table names to refine.\n".stripMargin
-
-        opt[Option[Regex]]('b', "table-blacklist") optional() valueName "<regex>" action { (x, p) =>
-            p.copy(tableBlacklistRegex = x)
-        } text "Blacklist regex of table names to skip.\n".stripMargin
-
-        opt[Seq[TransformFunction]]('l', "transform-functions") optional() valueName "<fn>" action { (x, p) =>
-            p.copy(transformFunctions = x)
-        } text
-            """Comma separated list of fully qualified module.ObjectNames.  The objects'
-               apply methods should take a DataFrame and a HivePartition and return
-               a DataFrame.  These functions can be used to map from the input DataFrames
-               to a new ones, applying various transformations along the way.
-            """.stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[Unit]('I', "ignore-failure-flag") optional() action { (_, p) =>
-            p.copy(shouldIgnoreFailureFlag = true)
-        } text
-            """Set this if you want all discovered partitions with _REFINE_FAILED files to be
-               |(re)refined. Default: false""".stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[Int]('P', "parallelism") optional() valueName "<parallelism>" action { (x, p) =>
-            p.copy(parallelism = Some(x))
-        } text
-            """Refine into up to this many tables in parallel.  Individual partitions
-              |destined for the same Hive table will be refined serially.
-              |Defaults to the number of local CPUs (i.e. what Scala parallel
-              |collections uses).""".stripMargin.replace("\n", "\n\t") + "\n"
-
-
-        opt[String]('c', "compression-codec") optional() valueName "<codec>" action { (x, p) =>
-            p.copy(compressionCodec = x)
-        } text "Value of spark.sql.parquet.compression.codec, default: snappy\n"
-
-        opt[String]('L', "limit") optional() valueName "<limit>" action { (x, p) =>
-            p.copy(limit = Some(x.toInt))
-        } text
-            """Only refine this many partitions directories.  This is useful while
-              |testing to reduce the number of refinements to do at once.  Defaults
-              |to no limit.""".stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[Unit]('n', "dry-run") optional() action { (_, p) =>
-            p.copy(dryRun = true)
-        } text
-            """Set to true if no action should actually be taken.  Instead, targets
-              |to refine will be printed, but they will not be refined.
-              |Default: false"""
-                .stripMargin.replace("\n", "\n\t") + "\n"
-
-        opt[String]('H', "hive-server-url") optional() valueName "<hive-server-url>" action { (x, p) =>
-            p.copy(hiveServerUrl = x)
-        } text "URL of HiveServer. Default: analytisc1003.eqiad.wmnet:10000"
-
-        opt[Unit]('E', "send-email-report") optional() action { (_, p) =>
-            p.copy(shouldEmailReport = true)
-        } text
-            "Set this flag if you want an email report of any failures during refinement."
-
-        opt[String]('T', "smtp-uri") optional() valueName "<smtp-uri>" action { (x, p) =>
-            p.copy(smtpURI = x)
-        } text "SMTP server host:port. Default: mx1001.wikimedia.org"
-
-        opt[String]('f', "from-email") optional() valueName "<from-email>" action { (x, p) =>
-            p.copy(fromEmail = x)
-        } text "Email report from sender email address."
-
-        opt[String]('t', "to-emails") optional() valueName "<to-emails>" action { (x, p) =>
-            p.copy(toEmails = x.split(","))
-        } text
-            "Email report recipient email addresses (comma separated). Default: analytics-alerts@wikimedia.org"
-
+            }.toSeq
+        ).leftMap(t =>
+            throw new RuntimeException(s"Failed parsing '$s' into transform functions.", t)
+        )
     }
 
 
     def main(args: Array[String]): Unit = {
-        val params = args.headOption match {
-            // Case when our job options are given as a single string.  Split them
-            // and pass them to argsParser.
-            case Some("--options") =>
-                argsParser.parse(args(1).split("\\s+"), Params()).getOrElse(sys.exit(1))
-            // Else the normal usage, each CLI opts can be parsed as a job option.
-            case _ =>
-                argsParser.parse(args, Params()).getOrElse(sys.exit(1))
+        if (args.contains("--help")) {
+            println(help(Config.usage, Config.propertiesDoc))
+            sys.exit(0)
         }
 
-        val allSucceeded = (apply _).tupled(Params.unapply(params).get)
-        if (params.spark.conf.get("spark.master") != "yarn") {
+        val spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
+        // if not running in yarn, make spark log level quieter.
+        if (spark.conf.get("spark.master") != "yarn") {
+            spark.sparkContext.setLogLevel("WARN")
+        }
+
+        val config = loadConfig(args)
+
+        // Call apply with spark and Config properties as parameters
+        val allSucceeded = apply(spark, config)
+
+        // Exit with proper exit val if not running in YARN.
+        if (spark.conf.get("spark.master") != "yarn") {
             if (allSucceeded) sys.exit(0) else sys.exit(1)
         }
-
     }
 
-
+    def loadConfig(args: Array[String]): Config = {
+        val config = try {
+            configureArgs[Config](args)
+        } catch {
+            case e: ConfigHelperException =>
+                log.fatal(e.getMessage + ". Aborting.")
+                sys.exit(1)
+        }
+        log.info("Loaded configuration:\n" + prettyPrint(config))
+        config
+    }
 
     /**
       * Refine all discovered RefineTargets.
       *
       * @return true if all targets needing refinement succeeded, false otherwise.
       */
-    def apply(
-        inputBasePath: String,
-        outputBasePath: String,
-        spark: SparkSession,
-        hiveServerUrl: String                      = "analytics1003.eqiad.wmnet:10000",
-        databaseName: String                       = "default",
-        sinceDateTime: DateTime                    = DateTime.now - 192.hours, // 8 days ago
-        untilDateTime: DateTime                    = DateTime.now,
-        inputPathPattern: String                   = ".*/(.+)/hourly/(\\d{4})/(\\d{2})/(\\d{2})/(\\d{2}).*",
-        inputPathPatternCaptureGroups: Seq[String] = Seq("table", "year", "month", "day", "hour"),
-        inputPathDateTimeFormat: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
-        tableWhitelistRegex: Option[Regex]         = None,
-        tableBlacklistRegex: Option[Regex]         = None,
-        transformFunctions: Seq[TransformFunction] = Seq(),
-        shouldIgnoreFailureFlag: Boolean           = false,
-        parallelism: Option[Int]                   = None,
-        compressionCodec: String                   = "snappy",
-        limit: Option[Int]                         = None,
-        dryRun: Boolean                            = false,
-        shouldEmailReport: Boolean                 = false,
-        smtpURI: String                            = "mx1001.wikimedia.org:25",
-        fromEmail: String                          = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
-        toEmails: Seq[String]                      = Seq("analytics-alerts@wikimedia.org")
+    def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
+        input_path: String,
+        output_path: String,
+        hive_server_url: String                         = Config.default.hive_server_url,
+        database: String                                = Config.default.database,
+        since: DateTime                                 = Config.default.since,
+        until: DateTime                                 = Config.default.until,
+        input_path_regex: String                        = Config.default.input_path_regex,
+        input_path_regex_capture_groups: Seq[String]    = Config.default.input_path_regex_capture_groups,
+        input_path_datetime_format: DateTimeFormatter   = Config.default.input_path_datetime_format,
+        table_whitelist_regex: Option[Regex]            = Config.default.table_whitelist_regex,
+        table_blacklist_regex: Option[Regex]            = Config.default.table_blacklist_regex,
+        transform_functions: Seq[TransformFunction]     = Config.default.transform_functions,
+        ignore_failure_flag: Boolean                    = Config.default.ignore_failure_flag,
+        parallelism: Option[Int]                        = Config.default.parallelism,
+        compression_codec: String                       = Config.default.compression_codec,
+        limit: Option[Int]                              = Config.default.limit,
+        dry_run: Boolean                                = Config.default.dry_run,
+        should_email_report: Boolean                    = Config.default.should_email_report,
+        smtp_uri: String                                = Config.default.smtp_uri,
+        from_email: String                              = Config.default.from_email,
+        to_emails: Seq[String]                          = Config.default.to_emails
     ): Boolean = {
         // Initial setup - Spark Conf and Hadoop FileSystem
-        spark.conf.set("spark.sql.parquet.compression.codec", compressionCodec)
+        spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
         // Ensure that inputPathPatternCaptureGroups contains "table", as this is needed
         // to determine the Hive table name we will refine into.
-        if (!inputPathPatternCaptureGroups.contains("table")) {
+        if (!input_path_regex_capture_groups.contains("table")) {
             throw new RuntimeException(
-                s"Invalid <input-capture> $inputPathPatternCaptureGroups. " +
+                s"Invalid <input-capture> $input_path_regex_capture_groups. " +
                  "Must at least contain 'table' as a named capture group."
             )
         }
@@ -338,30 +272,30 @@ object Refine extends LogHelper {
         // will use aliases for the named groups.  This will be used to extract
         // table and partitions out of the inputPath.
         val inputPathRegex = new Regex(
-            inputPathPattern,
-            inputPathPatternCaptureGroups: _*
+            input_path_regex,
+            input_path_regex_capture_groups: _*
         )
 
         log.info(
-            s"Looking for targets to refine in $inputBasePath between " +
-            s"$sinceDateTime and $untilDateTime"
+            s"Looking for targets to refine in $input_path between " +
+            s"$since and $until"
         )
 
         // Need RefineTargets for every existent input partition since pastCutoffDateTime
         val targetsToRefine = RefineTarget.find(
             fs,
-            new Path(inputBasePath),
-            new Path(outputBasePath),
-            databaseName,
-            inputPathDateTimeFormat,
+            new Path(input_path),
+            new Path(output_path),
+            database,
+            input_path_datetime_format,
             inputPathRegex,
-            sinceDateTime,
-            untilDateTime
+            since,
+            until
         )
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
         .filter(_.shouldRefine(
-            tableWhitelistRegex, tableBlacklistRegex, shouldIgnoreFailureFlag
+            table_whitelist_regex, table_blacklist_regex, ignore_failure_flag
         ))
 
         // At this point, targetsToRefine will be a Seq of RefineTargets in our targeted
@@ -370,7 +304,7 @@ object Refine extends LogHelper {
 
         // Return now if we didn't find any targets to refine.
         if (targetsToRefine.isEmpty) {
-            log.debug(s"No targets needing refinement were found in $inputBasePath")
+            log.debug(s"No targets needing refinement were found in $input_path")
             return true
         }
 
@@ -398,8 +332,8 @@ object Refine extends LogHelper {
             s"parallelism of ${targets.tasksupport.parallelismLevel}..."
         )
 
-        if (dryRun)
-            log.warn("NOTE: --dry-run was specified, nothing will actually be refined.")
+        if (dry_run)
+            log.warn("NOTE: dry_run was set to true, nothing will actually be refined.")
 
         // Loop over the inputs in parallel and refine them to
         // their Hive table partitions.  jobStatuses should be a
@@ -409,9 +343,9 @@ object Refine extends LogHelper {
             // not yet exist, we want the first target here to issue a CREATE, while the
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
-            if (!dryRun)
-                table -> refineTargets(spark, hiveServerUrl, tableTargets.seq, transformFunctions)
-            // If --dry-run was given, don't refine, just map to Successes.
+            if (!dry_run)
+                table -> refineTargets(spark, hive_server_url, tableTargets.seq, transform_functions)
+            // If dry_run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
         }
@@ -453,17 +387,17 @@ object Refine extends LogHelper {
 
         // If we should send this as a failure email report
         // (and this is not a dry run), do it!
-        if (hasFailures && shouldEmailReport && !dryRun) {
-            val smtpHost = smtpURI.split(":")(0)
-            val smtpPort = smtpURI.split(":")(1)
+        if (hasFailures && should_email_report && !dry_run) {
+            val smtpHost = smtp_uri.split(":")(0)
+            val smtpPort = smtp_uri.split(":")(1)
 
-            log.info(s"Sending failure email report to ${toEmails.mkString(",")}")
+            log.info(s"Sending failure email report to ${to_emails.mkString(",")}")
             Utilities.sendEmail(
                 smtpHost,
                 smtpPort,
-                fromEmail,
-                toEmails.toArray,
-                s"Refine failure report for $inputBasePath -> $outputBasePath",
+                from_email,
+                to_emails.toArray,
+                s"Refine failure report for $input_path -> $output_path",
                 failureMessages
             )
         }
@@ -472,6 +406,17 @@ object Refine extends LogHelper {
         !hasFailures
     }
 
+
+    /**
+      * Overloaded apply that takes a SparkSession and a Refine.Config object
+      *
+      * @param spark
+      * @param config
+      * @return
+      */
+    def apply(spark: SparkSession, config: Config): Boolean = {
+        (apply(spark) _).tupled(Config.unapply(config).get)
+    }
 
     /**
       * Given a Seq of RefineTargets, this runs DataFrameToHive on each one.
