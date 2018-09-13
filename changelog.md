@@ -1,3 +1,6 @@
+## v0.0.75
+* Refine and EventloggingSanitization jobs now use ConfigHelper instead of scopt
+
 ## v0.0.74
 * Add --table-whitelist flag to EventLoggingSanitization job
 * Add ConfigHelper to assist in configuring scala jobs with properties files

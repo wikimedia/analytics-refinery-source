@@ -462,19 +462,4 @@ object Refine extends LogHelper with ConfigHelper {
             }
         })
     }
-
-
-    /**
-      * Returns true of s matches r, else false.
-      * @param s    String to match
-      * @param r    Regex
-      * @return
-      */
-    def regexMatches(s: String, r: Regex): Boolean = {
-        s match {
-            case r(_*) => true
-            case _     => false
-        }
-    }
-
 }

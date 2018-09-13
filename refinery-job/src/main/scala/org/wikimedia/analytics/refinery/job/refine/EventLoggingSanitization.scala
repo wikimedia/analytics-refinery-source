@@ -24,7 +24,6 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        // Since
         val default = Config()
 
         val propertiesDoc: ListMap[String, String] = {
@@ -44,7 +43,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
                 "input_path_datetime_format"
             )
 
-            // Combine our property help with Refine.Config's property help map
+            // Combine our property doc with Refine.Config's property doc
             doc ++ refineDoc
         }
 
