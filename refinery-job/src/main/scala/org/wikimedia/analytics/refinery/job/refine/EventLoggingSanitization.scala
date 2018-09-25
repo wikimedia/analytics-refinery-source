@@ -153,7 +153,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
         // Use Refine with the sanitization transform function to sanitize EventLogging data.
         Refine(
             spark,
-            // Force some Eventlogging analyics dataset configs, just in case someone tries to
+            // Force some Eventlogging analytics dataset configs, just in case someone tries to
             // set them to something that won't work for EventLogging Refine.
             refineConfig.copy(
                 input_path_regex = "([^/]+)/year=(\\d{4})/month=(\\d{1,2})/day=(\\d{1,2})/hour=(\\d{1,2})",
