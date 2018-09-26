@@ -33,13 +33,13 @@ object Refine extends LogHelper with ConfigHelper {
       */
     case class Config(
         input_path: String,
+        input_path_regex: String,
+        input_path_regex_capture_groups: Seq[String],
         output_path: String,
+        database: String,
         hive_server_url: String                         = "analytics1003.eqiad.wmnet:10000",
-        database: String                                = "default",
-        since: DateTime                                 = DateTime.now - 192.hours, // 8 days ago
+        since: DateTime                                 = DateTime.now - 24.hours, // 1 day ago
         until: DateTime                                 = DateTime.now,
-        input_path_regex: String                        = ".*/(.+)/hourly/(\\d{4})/(\\d{2})/(\\d{2})/(\\d{2}).*",
-        input_path_regex_capture_groups: Seq[String]    = Seq("table", "year", "month", "day", "hour"),
         input_path_datetime_format: DateTimeFormatter   = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
         table_whitelist_regex: Option[Regex]            = None,
         table_blacklist_regex: Option[Regex]            = None,
@@ -52,13 +52,13 @@ object Refine extends LogHelper with ConfigHelper {
         should_email_report: Boolean                    = false,
         smtp_uri: String                                = "mx1001.wikimedia.org:25",
         from_email: String                              = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
-        to_emails: Seq[String]                          = Seq("analytics-alerts@wikimedia.org")
+        to_emails: Seq[String]                          = Seq()
     )
 
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        val default = Config("", "")
+        val default = Config("", "", Seq(), "", "")
 
         val propertiesDoc: ListMap[String, String] = ListMap(
             "config_file <file1.properties,files2.properties>" ->
@@ -234,13 +234,13 @@ object Refine extends LogHelper with ConfigHelper {
       */
     def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
         input_path: String,
+        input_path_regex: String,
+        input_path_regex_capture_groups: Seq[String],
         output_path: String,
+        database: String,
         hive_server_url: String                         = Config.default.hive_server_url,
-        database: String                                = Config.default.database,
         since: DateTime                                 = Config.default.since,
         until: DateTime                                 = Config.default.until,
-        input_path_regex: String                        = Config.default.input_path_regex,
-        input_path_regex_capture_groups: Seq[String]    = Config.default.input_path_regex_capture_groups,
         input_path_datetime_format: DateTimeFormatter   = Config.default.input_path_datetime_format,
         table_whitelist_regex: Option[Regex]            = Config.default.table_whitelist_regex,
         table_blacklist_regex: Option[Regex]            = Config.default.table_blacklist_regex,

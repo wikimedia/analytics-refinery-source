@@ -1,3 +1,6 @@
+## v0.0.76-SNAPSHOT
+# Refine Config removes some potential dangerous defaults, forcing users to set them
+
 ## v0.0.75
 * Refine and EventloggingSanitization jobs now use ConfigHelper instead of scopt
 
