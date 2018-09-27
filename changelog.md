@@ -1,3 +1,6 @@
+## v0.0.77
+* Add spark job converting mediawiki XML-dumps to parquet
+
 ## v0.0.76
 * Refine Config removes some potential dangerous defaults, forcing users to set them
 * EventLoggingToDruid now can bucket time measures into ingestable dimensions

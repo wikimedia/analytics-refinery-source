@@ -36,12 +36,6 @@
             <version>1.1.2.5</version>
              <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.netty</groupId>
-            <artifactId>netty-all</artifactId>
-            <version>4.1.17.Final</version>
-            <scope>test</scope>
-        </dependency>
 
         <!-- Explicitely providing netty for test -->
         <dependency>
@@ -226,6 +220,12 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>3.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.wikimedia.</groupId>
+            <artifactId>wikihadoop</artifactId>
+            <version>0.3-wmf1</version>
         </dependency>
 
     </dependencies>
