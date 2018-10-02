@@ -75,26 +75,32 @@ class TestEventLoggingToDruid extends FlatSpec
         assert(cleanFields.contains("webHost"))
     }
 
-    it should "select dimensions and metrics properly" in {
+    it should "bucketize time measures properly" in {
+        val timeMeasures = Seq("event_seconds")
+        val flatColumns = EventLoggingToDruid.getFlatColumns(testDf.schema)
+        val flatDf = testDf.select(flatColumns:_*)
+        val bucketizedColumns = EventLoggingToDruid.getBucketizedColumns(flatDf.schema, timeMeasures)
+        val bucketizedFields = flatDf.select(bucketizedColumns:_*).schema.fields
+
+        assert(bucketizedFields.length == 7)
+        assert(bucketizedFields(2).name == "event_seconds_buckets")
+        assert(bucketizedFields(2).dataType == StringType)
+    }
+
+    it should "select dimensions properly" in {
         val blacklist = Seq("event_pageId")
         val flatColumns = EventLoggingToDruid.getFlatColumns(testDf.schema)
         val flatDf = testDf.select(flatColumns:_*)
         val cleanColumns = EventLoggingToDruid.getCleanColumns(flatDf.schema, blacklist)
         val cleanDf = flatDf.select(cleanColumns:_*)
 
-        val (dimensionFields, metricFields) = EventLoggingToDruid.getDimensionsAndMetrics(
+        val dimensions = EventLoggingToDruid.getDimensions(
             cleanDf.schema,
-            (f) => f.dataType match {
-                case IntegerType => true
-                case _ => false
-            }
+            Seq("event_seconds")
         )
 
-        assert(dimensionFields.length == 2)
-        assert(dimensionFields.contains("event_action"))
-        assert(dimensionFields.contains("webHost"))
-
-        assert(metricFields.length == 1)
-        assert(metricFields.contains("event_seconds"))
+        assert(dimensions.length == 2)
+        assert(dimensions.contains("event_action"))
+        assert(dimensions.contains("webHost"))
     }
 }
