@@ -52,7 +52,7 @@ class TestEventLoggingToDruid extends FlatSpec
     }
 
     it should "blacklist whole columns properly" in {
-        val blacklist = Seq("event", "webHost")
+        val blacklist = Seq("event", "webHost", "userAgent")
         val flatColumns = EventLoggingToDruid.getFlatColumns(testDf.schema)
         val flatDf = testDf.select(flatColumns:_*)
         val cleanColumns = EventLoggingToDruid.getCleanColumns(flatDf.schema, blacklist)
@@ -63,7 +63,7 @@ class TestEventLoggingToDruid extends FlatSpec
     }
 
     it should "blacklist struct column subfields properly" in {
-        val blacklist = Seq("event_pageId", "event_seconds")
+        val blacklist = Seq("event_pageId", "event_seconds", "userAgent")
         val flatColumns = EventLoggingToDruid.getFlatColumns(testDf.schema)
         val flatDf = testDf.select(flatColumns:_*)
         val cleanColumns = EventLoggingToDruid.getCleanColumns(flatDf.schema, blacklist)
@@ -88,7 +88,7 @@ class TestEventLoggingToDruid extends FlatSpec
     }
 
     it should "select dimensions properly" in {
-        val blacklist = Seq("event_pageId")
+        val blacklist = Seq("event_pageId", "userAgent")
         val flatColumns = EventLoggingToDruid.getFlatColumns(testDf.schema)
         val flatDf = testDf.select(flatColumns:_*)
         val cleanColumns = EventLoggingToDruid.getCleanColumns(flatDf.schema, blacklist)

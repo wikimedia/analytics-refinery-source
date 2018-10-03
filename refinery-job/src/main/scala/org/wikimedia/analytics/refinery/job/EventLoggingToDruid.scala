@@ -138,12 +138,12 @@ object EventLoggingToDruid {
     }
 
     val blacklistedHiveFields = Set("year", "month", "day", "hour")
-    val blacklistedCapsuleFields = Set("schema", "seqId", "uuid", "userAgent", "clientValidated",
-        "isTruncated", "clientIp")
-    val legitCapsuleFields = Set("wiki", "webHost", "revision", "topic", "recvFrom")
+    val blacklistedCapsuleFields = Set("schema", "seqId", "uuid", "clientValidated", "isTruncated", "clientIp")
+    val legitCapsuleFields = Set("wiki", "webHost", "revision", "topic", "recvFrom", "userAgent")
 
     // Entry point
     def main(args: Array[String]): Unit = {
+        // Parse arguments.
         val params = args.headOption match {
             case Some("--options") =>
                 // If job options are given as a single string.
@@ -153,18 +153,26 @@ object EventLoggingToDruid {
                 argsParser.parse(args, Params()).getOrElse(sys.exit(1))
         }
 
-        if (apply(params)) sys.exit(0)
-        else sys.exit(1)
+        // Initialize SparkSession.
+        val spark = SparkSession.builder().enableHiveSupport().appName("EventLoggingToDruid").getOrCreate()
+
+        // Execute loading.
+        val success = apply(params, spark)
+
+        // Exit with proper exit val if not running in YARN.
+        if (spark.conf.get("spark.master") != "yarn") {
+            sys.exit(if (success) 0 else 1)
+        }
     }
 
     // This will be called after command line parameters have been parsed and checked.
-    def apply(params: Params): Boolean = {
+    def apply(
+        params: Params,
+        spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
+    ): Boolean = {
 
         log.info(s"Starting process for ${params.database}_${params.table}.")
         log.info(s"Querying Hive for intervals: " + Seq((params.startDate, params.endDate)).toString())
-
-        // Initialize SparkSession.
-        val spark = SparkSession.builder().enableHiveSupport().appName("EventLoggingToDruid").getOrCreate()
 
         // Get data already filtered by time range.
         val comparisonFormat = "yyyyMMddHH"
@@ -264,15 +272,18 @@ object EventLoggingToDruid {
         fieldNames.map(f => f match {
             case _ if timeMeasures.contains(f) =>
                 expr(s"""CASE
-                    WHEN ($f >= 0 AND $f < 10) THEN '0ms-10ms'
-                    WHEN ($f >= 10 AND $f < 100) THEN '10ms-100ms'
-                    WHEN ($f >= 100 AND $f < 1000) THEN '100ms-1sec'
-                    WHEN ($f >= 1000 AND $f < 10000) THEN '1sec-10sec'
-                    WHEN ($f >= 10000 AND $f < 60000) THEN '10sec-1min'
-                    WHEN ($f >= 60000 AND $f < 600000) THEN '1min-10min'
-                    WHEN ($f >= 600000 AND $f < 3600000) THEN '10min-1hr'
-                    WHEN ($f >= 3600000 AND $f < 36000000) THEN '1hr-10hr'
-                    WHEN ($f >= 36000000) THEN '10+hr'
+                    WHEN ($f >= 0 AND $f < 50) THEN '0ms-50ms'
+                    WHEN ($f >= 50 AND $f < 250) THEN '50ms-250ms'
+                    WHEN ($f >= 250 AND $f < 1000) THEN '250ms-1sec'
+                    WHEN ($f >= 1000 AND $f < 4000) THEN '1sec-4sec'
+                    WHEN ($f >= 4000 AND $f < 15000) THEN '4sec-15sec'
+                    WHEN ($f >= 15000 AND $f < 60000) THEN '15sec-1min'
+                    WHEN ($f >= 60000 AND $f < 240000) THEN '1min-4min'
+                    WHEN ($f >= 240000 AND $f < 900000) THEN '4min-15min'
+                    WHEN ($f >= 900000 AND $f < 3600000) THEN '15min-1hr'
+                    WHEN ($f >= 3600000 AND $f < 18000000) THEN '1hr-5hr'
+                    WHEN ($f >= 18000000 AND $f < 86400000) THEN '5hr-24hr'
+                    WHEN ($f >= 86400000) THEN '24hr+'
                     ELSE NULL
                 END""").as(f + TimeMeasureBucketsSuffix)
             case _ => col(f)
