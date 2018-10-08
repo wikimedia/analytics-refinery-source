@@ -435,7 +435,7 @@ class TestWhitelistSanitization extends FlatSpec
                 database = "database",
                 t = "table",
                 location = "/fake/location",
-                partitions = ListMap("f1" -> "1")
+                partitions = ListMap("f1" -> Some("1"))
             )
         )
         val result = sanitizeTable(

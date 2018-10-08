@@ -52,6 +52,13 @@ object HiveExtensions extends LogHelper {
             field.copy(nullable=nullable)
 
         /**
+         * Returns copy of this StructField with empty metadata
+         * @return
+         */
+        def emptyMetadata: StructField =
+            field.copy(metadata=Metadata.empty)
+
+        /**
           * If possible, widens the field's type.  This currently only
           * widens integers to longs and floats to doubles.
           * @return
@@ -198,6 +205,14 @@ object HiveExtensions extends LogHelper {
         }
 
         /**
+         * Recursively empty metadata on every field in this schema and returns the new schema.
+         * @return
+         */
+        def emptyMetadata: StructType = {
+            struct.convert((field, _) => field.emptyMetadata)
+        }
+
+        /**
           * Recursively applies fn to each StructField in this schema and
           * replaces the field with the result of fn.
           *
@@ -335,7 +350,6 @@ object HiveExtensions extends LogHelper {
             }
         }
 
-
         /**
           * Like simpleString, but backtick quotes field names inside of the struct<>.
           * e.g. struct<`fieldName`:string,`database`:string>
@@ -439,6 +453,8 @@ object HiveExtensions extends LogHelper {
           * Type changes for non-struct fields are not supported and will result in an
           * IllegalStateException.
           *
+          * Notice: The updates for the schema don't include schema comments.
+          *
           * Field names will be lower cased, and all fields are made nullable.
           *
           * @param tableName    Hive table name
@@ -450,8 +466,10 @@ object HiveExtensions extends LogHelper {
             tableName: String,
             otherSchema: StructType
         ): Iterable[String] = {
-            val schemaNormalized = struct.normalize()
-            val otherSchemaNormalized = otherSchema.normalize()
+            // Apply emptyMetadata on schemas to prevent schema-comment differences
+            // when we are only interested in name/type equivalence.
+            val schemaNormalized = struct.normalize().emptyMetadata
+            val otherSchemaNormalized = otherSchema.normalize().emptyMetadata
 
             // Merge the base schema with otherSchema to ensure there are no non struct type changes.
             // (merge() will throw an exception if it encounters any)
@@ -636,7 +654,7 @@ object HiveExtensions extends LogHelper {
         }
 
         def normalize(): DataFrame = {
-            df.sparkSession.createDataFrame(df.rdd, df.schema.normalize())
+            df.convertToSchema(df.schema.normalize())
         }
     }
 

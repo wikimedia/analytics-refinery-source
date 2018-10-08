@@ -18,7 +18,7 @@ case class HivePartition(
     database: String,
     private val t: String,
     location: String,
-    partitions: ListMap[String, String] = ListMap()
+    partitions: ListMap[String, Option[String]] = ListMap()
 ) {
     val table: String = HivePartition.normalize(t)
     val tableName: String = s"`$database`.`$table`"
@@ -29,32 +29,44 @@ case class HivePartition(
     val keys: Seq[String] = partitions.keys.toSeq
 
     /**
+      * True is the partition is dynamic (at least one of the partition value is not defined)
+      */
+    val isDynamic: Boolean = partitions.exists(p => p._2.isEmpty)
+
+    /**
       * A string suitable for use in Hive QL partition operations,
       * e.g. year=2017,month=7,day=12,hour=0
+      * or   year=2017,month=7,day=12,hour in case of dynamic partitioning
       */
     val hiveQL: String = {
-        partitions.map { case (k: String, v: String) =>
+        partitions.map { case (k: String, v: Option[String]) =>
             v match {
                 // If the value looks like a number, strip leading 0s
-                case n if n.forall(_.isDigit) => (k, n.replaceFirst("^0+(?!$)", ""))
+                case Some(n) if n.forall(_.isDigit) => (k, Some(n.replaceFirst("^0+(?!$)", "")))
                 // Else the value should be a string, then quote it.
-                case s => (k, s""""$s"""")
+                case Some(s) => (k, Some(s""""$s""""))
+                case None => (k, v)
             }
         }
-        .map(p => s"${p._1}=${p._2}").mkString(",")
+        .map(p => if (p._2.isDefined) s"${p._1}=${p._2.get}" else s"${p._1}")
+        .mkString(",")
     }
 
     /**
       * A relative (LOCATION-less) Hive partition path string.
       * This is how Hive creates partition directories.
+      * Throws IllegalStateException if the partition is dynamic
+      * as relative-path is not defined as-is but depends on data
       */
-    val relativePath: String = {
-        partitions.map { case (k: String, v: String) =>
+    lazy val relativePath: String = {
+        if (isDynamic) throw new IllegalStateException("")
+        partitions.map { case (k: String, v: Option[String]) =>
+            // No need to match None as it is checked above
             v match {
                 // If the value looks like a number, strip leading 0s
-                case n if n.forall(_.isDigit) => (k, n.replaceFirst("^0+(?!$)", ""))
+                case Some(n) if n.forall(_.isDigit) => (k, n.replaceFirst("^0+(?!$)", ""))
                 // Else the value should be a string, no need to quote in path.
-                case s => (k, s)
+                case Some(s) => (k, s)
             }
         }
         .map(p => s"${p._1}=${p._2}").mkString("/")
@@ -63,19 +75,27 @@ case class HivePartition(
     /**
       * Absolute path to this Hive table partition.
       */
-    val path: String = location + "/" + relativePath
+    lazy val path: String = location + "/" + relativePath
 
     /**
-      * A SQL statement to add this partition to tableName.
+      * A SQL statement to add this partition to tableName, either through explicit
+      * addition if the partition is fully defined, or using MSCK REPAIR if the partition
+      * is dynamic (partition values are to discovered through folder since they were
+      * depending on data at runtime)
       */
-    val addPartitionQL: String = s"ALTER TABLE $tableName ADD IF NOT EXISTS PARTITION ($hiveQL) LOCATION '$path'"
+    val addPartitionQL: String = {
+        if (isDynamic)
+            s"MSCK REPAIR TABLE $tableName"
+        else
+            s"ALTER TABLE $tableName ADD IF NOT EXISTS PARTITION ($hiveQL) LOCATION '$path'"
+    }
 
     /**
       * Get a partition value by key
       * @param key partition key
       * @return
       */
-    def get(key: String): Option[String] = {
+    def get(key: String): Option[Option[String]] = {
         partitions.get(key)
     }
 
@@ -101,7 +121,7 @@ case class HivePartition(
 object HivePartition {
     /**
       *
-      * @param s
+      * @param s The string to normalize
       * @return
       */
     def normalize(s: String): String = {
@@ -129,7 +149,7 @@ object HivePartition {
         // Get a ListMap of all named groups captured from inputPathRegex
         val capturedKeys = captureListMap(pathToExtract, extractorRegex)
         // "table" MUST be an extracted key.
-        val table = normalize(capturedKeys("table"))
+        val table = normalize(capturedKeys("table").get)
         // The hive table location is baseLocation/table
         val location = baseLocation + "/" + table
         // The partitions are any other key=value pairs groups captured by the regex.
@@ -147,15 +167,15 @@ object HivePartition {
       * @throws RuntimeException    if regex does not match s
       * @return
       */
-    private def captureListMap(s: String, regex: Regex): ListMap[String, String] = {
+    private def captureListMap(s: String, regex: Regex): ListMap[String, Option[String]] = {
         val m = regex.findFirstMatchIn(s).getOrElse(
             throw new RuntimeException(
                 s"Regex $regex did not match $s when attempting to extract capture group keys"
             )
         )
 
-        m.groupNames.foldLeft(ListMap[String, String]()) {
-            case (currMap, (name: String)) => currMap ++ ListMap(name -> m.group(name))
+        m.groupNames.foldLeft(ListMap[String, Option[String]]()) {
+            case (currMap, (name: String)) => currMap + (name -> Some(m.group(name)))
         }
     }
 

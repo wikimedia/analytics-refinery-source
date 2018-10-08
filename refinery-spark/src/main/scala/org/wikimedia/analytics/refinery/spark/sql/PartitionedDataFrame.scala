@@ -30,13 +30,17 @@ case class PartitionedDataFrame(df: DataFrame, partition: HivePartition) {
     def applyPartitions: PartitionedDataFrame = {
       val df = this.df
       val partition = this.partition
-      this.copy(df = partition.keys.foldLeft(df) {
-        case (currentDf, (key: String)) =>
-          val value = partition.get(key).get
-          // If the partition value looks like an Int, convert it,
-          // else just use as a String.  lit() will convert the Scala
-          // value (Int or String here) into a Spark Column type.
-          currentDf.withColumn(key, lit(allCatch.opt(value.toLong).getOrElse(value)))
+      this.copy(df = partition.partitions.foldLeft(df) {
+        case (currentDf, (key: String, value: Option[String])) =>
+            // Only apply defined-partitions (not dynamic ones)
+            if (value.isDefined) {
+                // If the partition value looks like an Int, convert it,
+                // else just use as a String.  lit() will convert the Scala
+                // value (Int or String here) into a Spark Column type.
+                currentDf.withColumn(key, lit(allCatch.opt(value.get.toLong).getOrElse(value.get)))
+            } else {
+                currentDf
+            }
       })
     }
 

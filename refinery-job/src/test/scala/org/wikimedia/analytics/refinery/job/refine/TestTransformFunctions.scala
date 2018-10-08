@@ -34,7 +34,7 @@ class TestTransformFunctions extends FlatSpec
     val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location")
 
     val partition: HivePartition = HivePartition(
-        "my_db", "my_table", "/path/to/table", ListMap("year" -> "2018")
+        "my_db", "my_table", "/path/to/table", ListMap("year" -> Some("2018"))
     )
 
     it should "deduplicate_eventlogging based on uuid" in {

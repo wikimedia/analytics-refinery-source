@@ -102,21 +102,21 @@ object DataFrameToHive extends LogHelper {
         val transformedPartDf = transformFunctions
           .foldLeft(inputPartDf.applyPartitions)((currPartDf, fn) => fn(currPartDf))
 
-        val partDf = transformedPartDf.copy(
-            df = transformedPartDf.df
-              .normalize()
-              .repartition(originalPartitionNumber)
-        )
-
         // If the resulting DataFrame is empty, just return.
-        if (partDf.df.take(1).isEmpty) {
+        // Do this check before anything else to minimize computation if not needed
+        if (transformedPartDf.df.take(1).isEmpty) {
             log.info(
-                s"DataFrame for ${partDf.partition} is empty after transformations. " +
+                s"DataFrame for ${transformedPartDf.partition} is empty after transformations. " +
                     "No data will be written for this partition."
             )
             doneCallback()
-            return partDf
+            return transformedPartDf
         }
+
+        val partDf = transformedPartDf.copy(df = transformedPartDf.df
+            .normalize()
+            .repartition(originalPartitionNumber)
+        )
 
         // Grab the partition name keys to use for Hive partitioning.
         val partitionNames = partDf.partition.keys
@@ -154,16 +154,30 @@ object DataFrameToHive extends LogHelper {
         // Recursively convert the df to match the Hive compatible schema.
         val outputDf = partDf.copy(df = partDf.df.convertToSchema(compatibleSchema))
 
-        log.info(
-            s"Writing DataFrame to ${outputDf.partition.path} with schema:\n${outputDf.df.schema.treeString}"
-        )
-
-        // Avoid using Hive Parquet writer by writing using Spark parquet directly to
-        // partition path, and then add the partition to the Hive table.
+        // Avoid using Hive Parquet writer by writing using Spark parquet.
         // This avoids bugs in Hive Parquet like https://issues.apache.org/jira/browse/HIVE-11625
-        outputDf.df.write.mode("overwrite").parquet(outputDf.partition.path)
+        // If partition is dynamic, write using partitionBy, if not, write directly to
+        // partition path (prevents to group-by partition columns when values are set.
+        // Finally add the partition to the Hive table (either directly or through repair table).
+        if (outputDf.partition.isDynamic) {
+            log.info(
+                s"Writing dynamically-partitioned DataFrame to ${outputDf.partition.location} with schema:\n${outputDf.df.schema.treeString}"
+            )
+            outputDf.df.write.partitionBy(outputDf.partition.keys:_*).mode("overwrite").parquet(outputDf.partition.location)
+        } else {
+            log.info(
+                s"Writing DataFrame to ${outputDf.partition.path} with schema:\n${outputDf.df.schema.treeString}"
+            )
+            outputDf.df.write.mode("overwrite").parquet(outputDf.partition.path)
+        }
+
         spark.sql(outputDf.partition.addPartitionQL)
-        log.info(s"Wrote DataFrame to ${outputDf.partition.path} and added partition ${outputDf.partition}")
+
+        if (outputDf.partition.isDynamic) {
+            log.info(s"Wrote dynamically-partitioned DataFrame to ${outputDf.partition.location} and repaired partitions")
+        } else {
+            log.info(s"Wrote DataFrame to ${outputDf.partition.path} and added partition ${outputDf.partition}")
+        }
 
         // call doneCallback
         doneCallback()
@@ -279,7 +293,8 @@ object DataFrameToHive extends LogHelper {
             if (alterDDLs.nonEmpty) {
                 log.info(s"""Found difference in schemas for Hive table $tableName
                             |Table schema:\n${tableSchema.treeString}
-                            |Input schema:\n${newSchema.treeString}""".stripMargin
+                            |Input schema:\n${newSchema.treeString}
+                            |Alter statements:\n${alterDDLs.mkString("\n")}""".stripMargin
                 )
             }
 
