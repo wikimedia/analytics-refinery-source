@@ -1,244 +1,248 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.log4j.LogManager
 import org.apache.spark.sql.functions.{expr, col}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Column, SparkSession}
 import org.joda.time.DateTime
-import org.joda.time.format.DateTimeFormat
+import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.spark.connectors.{IngestionStatus, DataFrameToDruid}
-import scopt.OptionParser
+import scala.collection.immutable.ListMap
 
 
-object EventLoggingToDruid {
+object EventLoggingToDruid extends LogHelper with ConfigHelper {
 
-    val log = LogManager.getLogger("EventLoggingToDruid")
-    val DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH")
-    val TimeMeasureBucketsSuffix = "_buckets"
-
-    case class Params(
-        table: String = "",
-        startDate: DateTime = new DateTime(0),
-        endDate: DateTime = new DateTime(0),
-        database: String = "event",
-        metrics: Seq[String] = Seq.empty,
-        timeMeasures: Seq[String] = Seq.empty,
-        blacklist: Seq[String] = Seq.empty,
-        segmentGranularity: String = "hour",
-        queryGranularity: String = "minute",
-        numShards: Int = 2,
-        reduceMemory: String = "8192",
-        hadoopQueue: String = "default",
-        druidHost: String = "druid1001.eqiad.wmnet",
-        druidPort: String = "8090",
-        dryRun: Boolean = false
+    case class Config(
+        config_file         : String      = "",
+        start_date          : DateTime    = new DateTime(0),
+        end_date            : DateTime    = new DateTime(0),
+        database            : String      = "event",
+        table               : String      = "",
+        dimensions          : Seq[String] = Seq.empty,
+        time_measures       : Seq[String] = Seq.empty,
+        metrics             : Seq[String] = Seq.empty,
+        segment_granularity : String      = "hour",
+        query_granularity   : String      = "minute",
+        num_shards          : Int         = 2,
+        reduce_memory       : String      = "8192",
+        hadoop_queue        : String      = "default",
+        druid_host          : String      = "druid1001.eqiad.wmnet",
+        druid_port          : String      = "8090",
+        dry_run             : Boolean     = false
     )
 
-    // Support implicit DateTime conversion from CLI opt.
-    // The opt can either be given in integer hours ago, or
-    // as an ISO-8601 date time.
-    implicit val scoptDateTimeRead: scopt.Read[DateTime] =
-        scopt.Read.reads { s => {
-            if (s.forall(Character.isDigit))
-                DateTime.now.minusHours(s.toInt).withMinuteOfHour(0).withSecondOfMinute(0)
-            else
-                DateTime.parse(s, DateFormatter)
-        }
+    object Config {
+        val defaults = Config()
+
+        val usage =
+            """|Load EventLogging Hive tables to Druid datasources.
+               |
+               |Examples:
+               |
+               |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingToDruid refinery-job.jar \
+               |   --config_file      ./navigation_timing.properties
+               |
+               |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingToDruid refinery-job.jar \
+               |   --start_date       2017-09-29T03 \
+               |   --end_date         2017-12-15T21 \
+               |   --database         event \
+               |   --table            NavigationTiming \
+               |   --dimensions       namespaceId,editCountBucket \
+               |   --time_measures    timeToLoad,timeToClose \
+               |   --metrics          numClicks \
+               |   --dry_run
+               |"""
+
+        val propertiesDoc = ListMap(
+            "config_file" ->
+                """Config properties file. Properties specified in the command line
+                  |override those specified in the config file.""",
+            "start_date" ->
+                """Start date of the interval to load (YYYY-MM-DDTHH),
+                  |or number of hours ago from now (both inclusive).""",
+            "end_date" ->
+                """End date of the interval to load (YYYY-MM-DDTHH),
+                  |or number of hours ago from now (both exclusive).""",
+            "database" ->
+                s"Input Hive database name. Default: ${defaults.database}.",
+            "table" ->
+                "Input Hive table name.",
+            "dimensions" ->
+                """List of column names (<column1>,<column2>,...,<columnN>)
+                  |that are to be loaded as Druid dimensions. To ingest a struct
+                  |subfield as a Druid dimension, use <columnName_subfieldName>.""",
+            "time_measures" ->
+                """List of numeric column names (<column1>,<column2>,...,<columnN>)
+                  |that are to be loaded as time measure dimensions to Druid. To ingest
+                  |a struct subfield as a time measure, use <columnName_subfieldName>.
+                  |Only millisecond values are supported. Time measure fields will be
+                  |bucketized into string dimensions, like: 50ms-250ms, 1sec-4sec, etc.""",
+            "metrics" ->
+                """List of column names (<column1>,<column2>,...,<columnN>)
+                  |that are to be loaded as Druid metrics. To ingest a struct
+                  |subfield as a Druid dimension, use <columnName_subfieldName>.
+                  |An additional metric eventCount will always be loaded.""",
+            "segment_granularity" ->
+                s"""Granularity for Druid segments (quarter|month|week|day|hour).
+                   |Default: ${defaults.segment_granularity}.""",
+            "query_granularity" ->
+                s"""Granularity for Druid queries (week|day|hour|minute|second).
+                   |Default: ${defaults.query_granularity}.""",
+            "num_shards" ->
+                s"Number of shards for Druid ingestion. Default: ${defaults.num_shards}.",
+            "reduce_memory" ->
+                s"""Memory to be used by Hadoop for reduce operations.
+                   |Default: ${defaults.reduce_memory}.""",
+            "hadoop_queue" ->
+                s"Hadoop queue where to execute the loading. Default: ${defaults.hadoop_queue}.",
+            "druid_host" ->
+                s"Druid host to load the data to. Default: ${defaults.druid_host}.",
+            "druid_port" ->
+                s"Druid port to load the data to. Default: ${defaults.druid_port}.",
+            "dry_run" ->
+                s"""Set to 'true' to not execute any loading, only check and print parameters.
+                   |Set to 'false' to execute the job normaly. Default: ${defaults.dry_run}."""
+        )
     }
 
-    val argsParser = new OptionParser[Params](
-        "spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingToDruid refinery-job.jar"
-    ) {
-        head("""
-            |EventLogging Hive tables -> Druid data sets
-            |
-            |Example:
-            |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingToDruid refinery-job.jar \
-            |   --database         event \
-            |   --table            NavigationTiming \
-            |   --start-date       2017-09-29T03 \
-            |   --end-date         2017-12-15T21 \
-            |   --metrics          numClicks \
-            |   --timeMeasures     timeToLoad,timeToFirstClick \
-            |   --blacklist        pageId,namespaceId,revId \
-            |   --dry-run
-            |
-            |""".stripMargin, "")
 
-        note("""NOTE: You may pass all of the described CLI options to this job in a single
-               |      string with --options '<options>' flag.\n""".stripMargin)
+    val BlacklistedHiveFields = Set(
+        "year",
+        "month",
+        "day",
+        "hour"
+    )
+    val BlacklistedCapsuleFields = Set(
+        "clientIp",
+        "clientValidated",
+        "dt",
+        "isTruncated",
+        "schema",
+        "seqId",
+        "uuid"
+    )
+    val LegitCapsuleFields = Set(
+        "geocoded_data",
+        "recvFrom",
+        "revision",
+        "topic",
+        "userAgent",
+        "webHost",
+        "wiki"
+    )
+    val TimeMeasureBucketsSuffix = "_buckets"
 
-        help("help") text "Prints this usage text and exit."
 
-        opt[String]('T', "table").required().valueName("<table>").action { (x, p) =>
-            p.copy(table = x)
-        }.text("Hive input table.")
-
-        opt[DateTime]('S', "start-date").required().valueName("<YYYY-MM-DDTHH>").action { (x, p) =>
-            p.copy(startDate = new DateTime(x))
-        }.text("Start date of the interval to load or number of hours ago from now (inclusive).")
-
-        opt[DateTime]('E', "end-date").required().valueName("<YYYY-MM-DDTHH>").action { (x, p) =>
-            p.copy(endDate = new DateTime(x))
-        }.text("End date of the interval to load or number of hours ago from now (exclusive).")
-
-        opt[String]('D', "database").optional().valueName("<database>").action { (x, p) =>
-            p.copy(database = x)
-        }.text("Hive input database. Default: event.")
-
-        opt[Seq[String]]('m', "metrics").optional().valueName("<column1>,<column2>...").action { (x, p) =>
-            p.copy(metrics = x)
-        }.text("List of numeric columns that are to be loaded as metrics to Druid." +
-               "You can specify a struct subfield as a metric by using column_subField." +
-               "eventCount will always be a metric in the loaded data set.")
-
-        opt[Seq[String]]('t', "timeMeasures").optional().valueName("<column1>,<column2>...").action { (x, p) =>
-            p.copy(timeMeasures = x)
-        }.text("List of numeric columns that are to be loaded as time measures to Druid." +
-               "You can specify a struct subfield as a time measure by using column_subField." +
-               "Time measure columns will be bucketized assuming they are millisecond values.")
-
-        opt[Seq[String]]('b', "blacklist").optional().valueName("<column1>,<column2>...").action { (x, p) =>
-            p.copy(blacklist = x)
-        }.text("List of columns that are not to be loaded. For struct columns, " +
-               "passing the column name will blacklist all data, whereas " +
-               "column_subField will only blacklist this sub-field.")
-
-        opt[String]('g', "segment-granularity").optional().valueName("<granularity>").action { (x, p) =>
-            p.copy(segmentGranularity = x)
-        }.text("Granularity for Druid segments (quarter|month|week|day|hour). Default: hour.")
-
-        opt[String]('q', "query-granularity").optional().valueName("<granularity>").action { (x, p) =>
-            p.copy(queryGranularity = x)
-        }.text("Granularity for Druid queries (week|day|hour|minute|second). Default: minute.")
-
-        opt[Int]('x', "num-shards").optional().valueName("<N>").action { (x, p) =>
-            p.copy(numShards = x)
-        }.text("Number of shards for Druid ingestion. Default: 2.")
-
-        opt[Int]('x', "reduce-memory").optional().valueName("<N>").action { (x, p) =>
-            p.copy(reduceMemory = x.toString)
-        }.text("Memory to be used by Hadoop for reduce operations. Default: 8192.")
-
-        opt[String]('h', "hadoop-queue").optional().valueName("<N>").action { (x, p) =>
-            p.copy(hadoopQueue = x)
-        }.text("Hadoop queue where to execute the loading. Default: default.")
-
-        opt[String]('d', "druid-host").optional().valueName("<host>").action { (x, p) =>
-            p.copy(druidHost = x)
-        }.text("Druid host to load the data to. Default: druid1001.eqiad.wmnet.")
-
-        opt[Int]('p', "druid-port").optional().valueName("<port>").action { (x, p) =>
-            p.copy(druidPort = x.toString)
-        }.text("Druid port to load the data to. Default: 8090.")
-
-        opt[Unit]('n', "dry-run").optional().action { (x, p) =>
-            p.copy(dryRun = true)
-        }.text("Do not execute any loading, only check and print parameters.")
-    }
-
-    val blacklistedHiveFields = Set("year", "month", "day", "hour")
-    val blacklistedCapsuleFields = Set("schema", "seqId", "uuid", "clientValidated", "isTruncated", "clientIp")
-    val legitCapsuleFields = Set("wiki", "webHost", "revision", "topic", "recvFrom", "userAgent")
-
-    // Entry point
     def main(args: Array[String]): Unit = {
-        // Parse arguments.
-        val params = args.headOption match {
-            case Some("--options") =>
-                // If job options are given as a single string.
-                // Split them before passing them to argsParser.
-                argsParser.parse(args(1).split("\\s+"), Params()).getOrElse(sys.exit(1))
-            case _ =>
-                argsParser.parse(args, Params()).getOrElse(sys.exit(1))
+        if (args.contains("--help")) {
+            println(help(Config.usage, Config.propertiesDoc))
+            sys.exit(0)
         }
 
-        // Initialize SparkSession.
+        val config = loadConfig(args)
+        if (!validFieldLists(config)) {
+            println("Some fields specified as dimensions, time measures or metrics are invalid.")
+            sys.exit(1)
+        }
+
         val spark = SparkSession.builder().enableHiveSupport().appName("EventLoggingToDruid").getOrCreate()
+        val success = apply(spark)(config)
 
-        // Execute loading.
-        val success = apply(params, spark)
-
-        // Exit with proper exit val if not running in YARN.
+        // Exit with proper code only if not running in YARN.
         if (spark.conf.get("spark.master") != "yarn") {
             sys.exit(if (success) 0 else 1)
         }
     }
 
-    // This will be called after command line parameters have been parsed and checked.
+    def loadConfig(args: Array[String]): Config = {
+        val config = try {
+            configureArgs[Config] (args)
+        } catch {
+            case e: ConfigHelperException =>
+            log.fatal (e.getMessage + ". Aborting.")
+            sys.exit(1)
+        }
+        log.info("Loaded configuration:\n" + prettyPrint(config))
+        config
+    }
+
     def apply(
-        params: Params,
         spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
-    ): Boolean = {
+    )(config: Config): Boolean = {
+        log.info(s"Starting process for ${config.database}_${config.table}.")
 
-        log.info(s"Starting process for ${params.database}_${params.table}.")
-        log.info(s"Querying Hive for intervals: " + Seq((params.startDate, params.endDate)).toString())
-
-        // Get data already filtered by time range.
+        log.debug(s"Querying Hive for intervals: " + Seq((config.start_date, config.end_date)).toString())
         val comparisonFormat = "yyyyMMddHH"
-        val comparisonStartDate = params.startDate.toString(comparisonFormat)
-        val comparisonEndDate = params.endDate.toString(comparisonFormat)
+        val comparisonStartDate = config.start_date.toString(comparisonFormat)
+        val comparisonEndDate = config.end_date.toString(comparisonFormat)
         val concatTimestamp = "CONCAT(year, LPAD(month, 2, '0'), LPAD(day, 2, '0'), LPAD(hour, 2, '0'))"
         val df = spark.sql(s"""
             SELECT *
-            FROM ${params.database}.${params.table}
+            FROM ${config.database}.${config.table}
             WHERE $concatTimestamp >= $comparisonStartDate
             AND $concatTimestamp < $comparisonEndDate
         """)
 
-        log.info("Preparing dimensions and metrics.")
-
-        // Flatten nested fields.
+        log.debug("Flattening nested fields.")
         val flatColumns = getFlatColumns(df.schema)
         val flatDf = df.select(flatColumns:_*)
 
-        // Remove blacklisted fields.
-        val cleanColumns = getCleanColumns(flatDf.schema, params.blacklist)
+        log.debug("Removing unused fields.")
+        val cleanColumns = getCleanColumns(flatDf.schema, config)
         val cleanDf = flatDf.select(cleanColumns:_*)
 
-        // Bucketize time measures.
-        val bucketizedColumns = getBucketizedColumns(cleanDf.schema, params.timeMeasures)
+        log.debug("Bucketizing time measures.")
+        val bucketizedColumns = getBucketizedColumns(cleanDf.schema, config)
         val finalDf = cleanDf.select(bucketizedColumns:_*)
 
-        // Get dimensions.
-        val dimensions = getDimensions(finalDf.schema, params.metrics)
-
-        log.info("Dimensions: " + dimensions.mkString(", "))
-        log.info("Metrics: " + params.metrics.mkString(", "))
-
-        if (params.dryRun) {
+        if (config.dry_run) {
             log.info("Dry run finished: no data was loaded.")
             true
         } else {
-            // Execute loading process.
             log.info("Launching DataFrameToDruid process.")
             val dftd = new DataFrameToDruid(
                 spark = spark,
-                dataSource = s"${params.database}_${params.table}",
+                dataSource = s"${config.database}_${config.table}",
                 inputDf = finalDf,
-                dimensions = dimensions,
-                metrics = params.metrics,
-                intervals = Seq((params.startDate, params.endDate)),
+                dimensions = config.dimensions,
+                metrics = config.metrics,
+                intervals = Seq((config.start_date, config.end_date)),
                 timestampColumn = "dt",
                 timestampFormat = "auto",
-                segmentGranularity = params.segmentGranularity,
-                queryGranularity = params.queryGranularity,
-                numShards = params.numShards,
-                reduceMemory = params.reduceMemory,
-                hadoopQueue = params.hadoopQueue,
-                druidHost = params.druidHost,
-                druidPort = params.druidPort
+                segmentGranularity = config.segment_granularity,
+                queryGranularity = config.query_granularity,
+                numShards = config.num_shards,
+                reduceMemory = config.reduce_memory,
+                hadoopQueue = config.hadoop_queue,
+                druidHost = config.druid_host,
+                druidPort = config.druid_port
             ).start().await()
-            log.info("Done.")
 
-            // Return whether the process was successful.
+            log.info("Done.")
             dftd.status() == IngestionStatus.Done
+        }
+    }
+
+    def validFieldLists(config: Config): Boolean = {
+        val withPrefix = "([^_]*)_.*".r
+        val notBlacklisted = (f: String) => (
+            !BlacklistedHiveFields.contains(f) &&
+            !BlacklistedCapsuleFields.contains(f)
+        )
+        Seq(config.dimensions, config.time_measures, config.metrics).forall { s =>
+            s.forall(f => {
+                f match {
+                    // Checks whether the prefix is a blacklisted field.
+                    case withPrefix(prefix) => notBlacklisted(prefix) && notBlacklisted(f)
+                    case _ => notBlacklisted(f)
+                }
+            })
         }
     }
 
     def getFlatColumns(schema: StructType, prefix: String = null): Seq[Column] = {
         // HACK: This map corrects casing for capsule fields, given that Hive kills camelCase.
-        val capsuleFields = legitCapsuleFields.union(blacklistedCapsuleFields)
+        val capsuleFields = LegitCapsuleFields.union(BlacklistedCapsuleFields)
         val capsuleCaseMap = capsuleFields.map(f => (f.toLowerCase(), f)).toMap
 
         schema.fields.flatMap(field => {
@@ -252,25 +256,16 @@ object EventLoggingToDruid {
         })
     }
 
-    def getCleanColumns(schema: StructType, blacklist: Seq[String]): Seq[Column] = {
-        val blacklistNames = blacklist.toSet
-            .union(blacklistedCapsuleFields)
-            .union(blacklistedHiveFields)
-        val fieldNames = schema.fields.map(f => f.name)
-        val withPrefix = "([^_]*)_.*".r
-        fieldNames.filter(f =>
-            !blacklistNames.contains(f) &&
-            (f match {
-                case withPrefix(prefix) => !blacklistNames.contains(prefix)
-                case _ => true
-            })
-        ).map(col)
+    def getCleanColumns(schema: StructType, config: Config): Seq[Column] = {
+        val specifiedFieldNames = config.dimensions ++ config.time_measures ++ config.metrics ++ Seq("dt")
+        val currentFieldNames = schema.fields.map(f => f.name)
+        currentFieldNames.filter(f => specifiedFieldNames.contains(f)).map(col)
     }
 
-    def getBucketizedColumns(schema: StructType, timeMeasures: Seq[String]): Seq[Column] = {
+    def getBucketizedColumns(schema: StructType, config: Config): Seq[Column] = {
         val fieldNames = schema.fields.map(f => f.name)
         fieldNames.map(f => f match {
-            case _ if timeMeasures.contains(f) =>
+            case _ if config.time_measures.contains(f) =>
                 expr(s"""CASE
                     WHEN ($f >= 0 AND $f < 50) THEN '0ms-50ms'
                     WHEN ($f >= 50 AND $f < 250) THEN '50ms-250ms'
@@ -290,11 +285,4 @@ object EventLoggingToDruid {
         })
     }
 
-    def getDimensions(
-        schema: StructType,
-        metrics: Seq[String]
-    ): Seq[String] = {
-        val allFieldNames = schema.fields.filter(f => f.name != "dt").map(_.name)
-        allFieldNames.filter(!metrics.contains(_))
-    }
 }
