@@ -1,5 +1,6 @@
 ## v0.0.77
 * Add spark job converting mediawiki XML-dumps to parquet
+* Default value of hive_server_url updated in Refine.scala job
 
 ## v0.0.76
 * Refine Config removes some potential dangerous defaults, forcing users to set them

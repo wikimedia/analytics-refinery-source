@@ -37,7 +37,7 @@ object Refine extends LogHelper with ConfigHelper {
         input_path_regex_capture_groups: Seq[String],
         output_path: String,
         database: String,
-        hive_server_url: String                         = "analytics1003.eqiad.wmnet:10000",
+        hive_server_url: String                         = "an-coord1001.eqiad.wmnet:10000",
         since: DateTime                                 = DateTime.now - 24.hours, // 1 day ago
         until: DateTime                                 = DateTime.now,
         input_path_datetime_format: DateTimeFormatter   = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
