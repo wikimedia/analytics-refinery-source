@@ -1,3 +1,6 @@
+## v0.0.78
+* Rename start_date and end_date to since until in EventLoggingToDruid.scala
+
 ## v0.0.77
 * Add spark job converting mediawiki XML-dumps to parquet
 * Default value of hive_server_url updated in Refine.scala job
