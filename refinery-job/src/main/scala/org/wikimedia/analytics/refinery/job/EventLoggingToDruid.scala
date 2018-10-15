@@ -14,8 +14,8 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
 
     case class Config(
         config_file         : String      = "",
-        start_date          : DateTime    = new DateTime(0),
-        end_date            : DateTime    = new DateTime(0),
+        since               : DateTime    = new DateTime(0),
+        until               : DateTime    = new DateTime(0),
         database            : String      = "event",
         table               : String      = "",
         dimensions          : Seq[String] = Seq.empty,
@@ -43,8 +43,8 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
                |   --config_file      ./navigation_timing.properties
                |
                |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingToDruid refinery-job.jar \
-               |   --start_date       2017-09-29T03 \
-               |   --end_date         2017-12-15T21 \
+               |   --since            2017-09-29T03 \
+               |   --until            2017-12-15T21 \
                |   --database         event \
                |   --table            NavigationTiming \
                |   --dimensions       namespaceId,editCountBucket \
@@ -57,10 +57,10 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
             "config_file" ->
                 """Config properties file. Properties specified in the command line
                   |override those specified in the config file.""",
-            "start_date" ->
+            "since" ->
                 """Start date of the interval to load (YYYY-MM-DDTHH),
                   |or number of hours ago from now (both inclusive).""",
-            "end_date" ->
+            "until" ->
                 """End date of the interval to load (YYYY-MM-DDTHH),
                   |or number of hours ago from now (both exclusive).""",
             "database" ->
@@ -171,10 +171,10 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
     )(config: Config): Boolean = {
         log.info(s"Starting process for ${config.database}_${config.table}.")
 
-        log.debug(s"Querying Hive for intervals: " + Seq((config.start_date, config.end_date)).toString())
+        log.debug(s"Querying Hive for intervals: " + Seq((config.since, config.until)).toString())
         val comparisonFormat = "yyyyMMddHH"
-        val comparisonStartDate = config.start_date.toString(comparisonFormat)
-        val comparisonEndDate = config.end_date.toString(comparisonFormat)
+        val comparisonStartDate = config.since.toString(comparisonFormat)
+        val comparisonEndDate = config.until.toString(comparisonFormat)
         val concatTimestamp = "CONCAT(year, LPAD(month, 2, '0'), LPAD(day, 2, '0'), LPAD(hour, 2, '0'))"
         val df = spark.sql(s"""
             SELECT *
@@ -206,7 +206,7 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
                 inputDf = finalDf,
                 dimensions = config.dimensions,
                 metrics = config.metrics,
-                intervals = Seq((config.start_date, config.end_date)),
+                intervals = Seq((config.since, config.until)),
                 timestampColumn = "dt",
                 timestampFormat = "auto",
                 segmentGranularity = config.segment_granularity,
