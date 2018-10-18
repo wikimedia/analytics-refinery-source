@@ -1,3 +1,10 @@
+## v0.0.80
+* Update DataFrameToHive and PartitionedDataFrame to support
+  dynamic partitioning and correct some bugs
+* Add WebrequestSubsetPartitioner spark job actually launching
+  a job partitioning webrequest using DataFrameToHive and a
+  transform function
+
 ## v0.0.79
 * Upgrade camus-wmf dependency to camus-wmf9
 * Fix bug in EventLoggingToDruid, add time measures as dimensions

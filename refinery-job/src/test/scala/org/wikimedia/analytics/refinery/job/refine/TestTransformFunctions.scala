@@ -25,11 +25,6 @@ case class TestData(
     tags: Array[String] = Array("tag1", "tag2")
 )
 
-case class WebrequestSubsetTags(
-    webrequest_tags: Array[String],
-    webrequest_subset: String
-)
-
 class TestTransformFunctions extends FlatSpec
     with Matchers with DataFrameSuiteBase {
 
@@ -57,29 +52,6 @@ class TestTransformFunctions extends FlatSpec
         transformedDf.df.columns.contains("geocoded_data") should equal(true)
 
         transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
-    }
-
-    it should "join a dataframe to webrequest_subset_tags on tags" in {
-        val subsetTags = Seq(
-            WebrequestSubsetTags(Array("tag1"), "subset1"),
-            WebrequestSubsetTags(Array("tag3"), "subset2"),
-            WebrequestSubsetTags(Array("tag1", "tag2"), "subset3")
-        )
-        spark.createDataFrame(sc.parallelize(subsetTags)).createOrReplaceTempView("test_subset_tags")
-        val partDf = new PartitionedDataFrame(spark.createDataFrame(sc.parallelize(Seq(data1))), fakeHivePartition)
-        val pws = partition_webrequest_subset
-        pws.webrequestSubsetTagsTable = "test_subset_tags"
-        val transformedDf = pws(partDf)
-        val transformedValues = transformedDf.df.collect()
-        val transformedPartition = transformedDf.partition
-        // The single row is has 2 subsets --> it gets duplicated
-        transformedValues.length should equal(2)
-        // subset is expected to be at 6th position in row
-        transformedValues.map(_.getString(5)) should contain("subset1")
-        transformedValues.map(_.getString(5)) should contain("subset3")
-        // Partition should have 2 elements, subset being last and without value (dynamic)
-        transformedPartition.partitions.size should equal(2)
-        transformedPartition.partitions("subset") should equal(None)
     }
 
 }
