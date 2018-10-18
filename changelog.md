@@ -1,3 +1,7 @@
+## v0.0.79
+
+* Upgrade camus-wmf dependency to camus-wmf9
+
 ## v0.0.78
 * Rename start_date and end_date to since until in EventLoggingToDruid.scala
 
