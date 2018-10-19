@@ -194,6 +194,7 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
         log.debug("Bucketizing time measures.")
         val bucketizedColumns = getBucketizedColumns(cleanDf.schema, config)
         val finalDf = cleanDf.select(bucketizedColumns:_*)
+        val suffixedTimeMeasures = config.time_measures.map(f => f + TimeMeasureBucketsSuffix)
 
         if (config.dry_run) {
             log.info("Dry run finished: no data was loaded.")
@@ -204,7 +205,7 @@ object EventLoggingToDruid extends LogHelper with ConfigHelper {
                 spark = spark,
                 dataSource = s"${config.database}_${config.table}",
                 inputDf = finalDf,
-                dimensions = config.dimensions,
+                dimensions = config.dimensions ++ suffixedTimeMeasures,
                 metrics = config.metrics,
                 intervals = Seq((config.since, config.until)),
                 timestampColumn = "dt",
