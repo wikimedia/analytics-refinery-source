@@ -1,6 +1,6 @@
 ## v0.0.79
-
 * Upgrade camus-wmf dependency to camus-wmf9
+* Fix bug in EventLoggingToDruid, add time measures as dimensions
 
 ## v0.0.78
 * Rename start_date and end_date to since until in EventLoggingToDruid.scala
