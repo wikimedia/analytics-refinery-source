@@ -129,21 +129,15 @@
     <build>
         <plugins>
             <plugin>
+                <!-- Add GeoIP path as system propertie values to surefire global parameters -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.18.1</version>
                 <configuration>
                     <systemPropertyVariables>
                         <maxmind.database.country>${project.build.testOutputDirectory}/GeoIP2-Country-Test.mmdb</maxmind.database.country>
                         <maxmind.database.city>${project.build.testOutputDirectory}/GeoIP2-City-Test.mmdb</maxmind.database.city>
                         <maxmind.database.isp>${project.build.testOutputDirectory}/GeoIP2-ISP-Test.mmdb</maxmind.database.isp>
                     </systemPropertyVariables>
-                    <!-- Needed to overcome URLClassLoader issue with java update -->
-                    <useSystemClassLoader>false</useSystemClassLoader>
-                    <forkCount>1</forkCount>
-                    <includes>
-                        <include>**/Test*.java</include>
-                    </includes>
                 </configuration>
             </plugin>
 
