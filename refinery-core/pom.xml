@@ -138,6 +138,8 @@
                         <maxmind.database.city>${project.build.testOutputDirectory}/GeoIP2-City-Test.mmdb</maxmind.database.city>
                         <maxmind.database.isp>${project.build.testOutputDirectory}/GeoIP2-ISP-Test.mmdb</maxmind.database.isp>
                     </systemPropertyVariables>
+                    <!-- Needed to overcome URLClassLoader issue with java update -->
+                    <useSystemClassLoader>false</useSystemClassLoader>
                     <forkCount>1</forkCount>
                     <includes>
                         <include>**/Test*.java</include>
