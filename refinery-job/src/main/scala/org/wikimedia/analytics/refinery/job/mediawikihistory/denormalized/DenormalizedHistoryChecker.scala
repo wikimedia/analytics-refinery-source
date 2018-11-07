@@ -79,7 +79,7 @@ class DenormalizedHistoryChecker(
          |FROM $tmpTable
          |GROUP BY
          |    wiki_db
-         |SORT BY count_denorm_event DESC
+         |ORDER BY count_denorm_event DESC
          |LIMIT $wikisToCheck
       """.stripMargin).collect()
       .map(_.getString(0))
