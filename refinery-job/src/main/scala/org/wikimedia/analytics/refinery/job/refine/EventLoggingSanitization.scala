@@ -61,12 +61,17 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
                |   --config_file                 /etc/refinery/refine/eventlogging_sanitization.properties \
                |   # Override and/or set other configs on the CLI
                |   --whitelist_path              /wmf/path/to/whitelist \
-               |   --input_path                  /wmf/data/raw/event \
+               |   --input_path                  /wmf/data/event \
                |   --output_path                 /user/mforns/sanitized' \
                |   --database                    mforns \
                |   --since                       24 \
                |"""
     }
+
+    // These parameters will always be the same for EventLogging data sets.
+    // The user does not need to specify them, but we have to pass them forward to Refine.
+    val InputPathRegex = ".*/([^/]+)/year=(\\d{4})/month=(\\d{1,2})/day=(\\d{1,2})/hour=(\\d{1,2})"
+    val InputPathRegexCaptureGroups = Seq("table", "year", "month", "day", "hour")
 
 
     def main(args: Array[String]): Unit = {
@@ -84,7 +89,12 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
         // Load EventLoggingSanitization specific configs
         val config = loadConfig(args)
         // Load Refine job specific configs
-        val refineConfig = Refine.loadConfig(args)
+        // The following 2 extra args need to be passed at this point
+        val refineArgs = args ++ Array(
+            "--input_path_regex", InputPathRegex,
+            "--input_path_regex_capture_groups", InputPathRegexCaptureGroups.mkString(",")
+        )
+        val refineConfig = Refine.loadConfig(refineArgs)
 
         val allSucceeded = apply(spark)(
             config.whitelist_path,
@@ -156,8 +166,6 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
             // Force some Eventlogging analytics dataset configs, just in case someone tries to
             // set them to something that won't work for EventLogging Refine.
             refineConfig.copy(
-                input_path_regex = "([^/]+)/year=(\\d{4})/month=(\\d{1,2})/day=(\\d{1,2})/hour=(\\d{1,2})",
-                input_path_regex_capture_groups = Seq("table", "year", "month", "day", "hour"),
                 input_path_datetime_format = DateTimeFormat.forPattern("'year='yyyy/'month='M/'day='d/'hour='H"),
                 transform_functions = refineConfig.transform_functions :+ sanitizationTransformFunction.asInstanceOf[Refine.TransformFunction],
                 table_whitelist_regex = tableWhitelistRegex
