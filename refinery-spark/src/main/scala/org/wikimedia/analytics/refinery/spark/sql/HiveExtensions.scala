@@ -105,24 +105,8 @@ object HiveExtensions extends LogHelper {
           * @return
           */
         def hiveColumnDDL: String = {
-            s"`${field.name}` ${field.typeString}" +
+            s"`${field.name}` ${field.dataType.sql}" +
                 s"${if (field.nullable) "" else " NOT NULL"}"
-        }
-
-        /**
-          * Spark's DataType.simpleString mostly works for Hive field types.  But, since
-          * we need struct field names to be backtick quoted, we need to call
-          * a special method for in the case where this field is a StructType.
-          *
-          * @return
-          */
-        def typeString: String = {
-            if (field.isStructType) {
-                field.dataType.asInstanceOf[StructType].quotedSimpleString
-            }
-            else {
-                field.dataType.simpleString
-            }
         }
 
         /**
@@ -131,7 +115,29 @@ object HiveExtensions extends LogHelper {
           */
         def isStructType: Boolean = {
             field.dataType match {
-                case(StructType(_)) => true
+                case StructType(_) => true
+                case _ => false
+            }
+        }
+
+        /**
+          * Returns true if this field.dataType is an ArrayType, else False.
+          * @return
+          */
+        def isArrayType: Boolean = {
+            field.dataType match {
+                case ArrayType(_, _) => true
+                case _ => false
+            }
+        }
+
+        /**
+          * Returns true if this field.dataType is a MapType, else False.
+          * @return
+          */
+        def isMapType: Boolean = {
+            field.dataType match {
+                case MapType(_, _, _) => true
                 case _ => false
             }
         }
@@ -147,12 +153,13 @@ object HiveExtensions extends LogHelper {
           * @param fields
           * @return
           */
-        def chooseCompatibleType(fields: Seq[StructField]): DataType = {
+        def chooseCompatiblePrimitiveType(fields: Seq[StructField]): DataType = {
             fields.map(_.dataType).foldLeft[DataType](field.dataType)((original, candidate) => {
                 // If the types of the two current fields are the same, just use original.
                 if (original == candidate) {
                     return original
                 }
+
 
                 // If Spark can handle type coercion from candidate -> original, then
                 // return the type it will use.
@@ -281,27 +288,20 @@ object HiveExtensions extends LogHelper {
             // as best we can.
             val fieldsByName: Map[String, Seq[StructField]] = combinedNormalized.distinct.groupBy(_.name)
 
+
             val mergedStruct = StructType(
                 distinctNames.map { name =>
                     fieldsByName(name) match {
-                        // If all field types for this name are structs, then we attempt
-                        // to recursively merge them.
-                        case fields if fields.forall(_.isStructType) =>
-                            val mergedStruct = fields
-                                // Map each StructField to its StructType DataType
-                                .map(_.dataType.asInstanceOf[StructType])
-                                // Recursively merge each StructType together
-                                .foldLeft(StructType(Seq.empty))((merged, current) =>
-                                    // Don't normalize sub struct schemas.  Spark doesn't
-                                    // lowercase Hive struct<> field names, and those
-                                    // seem to be nullable by default anyway.
-                                    // If we did normalize, then we'd have to recursively
-                                    // un-normalize if the original caller passed normalize=false.
-                                    merged.merge(current, lowerCaseTopLevel = false)
-                                )
 
-                            // Convert the StructType back into a StructField with this field name.
-                            StructField(name, mergedStruct, nullable = true)
+                        // If all field types for this name are structs, then recursively merge them.
+                        case fields if fields.forall(_.isStructType) => mergeStructTypeFields(name, fields)
+
+                        // If all field types for this name are arrays, then recursively merge the array elementType.
+                        case fields if fields.forall(_.isArrayType) => mergeArrayTypeFields(name, fields)
+
+                        // If all field types for this name are maps, then we attempt
+                        // to recursively merge the map keyType and recursively merge the valueType.
+                        case fields if fields.forall(_.isMapType) => mergeMapTypeFields(name, fields)
 
                         case fields =>
                             // Find the tightest common type for Hive. If there is there is only
@@ -309,7 +309,7 @@ object HiveExtensions extends LogHelper {
                             // If there are multiple fields, this will try to find a common
                             // type that can be cast.  E.g. if we are given an LongType
                             // and a DoubleType, this will return DoubleType.
-                            val commonDataType = fields.head.chooseCompatibleType(fields.tail)
+                            val commonDataType = fields.head.chooseCompatiblePrimitiveType(fields.tail)
 
                             // Else: let's get weird.  Since we don't support type changes,
                             // We choose to keep the first field type we have.  This should
@@ -351,24 +351,104 @@ object HiveExtensions extends LogHelper {
         }
 
         /**
-          * Like simpleString, but backtick quotes field names inside of the struct<>.
-          * e.g. struct<`fieldName`:string,`database`:string>
-          * This works better in Hive, as reserved keywords need to be quoted.
-          * If this struct contains sub structs, those will be recursively quoted too.
-          *
+          * Given a Seq of StructFields all with StructType dataTypes,
+          * recursively merge them together.
+          * @param name
+          * @param fields
           * @return
           */
-        def quotedSimpleString: String = {
-            val fieldTypes = struct.fields.map { field =>
-                if (field.isStructType) {
-                    s"`${field.name}`:${field.dataType.asInstanceOf[StructType].quotedSimpleString}"
-                }
-                else {
-                    s"`${field.name}`:${field.dataType.simpleString}"
-                }
-            }
-            s"struct<${fieldTypes.mkString(",")}>"
+        private def mergeStructTypeFields(name: String, fields: Seq[StructField]): StructField = {
+            val mergedStruct = fields
+                // Map each StructField to its StructType DataType
+                .map(_.dataType.asInstanceOf[StructType])
+                // Recursively merge each StructType together
+                // Don't normalize sub struct schemas.  Spark doesn't
+                // lowercase Hive struct<> field names, and those
+                // seem to be nullable by default anyway.
+                // If we did normalize, then we'd have to recursively
+                // un-normalize if the original caller passed normalize=false.
+                .foldLeft(StructType(Seq.empty))((merged, current) => {
+                    merged.merge(current, lowerCaseTopLevel = false)
+                })
+            // Convert the StructType back into a StructField with this field name.
+            StructField(name, mergedStruct, nullable = true)
         }
+
+
+        /**
+          * Given a Seq of StructFields all with ArrayType dataTypes,
+          * recursively merge their elementTypes together.
+          * @param name
+          * @param fields
+          * @return
+          */
+        private def mergeArrayTypeFields(name: String, fields: Seq[StructField]): StructField = {
+            val mergedFakeElementStruct = fields
+                // Map each StructField to a wrapper StructType of the Array's elementType.
+                // This allows us to pass the elementType recursively to merge()
+                .map(field => encloseTypeInStruct(name, field.dataType.asInstanceOf[ArrayType].elementType))
+                // Recursively merge the fake structs each containing one field of elementType
+                .foldLeft(StructType(Seq.empty))((merged, current) => {
+                    merged.merge(current)
+                })
+
+            // Convert the merged elementType back into a StructField ArrayType of elementTypes with this name.
+            // We know we are working with a single element StructType, who's first element's
+            // type is our merged array elementType.
+            StructField(
+                name,
+                ArrayType(mergedFakeElementStruct.head.dataType, containsNull = true),
+                nullable = true
+            )
+        }
+
+        /**
+          * Given a Seq of StructFields all with MapType dataTypes,
+          * recursively merge their keyTypes and valueTypes together.
+          * @param name
+          * @param fields
+          * @return
+          */
+        private def mergeMapTypeFields(name: String, fields: Seq[StructField]): StructField = {
+            val (mergedFakeKeyStruct, mergedFakeValueStruct) = fields
+                // Map each StructField to its ArrayType elementType
+                .map(_.dataType.asInstanceOf[MapType])
+                .map(mapType => (encloseTypeInStruct(name, mapType.keyType), encloseTypeInStruct(name, mapType.valueType)))
+                // Recursively merge the fake key and value structs each containing one field
+                // of keyType or valueType.
+                // foldLeft over tuples of merged (keyStruct, valueStruct).
+                .foldLeft((StructType(Seq.empty), StructType(Seq.empty)))((merged, current) => {
+                    // Extract the collected key and value structs from the foldLeft params.
+                    val (mergedKeyStruct, mergedValueStruct) = merged
+                    val (currentKeyStruct, currentValueStruct) = current
+                    (
+                        // NOTE: complex map key types are not supported, so the merge() call
+                        // here on the key types should cause the key types to use the primitive case.
+                        mergedKeyStruct.merge(currentKeyStruct),
+                        mergedValueStruct.merge(currentValueStruct)
+                    )
+                })
+
+            // Convert the fake key and value structs back into a single StructField of MapType with this name.
+            // We know we are working with a single element StructType in each fake key and value struct,
+            // who's first element's type is our merged key or value type.
+            StructField(
+                name,
+                MapType(mergedFakeKeyStruct.head.dataType, mergedFakeValueStruct.head.dataType, valueContainsNull = true),
+                nullable = true
+            )
+        }
+
+        /**
+          * Creates a new StructType with a single StructField with name and of type dataType.
+          * @param name
+          * @param dataType
+          * @return
+          */
+        private def encloseTypeInStruct(name: String, dataType: DataType): StructType = {
+            StructType(Seq(StructField(name, dataType, nullable = true)))
+        }
+
 
         /**
           * Returns String representing Hive column DDL, for use in Hive DDL statements.
@@ -474,7 +554,6 @@ object HiveExtensions extends LogHelper {
             // Merge the base schema with otherSchema to ensure there are no non struct type changes.
             // (merge() will throw an exception if it encounters any)
             val mergedSchemaNormalized = schemaNormalized.merge(otherSchemaNormalized)
-
             // diffSchema contains fields that differ in name or type from the original schema.
             val diffSchema = mergedSchemaNormalized.diff(schemaNormalized)
 
@@ -527,6 +606,7 @@ object HiveExtensions extends LogHelper {
 
 
         /**
+          * TODO: this isn't used and doesn't do what its docs describe.  REMOVE THIS.
           * Given a subsetSchema, recursively find any fields in it that are not in this
           * struct superSchema, or that have incompatible DataTypes.
           *

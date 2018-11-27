@@ -40,7 +40,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
     it should "build a Hive DDL string representing a simple column" in {
         val field = StructField("f1", LongType, nullable = false)
-        val expected = s"`f1` bigint NOT NULL"
+        val expected = s"`f1` BIGINT NOT NULL"
 
         field.hiveColumnDDL should equal(expected)
     }
@@ -49,7 +49,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val field = StructField("S1", StructType(Seq(
             StructField("s1", StringType, nullable=true)
         )))
-        val expected = s"`S1` struct<`s1`:string>"
+        val expected = s"`S1` STRUCT<`s1`: STRING>"
 
         field.hiveColumnDDL should equal(expected)
     }
@@ -64,9 +64,9 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             )))
         )
         val expected =
-            s"""`f1` string NOT NULL,
-               |`f2` int,
-               |`S1` struct<`s1`:string>""".stripMargin
+            s"""`f1` STRING NOT NULL,
+               |`f2` INT,
+               |`S1` STRUCT<`s1`: STRING>""".stripMargin
 
         StructType(fields).hiveColumnsDDL() should equal(expected)
     }
@@ -185,7 +185,13 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
                     StructField("c1", StringType, nullable=true)
                 )))
             )), nullable = true),
-            StructField("f3", StringType, nullable = true)
+            StructField("f3", StringType, nullable = true),
+            StructField("arr1", ArrayType(StructType(Seq(
+                StructField("e1", IntegerType, nullable=true)
+            )), containsNull=true)),
+            StructField("map1", MapType(StringType, StructType(Seq(
+                StructField("v1", IntegerType, nullable=true)
+            )), valueContainsNull=true))
         ))
 
         val schema2 = StructType(Seq(
@@ -201,7 +207,15 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             StructField("F5", StructType(Seq(
                 StructField("b1", IntegerType, nullable=true))
             )),
-            StructField("f4", LongType, nullable = true)
+            StructField("f4", LongType, nullable = true),
+            StructField("arr1", ArrayType(StructType(Seq(
+                StructField("e1", LongType, nullable=true),
+                StructField("e2", StringType, nullable=true)
+            )), containsNull=true)),
+            StructField("map1", MapType(StringType, StructType(Seq(
+                StructField("v1", LongType, nullable=true),
+                StructField("v2", StringType, nullable=true)
+            )), valueContainsNull=true))
         ))
 
         // Merged schema will be first ordred by schema1 fields, with any extra fields
@@ -218,6 +232,14 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
                 StructField("s3", StringType, nullable = true)
             )), nullable = true),
             StructField("f3", StringType, nullable = true),
+            StructField("arr1", ArrayType(StructType(Seq(
+                StructField("e1", LongType, nullable=true),
+                StructField("e2", StringType, nullable=true)
+            )), containsNull=true)),
+            StructField("map1", MapType(StringType, StructType(Seq(
+                StructField("v1", LongType, nullable=true),
+                StructField("v2", StringType, nullable=true)
+            )), valueContainsNull=true)),
             StructField("f5", StructType(Seq(
                 StructField("b1", LongType, nullable=true))
             )),
@@ -236,9 +258,9 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         val expected =
             s"""CREATE TABLE $tableName (
-               |`f2` bigint,
-               |`f3` string,
-               |`f1` bigint
+               |`f2` BIGINT,
+               |`f3` STRING,
+               |`f1` BIGINT
                |)
                |-- No partition provided
                |STORED AS PARQUET""".stripMargin
@@ -257,9 +279,9 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         val expected =
             s"""CREATE EXTERNAL TABLE $tableName (
-               |`f1` bigint,
-               |`f2` bigint,
-               |`f3` string
+               |`f1` BIGINT,
+               |`f2` BIGINT,
+               |`f3` STRING
                |)
                |-- No partition provided
                |STORED AS PARQUET
@@ -281,12 +303,12 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         val expected =
             s"""CREATE EXTERNAL TABLE $tableName (
-               |`f1` bigint,
-               |`f2` bigint
+               |`f1` BIGINT,
+               |`f2` BIGINT
                |)
                |PARTITIONED BY (
-               |`f3` string,
-               |`f4` string
+               |`f3` STRING,
+               |`f4` STRING
                |)
                |STORED AS PARQUET
                |LOCATION '$tableLocation'""".stripMargin
@@ -313,7 +335,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val expected = Seq(
             s"""ALTER TABLE $tableName
                |ADD COLUMNS (
-               |`f4` bigint
+               |`f4` BIGINT
                |)""".stripMargin
         )
 
@@ -350,7 +372,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         val expected = Seq(
             s"""ALTER TABLE $tableName
-               |CHANGE COLUMN `f2` `f2` struct<`S1`:string,`s2`:string,`A1`:struct<`c1`:string,`C2`:string>,`s3`:string>""".stripMargin
+               |CHANGE COLUMN `f2` `f2` STRUCT<`S1`: STRING, `s2`: STRING, `A1`: STRUCT<`c1`: STRING, `C2`: STRING>, `s3`: STRING>""".stripMargin
         )
 
         val statements = schema.hiveAlterDDL(tableName, otherSchema)
@@ -390,11 +412,125 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val expected = Seq(
             s"""ALTER TABLE $tableName
                |ADD COLUMNS (
-               |`f4` struct<`b1`:bigint>,
-               |`f5` bigint
+               |`f4` STRUCT<`b1`: BIGINT>,
+               |`f5` BIGINT
                |)""".stripMargin,
             s"""ALTER TABLE $tableName
-               |CHANGE COLUMN `f2` `f2` struct<`S1`:string,`s2`:string,`A1`:struct<`c1`:string,`c2`:string>,`s3`:string>""".stripMargin
+               |CHANGE COLUMN `f2` `f2` STRUCT<`S1`: STRING, `s2`: STRING, `A1`: STRUCT<`c1`: STRING, `c2`: STRING>, `s3`: STRING>""".stripMargin
+        )
+
+        val statements = schema.hiveAlterDDL(tableName, otherSchema)
+
+        statements should equal(expected)
+    }
+
+
+
+    it should "build alter DDL with arrays with elements of modified structs" in {
+        val schema = StructType(Seq(
+            StructField("arr1", ArrayType(StructType(
+                Seq(
+                    StructField("S1", StringType, nullable = true),
+                    StructField("s2", StringType, nullable = true),
+                    StructField("A1", StructType(Seq(
+                        StructField("c1", StringType, nullable=true)
+                    )))
+                )), containsNull = true)
+            ),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val otherSchema = StructType(Seq(
+            StructField("arr1", ArrayType(StructType(
+                Seq(
+                    StructField("S1", StringType, nullable = true),
+                    StructField("s3", StringType, nullable = true),
+                    StructField("A1", StructType(Seq(
+                        StructField("c1", StringType, nullable=true),
+                        StructField("C2", StringType, nullable=true)
+                    )))
+                )), containsNull = true)
+            ),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val expected = Seq(
+            s"""ALTER TABLE $tableName
+               |CHANGE COLUMN `arr1` `arr1` ARRAY<STRUCT<`S1`: STRING, `s2`: STRING, `A1`: STRUCT<`c1`: STRING, `C2`: STRING>, `s3`: STRING>>""".stripMargin
+        )
+
+        val statements = schema.hiveAlterDDL(tableName, otherSchema)
+
+        statements should equal(expected)
+    }
+
+    it should "build alter DDL with arrays with elements of compatible primitive types" in {
+        val schema = StructType(Seq(
+            StructField("arr1", ArrayType(IntegerType, containsNull = true), nullable = true),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val otherSchema = StructType(Seq(
+            StructField("arr1", ArrayType(LongType, containsNull = true), nullable = true),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val expected = Seq(
+            s"""ALTER TABLE $tableName
+               |CHANGE COLUMN `arr1` `arr1` ARRAY<BIGINT>""".stripMargin
+        )
+
+        val statements = schema.hiveAlterDDL(tableName, otherSchema)
+
+        statements should equal(expected)
+    }
+
+    it should "build alter DDL with map with values of compatible primitive types" in {
+        val schema = StructType(Seq(
+            StructField("map1", MapType(StringType, IntegerType, valueContainsNull = true), nullable = true),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val otherSchema = StructType(Seq(
+            StructField("map1", MapType(StringType, LongType, valueContainsNull = true), nullable = true),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val expected = Seq(
+            s"""ALTER TABLE $tableName
+               |CHANGE COLUMN `map1` `map1` MAP<STRING, BIGINT>""".stripMargin
+        )
+
+        val statements = schema.hiveAlterDDL(tableName, otherSchema)
+
+        statements should equal(expected)
+    }
+
+
+    it should "build alter DDL with map with values of merged complex types" in {
+        val schema = StructType(Seq(
+            StructField("map1", MapType(
+                StringType,
+                StructType(Seq(
+                    StructField("a", StringType, true))
+                ),
+            valueContainsNull = true), nullable = true)
+        ))
+
+        val otherSchema = StructType(Seq(
+            StructField("map1", MapType(
+                StringType,
+                StructType(Seq(
+                    StructField("a", StringType, true),
+                    StructField("b", StringType, true))
+                ),
+                valueContainsNull = true), nullable = true)
+            ))
+
+
+        val expected = Seq(
+            s"""ALTER TABLE $tableName
+               |CHANGE COLUMN `map1` `map1` MAP<STRING, STRUCT<`a`: STRING, `b`: STRING>>""".stripMargin
         )
 
         val statements = schema.hiveAlterDDL(tableName, otherSchema)
@@ -461,6 +597,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
         badFields.head.name should equal("ac")
     }
+
 
     it should "convert a DataFrame to superset schema" in {
         val smallerSchema = StructType(
