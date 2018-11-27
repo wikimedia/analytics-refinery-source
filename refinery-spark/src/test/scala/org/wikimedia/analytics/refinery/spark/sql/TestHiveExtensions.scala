@@ -534,7 +534,12 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             StructField("a", StructType(
                 StructField("aa", ArrayType(StringType, containsNull=true), nullable=true) ::
                   StructField("ab", MapType(StringType, LongType, valueContainsNull = true), nullable=true) ::
-                  StructField("ac", BooleanType, nullable=true) :: Nil
+                  StructField("ac", BooleanType, nullable=true) ::
+                  StructField("ae", ArrayType(StructType(StructField("aea", LongType, nullable = true) :: Nil), containsNull=true), nullable=true) ::
+                  StructField("af", MapType(
+                      StructType(StructField("afa", LongType, nullable = true) :: Nil),
+                      StructType(StructField("afb", StringType, nullable = true) :: StructField("afc", LongType, nullable = true) :: Nil),
+                      valueContainsNull=true), nullable=true) :: Nil
             ), nullable=true
             ) ::
               StructField("b", LongType, nullable=true) ::
@@ -548,15 +553,20 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
                   StructField("aa", ArrayType(IntegerType, containsNull=true), nullable=true) ::
                     StructField("ab", MapType(StringType, StringType, valueContainsNull = true), nullable=true) ::
                     StructField("ad", LongType, nullable=true) ::
-                    StructField("ac", BooleanType, nullable=true) :: Nil
+                    StructField("ac", BooleanType, nullable=true) ::
+                    StructField("ae", ArrayType(StructType(StructField("aea", StringType, nullable = true) :: Nil), containsNull=true), nullable=true) ::
+                    StructField("af", MapType(
+                      StructType(StructField("afa", LongType, nullable = true) :: Nil),
+                      StructType(StructField("afb", LongType, nullable = true) :: StructField("afc", StringType, nullable = true) :: Nil),
+                      valueContainsNull=true), nullable=true) :: Nil
               ), nullable=true
               ) ::
               StructField("c", BooleanType, nullable=true) :: Nil
         )
 
         val rdd = sc.parallelize(Seq(
-            Row(Row(null, null, true), 1L, true),
-            Row(Row(Array("1", "2"), Map("m1" -> 1L), false), 2L, false),
+            Row(Row(null, null, true, Array(Row(11L)), Map(Row(12L) -> Row("13", 13L))), 1L, true),
+            Row(Row(Array("1", "2"), Map("m1" -> 1L), false, null, null), 2L, false),
             Row(null, 3L, null))
         )
         val df = spark.createDataFrame(rdd, smallerSchema)
@@ -574,6 +584,10 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             r.getStruct(2).isNullAt(1) should equal(true)
             r.getStruct(2).isNullAt(2) should equal(true)
             r.getStruct(2).getBoolean(3) should equal(true)
+            r.getStruct(2).getSeq[Row](4).head.getString(0) should equal("11")
+            r.getStruct(2).getMap[Row, Row](5).head._1.getLong(0) should equal(12L)
+            r.getStruct(2).getMap[Row, Row](5).head._2.getLong(0) should equal(13L)
+            r.getStruct(2).getMap[Row, Row](5).head._2.getString(1) should equal("13")
         })
         newDf.filter("c = FALSE").take(1).foreach(r => {
             r.getLong(0) should equal(2L)
@@ -583,6 +597,8 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             r.getStruct(2).getMap[String, String](1) should equal(Map("m1" -> "1"))
             r.getStruct(2).isNullAt(2) should equal(true)
             r.getStruct(2).getBoolean(3) should equal(false)
+            r.getStruct(2).isNullAt(4) should equal(true)
+            r.getStruct(2).isNullAt(5) should equal(true)
         })
         newDf.filter("c IS NULL").take(1).foreach(r => {
             r.getLong(0) should equal(3L)
@@ -592,6 +608,8 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             r.getStruct(2).isNullAt(1) should equal(true)
             r.getStruct(2).isNullAt(2) should equal(true)
             r.getStruct(2).isNullAt(3) should equal(true)
+            r.getStruct(2).isNullAt(4) should equal(true)
+            r.getStruct(2).isNullAt(5) should equal(true)
         })
     }
 
