@@ -136,7 +136,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         val args = Array(
             "--str", "overrideString",
             "--dt", "2018-04-01T00:00:00",
-            "--bool", "no",
+            "--bool", "false",
             "--int", "123",
             "--intOpt", "456",
             "--double", "3.3",
@@ -166,7 +166,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         val args = Array(
             "--str", "overrideString",
             "--dt", "2018-04-01T00:00:00",
-            "--bool", "no",
+            "--bool", "false",
             "--int", "123",
             "--intOpt", "456",
             "--double", "3.3",
@@ -202,7 +202,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         val args = Array(
             "--str", "overrideString",
             "--dt", "2018-04-01T00:00:00",
-            "--bool", "no",
+            "--bool", "false",
             "--config_file", propertiesFile,
             "--int", "123",
             "--intOpt", "456",
