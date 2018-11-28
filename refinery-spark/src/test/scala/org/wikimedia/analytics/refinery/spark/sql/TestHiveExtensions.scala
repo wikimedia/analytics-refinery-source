@@ -538,67 +538,6 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         statements should equal(expected)
     }
 
-    it should "find incompatible fields for 'not-unordered-superset' (missing)" in {
-        val smallerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("b", LongType, nullable = false) :: Nil)
-
-        val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.head.name should equal("a")
-    }
-
-    it should "find incompatible fields for 'not-unordered-superset' (different types)" in {
-        val smallerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("a", StringType, nullable = false) :: Nil)
-
-        val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.length should equal(0)
-    }
-
-    it should "find incompatible fields for 'unordered-superset' with compatible different types" in {
-        val smallerSchema = StructType(StructField("a", IntegerType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-
-        val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.isEmpty should equal(true)
-    }
-
-    it should "find incompatible fields for 'not-unordered-superset' (different nullable)" in {
-        val smallerSchema = StructType(StructField("a", LongType, nullable = false) :: Nil)
-        val biggerSchema = StructType(StructField("a", LongType, nullable = true) :: Nil)
-
-        val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.head.name should equal("a")
-    }
-
-    it should "find incompatible fields for 'not-unordered-superset' (sub-object)" in {
-        val smallerSchema = StructType(
-            StructField("a", StructType(
-                    StructField("aa", IntegerType, nullable = true) ::
-                    StructField("ab", LongType, nullable = false) ::
-                    StructField("ac", BooleanType, nullable = false) :: Nil
-                ), nullable = true
-            ) ::
-            StructField("b", LongType, nullable = false) ::
-            StructField("c", BooleanType, nullable = false) :: Nil
-        )
-
-        val biggerSchema = StructType(
-              StructField("b", LongType, nullable = false) ::
-              StructField("d", LongType, nullable = false) ::
-              StructField("a", StructType(
-                      StructField("aa", IntegerType, nullable = true) ::
-                      StructField("ab", LongType, nullable = false) ::
-                      StructField("ad", LongType, nullable = false) :: Nil
-                  ), nullable = true
-              ) ::
-              StructField("c", BooleanType, nullable = false) :: Nil
-        )
-
-        val badFields = biggerSchema.findIncompatibleFields(smallerSchema).map(_._1)
-        badFields.head.name should equal("ac")
-    }
-
-
     it should "convert a DataFrame to superset schema" in {
         val smallerSchema = StructType(
             StructField("a", StructType(
