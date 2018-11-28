@@ -1,3 +1,9 @@
+## v0.0.81
+* HiveExtensions schema merge now better support schema changes of complex
+  Array element and Map value types.
+  https://phabricator.wikimedia.org/T210465
+* HiveExtensions findIncompatibleFields was unused and is removed.
+
 ## v0.0.80
 * Update DataFrameToHive and PartitionedDataFrame to support
   dynamic partitioning and correct some bugs
