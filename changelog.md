@@ -6,6 +6,7 @@
   https://phabricator.wikimedia.org/T210465
 * HiveExtensions findIncompatibleFields was unused and is removed.
 * Upgrade profig lib to 2.3.3 after bug fix upstream
+* Upgrade spark-avro to 4.0.0 to match new spark versions
 
 ## v0.0.80
 * Update DataFrameToHive and PartitionedDataFrame to support
