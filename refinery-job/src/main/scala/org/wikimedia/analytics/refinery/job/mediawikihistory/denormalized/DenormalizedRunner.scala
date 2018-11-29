@@ -144,40 +144,48 @@ class DenormalizedRunner(
   }
 
   def getLiveRevisions(wikiClause: String) = {
+    // TODO: simplify or remove joins as source table imports change
+    // TODO: content model and format are nulled, replace with join to slots if needed
+    // NOTE: rev_comment_id is created by cloud views and sanitized to 0 based on rev_deleted, it can be used to join
+    // NOTE: rev_actor is created by cloud views and sanitized to null based on rev_deleted, it can be used to join
     spark.sql(
       s"""
   SELECT
-    wiki_db,
+    r.wiki_db AS wiki_db,
     rev_timestamp,
-    rev_comment,
+    coalesce(rev_comment, comment_text) AS rev_comment,
     rev_user,
-    rev_user_text,
+    coalesce(rev_user_text, actor_name) AS rev_user_text,
     rev_page,
     rev_id,
     rev_parent_id,
     rev_minor_edit,
     rev_len,
     rev_sha1,
-    rev_content_model,
-    rev_content_format
-  FROM revision
+    null rev_content_model,
+    null rev_content_format
+  FROM revision r
+    LEFT JOIN actor a
+      ON a.actor_id = r.rev_actor
+        AND a.wiki_db = r.wiki_db
+    LEFT JOIN comment c
+      ON c.comment_id = r.rev_comment_id
+        AND c.wiki_db = r.wiki_db
   WHERE TRUE
     $wikiClause
   -- Trick to force using defined number of partitions
   GROUP BY
-    wiki_db,
+    r.wiki_db,
     rev_timestamp,
-    rev_comment,
+    coalesce(rev_comment, comment_text),
     rev_user,
-    rev_user_text,
+    coalesce(rev_user_text, actor_name),
     rev_page,
     rev_id,
     rev_parent_id,
     rev_minor_edit,
     rev_len,
-    rev_sha1,
-    rev_content_model,
-    rev_content_format
+    rev_sha1
         """)
       .rdd
       .map(row => {
@@ -189,14 +197,21 @@ class DenormalizedRunner(
 
 
   def getArchivedRevisionsNotFiltered(wikiClause: String): RDD[MediawikiEvent] = {
+    // TODO: simplify or remove joins as source table imports change
+    // TODO: content model and format are nulled, replace with join to slots if needed
+    // NOTE: ar_len is nulled if ar_deleted&1, not sure how this affects metrics
+    // NOTE: ar_comment is always null when it comes from cloud dbs
+    // NOTE: ar_user and ar_user_text are null on cloud dbs if ar_deleted&4
+    // NOTE: ar_actor is 0 on cloud dbs if ar_deleted&4
+    // NOTE: ar_sha1 is null on cloud dbs if ar_deleted&1
     spark.sql(
       s"""
   SELECT
-    archive.wiki_db,
+    ar.wiki_db AS wiki_db,
     ar_timestamp,
     ar_comment,
     ar_user,
-    ar_user_text,
+    coalesce(ar_user_text, actor_name) AS ar_user_text,
     ar_page_id,
     ar_title,
     ar_namespace,
@@ -205,24 +220,27 @@ class DenormalizedRunner(
     ar_minor_edit,
     ar_len,
     ar_sha1,
-    ar_content_model,
-    ar_content_format
-  FROM archive
+    null AS ar_content_model,
+    null AS ar_content_format
+  FROM archive ar
     -- This is needed to prevent archived revisions having
     -- existing live revisions to cause problem
     FULL OUTER JOIN revision
-      ON (archive.wiki_db = revision.wiki_db
-        AND archive.ar_rev_id = revision.rev_id)
+      ON ar.wiki_db = revision.wiki_db
+        AND ar.ar_rev_id = revision.rev_id
+    LEFT JOIN actor a
+      ON a.actor_id = ar.ar_actor
+      AND a.wiki_db = ar.wiki_db
   WHERE TRUE
     AND revision.rev_id IS NULL
-    ${wikiClause.replace("wiki_db", "archive.wiki_db")}
+    ${wikiClause.replace("wiki_db", "ar.wiki_db")}
   -- Trick to force using defined number of partitions
   GROUP BY
-    archive.wiki_db,
+    ar.wiki_db,
     ar_timestamp,
     ar_comment,
     ar_user,
-    ar_user_text,
+    coalesce(ar_user_text, actor_name),
     ar_page_id,
     ar_title,
     ar_namespace,
@@ -230,9 +248,7 @@ class DenormalizedRunner(
     ar_parent_id,
     ar_minor_edit,
     ar_len,
-    ar_sha1,
-    ar_content_model,
-    ar_content_format
+    ar_sha1
       """)
       .rdd
       .map(row => {
@@ -268,6 +284,8 @@ class DenormalizedRunner(
     * @param wikiConstraint The wiki database names on which to execute the job (empty for all wikis)
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
     * @param archiveDataPath The paths of the archive data (avro files partitioned by wiki_db)
+    * @param actorDataPath The path of the actor data (avro files partitioned by wiki_db)
+    * @param commentDataPath The paths of the comment data (avro files partitioned by wiki_db)
     * @param userHistoryPath The path of the user states built in UserHistory process
     * @param pageHistoryPath The path of the page states built in PageHistory process (parquet files)
     * @param outputPath The path to output the denormalized history (parquet files)
@@ -276,6 +294,8 @@ class DenormalizedRunner(
            wikiConstraint: Seq[String],
            revisionDataPath: String,
            archiveDataPath: String,
+           actorDataPath: String,
+           commentDataPath: String,
            userHistoryPath: String,
            pageHistoryPath: String,
            outputPath: String,
@@ -296,6 +316,12 @@ class DenormalizedRunner(
 
     val archiveDf = spark.read.avro(archiveDataPath)
     archiveDf.createOrReplaceTempView("archive")
+
+    val actorDf = spark.read.avro(actorDataPath)
+    actorDf.createOrReplaceTempView("actor")
+
+    val commentDf = spark.read.avro(commentDataPath)
+    commentDf.createOrReplaceTempView("comment")
 
     val wikiClause = if (wikiConstraint.isEmpty) ""
                      else "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"

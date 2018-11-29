@@ -50,6 +50,7 @@ class UserHistoryRunner(
     * @param userDataPath The path of the user data (avro files partitioned by wiki_db)
     * @param userGroupsDataPath The path of the user_groups data (avro files partitioned by wiki_db)
     * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
+    * @param commentDataPath The paths of the comment data (avro files partitioned by wiki_db)
     * @param outputPath The path to output the reconstructed user history (parquet files)
     * @param errorsPathOption An optional path to output errors (csv files) if defined
     */
@@ -59,6 +60,7 @@ class UserHistoryRunner(
            userDataPath: String,
            userGroupsDataPath: String,
            revisionDataPath: String,
+           commentDataPath: String,
            outputPath: String,
            errorsPathOption: Option[String]
   ): Unit = {
@@ -85,11 +87,16 @@ class UserHistoryRunner(
     val revisionDf = spark.read.avro(revisionDataPath)
     revisionDf.createOrReplaceTempView("revision")
 
+    val commentDf = spark.read.avro(commentDataPath)
+    commentDf.createOrReplaceTempView("comment")
+
     val wikiClause = if (wikiConstraint.isEmpty) "" else {
       "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
     }
 
     val parsedUserEvents = spark.sql(
+      // TODO: simplify or remove joins as source table imports change
+      // NOTE: log_comment and log_comment_id are null and 0 respectively if log_deleted&2
       s"""
   SELECT
     log_type,
@@ -97,10 +104,13 @@ class UserHistoryRunner(
     log_timestamp,
     CAST(log_user AS BIGINT) AS log_user,
     log_title,
-    log_comment,
+    coalesce(log_comment, comment_text) AS log_comment,
     log_params,
-    wiki_db
-  FROM logging
+    l.wiki_db as wiki_db
+  FROM logging l
+    LEFT JOIN comment c
+      ON c.comment_id = l.log_comment_id
+        AND c.wiki_db = l.wiki_db
   WHERE
     log_type IN (
       'renameuser',
@@ -108,16 +118,16 @@ class UserHistoryRunner(
       'block',
       'newusers'
     )
-    $wikiClause
+    ${wikiClause.replaceAll("wiki_db", "l.wiki_db")}
   GROUP BY -- Grouping by to enforce expected partitioning
     log_type,
     log_action,
     log_timestamp,
     log_user,
     log_title,
-    log_comment,
+    coalesce(log_comment, comment_text),
     log_params,
-    wiki_db
+    l.wiki_db
         """)
       .rdd
       .filter(row => {
@@ -164,20 +174,22 @@ class UserHistoryRunner(
 
     // We rename user_name to user_text as it is used this way accross other tables
     val userStates = spark.sql(
+      // TODO: simplify or remove joins as source table imports change
       s"""
   SELECT
     user_id,
-    user_name as user_text,
+    user_name AS user_text,
     user_registration,
-    u.wiki_db,
-    rev.rev_timestamp as first_rev_timestamp,
+    u.wiki_db as wiki_db,
+    rev.rev_timestamp AS first_rev_timestamp,
     --coalesce(user_groups, emptyStringArray())
     user_groups
-  FROM user AS u
+  FROM user u
     LEFT JOIN (
       SELECT
+        -- TODO: this is null if the user is anonymous but also null if rev_deleted&4, need to verify that's ok
         rev_user,
-        min(rev_timestamp) as rev_timestamp,
+        min(rev_timestamp) AS rev_timestamp,
         wiki_db
       FROM revision
       WHERE TRUE

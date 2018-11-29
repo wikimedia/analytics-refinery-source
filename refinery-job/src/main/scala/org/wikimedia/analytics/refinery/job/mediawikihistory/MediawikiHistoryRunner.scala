@@ -60,6 +60,7 @@ object MediawikiHistoryRunner {
     * Case class handling job parameters
     */
   case class Params(mediawikiBasePath: String = "hdfs://analytics-hadoop/wmf/data/raw/mediawiki",
+                    mediawikiPrivateBasePath: String = "hdfs://analytics-hadoop/wmf/data/raw/mediawiki_private",
                     outputBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/mediawiki",
                     wikiConstraint: Seq[String] = Seq.empty[String],
                     snapshot: Option[String] = None,
@@ -88,6 +89,11 @@ object MediawikiHistoryRunner {
     opt[String]('i', "mediawiki-base-path") optional() valueName "<path>" action { (x, p) =>
       p.copy(mediawikiBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
     } text "Base path to mediawiki extracted data on hadoop.\n\tDefaults to hdfs://analytics-hadoop/wmf/data/raw/mediawiki"
+
+    opt[String]('p', "mediawiki-private-base-path") optional() valueName "<path>" action { (x, p) =>
+      p.copy(mediawikiPrivateBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
+    } text "Base path to mediawiki-private extracted data on hadoop.\n\tDefaults to hdfs://analytics-hadoop/wmf/data/raw/mediawiki_private"
+
 
     opt[String]('o', "output-base-path") optional() valueName "<path>" action { (x, p) =>
       p.copy(outputBasePath = if (x.endsWith("/")) x else x + "/")
@@ -149,6 +155,7 @@ object MediawikiHistoryRunner {
 
         // Parameter extraction for clarity
         val mediawikiBasePath = params.mediawikiBasePath
+        val mediawikiPrivateBasePath = params.mediawikiPrivateBasePath
         val outputBasePath = params.outputBasePath
 
         val wikiConstraint = params.wikiConstraint
@@ -186,13 +193,20 @@ object MediawikiHistoryRunner {
         // Paths preparation
         val namespacesPath = mediawikiBasePath + "/project_namespace_map" + snapshotPartition
         val baseDataPath = mediawikiBasePath + "/tables"
+        val basePrivateDataPath = mediawikiPrivateBasePath + "/tables"
 
         val archiveDataPath = baseDataPath + "/archive" + snapshotPartition
         val loggingDataPath = baseDataPath + "/logging" + snapshotPartition
         val pageDataPath = baseDataPath +  "/page" + snapshotPartition
         val revisionDataPath = baseDataPath + "/revision" + snapshotPartition
+        //TODO Uncomment the following and remove private when data will available from labs
+        //val actorDataPath = baseDataPath + "/actor" + snapshotPartition
+        //val commentDataPath = baseDataPath + "/comment" + snapshotPartition
         val userDataPath = baseDataPath + "/user" + snapshotPartition
         val userGroupsDataPath = baseDataPath + "/user_groups" + snapshotPartition
+
+        val actorPrivateDataPath = basePrivateDataPath + "/actor" + snapshotPartition
+        val commentPrivateDataPath = basePrivateDataPath + "/comment" + snapshotPartition
 
         val denormalizedHistoryPath = outputBasePath + "/history" + snapshotPartition
         val pageHistoryPath = outputBasePath + "/page_history" + snapshotPartition
@@ -271,6 +285,7 @@ object MediawikiHistoryRunner {
             userDataPath,
             userGroupsDataPath,
             revisionDataPath,
+            commentPrivateDataPath,
             userHistoryPath,
             userHistoryErrorsPath
           )
@@ -297,6 +312,8 @@ object MediawikiHistoryRunner {
             wikiConstraint,
             revisionDataPath,
             archiveDataPath,
+            actorPrivateDataPath,
+            commentPrivateDataPath,
             userHistoryPath,
             pageHistoryPath,
             denormalizedHistoryPath,

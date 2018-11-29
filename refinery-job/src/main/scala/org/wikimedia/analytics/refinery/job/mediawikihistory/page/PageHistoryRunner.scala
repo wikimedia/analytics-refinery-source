@@ -134,6 +134,11 @@ class PageHistoryRunner(
       isContentNamespaceMap
     )
     val parsedPageEvents = spark.sql(
+      // NOTE: The following fields are sanitized according to log_deleted on cloud dbs:
+      //  &1: log_action, log_namespace, log_title, log_page
+      //  &2: log_comment_id, log_comment
+      //  &4: log_user_text, log_actor
+      //  log_deleted is not null or 0: log_params
       s"""
   SELECT
     log_type,
@@ -145,7 +150,7 @@ class PageHistoryRunner(
     log_params,
     log_namespace,
     wiki_db
-  FROM logging
+  FROM logging l
   WHERE ((log_type = 'move')
           OR (log_type = 'delete'
               AND log_action IN ('delete', 'restore')))
@@ -206,8 +211,9 @@ class PageHistoryRunner(
         rev_page,
         wiki_db as wiki_db_rev2,
         rev_timestamp,
+        -- TODO: this is null 0 if the user is anonymous but also null if rev_deleted&4, need to verify that's ok
         rev_user
-      FROM revision
+      FROM revision r
       WHERE TRUE
         $wikiClause
     ) rev2
