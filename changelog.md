@@ -1,8 +1,11 @@
 ## v0.0.81
+* Use "SORT BY" instead of "ORDER BY" in mediawiki_history_checker job
+* Correctly pass input_path_regex to Refine from EventLoggingSanitization
 * HiveExtensions schema merge now better support schema changes of complex
   Array element and Map value types.
   https://phabricator.wikimedia.org/T210465
 * HiveExtensions findIncompatibleFields was unused and is removed.
+* Upgrade profig lib to 2.3.3 after bug fix upstream
 
 ## v0.0.80
 * Update DataFrameToHive and PartitionedDataFrame to support
