@@ -93,26 +93,6 @@ trait ConfigHelper {
         )
     }
 
-
-    // implicit conversion from string to Boolean
-    implicit val decodeBoolean: Decoder[Boolean] = Decoder.decodeString.emap { s =>
-        val truthyMap: Map[String, Boolean] = Map(
-            "true"  -> true,
-            "yes"   -> true,
-            "1"     -> true,
-            "false" -> false,
-            "no"    -> false,
-            "0"     -> false
-        )
-
-        Either.catchNonFatal(truthyMap.getOrElse(
-            s,
-            throw new RuntimeException("Must be one of: " + truthyMap.keySet.mkString(", "))
-        )).leftMap(t =>
-            throw new RuntimeException(s"Failed parsing '$s' into a Boolean.", t)
-        )
-    }
-
     // implicit conversion from comma seperated string to Seq[String]
     implicit val decodeSeqString: Decoder[Seq[String]] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(s.split(",").toSeq).leftMap(t =>
