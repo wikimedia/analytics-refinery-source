@@ -1,3 +1,6 @@
+## v0.0.82
+* Update hadoop, hive and spark dependency versions
+
 ## v0.0.81
 * Use "SORT BY" instead of "ORDER BY" in mediawiki_history_checker job
 * Correctly pass input_path_regex to Refine from EventLoggingSanitization
