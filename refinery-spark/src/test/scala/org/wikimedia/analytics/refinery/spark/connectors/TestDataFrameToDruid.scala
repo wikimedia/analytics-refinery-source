@@ -48,8 +48,13 @@ class TestDataFrameToDruid extends FlatSpec
             spark = spark,
             dataSource = "test",
             inputDf = testDf,
-            dimensions = Seq("event_category", "event_action", "wiki"),
-            metrics = Seq("event_seconds"),
+            dimensions = Seq("event.category", "event.action", "wiki"),
+            metrics = Seq("event.seconds", "normalized_count"),
+            transforms = Seq(DataFrameToDruid.Transform(
+                name = "normalized_count",
+                expression = "test_count / event.sampleRatio"
+            )),
+            countMetricName = "test_count",
             intervals = Seq((new DateTime(1970, 1, 1, 0, 0), new DateTime(1970, 1, 2, 0, 0))),
             timestampColumn = "timestamp",
             timestampFormat = "posix",
@@ -80,26 +85,29 @@ class TestDataFrameToDruid extends FlatSpec
     override def beforeEach(): Unit = {
         // Create schema and data to be used in tests.
         val testSchema: StructType = (new StructType)
-            .add("event_category", StringType)
-            .add("event_action", StringType)
-            .add("event_seconds", DoubleType)
+            .add("event", (new StructType)
+                .add("action", StringType)
+                .add("category", StringType)
+                .add("sampleRatio", DoubleType)
+                .add("seconds", DoubleType)
+            )
             .add("timestamp", LongType)
             .add("wiki", StringType)
         val testRDD = sc.parallelize(Seq(
-            Row("cat1", "read", 10.0, 1L, "enwiki"),
-            Row("cat2", "edit", 20.0, 2L, "enwiki"),
-            Row("cat1", "read", 30.0, 3L, "enwiki"),
-            Row("cat3", "read", 40.0, 4L, "enwiki")
+            Row(Row("read", "cat1", 0.2, 10.0), 1L, "enwiki"),
+            Row(Row("edit", "cat2", 0.2, 20.0), 2L, "enwiki"),
+            Row(Row("read", "cat1", 0.5, 30.0), 3L, "enwiki"),
+            Row(Row("read", "cat3", 0.5, 40.0), 4L, "enwiki")
         ))
         testDf = spark.createDataFrame(testRDD, testSchema)
 
-        // Mock HttpClient to be injected into DataFrameToDuid.
+        // Mock HttpClient to be injected into DataFrameToDruid.
         // Its behavior will be defined in each test.
         httpClientMock = mock[HttpClient]
     }
 
     override def afterEach(): Unit = {
-        // Delete temp file in case DataFrameToDuid can not accomplish it
+        // Delete temp file in case DataFrameToDruid can not accomplish it
         // because of execution errors or assert failures.
         val path = new Path(testTempFile)
         val fs = FileSystem.get(sc.hadoopConfiguration)
@@ -124,9 +132,9 @@ class TestDataFrameToDruid extends FlatSpec
         createDftd().start().await()
     }
 
-    it should "request for ingestion with the correct spec" in {
+    it should "request for ingestion with the correct general spec" in {
         inSequence {
-            // Should recevie an ingestion request; checks spec, returns ingestion task id.
+            // Should receive an ingestion request; checks spec, returns ingestion task id.
             (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
                 val contentStream = request.asInstanceOf[HttpPost].getEntity.getContent
                 val spec = IOUtils.toString(contentStream)
@@ -143,7 +151,8 @@ class TestDataFrameToDruid extends FlatSpec
                 assertJson(spec, "spec.dataSchema.parser.parseSpec.timestampSpec.column", "timestamp")
                 assertJson(spec, "spec.dataSchema.metricsSpec", Seq(
                     Map("name" -> "event_seconds", "fieldName" -> "event_seconds", "type" -> "doubleSum"),
-                    Map("name" -> "eventCount", "fieldName" -> "eventCount", "type" -> "longSum")
+                    Map("name" -> "normalized_count", "fieldName" -> "normalized_count", "type" -> "doubleSum"),
+                    Map("name" -> "test_count", "fieldName" -> "test_count", "type" -> "longSum")
                 ))
                 assertJson(spec, "spec.tuningConfig.partitionsSpec.numShards", 2L)
                 assertJson(spec, "spec.tuningConfig.jobProperties.mapreduce\\.reduce\\.memory\\.mb", "8192")
@@ -159,12 +168,57 @@ class TestDataFrameToDruid extends FlatSpec
         createDftd().start().await()
     }
 
+    it should "request for ingestion with the correct transforms spec" in {
+        inSequence {
+            // Should receive an ingestion request; checks spec, returns ingestion task id.
+            (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
+                val contentStream = request.asInstanceOf[HttpPost].getEntity.getContent
+                val spec = IOUtils.toString(contentStream)
+
+                assertJson(spec, "spec.dataSchema.transformSpec.transforms", Seq(Map(
+                    "type" -> "expression",
+                    "name" -> "normalized_count",
+                    "expression" -> "test_count / event_sampleRatio"
+                )))
+
+                createHttpResponse(200, """{"task": "test-task-1"}""")
+            }
+            // Should receive a status request; returns succeeded.
+            (httpClientMock.execute(_: HttpUriRequest)).expects(*).returning(
+                createHttpResponse(200, """{"status": {"status": "SUCCEEDED"}}""")
+            )
+        }
+        createDftd().start().await()
+    }
+
+    it should "request for ingestion with the correct flatten spec" in {
+        inSequence {
+            // Should receive an ingestion request; checks spec, returns ingestion task id.
+            (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
+                val contentStream = request.asInstanceOf[HttpPost].getEntity.getContent
+                val spec = IOUtils.toString(contentStream)
+
+                assertJson(spec, "spec.dataSchema.transformSpec.transforms", Seq(Map(
+                    "type" -> "expression",
+                    "name" -> "normalized_count",
+                    "expression" -> "test_count / event_sampleRatio"
+                )))
+
+                createHttpResponse(200, """{"task": "test-task-1"}""")
+            }
+            // Should receive a status request; returns succeeded.
+            (httpClientMock.execute(_: HttpUriRequest)).expects(*).returning(
+                createHttpResponse(200, """{"status": {"status": "SUCCEEDED"}}""")
+            )
+        }
+        createDftd().start().await()
+    }
     it should "request for ingestion with the correct data" in {
         inSequence {
             // Should recevie an ingestion request; checks data, returns ingestion task id.
             (httpClientMock.execute(_: HttpUriRequest)).expects(*).onCall { request: HttpUriRequest =>
                 val inputDf = spark.read.json(testTempFile)
-                val expectedDf = testDf.withColumn("eventCount", lit(1L))
+                val expectedDf = testDf.withColumn("test_count", lit(1L))
                 assert(inputDf.intersect(expectedDf).take(1).isEmpty)
                 createHttpResponse(200, """{"task": "test-task-1"}""")
             }

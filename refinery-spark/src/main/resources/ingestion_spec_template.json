@@ -20,6 +20,9 @@
                 "type" : "string",
                 "parseSpec" : {
                     "format" : "json",
+                    "flattenSpec": {
+                        "fields": {{FLATTENERS}}
+                    },
                     "dimensionsSpec" : {
                         "dimensions" : {{DIMENSIONS}}
                     },
@@ -29,7 +32,10 @@
                     }
                 }
             },
-            "metricsSpec" : {{METRICS}}
+            "metricsSpec" : {{METRICS}},
+            "transformSpec": {
+                "transforms": {{TRANSFORMS}}
+            }
         },
         "tuningConfig" : {
             "type" : "hadoop",

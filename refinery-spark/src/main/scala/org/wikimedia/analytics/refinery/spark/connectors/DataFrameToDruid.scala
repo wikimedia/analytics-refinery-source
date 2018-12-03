@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.spark.connectors
 
 import java.io.InputStream
-
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.http.client.HttpClient
@@ -13,10 +12,9 @@ import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.{DoubleType, FloatType, IntegerType, LongType}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.joda.time.DateTime
-
 import scala.io.Source
-import scala.util.Random
 import scala.util.parsing.json.JSON
+import scala.util.Random
 
 /**
  * Ingestion status enumeration object
@@ -39,19 +37,32 @@ object DataFrameToDruid {
     val IntervalDateTimeFormat = "yyyy-MM-dd'T'HH:mm'Z'"
 
     // Constant: Name of the additional metric field that counts events.
-    val EventCountMetricName = "eventCount"
+    val CountMetricName = "count"
+
+    // Constant: Suffix applied to time measure dimensions when bucketized.
+    val TimeMeasureSuffix = "_buckets"
 
     // Constant: Template to build Druid ingestion specs.
     val stream: InputStream = getClass.getResourceAsStream("/ingestion_spec_template.json")
-
     val IngestionSpecTemplate: String = Source.fromInputStream(stream).getLines.mkString
+
+    // Helper structure to store transforms.
+    // Find a list of available expressions at:
+    // http://druid.io/docs/latest/misc/math-expr.html
+    // Names can not contain the character '.' (use '_' instead).
+    // Ex: Transform(name = "normalized_count", expression = "count / event.sampleRate")
+    case class Transform(
+        name: String,
+        expression: String
+    )
 }
 /**
  * DataFrame to Druid transaction class
  *
  * This class serves as a transaction helper to load data into Druid.
  * The source data should be passed in as a DataFrame instance.
- * Then an ingestion spec is created from the DataFrame schema.
+ * Then an ingestion spec is created from the DataFrame schema
+ * and the parameters passed like dimension or metric field names.
  * And finally a request is sent to Druid to trigger data ingestion.
  * The process can be followed in 3 ways: callback, waiting and polling.
  *
@@ -85,29 +96,42 @@ object DataFrameToDruid {
  *     sc  SparkContext.
  *     dataSource  Name of the target Druid data set (snake_case).
  *     inputDf  DataFrame containing the data to be loaded. The data must already
- *              be sliced to only contain the desired time intervals. It must also
- *              be flat (no nested fields) and contain only the fields that are to
- *              ingested into Druid.
- *     dimensions  Sequence of field names that Druid should index as dimensions.
+ *              be sliced to only contain the desired time intervals (or slightly
+ *              more). The reason is this job writes the whole contents of this
+ *              DataFrame into a temporary file before calling the ingestion task.
+ *     dimensions  Sequence of field names that Druid should ingest as dimensions.
+ *                 You can specify struct type subfields: <parent_field>.<subfield>
+ *     timeMeasures  Sequence of field names that druid should ingest as time
+ *                   measure dimensions. Only millisecond values are supported.
+ *                   Time measure fields will be bucketized into string dimensions,
+ *                   like: 50ms-250ms, 1sec-4sec, etc. Default: empty sequence.
  *     metrics  Sequence of field names that Druid should ingest as metrics.
- *              Those fields have to be of numerical type.
- *     intervals  Sequence of pairs (startDateTime, endDateTime) delimiting the
- *                intervals where the input DataFrame contains data.
- *     timestampColumn  Name of the field containing the timestamp. This field is
- *                      mandatory for Druid ingestion spec.
+ *              These fields have to be of numerical type. You can specify struct
+ *              type subfields: <parent_field>.<subfield>. Default: empty sequence.
+ *     timestampColumn  Name of the field containing the timestamp. Default: 'dt'.
  *     timestampFormat  A string indicating the format of the timestamp field
  *                      (iso|millis|posix|auto|or any Joda time format).
+ *                      Default: 'auto'.
+ *     intervals  Sequence of pairs (startDateTime, endDateTime) delimiting the
+ *                intervals where the input DataFrame contains data.
+ *     transforms  Sequence of DataFrameToDruid.Transform objects. These transforms
+ *                 Will create virtual fields that can be listed as dimensions or
+ *                 metrics. Default: empty sequence.
+ *     countMetricName  Name of the added metric that indicates the number of rows.
+ *                      Default: 'count'.
  *     segmentGranularity  A string indicating the granularity of Druid's segments
  *                         for the data to be loaded (quarter|month|week|day|hour).
  *     queryGranularity  A string indicating the granularity of Druid's queries
  *                       for the data to be loaded (week|day|hour|minute|second).
- *     numShards  Number of shards for Druid ingestion [optional].
- *     reduceMemory  Memory to be used for Druid ingestion (string).
- *     hadoopQueue  Name of Hadoop queue to launch the ingestion.
- *     druidHost  String with Druid host.
- *     druidPort  String with Druid port.
+ *     numShards  Number of shards for Druid ingestion.
+ *     reduceMemory  Memory to be used for Druid ingestion.
+ *     hadoopQueue  Name of Hadoop queue to launch the ingestion. Default: 'default'.
+ *     druidHost  String with Druid host. Default: 'druid1001.eqiad.wmnet'.
+ *     druidPort  String with Druid port. Default: '8090'.
  *     checkInterval  Integer with the number of milliseconds to wait between checks.
- *     tempFilePathOver  Optional string that overrides path to temporary file.
+ *                    Default: 10000.
+ *     tempFilePathOver  Optional string that overrides path to temporary file
+ *                       (only for testing purposes).
  *     httpClientOver  Optional HttpClient instance (only for testing purposes).
  */
 class DataFrameToDruid(
@@ -115,17 +139,21 @@ class DataFrameToDruid(
                         dataSource: String,
                         inputDf: DataFrame,
                         dimensions: Seq[String],
-                        metrics: Seq[String],
+                        timeMeasures: Seq[String] = Seq.empty,
+                        metrics: Seq[String] = Seq.empty,
+                        timestampColumn: String = "dt",
+                        timestampFormat: String = "auto",
                         intervals: Seq[(DateTime, DateTime)],
-                        timestampColumn: String,
-                        timestampFormat: String,
+                        transforms: Seq[DataFrameToDruid.Transform] = Seq.empty,
+                        countMetricName: String = DataFrameToDruid.CountMetricName,
+                        timeMeasureSuffix: String = DataFrameToDruid.TimeMeasureSuffix,
                         segmentGranularity: String,
                         queryGranularity: String,
                         numShards: Int,
                         reduceMemory: String,
-                        hadoopQueue: String,
-                        druidHost: String,
-                        druidPort: String,
+                        hadoopQueue: String = "default",
+                        druidHost: String = "druid1001.eqiad.wmnet",
+                        druidPort: String = "8090",
                         checkInterval: Int = 10000,
                         tempFilePathOver: String = null.asInstanceOf[String],
                         httpClientOver: HttpClient = null.asInstanceOf[HttpClient]
@@ -139,9 +167,9 @@ class DataFrameToDruid(
         s"/tmp/DataFrameToDruid/$dataSource/$timestamp/$randomId"
     }
 
-    // Add the event count to the DataFrame.
-    private val inputDfWithCount = inputDf.withColumn(DataFrameToDruid.EventCountMetricName, lit(1L))
-    private val metricsWithCount = metrics :+ DataFrameToDruid.EventCountMetricName
+    // Add the count metric to the DataFrame.
+    private val inputDfWithCount = inputDf.withColumn(countMetricName, lit(1L))
+    private val metricsWithCount = metrics :+ countMetricName
 
     // Initialize Druid ingestion spec.
     log.info(s"Creating ingestion spec for $dataSource.")
@@ -239,6 +267,8 @@ class DataFrameToDruid(
             .replace("{{TIMESTAMP_FORMAT}}", timestampFormat)
             .replace("{{TIMESTAMP_COLUMN}}", timestampColumn)
             .replace("{{METRICS}}", formatMetrics())
+            .replace("{{TRANSFORMS}}", formatTransforms())
+            .replace("{{FLATTENERS}}", formatFlatteners())
             .replace("{{NUM_SHARDS}}", numShards.toString)
             .replace("{{REDUCE_MEMORY}}", reduceMemory)
             .replace("{{HADOOP_QUEUE}}", hadoopQueue)
@@ -255,23 +285,94 @@ class DataFrameToDruid(
     }
 
     // Formats a sequence of field names into Druid dimensions.
+    // Time measures are also ingested as dimensions.
+    // All dimension names should be flattened before ingestion.
     private def formatDimensions(): String = {
-        val formattedDimensions = dimensions.map((d) => "\"" + d + "\"")
+        val suffixedTimeMeasures = timeMeasures.map(_ + DataFrameToDruid.TimeMeasureSuffix)
+        val flatDimensions = (dimensions ++ suffixedTimeMeasures).map(flattenName)
+        val formattedDimensions = flatDimensions.map((d) => "\"" + d + "\"")
         "[" + formattedDimensions.mkString(", ") + "]"
     }
 
     // Formats a sequence of field names into Druid metrics.
     // Only longSum and doubleSum metrics are supported, so metric fields with types
     // other than Integer, Long, Float and Double will raise an error.
+    // All metric names should be flattened before ingestion.
     private def formatMetrics(): String = {
         val formattedMetrics = metricsWithCount.map((field) => {
-            val fieldType = inputDfWithCount.schema.apply(field).dataType match {
-                case IntegerType | LongType => "longSum"
-                case FloatType | DoubleType => "doubleSum"
-            }
-            s"""{\"name\": \"$field\", \"fieldName\": \"$field\", \"type\": \"$fieldType\"}"""
+            val schemaFieldNames = inputDfWithCount.schema.fields.map(_.name)
+            val fieldType = if (schemaFieldNames.contains(field)) {
+                inputDfWithCount.schema.apply(field).dataType match {
+                    case IntegerType | LongType => "longSum"
+                    case FloatType | DoubleType => "doubleSum"
+                }
+            } else "doubleSum" // If metric is a transform, defaults to doubleSum.
+            val flatName = flattenName(field)
+            s"""{\"name\": \"$flatName\", \"fieldName\": \"$flatName\", \"type\": \"$fieldType\"}"""
         })
         "[" + formattedMetrics.mkString(", ") + "]"
+    }
+
+    // Formats a sequence of Transform objects into Druid transforms.
+    // Time measures have to be specified as transforms as well, using
+    // bucketMilliseconds(). All field names used within transform
+    // expressions should be flattened before ingestion.
+    private def formatTransforms(): String = {
+        val formattedTransforms = transforms.map((t) => {
+            val flatExpression = t.expression.replaceAll("[.]([A-Za-z_])", "_$1")
+            s"""{\"type\": \"expression\", \"name\": \"${t.name}\", \"expression\": \"$flatExpression\"}"""
+        }) ++ timeMeasures.map((t) => {
+            val flatName = flattenName(t)
+            val suffixedName = flatName + DataFrameToDruid.TimeMeasureSuffix
+            val expression = bucketMilliseconds(flatName)
+            s"""{\"type\": \"expression\", \"name\": \"$suffixedName\", \"expression\": \"$expression\"}"""
+        })
+        "[" + formattedTransforms.mkString(", ") + "]"
+    }
+
+    // Creates a flattenSpec to rename nested field names into flat names.
+    // Has to include all nested fields that are specified as dimensions,
+    // time measures, metrics, or appear within any transform expression.
+    private def formatFlatteners(): String = {
+        val subfieldNameRegex = """[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+""".r
+        val fieldsInExpressions = transforms.flatMap((t) => {
+            subfieldNameRegex.findAllIn(t.expression)
+        })
+        val fieldsToFlatten = (
+            dimensions ++
+            metrics ++
+            timeMeasures ++
+            fieldsInExpressions
+        ).distinct.filter(_.contains("."))
+        val formattedFlatteners = fieldsToFlatten.map((fieldName) => {
+            val flatName = flattenName(fieldName)
+            s"""{\"type\": \"path\", \"name\": \"$flatName\", \"expr\": \"$$.$fieldName\"}"""
+        })
+        "[" + formattedFlatteners.mkString(", ") + "]"
+    }
+
+    // Creates a Druid transform expression that buckets a given time measure field
+    // into time range buckets that grow exponentially. Negative values are 'invalid'.
+    private def bucketMilliseconds(expr: String): String = {
+        s"""case_searched(
+            $expr >= 0 && $expr < 50, '0ms-50ms',
+            $expr >= 50 && $expr < 250, '50ms-250ms',
+            $expr >= 250 && $expr < 1000, '250ms-1sec',
+            $expr >= 1000 && $expr < 4000, '1sec-4sec',
+            $expr >= 4000 && $expr < 15000, '4sec-15sec',
+            $expr >= 15000 && $expr < 60000, '15sec-1min',
+            $expr >= 60000 && $expr < 240000, '1min-4min',
+            $expr >= 240000 && $expr < 900000, '4min-15min',
+            $expr >= 900000 && $expr < 3600000, '15min-1hr',
+            $expr >= 3600000 && $expr < 18000000, '1hr-5hr',
+            $expr >= 18000000 && $expr < 86400000, '5hr-24hr',
+            $expr >= 86400000, '24hr+',
+            'invalid'
+        )""".replace("\n", "")
+    }
+
+    private def flattenName(fieldName: String): String = {
+        fieldName.replace('.', '_')
     }
 
     // Returns a thread that keeps polling Druid to check the status of the
