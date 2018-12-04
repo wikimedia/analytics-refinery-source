@@ -12,10 +12,10 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
     val tableLocation = "/tmp/test/table"
 
     it should "normalize and widen a field" in {
-        val field = StructField("Field-1", IntegerType, nullable = false)
+        val field = StructField("$Field-1.other", IntegerType, nullable = false)
 
         val normalizedField = field.normalize().widen()
-        normalizedField.name should equal("field_1")
+        normalizedField.name should equal("_field_1_other")
         normalizedField.dataType should equal(LongType)
         normalizedField.nullable should equal(true)
     }

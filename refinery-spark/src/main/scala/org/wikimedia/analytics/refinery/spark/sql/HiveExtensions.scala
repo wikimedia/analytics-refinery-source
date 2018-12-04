@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.spark.sql
 
 import java.util.UUID
+import scala.util.matching.Regex
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
@@ -27,6 +28,14 @@ import org.wikimedia.analytics.refinery.core.LogHelper
   *     hiveContext.sql(hiveAlterStatement)
   */
 object HiveExtensions extends LogHelper {
+
+
+    /**
+     * This regex will be used to replace characters in field names that
+     * are likely not compatible in most SQL contexts.
+     * This regex uses the Avro rules. https://avro.apache.org/docs/1.8.0/spec.html#names
+     */
+    val sanitizeFieldPattern: Regex = "(^[^A-Za-z_]|[^A-Za-z0-9_])".r
 
     /**
       * Implicit methods extensions for Spark StructField.
@@ -75,7 +84,7 @@ object HiveExtensions extends LogHelper {
           * Normalizes a copy of this StructField.
           * Here, normalizing means:
           * - conditionally convert field name to lower case
-          * - convert hyphens to underscores
+          * - Convert bad characters in field names to underscores.
           * - widen some types (ints -> longs, floats -> doubles)
           * - makeNullable true
           *
@@ -88,8 +97,8 @@ object HiveExtensions extends LogHelper {
           */
         def normalize(lowerCase: Boolean = true): StructField = {
             val f = field
-                // convert hyphens to underscores
-                .copy(name=field.name.replace('-', '_'))
+                // convert bad chars to underscores
+                .copy(name=sanitizeFieldPattern.replaceAllIn(field.name, "_"))
                 // make nullable
                 .makeNullable()
             // conditionally to lower case
