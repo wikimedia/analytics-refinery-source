@@ -95,7 +95,7 @@ class UserHistoryRunner(
     log_type,
     log_action,
     log_timestamp,
-    log_user,
+    CAST(log_user AS BIGINT) AS log_user,
     log_title,
     log_comment,
     log_params,

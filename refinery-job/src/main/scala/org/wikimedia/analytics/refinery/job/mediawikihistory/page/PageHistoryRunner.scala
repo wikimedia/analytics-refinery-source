@@ -140,7 +140,7 @@ class PageHistoryRunner(
     log_action,
     log_page,
     log_timestamp,
-    log_user,
+    CAST(log_user AS BIGINT) AS log_user,
     log_title,
     log_params,
     log_namespace,
