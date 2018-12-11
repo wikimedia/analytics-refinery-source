@@ -13,7 +13,7 @@ object ClickstreamBuilder {
                        wikiDb: String,
                        pageId: Long,
                        pageTitle: String,
-                       pageNamespace: Long,
+                       pageNamespace: Int,
                        pageIsRedirect: Boolean
                      )
 
@@ -119,7 +119,7 @@ object ClickstreamBuilder {
         """.stripMargin).
       rdd.
       map(r => {
-        PageInfo(r.getString(0), r.getLong(1), r.getString(2), r.getLong(3), r.getBoolean(4))
+        PageInfo(r.getString(0), r.getLong(1), r.getString(2), r.getInt(3), r.getBoolean(4))
       }).
       // insert rows for our special prev pages this will let us work with ids
       // instead of titles later, which is much less error prone
@@ -143,7 +143,7 @@ object ClickstreamBuilder {
                         snapshot: String,
                         wikiList: Seq[String],
                         pagesPerPageId: RDD[((String, Long), String)],
-                        perTitleAndNamespacePages: RDD[((String, String, Long), Long)]
+                        perTitleAndNamespacePages: RDD[((String, String, Int), Long)]
                       ): RDD[Redirect] = {
     spark.sql(
       s"""
@@ -165,7 +165,7 @@ object ClickstreamBuilder {
           """.stripMargin).
       rdd.
       map(r => {
-        ((r.getString(0), r.getLong(1)), (r.getString(2), r.getLong(3)))
+        ((r.getString(0), r.getLong(1)), (r.getString(2), r.getInt(3)))
       }).
       filter(t => Option(t._2._1).isDefined). // Remove null toPageTitle
       join(pagesPerPageId). // Ensure fromPageId exists in page table
@@ -193,7 +193,7 @@ object ClickstreamBuilder {
                         snapshot: String,
                         wikiList: Seq[String],
                         pagesPerPageId: RDD[((String, Long), String)],
-                        pagesPerTitleAndNamespace: RDD[((String, String, Long), Long)],
+                        pagesPerTitleAndNamespace: RDD[((String, String, Int), Long)],
                         redirects: RDD[Redirect]
                       ): RDD[PageLink] = {
     spark.sql(
@@ -216,7 +216,7 @@ object ClickstreamBuilder {
               """.stripMargin).
       rdd.
       map(r => {
-        ((r.getString(0), r.getLong(1)), (r.getString(2), r.getLong(3)))
+        ((r.getString(0), r.getLong(1)), (r.getString(2), r.getInt(3)))
       }).
       filter(t => Option(t._2._1).isDefined). // Remove null toPageTitle
       join(pagesPerPageId).  // Ensure fromPageId exists in page table
@@ -245,7 +245,7 @@ object ClickstreamBuilder {
                           projectList: Seq[String],
                           projectToWikiMap: Map[String, String],
                           pages: RDD[PageInfo],
-                          pagesPerTitleAndNamespace: RDD[((String, String, Long), Long)],
+                          pagesPerTitleAndNamespace: RDD[((String, String, Int), Long)],
                           redirects: RDD[Redirect],
                           pageLinks: RDD[PageLink],
                           minCount: Int = 10
