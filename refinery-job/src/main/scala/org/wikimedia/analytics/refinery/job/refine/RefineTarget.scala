@@ -217,10 +217,13 @@ case class RefineTarget(
       * or failureFlag file, meaning that something has changed in the inputPath since the last
       * time the flag file was written.
       *
+      * @param ignoreFailureFlag
+      * @param ignoreDoneFlag
       * @return
       */
     private def shouldRefine(
-        shouldIgnoreFailureFlag: Boolean
+         ignoreFailureFlag: Boolean,
+         ignoreDoneFlag: Boolean
     ): Boolean = {
 
         // This could be written and returned as a single boolean conditional statement,
@@ -230,12 +233,12 @@ case class RefineTarget(
         if (outputExists()) {
             // If doneFlag exists, and the input mtime has changed, then we need to refine.
             if (doneFlagExists()) {
-                return inputMTimeCached != doneFlagMTime()
+                return ignoreDoneFlag || inputMTimeCached != doneFlagMTime()
             }
             // Else if the failure flag exists, we need to refine if
             // we are ignoring the failure flag, or if the input mtime has changed.
             else if (failureFlagExists()) {
-                return shouldIgnoreFailureFlag || inputMTimeCached != failureFlagMTime()
+                return ignoreFailureFlag || inputMTimeCached != failureFlagMTime()
             }
         }
 
@@ -250,12 +253,15 @@ case class RefineTarget(
       *
       * @param tableWhitelistRegex Option[Regex]
       * @param tableBlacklistRegex Option[Regex]
+      * @param ignoreFailureFlag
+      * @param ignoreDoneFlag
       * @return
       */
     def shouldRefine(
         tableWhitelistRegex: Option[Regex] = None,
         tableBlacklistRegex: Option[Regex] = None,
-        shouldIgnoreFailureFlag: Boolean = false
+        ignoreFailureFlag  : Boolean = false,
+        ignoreDoneFlag     : Boolean = false
     ): Boolean = {
 
 
@@ -280,25 +286,26 @@ case class RefineTarget(
             return false
         }
 
-        // Finally filter for those that need to be refined (have new data).
-        if (!shouldRefine(shouldIgnoreFailureFlag)) {
-            if (!shouldIgnoreFailureFlag && failureFlagExists) {
+        // Finally filter for those that need to be refined (have new data, or need re-refined).
+        val shouldRefineThis = shouldRefine(ignoreFailureFlag, ignoreDoneFlag)
+
+        // If this shouldn't be refined, output some debug statements about why.
+        if (!shouldRefineThis) {
+            if (failureFlagExists) {
                 log.warn(
                     s"$this previously failed refinement and does not have new data since the " +
                         s"last refine at ${failureFlagMTime().getOrElse("_unknown_")}, skipping."
                 )
-                false
             }
-            else {
+            else if (doneFlagExists) {
                 log.debug(
-                    s"$this does not have new data since the last refine at " +
+                    s"$this does not have new data since the last successful refine at " +
                         s"${doneFlagMTime().getOrElse("_unknown_")}, skipping."
                 )
-                false
             }
         }
-        else
-            true
+
+        shouldRefineThis
     }
 
 

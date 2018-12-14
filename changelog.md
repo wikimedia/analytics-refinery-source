@@ -1,3 +1,6 @@
+## v0.0.83
+* Add --ignore_done_flag option to Refine
+
 ## v0.0.82
 * Update hadoop, hive and spark dependency versions
 * Fix field name casing bug in DataFrame .convertToSchema

@@ -52,7 +52,8 @@ object Refine extends LogHelper with ConfigHelper {
         should_email_report: Boolean                    = false,
         smtp_uri: String                                = "mx1001.wikimedia.org:25",
         from_email: String                              = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
-        to_emails: Seq[String]                          = Seq()
+        to_emails: Seq[String]                          = Seq(),
+        ignore_done_flag: Boolean                       = false
     )
 
     object Config {
@@ -112,8 +113,11 @@ object Refine extends LogHelper with ConfigHelper {
                    |a DataFrame.  These functions can be used to map from the input DataFrames
                    |to a new ones, applying various transformations along the way.  Default: none""",
             "ignore_failure_flag" ->
-                s"""Set this if you want all discovered partitions with _REFINE_FAILED files to be
+                s"""Set this if you also want all discovered partitions with _REFINE_FAILED files to be
                    |(re)refined. Default: ${default.ignore_failure_flag}""",
+            "ignore_done_flag" ->
+                s"""Set this if you also want all discovered partitions with _REFINED files to be
+                   |(re)refined. Defeault: ${default.ignore_done_flag}""",
             "parallelism" ->
                 """Refine into up to this many tables in parallel.  Individual partitions
                   |destined for the same Hive table will be refined serially.
@@ -253,7 +257,8 @@ object Refine extends LogHelper with ConfigHelper {
         should_email_report: Boolean                    = Config.default.should_email_report,
         smtp_uri: String                                = Config.default.smtp_uri,
         from_email: String                              = Config.default.from_email,
-        to_emails: Seq[String]                          = Config.default.to_emails
+        to_emails: Seq[String]                          = Config.default.to_emails,
+        ignore_done_flag: Boolean                       = Config.default.ignore_done_flag
     ): Boolean = {
         // Initial setup - Spark Conf and Hadoop FileSystem
         spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
@@ -295,7 +300,7 @@ object Refine extends LogHelper with ConfigHelper {
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
         .filter(_.shouldRefine(
-            table_whitelist_regex, table_blacklist_regex, ignore_failure_flag
+            table_whitelist_regex, table_blacklist_regex, ignore_failure_flag, ignore_done_flag
         ))
 
         // At this point, targetsToRefine will be a Seq of RefineTargets in our targeted
