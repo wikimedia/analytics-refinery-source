@@ -1,5 +1,7 @@
 ## v0.0.82
 * Update hadoop, hive and spark dependency versions
+* Fix field name casing bug in DataFrame .convertToSchema
+  https://phabricator.wikimedia.org/T211833
 
 ## v0.0.81
 * Use "SORT BY" instead of "ORDER BY" in mediawiki_history_checker job

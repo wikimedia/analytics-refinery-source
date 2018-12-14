@@ -114,7 +114,9 @@ object DataFrameToHive extends LogHelper {
         }
 
         val partDf = transformedPartDf.copy(df = transformedPartDf.df
-            .normalize()
+            // Normalize field names (toLower, etc.)
+            // and widen types that we can (e.g. Integer -> Long)
+            .normalizeAndWiden()
             .repartition(originalPartitionNumber)
         )
 

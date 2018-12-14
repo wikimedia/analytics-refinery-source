@@ -90,12 +90,14 @@ object HiveExtensions extends LogHelper {
             val f = field
                 // convert hyphens to underscores
                 .copy(name=field.name.replace('-', '_'))
-                // widen types
-                .widen()
                 // make nullable
                 .makeNullable()
             // conditionally to lower case
             if (lowerCase) f.toLowerCase else f
+        }
+
+        def normalizeAndWiden(): StructField = {
+            field.normalize().widen()
         }
 
         /**
@@ -187,11 +189,6 @@ object HiveExtensions extends LogHelper {
           * This function recurses on sub structs, and normalizes them
           * with lowerCase = false, keeping the cases on sub struct field names.
           *
-          * All ints will be converted to longs, and all floats will be
-          * converted to doubles.  A field value that may
-          * at one time look like an int, may during a later iteration
-          * look like a long.  We choose to always use the wider data type.
-          *
           * @param lowerCaseTopLevel Default: true
           * @return
           */
@@ -200,6 +197,22 @@ object HiveExtensions extends LogHelper {
                 if (depth == 0) field.normalize(lowerCase=lowerCaseTopLevel)
                 else field.normalize(lowerCase=false)
             })
+        }
+
+        /**
+          * All ints will be converted to longs, and all floats will be
+          * * converted to doubles.  A field value that may
+          * at one time look like an int, may during a later iteration
+          * look like a long.  We choose to always use the wider data type.
+          *
+          * @return
+          */
+        def widen(): StructType = {
+            struct.convert((field, depth) => field.widen())
+        }
+
+        def normalizeAndWiden(): StructType = {
+            struct.normalize().widen()
         }
 
         /**
@@ -277,7 +290,7 @@ object HiveExtensions extends LogHelper {
           */
         def merge(otherStruct: StructType, lowerCaseTopLevel: Boolean = true): StructType = {
             val combined = StructType(struct ++ otherStruct)
-            val combinedNormalized = combined.normalize()
+            val combinedNormalized = combined.normalizeAndWiden()
 
             // Distinct using case insensitive and types.
             // Result will be sorted by n1 fields first, with n2 fields at the end.
@@ -485,7 +498,7 @@ object HiveExtensions extends LogHelper {
             partitionNames: Seq[String] = Seq.empty,
             storageFormat: String = "PARQUET"
         ): String = {
-            val schemaNormalized = struct.normalize()
+            val schemaNormalized = struct.normalizeAndWiden()
             val partitionNamesNormalized = partitionNames.map(_.toLowerCase)
 
             // Validate that all partitions are in the schema.
@@ -548,8 +561,8 @@ object HiveExtensions extends LogHelper {
         ): Iterable[String] = {
             // Apply emptyMetadata on schemas to prevent schema-comment differences
             // when we are only interested in name/type equivalence.
-            val schemaNormalized = struct.normalize().emptyMetadata
-            val otherSchemaNormalized = otherSchema.normalize().emptyMetadata
+            val schemaNormalized = struct.normalizeAndWiden().emptyMetadata
+            val otherSchemaNormalized = otherSchema.normalizeAndWiden().emptyMetadata
 
             // Merge the base schema with otherSchema to ensure there are no non struct type changes.
             // (merge() will throw an exception if it encounters any)
@@ -631,7 +644,7 @@ object HiveExtensions extends LogHelper {
 
                     val idx = srcSchema.fieldNames.indexOf(dstField.name)
                     // No field in source, setting to NULL, casted for schema coherence
-                    if (idx == -1) namedValue(s"CAST(NULL AS ${dstField.dataType.simpleString})")
+                    if (idx == -1) namedValue(s"CAST(NULL AS ${dstField.dataType.sql})")
                     else dstField.dataType match {
                         case dstChildFieldType: StructType =>
                             val srcChildFieldType = srcSchema(idx).dataType.asInstanceOf[StructType]
@@ -642,7 +655,7 @@ object HiveExtensions extends LogHelper {
                             if (srcSchema(idx).dataType == dstField.dataType) {
                                 namedValue(prefixedFieldName)
                             } else { // Different types, cast needed
-                                namedValue(s"CAST($prefixedFieldName AS ${dstField.dataType.simpleString})")
+                                namedValue(s"CAST($prefixedFieldName AS ${dstField.dataType.sql})")
                             }
                     }
                 }).mkString(", ")
@@ -666,7 +679,15 @@ object HiveExtensions extends LogHelper {
         }
 
         def normalize(): DataFrame = {
-            df.convertToSchema(df.schema.normalize())
+            df.sparkSession.createDataFrame(df.rdd, df.schema.normalize())
+        }
+
+        def widen(): DataFrame = {
+            df.convertToSchema(df.schema.widen())
+        }
+
+        def normalizeAndWiden(): DataFrame = {
+            df.normalize().widen()
         }
     }
 

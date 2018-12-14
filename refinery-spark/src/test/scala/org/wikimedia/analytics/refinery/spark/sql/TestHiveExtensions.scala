@@ -11,10 +11,10 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
     val tableName = "test.table"
     val tableLocation = "/tmp/test/table"
 
-    it should "normalize a field" in {
+    it should "normalize and widen a field" in {
         val field = StructField("Field-1", IntegerType, nullable = false)
 
-        val normalizedField = field.normalize()
+        val normalizedField = field.normalize().widen()
         normalizedField.name should equal("field_1")
         normalizedField.dataType should equal(LongType)
         normalizedField.nullable should equal(true)
@@ -803,6 +803,41 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         spark.sql("SELECT * from newDf where event.num IS NOT NULL").count should equal(3)
         // id should be cool.
         spark.sql("SELECT * from newDf where id IS NOT NULL").count should equal(3)
+    }
+
+    it should "Normalize and widen a DataFrame with inconsitent field name casing" in {
+        val events = sc.parallelize(Seq(
+            """{"id": 1, "myField": 0, "event": {"numField": 456}}""",
+            """{"id": 1, "myField": 5, "event": {"numField": 456}}"""
+        ))
+
+        val eventSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("myField", IntegerType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("numField", IntegerType, nullable = true)
+            )))
+        ))
+
+        val normalizedSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("myfield", LongType, nullable = true),
+
+            StructField("event", StructType(Seq(
+                StructField("numField", LongType, nullable = true)
+            )))
+        ))
+
+        import spark.implicits._
+        val df = spark.read.schema(eventSchema).json(spark.createDataset[String](events))
+
+        val normalizedDf = df.normalizeAndWiden()
+        normalizedDf.schema should equal(normalizedSchema)
+
+        normalizedDf.createOrReplaceTempView("newDf")
+        spark.sql("SELECT myfield FROM newDf WHERE myfield IS NOT NULL").count should equal(2)
+        spark.sql("SELECT event.numField FROM newDf WHERE event.numField IS NOT NULL").count should equal(2)
+        spark.sql("SELECT event.numField FROM newDf").rdd.collect.foreach(r => r.getLong(0) should equal(456L))
     }
 }
 
