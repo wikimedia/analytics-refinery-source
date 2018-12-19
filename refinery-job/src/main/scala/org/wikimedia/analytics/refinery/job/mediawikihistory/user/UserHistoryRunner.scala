@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.SkewedJoinHelper
 import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper}
 
 
@@ -94,9 +95,31 @@ class UserHistoryRunner(
       "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
     }
 
+    // prepare for any skewed joins by splitting up skewed columns
+    val splitter = new SkewedJoinHelper(spark)
+    val commentSplits = splitter.splitByWikiDbAndLong("logging", "log_comment_id", wikiClause, 4, 3)
+
+    // register skewed join helper udfs here to separate and protect their scope
+    val logCommentSplitsMap = spark.sparkContext.broadcast(commentSplits)
+
+    spark.udf.register(
+      "getLogCommentSplits",
+      (wiki_db: String, comment_id: Long) =>
+          logCommentSplitsMap.value.getOrElse((wiki_db, comment_id), 1)
+    )
+    spark.udf.register(
+      "getLogCommentSplitsList",
+      (wiki_db: String, comment_id: Long) => {
+        val splitsC = logCommentSplitsMap.value.getOrElse((wiki_db, comment_id), 1)
+        (0 until splitsC).toArray
+      }
+    )
+
     val parsedUserEvents = spark.sql(
       // TODO: simplify or remove joins as source table imports change
       // NOTE: log_comment and log_comment_id are null and 0 respectively if log_deleted&2
+      // NOTE: It's important to keep coalesce(comment_text, log_comment) in that order
+      //       as log_comment are not nullified but emptied.
       s"""
   SELECT
     log_type,
@@ -104,13 +127,39 @@ class UserHistoryRunner(
     log_timestamp,
     CAST(log_user AS BIGINT) AS log_user,
     log_title,
-    coalesce(log_comment, comment_text) AS log_comment,
+    coalesce(comment_text, log_comment) AS log_comment,
     log_params,
     l.wiki_db as wiki_db
-  FROM logging l
-    LEFT JOIN comment c
-      ON c.comment_id = l.log_comment_id
-        AND c.wiki_db = l.wiki_db
+  FROM (
+      SELECT
+        log_type,
+        log_action,
+        log_timestamp,
+        CAST(log_user AS BIGINT) AS log_user,
+        log_title,
+        log_comment,
+        log_params,
+        log_comment_id,
+        -- assign a random subgroup among the comment splits determined and broadcast above
+        CAST(rand() * getLogCommentSplits(wiki_db, log_comment_id) AS INT) AS log_comment_split,
+        wiki_db
+      FROM logging
+    ) l
+
+    LEFT JOIN (
+      SELECT
+        wiki_db,
+        comment_id,
+        comment_text,
+        EXPLODE(getLogCommentSplitsList(wiki_db, comment_id)) as comment_split
+      FROM comment
+      WHERE TRUE
+        $wikiClause
+    ) c
+      ON c.wiki_db = l.wiki_db
+        AND c.comment_id = l.log_comment_id
+        AND c.comment_split = l.log_comment_split
+
   WHERE
     log_type IN (
       'renameuser',
@@ -125,7 +174,7 @@ class UserHistoryRunner(
     log_timestamp,
     log_user,
     log_title,
-    coalesce(log_comment, comment_text),
+    coalesce(comment_text, log_comment),
     log_params,
     l.wiki_db
         """)
