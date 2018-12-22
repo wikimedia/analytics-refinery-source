@@ -74,7 +74,7 @@ public class PageviewDefinition {
      */
     private final Pattern uriHostWikimediaDomainPattern = Pattern.compile(
         // any of these domain names
-        "^(commons|foundation|meta|incubator|species|outreach|usability|strategy|advisory|[a-zA-Z]{2,3})\\."
+        "^(commons|foundation|meta|incubator|species|outreach|usability|strategy|advisory|wikitech|[a-zA-Z]{2,3})\\."
         + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
         + "wikimedia\\.org$"    // ending with wikimedia.org
     );
