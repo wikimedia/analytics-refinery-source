@@ -34,6 +34,7 @@ public class TestGetNetworkOriginUDF {
     @Test
     public void testEvaluateWithLabsIpv4() {
         assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("10.68.16.44"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("172.16.4.22"));
     }
 
     @Test
