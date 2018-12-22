@@ -54,10 +54,10 @@ public class IpUtil {
      * List of Wikimedia Labs subnets
      * <p>
      * The following list is sourced from ops/puppet.git's data.yaml file (see above)
-     * Specifically these were takenthe from the labs portion
-     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L235
+     * Specifically these were taken from the labs portion
+     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L238
      *
-     * Last updated: 2018-01-12
+     * Last updated: 2018-12-21
      */
     final String[] labsSubnets = new String[] {
             // labs-instances-eqiad
@@ -66,6 +66,8 @@ public class IpUtil {
 
             "10.68.16.0/21",
             "2620:0:861:202::/64",
+
+            "172.16.0.0/21",
 
             "10.68.32.0/24",
             "2620:0:861:203::/64",
@@ -79,6 +81,8 @@ public class IpUtil {
 
             "10.196.16.0/21",
             "2620:0:860:202::/64",
+
+            "172.16.128.0/21",
 
             "10.196.32.0/24",
             "2620:0:860:203::/64",
