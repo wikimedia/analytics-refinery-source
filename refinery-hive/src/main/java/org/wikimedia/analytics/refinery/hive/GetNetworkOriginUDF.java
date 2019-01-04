@@ -46,6 +46,6 @@ public class GetNetworkOriginUDF extends UDF {
     public String evaluate(String ip) {
         assert ipUtil != null : "Evaluate called without initializing 'ipUtil'";
 
-        return ipUtil.getNeworkOrigin(ip).toString();
+        return ipUtil.getNetworkOrigin(ip).toString();
     }
 }

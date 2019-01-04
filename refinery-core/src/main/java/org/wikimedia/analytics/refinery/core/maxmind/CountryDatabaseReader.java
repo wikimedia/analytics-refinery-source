@@ -31,7 +31,7 @@ public class CountryDatabaseReader  {
         RefineryCountryDatabaseResponse refineryResponse = new RefineryCountryDatabaseResponse();
 
         // Only get country for non-internal IPs
-        if (ipUtil.getNeworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
+        if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
            return refineryResponse;
         }
         try {

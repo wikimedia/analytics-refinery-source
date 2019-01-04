@@ -177,7 +177,7 @@ public class IpUtil {
      * @return NetworkOrigin Network that the IP belongs to (wikimedia,
      * wikimedia labs, or internet)
      */
-    public NetworkOrigin getNeworkOrigin(final String ip) {
+    public NetworkOrigin getNetworkOrigin(final String ip) {
         final String sanitizedIp = sanitizeIp(ip);
 
         if (sanitizedIp != null) {

@@ -61,7 +61,7 @@ public class ISPDatabaseReader {
         }
 
         // Only get ISP value for non-internal IPs
-        if (ipUtil.getNeworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
+        if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
             return ispResponse;
         }
 

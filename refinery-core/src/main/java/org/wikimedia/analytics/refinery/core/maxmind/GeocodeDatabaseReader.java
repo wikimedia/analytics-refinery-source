@@ -57,7 +57,7 @@ public class GeocodeDatabaseReader {
         RefineryGeocodeDatabaseResponse response = new RefineryGeocodeDatabaseResponse();
 
         // Only get geo-code data for non-internal IPs
-        if (ipUtil.getNeworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
+        if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
                  return response;
         }
 
