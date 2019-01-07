@@ -1,7 +1,11 @@
 ## v0.0.83
 * Add --ignore_done_flag option to Refine
+* Add wikitech to pageview definition
 * HiveExtensions field name normalize now replaces bad SQL characters with
   "_", not just hyphens.
+* Add new Cloud VPS ip addresses to network origin UDF
+* Correct typo in refinery-core for Maxmind, getNetworkOrigin and IpUtil
+* Allow for custom transforms in DataFrameToDruid
 
 ## v0.0.82
 * Update hadoop, hive and spark dependency versions
