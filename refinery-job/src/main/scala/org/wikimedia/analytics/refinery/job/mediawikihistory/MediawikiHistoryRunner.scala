@@ -240,6 +240,7 @@ object MediawikiHistoryRunner {
           .setAppName(s"MediawikiHistoryRunner-${params.snapshot.getOrElse("NoSnapshot")}")
           .set("spark.sql.parquet.compression.codec", "snappy")
           .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+          .set("spark.kryoserializer.buffer", "512k")
           .set("spark.ui.killEnabled", "false")  // Prevent errors in UI
           // MapAccumulator is memory-heavy for the driver and moves 'a lot' of data between
           // tasks and driver. Two things need to be confirgured:
@@ -249,6 +250,19 @@ object MediawikiHistoryRunner {
           .set("spark.ui.retainedStage", "5")
           .set("spark.ui.retainedTasks", "100")
           .set("spark.driver.maxResultSize", "4g")
+          // Bump default numbers for various settings to better fit the job (big scale)
+          // See https://wikitech.wikimedia.org/wiki/Analytics/Systems/Cluster/Spark#Spark_tuning_for_big_jobs
+          .set("spark.stage.maxConsecutiveAttempts", "10")
+          .set("spark.rpc.io.serverTreads", "64")
+          .set("spark.shuffle.file.buffer", "1MB")
+          .set("spark.unsafe.sorter.spill.reader.buffer.size", "1MB")
+          .set("spark.file.transferTo", "false")
+          .set("spark.shuffle.unsafe.file.output.buffer", "5MB")
+          .set("spark.io.compression.lz4.blockSize", "512KB")
+          .set("spark.shuffle.service.index.cache.size", "2048")
+          .set("spark.shuffle.registration.timeout", "2m")
+          .set("spark.shuffle.registration.maxAttempts", "5")
+          // Set kryo serialization registering classes
           .registerKryoClasses(Array(
             // Keys
             classOf[PartitionKey],
