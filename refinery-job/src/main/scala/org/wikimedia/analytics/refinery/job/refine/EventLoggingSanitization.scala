@@ -17,8 +17,8 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
 {
     // Config class for CLI argument parser using scopt.
     case class Config(
-        whitelist_path       : String = "/etc/analytics/sanitization/eventlogging_purging_whitelist.yaml",
-        salt_path            : Option[String] = None
+        whitelist_path : String = "/wmf/refinery/current/static_data/eventlogging/whitelist.yaml",
+        salts_path     : Option[String] = None
     )
 
     object Config {
@@ -30,9 +30,9 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
             val doc = ListMap(
                 "whitelist_path" ->
                     s"Path to EventLogging's whitelist file. Default: ${default.whitelist_path}",
-                "salt_path" ->
-                    s"""Read the cryptographic salt for hashing of fields from this path.
-                       |Default: ${default.salt_path}"""
+                "salts_path" ->
+                    s"""Read the cryptographic salts for hashing of fields from this path.
+                       |Default: ${default.salts_path}"""
             )
             // We reuse Refine.Config and Refine.Config help documentation, but since
             // This job will always override the following properties, remove them
@@ -57,7 +57,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
                |
                |Example:
                |  spark-submit --class org.wikimedia.analytics.refinery.job.EventLoggingSanitization refinery-job.jar \
-               |  # read configs out of this file
+               |   # read configs out of this file
                |   --config_file                 /etc/refinery/refine/eventlogging_sanitization.properties \
                |   # Override and/or set other configs on the CLI
                |   --whitelist_path              /wmf/path/to/whitelist \
@@ -98,7 +98,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
 
         val allSucceeded = apply(spark)(
             config.whitelist_path,
-            config.salt_path,
+            config.salts_path,
             refineConfig
         )
 
@@ -130,7 +130,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
       */
     def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
         whitelist_path: String,
-        salt_path     : Option[String],
+        salts_path    : Option[String],
         refineConfig  : Refine.Config
     ): Boolean = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
@@ -140,12 +140,8 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
         val javaObject = new Yaml().load(whitelistStream)
         val whitelist = validateWhitelist(javaObject)
 
-        // Read hashing salt if provided.
-        val hashingSalt = if (salt_path.isDefined) {
-            val saltStream = fs.open(new Path(salt_path.get))
-            val saltReader = new BufferedReader(new InputStreamReader(saltStream))
-            Some(saltReader.lines.toArray.mkString)
-        } else None
+        // Read hashing salts if provided.
+        val hashingSalts = loadHashingSalts(fs, salts_path)
 
         // Get a Regex with all tables that are whitelisted.
         // This prevents Refine to collect RefineTargets for those tables
@@ -157,7 +153,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
         // Get WhitelistSanitization transform function.
         val sanitizationTransformFunction = WhitelistSanitization(
             whitelist,
-            hashingSalt
+            hashingSalts
         )
 
         // Use Refine with the sanitization transform function to sanitize EventLogging data.
@@ -203,5 +199,33 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
                 case nested: Object => key -> validateWhitelist(nested)
             }
         }
+    }
+
+    /**
+      * Loads the salts stored in a salts directory in HDFS
+      * and returns them in the format expected by WhiteListSanitization.
+      * A Seq of tuples of the form: (<startDateTime>, <endDateTime>, <saltString>)
+      */
+    def loadHashingSalts(
+        fs: FileSystem,
+        saltsPath: Option[String]
+    ): Seq[(DateTime, DateTime, String)] = {
+        if (saltsPath.isDefined) {
+            val dateTimeFormatter = DateTimeFormat.forPattern("yyyyMMddHH")
+            val status = fs.listStatus(new Path(saltsPath.get))
+            status.map((s) => {
+                val fileNameParts = s.getPath.getName.split("_")
+                val startDateTime = DateTime.parse(fileNameParts(0), dateTimeFormatter)
+                // If file name does not have second component,
+                // means the salt does not expire.
+                val endDateTime = if (fileNameParts(1) != "") {
+                    DateTime.parse(fileNameParts(1), dateTimeFormatter)
+                } else new DateTime(3000, 1, 1, 0, 0) // Never expires.
+                val saltStream = fs.open(s.getPath)
+                val saltReader = new BufferedReader(new InputStreamReader(saltStream))
+                val salt = saltReader.lines.toArray.mkString
+                (startDateTime, endDateTime, salt)
+            })
+        } else Seq.empty
     }
 }

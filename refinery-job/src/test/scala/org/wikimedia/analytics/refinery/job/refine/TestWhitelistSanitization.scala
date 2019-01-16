@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.types._
+import org.joda.time.DateTime
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
@@ -47,6 +48,74 @@ class TestWhitelistSanitization extends FlatSpec
             )
         )
         assert(result == expected)
+    }
+
+    it should "get the start and end of year-month-day-hour partition" in {
+        val partition = new HivePartition(
+            database = "database",
+            t = "table",
+            location = "/fake/location",
+            partitions = ListMap(
+                "year" -> Some("2019"),
+                "month" -> Some("2"),
+                "day" -> Some("28"),
+                "hour" -> Some("23")
+            )
+        )
+        val (start, end) = getPartitionStartAndEnd(partition)
+        assert(start.equals(new DateTime(2019, 2, 28, 23, 0)))
+        assert(end.equals(new DateTime(2019, 3, 1, 0, 0)))
+    }
+
+    it should "get the start and end of year-month partition" in {
+        val partition = new HivePartition(
+            database = "database",
+            t = "table",
+            location = "/fake/location",
+            partitions = ListMap(
+                "year" -> Some("2018"),
+                "month" -> Some("12")
+            )
+        )
+        val (start, end) = getPartitionStartAndEnd(partition)
+        assert(start.equals(new DateTime(2018, 12, 1, 0, 0)))
+        assert(end.equals(new DateTime(2019, 1, 1, 0, 0)))
+    }
+
+    it should "choose salt correctly" in {
+        val partition = new HivePartition(
+            database = "database",
+            t = "table",
+            location = "/fake/location",
+            partitions = ListMap(
+                "year" -> Some("2018"),
+                "month" -> Some("12")
+            )
+        )
+        val salts = Seq(
+            (new DateTime(2018, 11, 1, 0, 0), new DateTime(2018, 12, 1, 0, 0), "salt1"),
+            (new DateTime(2018, 12, 1, 0, 0), new DateTime(2019, 1, 1, 0, 0), "salt2")
+        )
+        val result = chooseSalt(salts, partition)
+        assert(result == Some("salt2"))
+    }
+
+    it should "return None if there are no matching salts" in {
+        val partition = new HivePartition(
+            database = "database",
+            t = "table",
+            location = "/fake/location",
+            partitions = ListMap(
+                "year" -> Some("2018"),
+                "month" -> Some("12")
+            )
+        )
+        val salts = Seq(
+            (new DateTime(2018, 11, 1, 0, 0), new DateTime(2018, 12, 1, 0, 0), "salt1"),
+            (new DateTime(2018, 12, 1, 0, 0), new DateTime(2018, 12, 1, 1, 0), "salt2")
+        )
+        val result = chooseSalt(salts, partition)
+        assert(result == None)
     }
 
     it should "create a value mask for simple fields" in {

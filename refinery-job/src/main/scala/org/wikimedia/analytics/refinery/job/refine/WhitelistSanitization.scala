@@ -5,6 +5,8 @@ import javax.crypto.spec.SecretKeySpec
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{MapType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.joda.time.DateTime
+import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 
@@ -100,11 +102,11 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *
   * - If a field name of type String is present in the corresponding whitelist Map and
   *   is tagged 'hash', the transformation function will apply an HMAC algorithm to it
-  *   (salt + hash) using the salt passed to WhitelistSanitization.apply() as private key
+  *   (salt + hash) using the salts passed to WhitelistSanitization.apply() as private key
   *   and SHA-256 as hash function, and then copy the resulting number formatted as a
   *   64-character-long hexadecimal String to the returned DataFrame.
   *
-  * - If the whitelist contains 'hash' tags, but the 'salt' parameter is not passed to
+  * - If the whitelist contains 'hash' tags, but the 'salts' parameter is not passed to
   *   WhitelistSanitization.apply(), an exception will be thrown.
   *
   * - Non-String type fields can not have 'hash' tags in the whitelist.
@@ -323,17 +325,19 @@ object WhitelistSanitization {
      * module for more details on the whitelist format.
      *
      * @param whitelist    The whitelist object (see type Whitelist).
-     * @param salt         A random string used to securely hash specified fields.
+     * @param salts        Seq of Tuples (startDateTime, endDateTime, saltString)
+     *                     used to securely hash specified fields depending on time.
      *                     Required only when the whitelist contains the tag 'hash'.
      *
      * @return Refine.TransformFunction  See more details in Refine.scala.
      */
     def apply(
         whitelist: Whitelist,
-        salt: Option[String] = None
+        salts: Seq[(DateTime, DateTime, String)] = Seq.empty
     ): PartitionedDataFrame => PartitionedDataFrame = {
         val lowerCaseWhitelist = makeWhitelistLowerCase(whitelist)
         (partDf: PartitionedDataFrame) => {
+            val salt = chooseSalt(salts, partDf.partition)
             sanitizeTable(
                 partDf,
                 lowerCaseWhitelist,
@@ -358,6 +362,53 @@ object WhitelistSanitization {
         }
     }
 
+    /**
+     * Searches through the list of provided salts
+     * to find one that fits the given partition interval.
+     */
+    def chooseSalt(
+        salts: Seq[(DateTime, DateTime, String)],
+        partition: HivePartition
+    ): Option[String] = {
+        val (partitionStart, partitionEnd) = getPartitionStartAndEnd(partition)
+        salts.find((salt) => {
+            val (saltStart, saltEnd, saltString) = salt
+            (partitionStart.getMillis() >= saltStart.getMillis() &&
+             partitionEnd.getMillis() <= saltEnd.getMillis())
+        }) match {
+            case None => None
+            case Some(chosenSalt) => Some(chosenSalt._3)
+        }
+    }
+
+    /**
+     * Extract start and end DateTimes from given HivePartition.
+     */
+    def getPartitionStartAndEnd(
+        partition: HivePartition
+    ): (DateTime, DateTime) = {
+        val year = partition.get("year").get.get.toInt
+        if (partition.get("month").isDefined) {
+            val month = partition.get("month").get.get.toInt
+            if (partition.get("day").isDefined) {
+                val day = partition.get("day").get.get.toInt
+                if (partition.get("hour").isDefined) {
+                    val hour = partition.get("hour").get.get.toInt
+                    val startDateTime = new DateTime(year, month, day, hour, 0)
+                    (startDateTime, startDateTime.plusHours(1))
+                } else {
+                    val startDateTime = new DateTime(year, month, day, 0, 0)
+                    (startDateTime, startDateTime.plusDays(1))
+                }
+            } else {
+                val startDateTime = new DateTime(year, month, 1, 0, 0)
+                (startDateTime, startDateTime.plusMonths(1))
+            }
+        } else {
+            val startDateTime = new DateTime(year, 1, 1, 0, 0)
+            (startDateTime, startDateTime.plusYears(1))
+        }
+    }
 
     /**
      * Sanitizes a given PartitionedDataFrame with the specified whitelist.
