@@ -249,6 +249,7 @@ class PageHistoryRunner(
           namespace = namespace,
           namespaceIsContent = isContentNamespace,
           isRedirect = Some(row.getBoolean(6)),
+          isDeleted = false,
           startTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
           endTimestamp = None,
           causedByEventType = "create",

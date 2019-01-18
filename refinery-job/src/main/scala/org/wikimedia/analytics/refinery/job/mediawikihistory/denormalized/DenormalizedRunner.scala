@@ -135,7 +135,7 @@ class DenormalizedRunner(
         state
       })
       .filter(state => {
-        val validId = state.pageId.getOrElse(0L) > 0 && state.pageIdArtificial.isEmpty
+        val validId = state.pageId.getOrElse(0L) > 0 && state.pageArtificialId.isEmpty
         if (!validId) addOptionalStat(s"${state.wikiDb}.$METRIC_WRONG_IDS_PAGE_STATES", 1)
         validId
       }).cache()

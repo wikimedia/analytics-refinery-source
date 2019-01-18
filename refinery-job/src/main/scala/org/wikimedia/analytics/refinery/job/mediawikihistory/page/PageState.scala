@@ -24,7 +24,7 @@ case class PageState(
                       causedByUserId: Option[Long] = None,
                       // Specific fields
                       pageId: Option[Long] = None,
-                      pageIdArtificial: Option[String] = None,
+                      pageArtificialId: Option[String] = None,
                       titleHistorical: String,
                       title: String,
                       namespaceHistorical: Int,
@@ -32,6 +32,7 @@ case class PageState(
                       namespace: Int,
                       namespaceIsContent: Boolean,
                       isRedirect: Option[Boolean] = None,
+                      isDeleted: Boolean,
                       pageCreationTimestamp: Option[Timestamp] = None,
                       pageFirstEditTimestamp: Option[Timestamp] = None,
                       inferredFrom: Option[String] = None
@@ -40,7 +41,7 @@ case class PageState(
   def toRow: Row = Row(
     wikiDb,
     pageId.orNull,
-    pageIdArtificial.orNull,
+    pageArtificialId.orNull,
     pageCreationTimestamp.map(_.toString).orNull,
     //pageCreationTimestamp.orNull,
     titleHistorical,
@@ -50,6 +51,7 @@ case class PageState(
     namespace,
     namespaceIsContent,
     isRedirect.orNull,
+    isDeleted,
     startTimestamp.map(_.toString).orNull,
     //startTimestamp.orNull,
     endTimestamp.map(_.toString).orNull,
@@ -76,7 +78,7 @@ object PageState {
   def fromRow(row: Row): PageState = PageState(
     wikiDb = row.getString(0),
     pageId = if (row.isNullAt(1)) None else Some(row.getLong(1)),
-    pageIdArtificial = Option(row.getString(2)),
+    pageArtificialId = Option(row.getString(2)),
     pageCreationTimestamp = if (row.isNullAt(3)) None else Some(Timestamp.valueOf(row.getString(3))),
     //pageCreationTimestamp = if (row.isNullAt(3)) None else Some(row.getTimestamp(3)),
     titleHistorical = row.getString(4),
@@ -86,20 +88,21 @@ object PageState {
     namespace = row.getInt(8),
     namespaceIsContent = row.getBoolean(9),
     isRedirect = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
-    startTimestamp = if (row.isNullAt(11)) None else Some(Timestamp.valueOf(row.getString(11))),
-    //startTimestamp = if (row.isNullAt(11)) None else Some(row.getTimestamp(11)),
-    endTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
-    //endTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
-    causedByEventType = row.getString(13),
-    causedByUserId = if (row.isNullAt(14)) None else Some(row.getLong(14)),
-    inferredFrom = Option(row.getString(15))
+    isDeleted = row.getBoolean(11),
+    startTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
+    //startTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
+    endTimestamp = if (row.isNullAt(13)) None else Some(Timestamp.valueOf(row.getString(13))),
+    //endTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
+    causedByEventType = row.getString(14),
+    causedByUserId = if (row.isNullAt(15)) None else Some(row.getLong(15)),
+    inferredFrom = Option(row.getString(16))
   )
 
   val schema = StructType(
     Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("page_id", LongType, nullable = true),
-      StructField("page_id_artificial", StringType, nullable = true),
+      StructField("page_artificial_id", StringType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
       //StructField("page_creation_timestamp", TimestampType, nullable = true),
       StructField("page_title_historical", StringType, nullable = false),
@@ -109,6 +112,7 @@ object PageState {
       StructField("page_namespace", IntegerType, nullable = false),
       StructField("page_namespace_is_content", BooleanType, nullable = false),
       StructField("page_is_redirect", BooleanType, nullable = true),
+      StructField("page_is_deleted", BooleanType, nullable = false),
       StructField("start_timestamp", StringType, nullable = true),
       //StructField("start_timestamp", TimestampType, nullable = true),
       StructField("end_timestamp", StringType, nullable = true),

@@ -79,7 +79,8 @@ object TestPageHistoryHelpers {
     namespaceIsContent: Option[Boolean] = None,
     pageCreationTimestamp: Option[Timestamp] = None,
     pageFirstEditTimestamp: Option[Timestamp] = None,
-    inferredFrom: Option[String] = None
+    inferredFrom: Option[String] = None,
+    isDeleted: Option[Boolean] = Some(false)
   )(
     headerLine: String,
     stateLines: String*
@@ -105,6 +106,7 @@ object TestPageHistoryHelpers {
           case "creation" | "pageCreationTimestamp" => ("pageCreationTimestamp" -> timestamp(v))
           case "firstEdit" | "pageFirstEditTimestamp" => ("pageFirstEditTimestamp" -> timestamp(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
+          case "deleted" | "isDeleted" => ("isDeleted" -> boolean(v))
         }
       }.toMap
       val titleHistoricalVal = valueMap.getOrElse("titleHistorical", titleHistorical).get.asInstanceOf[String]
@@ -117,7 +119,7 @@ object TestPageHistoryHelpers {
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
-        pageIdArtificial = valueMap.getOrElse("pageIdArtificial", pageIdArtificial).asInstanceOf[Option[String]],
+        pageArtificialId = valueMap.getOrElse("pageIdArtificial", pageIdArtificial).asInstanceOf[Option[String]],
         titleHistorical = titleHistoricalVal,
         title = valueMap.getOrElse("title", Some(title.getOrElse(titleHistoricalVal))).get.asInstanceOf[String],
         namespaceHistorical = namespaceHistoricalVal,
@@ -126,7 +128,8 @@ object TestPageHistoryHelpers {
         namespaceIsContent = valueMap.getOrElse("namespaceIsContent", Some(namespaceIsContent.getOrElse(namespaceIsContentHistoricalVal))).get.asInstanceOf[Boolean],
         pageCreationTimestamp = valueMap.getOrElse("pageCreationTimestamp", pageCreationTimestamp).asInstanceOf[Option[Timestamp]],
         pageFirstEditTimestamp = valueMap.getOrElse("pageFirstEditTimestamp", pageFirstEditTimestamp).asInstanceOf[Option[Timestamp]],
-        inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]]
+        inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]],
+        isDeleted = valueMap.getOrElse("isDeleted", isDeleted).get.asInstanceOf[Boolean]
       )
     }
   }

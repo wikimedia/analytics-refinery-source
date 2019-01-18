@@ -34,7 +34,7 @@ class TestPageHistoryBuilder
    */
   def process(e: Iterable[PageEvent], s: Iterable[PageState]): Seq[Seq[PageState]] = {
     pageHistoryBuilder.processSubgraph(e, s)._1
-      .groupBy(state => state.pageId.getOrElse(state.pageIdArtificial).toString)
+      .groupBy(state => state.pageId.getOrElse(state.pageArtificialId).toString)
       .toSeq.sortBy(g =>
       (g._2.head.startTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime,
         g._2.head.endTimestamp.getOrElse(new Timestamp(Long.MaxValue)).getTime)).map {
@@ -104,7 +104,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsA = pageStateSet(
       // Inserting random id coming from results.
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true)
     )(
       "start  end   titleH  id    creation  eventType  adminId  inferred",
       "None   4000  Title   None  None      create     None     delete",
@@ -129,7 +130,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsA = pageStateSet(
       // Inserting random id coming from results.
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true)
     )(
       "start  end   titleH  id    creation  eventType  adminId  inferred",
       "None   1000  Title   None  None      create     None     delete",
@@ -158,7 +160,7 @@ class TestPageHistoryBuilder
 
     val expectedResults1 = pageStateSet(
       // Inserting random id coming from results.
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId
     )(
       "start  end   titleH   id    creation  eventType  adminId  inferred",
       "02     04    Title1  1       01      restore     0        restore-conflict",
@@ -235,7 +237,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResults = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates.head.head.pageIdArtificial,
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true),
       pageCreationTimestamp = None
     )(
       "start  end   titleH  title   eventType  adminId  inferred",
@@ -303,7 +306,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsArtificial = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates(1).head.pageIdArtificial,
+      pageIdArtificial = processedStates(1).head.pageArtificialId,
+      isDeleted = Some(true),
       pageCreationTimestamp = Some(new Timestamp(2L))
     )(
       "start  end   titleH  eventType  adminId  inferred",
@@ -350,7 +354,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsArtificial = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates(1).head.pageIdArtificial,
+      pageIdArtificial = processedStates(1).head.pageArtificialId,
+      isDeleted = Some(true),
       pageCreationTimestamp = Some(new Timestamp(3L))
     )(
       "start  end   titleH  eventType  adminId  inferred",
@@ -430,12 +435,11 @@ class TestPageHistoryBuilder
   it should "solve the simple-restore problem"  in {
     /*
      * The simple-restore problem is:
-     * Page A is deleted, then restored. This involves creating a new page
-     * at restore time since restore doesn't happen on an existing page.
-     *       ||    null  |    t1    |    t2    |    t3    ||  States
-     * ------||-------------------------------------------||----------
-     *   pU  ||     +A   |          |   delA   |          ||
-     *   p1  ||          |    +A    |          |   restA  ||    A
+     * Page A is deleted, then restored. No fake-id-lineage is created
+     * as the restore happens after a delete
+     *       ||     t1    |    t2    |    t3    ||  States
+     * ------||---------------------------------||----------
+     *   p1  ||     +A    |   delA   |   restA  ||    A
      */
     val events = pageEventSet()(
       "time  eventType  oldTitle  newTitleWP",
@@ -447,43 +451,39 @@ class TestPageHistoryBuilder
       "TitleA  1   10000     10000"
     )
     val processedStates = process(events, states)
-    val expectedResultsX = pageStateSet(
-      pageId = None,
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
-    )(
-      "start     end      titleH   title   eventType  adminId  inferred",
-      "None      20000    TitleA  TitleA   create      None     delete",
-      "20000     20000    TitleA  TitleA   delete       0       None"
-    )
-
     val expectedResults1 = pageStateSet(
       pageId = Some(1L),
-      pageCreationTimestamp = Some(new Timestamp(30000L)),
+      pageCreationTimestamp = Some(new Timestamp(10000L)),
       pageFirstEditTimestamp = Some(new Timestamp(10000L))
     )(
-      "start   end     titleH  title   eventType   inferred",
-      "10000  30000    TitleA  TitleA  create       restore",
-      "30000  None     TitleA  TitleA  restore       None"
+      "start     end      titleH   title   eventType  adminId  inferred",
+      "10000     20000    TitleA  TitleA   create       0       None",
+      "20000     30000    TitleA  TitleA   delete       0       None",
+      "30000     None     TitleA  TitleA   restore      0       None"
     )
     processedStates should be (
-      Seq(expectedResultsX, expectedResults1)
+      Seq(expectedResults1)
     )
   }
 
   it should "solve the multi-delete problem"  in {
     /*
-     * The multi-delete problem happens when a page is deleted multiple times.
+     * The multi-delete problem happens when a page is deleted
+     * multiple times with no restores.
      * TODO - Refine pageCreationTimestamp using revisions
      *        ||    null  |    t1    |    t2    |    t3    ||  States
      * -------||-------------------------------------------||----------
      *   pU1  ||     +A   |    delA  |          |          ||
      *   pU2  ||          |     +A   |   delA   |          ||
      *   p1   ||          |          |          |   +A     ||    A
+     *
+     *   This test also checks that when a page_id is defined for a delete-event, it is
+     *   used instead of an artificial-page-id
      */
     val events = pageEventSet()(
-      "time  eventType  oldTitle  newTitleWP",
-      "10000    delete     TitleA    TitleA",
-      "20000    delete     TitleA    TitleA"
+      "time  eventType  oldTitle  newTitleWP  id",
+      "10000    delete     TitleA    TitleA  None",
+      "20000    delete     TitleA    TitleA   100"
     )
     val states = pageStateSet(causedByEventType = Some("create"))(
       "titleH  id  creation firstEdit",
@@ -492,7 +492,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsU1 = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true)
     )(
       "start   end     titleH  title   eventType  adminId  inferred",
       "None   10000    TitleA  TitleA  create     None     delete",
@@ -500,8 +501,9 @@ class TestPageHistoryBuilder
     )
 
     val expectedResultsU2 = pageStateSet(
-      pageId = None,
-      pageIdArtificial = processedStates(1).head.pageIdArtificial,
+      pageId = Some(100L),
+      pageIdArtificial = None,
+      isDeleted = Some(true),
       pageCreationTimestamp = Some(new Timestamp(10000L))
     )(
       "start   end     titleH  title   eventType  adminId  inferred",
@@ -529,8 +531,7 @@ class TestPageHistoryBuilder
      *        ||    null  |    t1    |    t2    |    t3    |    t4    ||  States
      * -------||------------------------------------------------------||----------
      *   pU1  ||     +A   |          |    delA  |          |          ||
-     *   p1   ||          |    +A    |          |          |   restA  ||    A
-     *   pU2  ||          |          |     +A   |   delA   |          ||
+     *   p1   ||          |          |     +A   |   delA   |   restA  ||    A
      */
     val events = pageEventSet()(
       "time  eventType  oldTitle  newTitleWP",
@@ -545,34 +546,29 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsU1 = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true)
     )(
       "start   end     titleH  title   eventType  adminId  inferred",
       "None   20000    TitleA  TitleA  create     None     delete",
       "20000  20000    TitleA  TitleA  delete     0        None"
     )
 
-    val expectedResultsU2 = pageStateSet(
-      pageId = None,
-      pageIdArtificial = processedStates(2).head.pageIdArtificial,
-      pageCreationTimestamp = Some(new Timestamp(20000L))
-    )(
-      "start   end     titleH  title   eventType  adminId  inferred",
-      "20000  30000    TitleA  TitleA  create     None     delete-conflict",
-      "30000  30000    TitleA  TitleA  delete     0        None"
-    )
-
+    // The start-timestamp of create event is set to firstEdit timestamp
+    // to artificially get all revisions inside timebound. This case
+    // shouldn't happen in real life.
     val expectedResults1 = pageStateSet(
       pageId = Some(1L),
-      pageCreationTimestamp = Some(new Timestamp(40000L)),
+      pageCreationTimestamp = Some(new Timestamp(20000L)),
       pageFirstEditTimestamp = Some(new Timestamp(10000L))
     )(
-      "start     end      titleH   title   eventType  inferred",
-      "10000     40000    TitleA   TitleA   create     restore",
-      "40000     None     TitleA   TitleA   restore    None"
+      "start     end      titleH   title   eventType  adminId  inferred",
+      "10000     30000    TitleA   TitleA   create     None    delete-conflict",
+      "30000     40000    TitleA   TitleA   delete     0       None",
+      "40000     None     TitleA   TitleA   restore    0       None"
     )
     processedStates should be (
-      Seq(expectedResultsU1, expectedResults1, expectedResultsU2)
+      Seq(expectedResultsU1, expectedResults1)
     )
   }
 
@@ -603,7 +599,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsX = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true)
     )(
       "start     end      titleH   title   eventType  adminId  inferred",
       "None      20000    TitleA  TitleA   create     None     delete",
@@ -652,7 +649,8 @@ class TestPageHistoryBuilder
     val processedStates = process(events, states)
     val expectedResultsU = pageStateSet(
       pageId = None,
-      pageIdArtificial = processedStates.head.head.pageIdArtificial
+      pageIdArtificial = processedStates.head.head.pageArtificialId,
+      isDeleted = Some(true)
     )(
       "start   end     titleH  title   eventType  adminId  inferred",
       "None   20000    TitleB  TitleB  create     None     delete",

@@ -42,7 +42,7 @@ class PageHistoryChecker(
          |    caused_by_event_type AS caused_by_event_type,
          |    COUNT(1) AS count_page_event,
          |    COUNT(DISTINCT page_id) AS distinct_page_id,
-         |    COUNT(DISTINCT page_id_artificial) AS distinct_page_id_artificial,
+         |    COUNT(DISTINCT page_artificial_id) AS distinct_page_artificial_id,
          |    COUNT(DISTINCT COALESCE(page_title_historical, page_title)) AS distinct_page_title,
          |    COUNT(DISTINCT COALESCE(page_namespace_historical, page_namespace)) AS distinct_page_namespace,
          |    SUM(IF(page_is_redirect, 1, 0)) AS count_page_redirect
@@ -89,13 +89,13 @@ class PageHistoryChecker(
          |        'growth_count_page_event',
          |            (COALESCE(n.count_page_event, 0) - COALESCE(p.count_page_event, 0)) / COALESCE(p.count_page_event, 1),
          |        'growth_distinct_all_page_id',
-         |            ((COALESCE(n.distinct_page_id, 0) + COALESCE(n.distinct_page_id_artificial, 0)) -
-         |              (COALESCE(p.distinct_page_id, 0) + COALESCE(p.distinct_page_id_artificial, 0))) /
-         |              (COALESCE(p.distinct_page_id, 1) + COALESCE(p.distinct_page_id_artificial, 1)),
+         |            ((COALESCE(n.distinct_page_id, 0) + COALESCE(n.distinct_page_artificial_id, 0)) -
+         |              (COALESCE(p.distinct_page_id, 0) + COALESCE(p.distinct_page_artificial_id, 0))) /
+         |              (COALESCE(p.distinct_page_id, 1) + COALESCE(p.distinct_page_artificial_id, 1)),
          |        'growth_distinct_page_id',
          |            (COALESCE(n.distinct_page_id, 0) - COALESCE(p.distinct_page_id, 0)) / COALESCE(p.distinct_page_id, 1),
-         |        'growth_distinct_page_id_artificial',
-         |            (COALESCE(n.distinct_page_id_artificial, 0) - COALESCE(p.distinct_page_id_artificial, 0)) / COALESCE(p.distinct_page_id_artificial, 1),
+         |        'growth_distinct_page_artificial_id',
+         |            (COALESCE(n.distinct_page_artificial_id, 0) - COALESCE(p.distinct_page_artificial_id, 0)) / COALESCE(p.distinct_page_artificial_id, 1),
          |        'growth_distinct_page_title',
          |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(p.distinct_page_title, 1),
          |        'growth_distinct_page_namespace',

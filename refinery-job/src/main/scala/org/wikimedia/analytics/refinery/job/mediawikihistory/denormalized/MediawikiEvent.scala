@@ -19,6 +19,7 @@ import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator
 
 
 case class MediawikiEventPageDetails(pageId: Option[Long] = None,
+                                     pageArtificialId: Option[String] = None,
                                      pageTitleHistorical: Option[String] = None,
                                      pageTitle: Option[String] = None,
                                      pageNamespaceHistorical: Option[Int] = None,
@@ -26,6 +27,7 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
                                      pageNamespace: Option[Int] = None,
                                      pageNamespaceIsContent: Option[Boolean] = None,
                                      pageIsRedirect: Option[Boolean] = None,
+                                     pageIsDeleted: Option[Boolean] = None,
                                      pageCreationTimestamp: Option[Timestamp] = None,
                                      pageRevisionCount: Option[Long] = None,
                                      pageSecondsSincePreviousRevision: Option[Long] = None
@@ -35,6 +37,7 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
     val pageCreationTimestamp = pageState.pageCreationTimestamp.getOrElse(new Timestamp(Long.MaxValue))
     val beforeCreation = thisTimestamp.before(pageCreationTimestamp)
     this.copy(
+      pageArtificialId = pageState.pageArtificialId,
       pageTitleHistorical = if (beforeCreation) None else Some(pageState.titleHistorical),
       pageTitle = Some(pageState.title),
       pageNamespaceHistorical = if (beforeCreation) None else Some(pageState.namespaceHistorical),
@@ -42,6 +45,7 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
       pageNamespace = Some(pageState.namespace),
       pageNamespaceIsContent = Some(pageState.namespaceIsContent),
       pageIsRedirect = pageState.isRedirect,
+      pageIsDeleted = Some(pageState.isDeleted),
       pageCreationTimestamp = pageState.pageCreationTimestamp
     )
   }
@@ -134,6 +138,7 @@ case class MediawikiEvent(
     eventUserDetails.userSecondsSincePreviousRevision.orNull,
 
     pageDetails.pageId.orNull,
+    pageDetails.pageArtificialId.orNull,
     pageDetails.pageTitleHistorical.orNull,
     pageDetails.pageTitle.orNull,
     pageDetails.pageNamespaceHistorical.orNull,
@@ -141,6 +146,7 @@ case class MediawikiEvent(
     pageDetails.pageNamespace.orNull,
     pageDetails.pageNamespaceIsContent.orNull,
     pageDetails.pageIsRedirect.orNull,
+    pageDetails.pageIsDeleted.orNull,
     pageDetails.pageCreationTimestamp.map(_.toString).orNull,
     //pageDetails.pageCreationTimestamp.orNull,
     pageDetails.pageRevisionCount.orNull,
@@ -178,7 +184,7 @@ case class MediawikiEvent(
     revisionDetails.revIsIdentityRevert.orNull
   )
   def textBytesDiff(value: Option[Long]) = this.copy(revisionDetails = this.revisionDetails.copy(revTextBytesDiff = value))
-  def isDeleted(deleteTimestamp: Option[Timestamp]) = this.copy(revisionDetails = this.revisionDetails.copy(
+  def IsRevisionDeleted(deleteTimestamp: Option[Timestamp]) = this.copy(revisionDetails = this.revisionDetails.copy(
     revIsDeleted = Some(true),
     revDeletedTimestamp = deleteTimestamp))
   def isIdentityRevert = this.copy(revisionDetails = this.revisionDetails.copy(revIsIdentityRevert = Some(true)))
@@ -237,6 +243,7 @@ object MediawikiEvent {
       StructField("event_user_seconds_since_previous_revision", LongType, nullable = true),
 
       StructField("page_id", LongType, nullable = true),
+      StructField("page_artificial_id", StringType, nullable = true),
       StructField("page_title_historical", StringType, nullable = true),
       StructField("page_title", StringType, nullable = true),
       StructField("page_namespace_historical", IntegerType, nullable = true),
@@ -244,6 +251,7 @@ object MediawikiEvent {
       StructField("page_namespace", IntegerType, nullable = true),
       StructField("page_namespace_is_content", BooleanType, nullable = true),
       StructField("page_is_redirect", BooleanType, nullable = true),
+      StructField("page_is_deleted", BooleanType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
       //StructField("page_creation_timestamp", TimestampType, nullable = true),
       StructField("page_revision_count", LongType, nullable = true),
@@ -308,49 +316,51 @@ object MediawikiEvent {
       ),
       pageDetails = new MediawikiEventPageDetails(
         pageId = if (row.isNullAt(20)) None else Some(row.getLong(20)),
-        pageTitleHistorical = Option(row.getString(21)),
-        pageTitle = Option(row.getString(22)),
-        pageNamespaceHistorical = if (row.isNullAt(23)) None else Some(row.getInt(23)),
-        pageNamespaceIsContentHistorical = if (row.isNullAt(24)) None else Some(row.getBoolean(24)),
-        pageNamespace = if (row.isNullAt(25)) None else Some(row.getInt(25)),
-        pageNamespaceIsContent = if (row.isNullAt(26)) None else Some(row.getBoolean(26)),
-        pageIsRedirect = if (row.isNullAt(27)) None else Some(row.getBoolean(27)),
-        pageCreationTimestamp = if (row.isNullAt(28)) None else Some(Timestamp.valueOf(row.getString(28))),
-        pageRevisionCount = if (row.isNullAt(29)) None else Some(row.getLong(29)),
-        pageSecondsSincePreviousRevision = if (row.isNullAt(30)) None else Some(row.getLong(30))
+        pageArtificialId = Option(row.getString(21)),
+        pageTitleHistorical = Option(row.getString(22)),
+        pageTitle = Option(row.getString(23)),
+        pageNamespaceHistorical = if (row.isNullAt(24)) None else Some(row.getInt(24)),
+        pageNamespaceIsContentHistorical = if (row.isNullAt(25)) None else Some(row.getBoolean(25)),
+        pageNamespace = if (row.isNullAt(26)) None else Some(row.getInt(26)),
+        pageNamespaceIsContent = if (row.isNullAt(27)) None else Some(row.getBoolean(27)),
+        pageIsRedirect = if (row.isNullAt(28)) None else Some(row.getBoolean(28)),
+        pageIsDeleted = if (row.isNullAt(29)) None else Some(row.getBoolean(29)),
+        pageCreationTimestamp = if (row.isNullAt(30)) None else Some(Timestamp.valueOf(row.getString(30))),
+        pageRevisionCount = if (row.isNullAt(31)) None else Some(row.getLong(31)),
+        pageSecondsSincePreviousRevision = if (row.isNullAt(32)) None else Some(row.getLong(32))
       ),
       userDetails = new MediawikiEventUserDetails(
-        userId = if (row.isNullAt(31)) None else Some(row.getLong(31)),
-        userTextHistorical = Option(row.getString(32)),
-        userText = Option(row.getString(33)),
-        userBlocksHistorical = Option(row.getSeq[String](34)),
-        userBlocks = Option(row.getSeq[String](35)),
-        userGroupsHistorical = Option(row.getSeq[String](36)),
-        userGroups = Option(row.getSeq[String](37)),
-        userIsCreatedBySelf = if (row.isNullAt(38)) None else Some(row.getBoolean(38)),
-        userIsCreatedBySystem = if (row.isNullAt(39)) None else Some(row.getBoolean(39)),
-        userIsCreatedByPeer = if (row.isNullAt(40)) None else Some(row.getBoolean(40)),
-        userIsAnonymous = if (row.isNullAt(41)) None else Some(row.getBoolean(41)),
-        userIsBotByName = if (row.isNullAt(42)) None else Some(row.getBoolean(42)),
-        userCreationTimestamp = if (row.isNullAt(43)) None else Some(Timestamp.valueOf(row.getString(43)))
+        userId = if (row.isNullAt(33)) None else Some(row.getLong(33)),
+        userTextHistorical = Option(row.getString(34)),
+        userText = Option(row.getString(35)),
+        userBlocksHistorical = Option(row.getSeq[String](36)),
+        userBlocks = Option(row.getSeq[String](37)),
+        userGroupsHistorical = Option(row.getSeq[String](38)),
+        userGroups = Option(row.getSeq[String](39)),
+        userIsCreatedBySelf = if (row.isNullAt(40)) None else Some(row.getBoolean(40)),
+        userIsCreatedBySystem = if (row.isNullAt(41)) None else Some(row.getBoolean(41)),
+        userIsCreatedByPeer = if (row.isNullAt(42)) None else Some(row.getBoolean(42)),
+        userIsAnonymous = if (row.isNullAt(43)) None else Some(row.getBoolean(43)),
+        userIsBotByName = if (row.isNullAt(44)) None else Some(row.getBoolean(44)),
+        userCreationTimestamp = if (row.isNullAt(45)) None else Some(Timestamp.valueOf(row.getString(45)))
         // userRevisionCount -- Not relevant, user events only
         // userSecondsSincePreviousRevision -- ie
       ),
       revisionDetails = new MediawikiEventRevisionDetails(
-        revId = if (row.isNullAt(44)) None else Some(row.getLong(44)),
-        revParentId = if (row.isNullAt(45)) None else Some(row.getLong(45)),
-        revMinorEdit = if (row.isNullAt(46)) None else Some(row.getBoolean(46)),
-        revTextBytes = if (row.isNullAt(47)) None else Some(row.getLong(47)),
-        revTextBytesDiff = if (row.isNullAt(48)) None else Some(row.getLong(48)),
-        revTextSha1 = Option(row.getString(49)),
-        revContentModel = Option(row.getString(50)),
-        revContentFormat = Option(row.getString(51)),
-        revIsDeleted = if (row.isNullAt(52)) None else Some(row.getBoolean(52)),
-        revDeletedTimestamp = if (row.isNullAt(53)) None else Some(Timestamp.valueOf(row.getString(53))),
-        revIsIdentityReverted = if (row.isNullAt(54)) None else Some(row.getBoolean(54)),
-        revFirstIdentityRevertingRevisionId = if (row.isNullAt(55)) None else Some(row.getLong(55)),
-        revSecondsToIdentityRevert = if (row.isNullAt(56)) None else Some(row.getLong(56)),
-        revIsIdentityRevert = if (row.isNullAt(57)) None else Some(row.getBoolean(57))
+        revId = if (row.isNullAt(46)) None else Some(row.getLong(46)),
+        revParentId = if (row.isNullAt(47)) None else Some(row.getLong(47)),
+        revMinorEdit = if (row.isNullAt(48)) None else Some(row.getBoolean(48)),
+        revTextBytes = if (row.isNullAt(49)) None else Some(row.getLong(49)),
+        revTextBytesDiff = if (row.isNullAt(50)) None else Some(row.getLong(50)),
+        revTextSha1 = Option(row.getString(51)),
+        revContentModel = Option(row.getString(52)),
+        revContentFormat = Option(row.getString(53)),
+        revIsDeleted = if (row.isNullAt(54)) None else Some(row.getBoolean(54)),
+        revDeletedTimestamp = if (row.isNullAt(55)) None else Some(Timestamp.valueOf(row.getString(55))),
+        revIsIdentityReverted = if (row.isNullAt(56)) None else Some(row.getBoolean(56)),
+        revFirstIdentityRevertingRevisionId = if (row.isNullAt(57)) None else Some(row.getLong(57)),
+        revSecondsToIdentityRevert = if (row.isNullAt(58)) None else Some(row.getLong(58)),
+        revIsIdentityRevert = if (row.isNullAt(59)) None else Some(row.getBoolean(59))
       )
     )
 
@@ -547,7 +557,8 @@ object MediawikiEvent {
       userId = pageState.causedByUserId
     ),
     pageDetails = new MediawikiEventPageDetails(
-      pageId = pageState.pageId, // TODO: what to do with artificial pages?
+      pageId = pageState.pageId,
+      pageArtificialId = pageState.pageArtificialId,
       pageTitleHistorical = Some(pageState.titleHistorical),
       pageTitle = Some(pageState.title),
       pageNamespaceHistorical = Some(pageState.namespaceHistorical),
@@ -555,6 +566,7 @@ object MediawikiEvent {
       pageNamespace = Some(pageState.namespace),
       pageNamespaceIsContent = Some(pageState.namespaceIsContent),
       pageIsRedirect = pageState.isRedirect,
+      pageIsDeleted = Some(pageState.isDeleted),
       pageCreationTimestamp = pageState.pageCreationTimestamp
     ),
     userDetails = new MediawikiEventUserDetails(

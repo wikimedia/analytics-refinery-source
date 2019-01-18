@@ -152,24 +152,7 @@ class PageHistoryBuilder(
       event: PageEvent
   ): ProcessingStatus = {
     val fromKey = event.fromKey
-    val (status1, event1) = if (status.restoredStates.contains(fromKey)) {
-      // Delete comes just before a restore - add create at restore time
-      // Notice: Not possible to have a current potential state - by construction
-      // Move restored state to known state updating it to create with restore start timestamp
-      // Uses original pageCreationTimestamp if it happens 2 seconds or less before restore start timestamp
-      val state = status.restoredStates(fromKey)
-      val newKnownState = state.copy(
-        startTimestamp = state.endTimestamp,
-        pageCreationTimestamp = state.endTimestamp,
-        inferredFrom = Some("restore")
-      )
-      (
-        status.copy(
-          restoredStates = status.restoredStates - fromKey,
-          knownStates = status.knownStates :+ newKnownState),
-        event
-        )
-    } else if (status.potentialStates.contains(fromKey)) {
+    val (status1, event1) = if (status.potentialStates.contains(fromKey)) {
       // Flush potential state conflicting with the event (event.fromKey = state.key)
       // Uses original pageCreationTimestamp if it happens 2 seconds or less before delete event timestamp
       val state = status.potentialStates(fromKey)
@@ -195,45 +178,69 @@ class PageHistoryBuilder(
       )
     } else (status, event)
 
-    // Since the deleted page has no restore, we can't retrieve it's real id
-    // We therefore assign a new fake Id to its lineage
-    val fakeId = randomUUID.toString
 
-    addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
-    // Create a new known delete state and new potential create one
-    val newPotentialCreateState = new PageState(
-      wikiDb = event1.wikiDb,
-      pageId = event1.pageId,
-      pageIdArtificial = Some(fakeId),
-      titleHistorical = event1.oldTitle,
-      title = event1.oldTitle,
-      namespaceHistorical = event1.oldNamespace,
-      namespaceIsContentHistorical = event1.oldNamespaceIsContent,
-      namespace = event1.oldNamespace,
-      namespaceIsContent = event1.oldNamespaceIsContent,
-      endTimestamp = Some(event1.timestamp),
-      causedByEventType = "create",
-      inferredFrom = Some("delete")
-    )
-    val newKnownDeleteState = new PageState(
-      wikiDb = event1.wikiDb,
-      pageId = event1.pageId,
-      pageIdArtificial = Some(fakeId),
-      titleHistorical = event1.oldTitle,
-      title = event1.oldTitle,
-      namespaceHistorical = event1.oldNamespace,
-      namespaceIsContentHistorical = event1.oldNamespaceIsContent,
-      namespace = event1.oldNamespace,
-      namespaceIsContent = event1.oldNamespaceIsContent,
-      startTimestamp = Some(event1.timestamp),
-      endTimestamp = Some(event1.timestamp),
-      causedByEventType = "delete",
-      causedByUserId = event1.causedByUserId
-    )
-    status1.copy(
-      potentialStates = status1.potentialStates + (event1.fromKey -> newPotentialCreateState),
-      knownStates = status1.knownStates :+ newKnownDeleteState
-    )
+    if (status1.restoredStates.contains(fromKey)) {
+      // Delete comes just before a restore - Assume restored from deleted (same page_id)
+      // Move restored state to potential-state and add delete state to known-states
+      // Uses original pageCreationTimestamp if it happens 2 seconds or less before restore start timestamp
+      val state = status1.restoredStates(fromKey)
+      val newKnownState = state.copy(
+        startTimestamp = Some(event1.timestamp),
+        causedByEventType = "delete",
+        causedByUserId = event1.causedByUserId,
+        inferredFrom = None
+      )
+      val newPotentialState = state.copy(
+        endTimestamp = Some(event1.timestamp)
+      )
+      status1.copy(
+          restoredStates = status.restoredStates - fromKey,
+          potentialStates = status.potentialStates + (fromKey -> newPotentialState),
+          knownStates = status.knownStates :+ newKnownState)
+    } else {
+      // The deleted page has no restore.
+      // We add a new create_event as potential_state and assign it a fake_id
+      // if it has no page_id defined. We also move the delete-event to know state.
+      val fakeId = if (event1.pageId.isEmpty) Some(randomUUID.toString) else None
+
+      addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
+      // Create a new known delete state and new potential create one
+      val newPotentialCreateState = new PageState(
+        wikiDb = event1.wikiDb,
+        pageId = event1.pageId,
+        pageArtificialId = fakeId,
+        titleHistorical = event1.oldTitle,
+        title = event1.oldTitle,
+        namespaceHistorical = event1.oldNamespace,
+        namespaceIsContentHistorical = event1.oldNamespaceIsContent,
+        namespace = event1.oldNamespace,
+        namespaceIsContent = event1.oldNamespaceIsContent,
+        endTimestamp = Some(event1.timestamp),
+        causedByEventType = "create",
+        inferredFrom = Some("delete"),
+        isDeleted = true
+      )
+      val newKnownDeleteState = new PageState(
+        wikiDb = event1.wikiDb,
+        pageId = event1.pageId,
+        pageArtificialId = fakeId,
+        titleHistorical = event1.oldTitle,
+        title = event1.oldTitle,
+        namespaceHistorical = event1.oldNamespace,
+        namespaceIsContentHistorical = event1.oldNamespaceIsContent,
+        namespace = event1.oldNamespace,
+        namespaceIsContent = event1.oldNamespaceIsContent,
+        startTimestamp = Some(event1.timestamp),
+        endTimestamp = Some(event1.timestamp),
+        causedByEventType = "delete",
+        causedByUserId = event1.causedByUserId,
+        isDeleted = true
+      )
+      status1.copy(
+        potentialStates = status1.potentialStates + (event1.fromKey -> newPotentialCreateState),
+        knownStates = status1.knownStates :+ newKnownDeleteState
+      )
+    }
   }
 
 
@@ -346,7 +353,7 @@ class PageHistoryBuilder(
     */
   def propagatePageCreation(states: Seq[PageState]): Seq[PageState] = {
     states
-      .groupBy(s => (s.pageId, s.pageIdArtificial))
+      .groupBy(s => (s.pageId, s.pageArtificialId))
       .flatMap {
         case (pageIds, pageStates) =>
           val sortedStates = pageStates.toList.sortBy(state =>
@@ -367,7 +374,7 @@ class PageHistoryBuilder(
     */
   def updateCreateStartTimestamp(states: Seq[PageState]): Seq[PageState] = {
     states
-      .groupBy(s => (s.pageId, s.pageIdArtificial))
+      .groupBy(s => (s.pageId, s.pageArtificialId))
       .flatMap {
         case (pageIds, pageStates) =>
           if (pageIds._1.getOrElse(0L) > 0L) {
