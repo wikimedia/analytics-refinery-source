@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import org.apache.spark.sql.SaveMode
+import org.wikimedia.analytics.refinery.job.mediawikihistory.sql.AllViewsRegisterer
 import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator}
 
 
@@ -26,21 +27,20 @@ import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator
   *
   * Example launch command (using joal settings):
   *
-  * sudo -u hdfs /home/joal/code/spark-1.6.3-bin-hadoop2.6/bin/spark-submit \
+  * sudo -u hdfs spark2-submit \
   *     --master yarn \
-  *     --deploy-mode cluster \
-  *     --executor-memory 8G \
-  *     --driver-memory 4G \
-  *     --executor-cores 1 \
-  *     --conf spark.dynamicAllocation.enabled=true \
-  *     --conf spark.shuffle.service.enabled=true \
-  *     --conf spark.dynamicAllocation.maxExecutors=64 \
-  *     --conf spark.yarn.executor.memoryOverhead=2048
+  *     --deploy-mode client \
+  *     --executor-memory 32G \
+  *     --driver-memory 16G \
+  *     --executor-cores 4 \
+  *     --conf spark.dynamicAllocation.maxExecutors=32 \
+  *     --conf spark.executor.memoryOverhead=8192 \
   *     --class org.wikimedia.analytics.refinery.job.mediawikihistory.MediawikiHistoryRunner \
-  *     /home/joal/code/refinery-source/refinery-job/target/refinery-job-0.0.39-SNAPSHOT.jar \
+  *     /home/joal/code/refinery-source/refinery-job/target/refinery-job-0.0.85-SNAPSHOT.jar \
   *     -i /wmf/data/raw/mediawiki \
+  *     -p /wmf/data/raw/mediawiki_private \
   *     -o /wmf/data/wmf/mediawiki \
-  *     -s 2017-03
+  *     -s 2019-01
   */
 object MediawikiHistoryRunner {
 
@@ -66,6 +66,7 @@ object MediawikiHistoryRunner {
                     snapshot: Option[String] = None,
                     tmpPath: String = "hdfs://analytics-hadoop/tmp/mediawiki/history/checkpoints",
                     baseNumPartitions: Int = 64,
+                    readerFormat: String = "com.databricks.spark.avro",
                     debug: Boolean = false,
                     noStats: Boolean = false,
                     writeErrors: Boolean = false,
@@ -93,7 +94,6 @@ object MediawikiHistoryRunner {
     opt[String]('p', "mediawiki-private-base-path") optional() valueName "<path>" action { (x, p) =>
       p.copy(mediawikiPrivateBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
     } text "Base path to mediawiki-private extracted data on hadoop.\n\tDefaults to hdfs://analytics-hadoop/wmf/data/raw/mediawiki_private"
-
 
     opt[String]('o', "output-base-path") optional() valueName "<path>" action { (x, p) =>
       p.copy(outputBasePath = if (x.endsWith("/")) x else x + "/")
@@ -124,6 +124,17 @@ object MediawikiHistoryRunner {
       "users history uses base-num-partitions\n\t" +
       "pages history uses base-num-partitions * 4.\n\t" +
       "Revisions denormalization uses base-num-partitions * 16.\n\tDefaults to 64"
+
+    opt[String]('f', "table-format") optional() valueName "<format>" action { (x, p) =>
+      // Use external avro reader as not yet defined by default in spark
+      // Should be removed with spark 2.4 and up
+      p.copy(readerFormat = x.replaceAll("avro", "com.databricks.spark.avro"))
+    } validate { x =>
+      if (!Seq("avro", "parquet").contains(x))
+        failure(s"Invalid format $x - Should be avro or parquet.")
+      else
+        success
+    } text "Format of sqooped-table files (avro or parquet). Defaults to avro."
 
     opt[Unit]("debug").action( (_, c) =>
       c.copy(debug = true) ).text("debug mode -- spark logs added to applicative logs (VERY verbose)")
@@ -168,6 +179,7 @@ object MediawikiHistoryRunner {
         val revisionsNumPartitions = baseNumPartitions * 16
 
         val tmpPath = params.tmpPath
+        val readerFormat = params.readerFormat
         val debug = params.debug
         val noStats = params.noStats
         val writeErrors = params.writeErrors
@@ -227,6 +239,7 @@ object MediawikiHistoryRunner {
              |  snapshot:               $snapshot
              |  temporary-path:         $tmpPath
              |  num-partitions:         $baseNumPartitions
+             |  table-format:           $readerFormat
              |  debug:                  $debug
              |  write-errors:           $writeErrors
              |  users-history:          $runUsersHistory
@@ -289,17 +302,30 @@ object MediawikiHistoryRunner {
         }
         statsAccumulator.foreach(statAcc => spark.sparkContext.register(statAcc, "statistics"))
 
+        // Register precomputed complex views for namespaces, archive and revision
+        new AllViewsRegisterer(
+          spark,
+          statsAccumulator,
+          revisionsNumPartitions,
+          wikiConstraint,
+          readerFormat
+        ).run(
+          namespacesPath,
+          actorPrivateDataPath,
+          archiveDataPath,
+          commentPrivateDataPath,
+          loggingDataPath,
+          pageDataPath,
+          revisionDataPath,
+          userDataPath,
+          userGroupsDataPath
+        )
+
         // Launch jobs as needed
 
         // User History
         if (runUsersHistory)
           new UserHistoryRunner(spark, statsAccumulator, usersNumPartitions).run(
-            wikiConstraint,
-            loggingDataPath,
-            userDataPath,
-            userGroupsDataPath,
-            revisionDataPath,
-            commentPrivateDataPath,
             userHistoryPath,
             userHistoryErrorsPath
           )
@@ -309,11 +335,6 @@ object MediawikiHistoryRunner {
         // Page history
         if (runPagesHistory)
           new PageHistoryRunner(spark, statsAccumulator, pagesNumPartitions).run(
-            wikiConstraint,
-            loggingDataPath,
-            pageDataPath,
-            revisionDataPath,
-            namespacesPath,
             pageHistoryPath,
             pageHistoryErrorsPath
           )
@@ -322,12 +343,7 @@ object MediawikiHistoryRunner {
 
         // Revisions and denormalization
         if (runDenormalize)
-          new DenormalizedRunner(spark, statsAccumulator, revisionsNumPartitions).run(
-            wikiConstraint,
-            revisionDataPath,
-            archiveDataPath,
-            actorPrivateDataPath,
-            commentPrivateDataPath,
+          new DenormalizedRunner(spark, statsAccumulator, revisionsNumPartitions, wikiConstraint).run(
             userHistoryPath,
             pageHistoryPath,
             denormalizedHistoryPath,

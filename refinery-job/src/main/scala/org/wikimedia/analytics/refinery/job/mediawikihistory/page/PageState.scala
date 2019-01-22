@@ -22,6 +22,7 @@ case class PageState(
                       endTimestamp: Option[Timestamp] = None,
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
+                      causedByUserText: Option[String] = None,
                       // Specific fields
                       pageId: Option[Long] = None,
                       pageArtificialId: Option[String] = None,
@@ -58,6 +59,7 @@ case class PageState(
     //endTimestamp.orNull,
     causedByEventType,
     causedByUserId.orNull,
+    causedByUserText.orNull,
     inferredFrom.orNull
   )
 
@@ -95,7 +97,8 @@ object PageState {
     //endTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
     causedByEventType = row.getString(14),
     causedByUserId = if (row.isNullAt(15)) None else Some(row.getLong(15)),
-    inferredFrom = Option(row.getString(16))
+    causedByUserText = Option(row.getString(16)),
+    inferredFrom = Option(row.getString(17))
   )
 
   val schema = StructType(
@@ -119,6 +122,7 @@ object PageState {
       //StructField("end_timestamp", TimestampType, nullable = true),
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
+      StructField("caused_by_user_text", StringType, nullable = true),
       StructField("inferred_from", StringType, nullable = true)
     )
   )

@@ -380,57 +380,61 @@ object MediawikiEvent {
           rev_content_format
      from revision
    */
-  def fromRevisionRow(row: Row): MediawikiEvent =
+  def fromRevisionRow(row: Row): MediawikiEvent = {
+    val userIdNum = if (row.isNullAt(3)) 0L else row.getLong(3)
+    val userText = row.getString(4)
     new MediawikiEvent(
-    wikiDb = row.getString(0),
-    eventEntity = "revision",
-    eventType = "create",
-    eventTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
-    eventComment = Option(row.getString(2)),
-    eventUserDetails = new MediawikiEventUserDetails(
-      // TODO: When userId = 0, it does make no sense to store eventUserText.
-      userId = if (row.isNullAt(3)) None else Some(row.getLong(3)),
-      // Next fields: Needed in case userId is 0, overwritten otherwise
-      userTextHistorical = Option(row.getString(4)),
-      userIsAnonymous = Some(row.isNullAt(3) || row.getLong(3) <= 0),
-      userIsBotByName = Some(!row.isNullAt(4) && UserEventBuilder.isBotByName(row.getString(4)))
-    ),
-    pageDetails = new MediawikiEventPageDetails(
-      pageId = if (row.isNullAt(5)) None else Some(row.getLong(5))
-      // pageTitleHistorical: need page history
-      // pageTitle: need page history
-      // pageNamespaceHistorical: need page history
-      // pageNamespace: need page history
-      // pageCreationTimestamp: need page history
-    ),
-    userDetails = new MediawikiEventUserDetails(
-      // userId: Not Applicable (not a user centered event) - See TODO comment above
-      // userTextHistorical: Not Applicable (not a user centered event)
-      // userText = Not Applicable (not a user centered event)
-      // userBlocksHistorical: need user history
-      // userBlocks: need user history
-      // userGroupsHistorical: need user history
-      // userGroups: need user history
-      // userCreationTimestamp: need user history
-    ),
-    revisionDetails = new MediawikiEventRevisionDetails(
-      revId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
-      revParentId = if (row.isNullAt(7)) None else Some(row.getLong(7)),
-      revMinorEdit = if (row.isNullAt(8)) None else Some(row.getBoolean(8)),
-      revTextBytes = if (row.isNullAt(9)) None else Some(row.getLong(9)),
-      // Initializing revTextBytesDiff to current textBytes, will be updated later
-      revTextBytesDiff = if (row.isNullAt(9)) None else Some(row.getLong(9)),
-      revTextSha1 = Option(row.getString(10)),
-      revContentModel = Option(row.getString(11)),
-      revContentFormat = Option(row.getString(12)),
-      revIsDeleted = Some(false),
-      revIsIdentityReverted = Some(false),
-      revSecondsToIdentityRevert = None,
-      revIsIdentityRevert = Some(false)
-      // revDeletedTimestamp: NA
-      // revRevertedTimestamp: need self join
+      wikiDb = row.getString(0),
+      eventEntity = "revision",
+      eventType = "create",
+      eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(1)),
+      eventComment = Option(row.getString(2)),
+      eventUserDetails = new MediawikiEventUserDetails(
+        userId = if (userIdNum <= 0L) None else Some(userIdNum),
+        // userText should be the same as historical if user is anonymous
+        // https://phabricator.wikimedia.org/T206883
+        userText = if (userIdNum <= 0L) Option(userText) else None,
+        userTextHistorical = Option(userText),
+        userIsAnonymous = Some(userIdNum <= 0),
+        userIsBotByName = Some((null != userText) && UserEventBuilder.isBotByName(userText))
+      ),
+      pageDetails = new MediawikiEventPageDetails(
+        pageId = if (row.isNullAt(5)) None else Some(row.getLong(5))
+        // pageTitleHistorical: need page history
+        // pageTitle: need page history
+        // pageNamespaceHistorical: need page history
+        // pageNamespace: need page history
+        // pageCreationTimestamp: need page history
+      ),
+      userDetails = new MediawikiEventUserDetails(
+        // userId: Not Applicable (not a user centered event) - See TODO comment above
+        // userTextHistorical: Not Applicable (not a user centered event)
+        // userText = Not Applicable (not a user centered event)
+        // userBlocksHistorical: need user history
+        // userBlocks: need user history
+        // userGroupsHistorical: need user history
+        // userGroups: need user history
+        // userCreationTimestamp: need user history
+      ),
+      revisionDetails = new MediawikiEventRevisionDetails(
+        revId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
+        revParentId = if (row.isNullAt(7)) None else Some(row.getLong(7)),
+        revMinorEdit = if (row.isNullAt(8)) None else Some(row.getBoolean(8)),
+        revTextBytes = if (row.isNullAt(9)) None else Some(row.getLong(9)),
+        // Initializing revTextBytesDiff to current textBytes, will be updated later
+        revTextBytesDiff = if (row.isNullAt(9)) None else Some(row.getLong(9)),
+        revTextSha1 = Option(row.getString(10)),
+        revContentModel = Option(row.getString(11)),
+        revContentFormat = Option(row.getString(12)),
+        revIsDeleted = Some(false),
+        revIsIdentityReverted = Some(false),
+        revSecondsToIdentityRevert = None,
+        revIsIdentityRevert = Some(false)
+        // revDeletedTimestamp: NA
+        // revRevertedTimestamp: need self join
+      )
     )
-  )
+  }
 
   /* select like this and then map this function:
    select wiki_db,
@@ -450,149 +454,168 @@ object MediawikiEvent {
           ar_content_format
      from archive
    */
-  def fromArchiveRow(row: Row): MediawikiEvent = MediawikiEvent(
-    wikiDb = row.getString(0),
-    eventEntity = "revision",
-    eventType = "create",
-    eventTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
-    eventComment = Option(row.getString(2)),
-    eventUserDetails = new MediawikiEventUserDetails(
-      // TODO: When userId = 0, it does make no sense to store eventUserText.
-      userId = if (row.isNullAt(3)) None else Some(row.getLong(3)),
-      // Next fields -- Needed in case userId is 0, overwritten otherwise
-      userTextHistorical = Option(row.getString(4)),
-      userIsAnonymous = Some(row.isNullAt(3) || row.getLong(3) <= 0),
-      userIsBotByName = Some(!row.isNullAt(4) && UserEventBuilder.isBotByName(row.getString(4)))
-    ),
-    pageDetails = new MediawikiEventPageDetails(
-      pageId = if (row.isNullAt(5)) None else Some(row.getLong(5)),
-      // pageTitle: need page history
-      pageTitle = Option(row.getString(6)),
-      // pageNamespace: need page history
-      pageNamespace = if (row.isNullAt(7)) None else Some(row.getInt(7))
-      // pageCreationTimestamp: need page history
-    ),
-    userDetails = new MediawikiEventUserDetails(
-      // userId: NA - See TODO comment above
-      // userTextHistorical: NA
-      // userText = NA
-      // userBlocksHistorical: need user history
-      // userBlocks: need user history
-      // userGroupsHistorical: need user history
-      // userGroups: need user history
-      // userCreationTimestamp: need user history
-    ),
-    revisionDetails = new MediawikiEventRevisionDetails(
-      revId = if (row.isNullAt(8)) None else Some(row.getLong(8)),
-      revParentId = if (row.isNullAt(9)) None else Some(row.getLong(9)),
-      revMinorEdit = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
-      revTextBytes = if (row.isNullAt(11)) None else Some(row.getLong(11)),
-      // Initializing revTextBytesDiff to current textBytes, will be updated later
-      revTextBytesDiff = if (row.isNullAt(11)) None else Some(row.getLong(11)),
-      revTextSha1 = Option(row.getString(12)),
-      revContentModel = Option(row.getString(13)),
-      revContentFormat = Option(row.getString(14)),
-      revIsDeleted = Option(true),
-      revIsIdentityReverted = Some(false),
-      revSecondsToIdentityRevert = None,
-      revIsIdentityRevert = Some(false)
-      // revRevertedTimestamp: need self join
+  def fromArchiveRow(row: Row): MediawikiEvent = {
+    val userIdNum = if (row.isNullAt(3)) 0L else row.getLong(3)
+    val userText = row.getString(4)
+    MediawikiEvent(
+      wikiDb = row.getString(0),
+      eventEntity = "revision",
+      eventType = "create",
+      eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(1)),
+      eventComment = Option(row.getString(2)),
+      eventUserDetails = new MediawikiEventUserDetails(
+        userId = if (userIdNum <= 0L) None else Some(userIdNum),
+        // userText should be the same as historical if user is anonymous
+        // https://phabricator.wikimedia.org/T206883
+        userText = if (userIdNum <= 0L) Option(userText) else None,
+        userTextHistorical = Option(userText),
+        userIsAnonymous = Some(userIdNum <= 0),
+        userIsBotByName = Some((null != userText) && UserEventBuilder.isBotByName(userText))
+      ),
+      pageDetails = new MediawikiEventPageDetails(
+        pageId = if (row.isNullAt(5)) None else Some(row.getLong(5)),
+        // pageTitle: need page history
+        pageTitle = Option(row.getString(6)),
+        // pageNamespace: need page history
+        pageNamespace = if (row.isNullAt(7)) None else Some(row.getInt(7))
+        // pageCreationTimestamp: need page history
+      ),
+      userDetails = new MediawikiEventUserDetails(
+        // userId: NA - See TODO comment above
+        // userTextHistorical: NA
+        // userText = NA
+        // userBlocksHistorical: need user history
+        // userBlocks: need user history
+        // userGroupsHistorical: need user history
+        // userGroups: need user history
+        // userCreationTimestamp: need user history
+      ),
+      revisionDetails = new MediawikiEventRevisionDetails(
+        revId = if (row.isNullAt(8)) None else Some(row.getLong(8)),
+        revParentId = if (row.isNullAt(9)) None else Some(row.getLong(9)),
+        revMinorEdit = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
+        revTextBytes = if (row.isNullAt(11)) None else Some(row.getLong(11)),
+        // Initializing revTextBytesDiff to current textBytes, will be updated later
+        revTextBytesDiff = if (row.isNullAt(11)) None else Some(row.getLong(11)),
+        revTextSha1 = Option(row.getString(12)),
+        revContentModel = Option(row.getString(13)),
+        revContentFormat = Option(row.getString(14)),
+        revIsDeleted = Option(true),
+        revIsIdentityReverted = Some(false),
+        revSecondsToIdentityRevert = None,
+        revIsIdentityRevert = Some(false)
+        // revRevertedTimestamp: need self join
+      )
     )
-  )
+  }
 
-  def fromUserState(userState: UserState): MediawikiEvent = MediawikiEvent(
-    wikiDb = userState.wikiDb,
-    eventEntity = "user",
-    eventType = userState.causedByEventType,
-    eventTimestamp = userState.startTimestamp,
-    eventComment = None,
-    eventUserDetails = new MediawikiEventUserDetails(
-      userId = userState.causedByUserId
-    ),
-    pageDetails = new MediawikiEventPageDetails(
-      // pageId: NA
-      // pageTitleHistorical: NA
-      // pageTitle: NA
-      // pageNamespaceHistorical: NA
-      // pageNamespace: NA
-      // pageCreationTimestamp: NA
-    ),
-    userDetails = new MediawikiEventUserDetails(
-      userId = Some(userState.userId),
-      userTextHistorical = Some(userState.userTextHistorical),
-      userText = Some(userState.userText),
-      userBlocksHistorical = Some(userState.userBlocksHistorical),
-      userBlocks = Some(userState.userBlocks),
-      userGroupsHistorical = Some(userState.userGroupsHistorical),
-      userGroups = Some(userState.userGroups),
-      userIsCreatedBySelf = Some(userState.createdBySelf),
-      userIsCreatedBySystem = Some(userState.createdBySystem),
-      userIsCreatedByPeer = Some(userState.createdByPeer),
-      userIsAnonymous = Some(userState.anonymous),
-      userIsBotByName = Some(userState.botByName),
-      userCreationTimestamp = userState.userRegistrationTimestamp
-    ),
-    revisionDetails = new MediawikiEventRevisionDetails(
-      // revId: NA
-      // revParentId: NA
-      // revMinorEdit: NA
-      // revTextBytes: NA
-      // revTextBytesDiff: NA
-      // revTextSha1: NA
-      // revContentModel: NA
-      // revContentFormat: NA
+  def fromUserState(userState: UserState): MediawikiEvent = {
+    val userIdNum = userState.causedByUserId.getOrElse(0L)
+    MediawikiEvent(
+      wikiDb = userState.wikiDb,
+      eventEntity = "user",
+      eventType = userState.causedByEventType,
+      eventTimestamp = userState.startTimestamp,
+      eventComment = None,
+      eventUserDetails = new MediawikiEventUserDetails(
+        userId = userState.causedByUserId,
+        userTextHistorical = userState.causedByUserText,
+        // Make historical username current one for anonymous users
+        userText = if (userIdNum <= 0L) userState.causedByUserText else None,
+        userIsAnonymous = Some(userIdNum <= 0L)
+      ),
+      pageDetails = new MediawikiEventPageDetails(
+        // pageId: NA
+        // pageTitleHistorical: NA
+        // pageTitle: NA
+        // pageNamespaceHistorical: NA
+        // pageNamespace: NA
+        // pageCreationTimestamp: NA
+      ),
+      userDetails = new MediawikiEventUserDetails(
+        userId = Some(userState.userId),
+        userTextHistorical = Some(userState.userTextHistorical),
+        userText = Some(userState.userText),
+        userBlocksHistorical = Some(userState.userBlocksHistorical),
+        userBlocks = Some(userState.userBlocks),
+        userGroupsHistorical = Some(userState.userGroupsHistorical),
+        userGroups = Some(userState.userGroups),
+        userIsCreatedBySelf = Some(userState.createdBySelf),
+        userIsCreatedBySystem = Some(userState.createdBySystem),
+        userIsCreatedByPeer = Some(userState.createdByPeer),
+        userIsAnonymous = Some(userState.anonymous),
+        userIsBotByName = Some(userState.botByName),
+        userCreationTimestamp = userState.userRegistrationTimestamp
+      ),
+      revisionDetails = new MediawikiEventRevisionDetails(
+        // revId: NA
+        // revParentId: NA
+        // revMinorEdit: NA
+        // revTextBytes: NA
+        // revTextBytesDiff: NA
+        // revTextSha1: NA
+        // revContentModel: NA
+        // revContentFormat: NA
 
-      // revDeletedTimestamp: NA
-      // revRevertedTimestamp: NA
+        // revDeletedTimestamp: NA
+        // revRevertedTimestamp: NA
+      )
     )
-  )
+  }
 
-  def fromPageState(pageState: PageState): MediawikiEvent = MediawikiEvent(
-    wikiDb = pageState.wikiDb,
-    eventEntity = "page",
-    eventType = pageState.causedByEventType,
-    eventTimestamp = pageState.startTimestamp,
-    eventComment = None,
-    eventUserDetails = new MediawikiEventUserDetails(
-      userId = pageState.causedByUserId
-    ),
-    pageDetails = new MediawikiEventPageDetails(
-      pageId = pageState.pageId,
-      pageArtificialId = pageState.pageArtificialId,
-      pageTitleHistorical = Some(pageState.titleHistorical),
-      pageTitle = Some(pageState.title),
-      pageNamespaceHistorical = Some(pageState.namespaceHistorical),
-      pageNamespaceIsContentHistorical = Some(pageState.namespaceIsContentHistorical),
-      pageNamespace = Some(pageState.namespace),
-      pageNamespaceIsContent = Some(pageState.namespaceIsContent),
-      pageIsRedirect = pageState.isRedirect,
-      pageIsDeleted = Some(pageState.isDeleted),
-      pageCreationTimestamp = pageState.pageCreationTimestamp
-    ),
-    userDetails = new MediawikiEventUserDetails(
-      // userId: NA
-      // userTextHistorical: NA
-      // userText: NA
-      // userBlocksHistorical: NA
-      // userBlocks: NA
-      // userGroupsHistorical: NA
-      // userGroups: NA
-      // userCreationTimestamp: NA
-    ),
-    revisionDetails = new MediawikiEventRevisionDetails(
-      // revId: NA
-      // revParentId: NA
-      // revMinorEdit: NA
-      // revTextBytes: NA
-      // revTextBytesDiff: NA
-      // revTextSha1: NA
-      // revContentModel: NA
-      // revContentFormat: NA
+  def fromPageState(pageState: PageState): MediawikiEvent = {
+    val userIdNum = pageState.causedByUserId.getOrElse(0L)
+    MediawikiEvent(
+      wikiDb = pageState.wikiDb,
+      eventEntity = "page",
+      eventType = pageState.causedByEventType,
+      eventTimestamp = pageState.startTimestamp,
+      eventComment = None,
+      eventUserDetails = new MediawikiEventUserDetails(
+        userId = pageState.causedByUserId,
+        userTextHistorical = pageState.causedByUserText,
+        // Make historical username current one for anonymous users
+        userText = if (userIdNum <= 0L) pageState.causedByUserText else None,
+        userIsAnonymous = Some(userIdNum <= 0L)
+      ),
+      pageDetails = new MediawikiEventPageDetails(
+        pageId = pageState.pageId,
+        pageArtificialId = pageState.pageArtificialId,
+        pageTitleHistorical = Some(pageState.titleHistorical),
+        pageTitle = Some(pageState.title),
+        pageNamespaceHistorical = Some(pageState.namespaceHistorical),
+        pageNamespaceIsContentHistorical = Some(pageState.namespaceIsContentHistorical),
+        pageNamespace = Some(pageState.namespace),
+        pageNamespaceIsContent = Some(pageState.namespaceIsContent),
+        pageIsRedirect = pageState.isRedirect,
+        pageIsDeleted = Some(pageState.isDeleted),
+        pageCreationTimestamp = pageState.pageCreationTimestamp
+      ),
+      userDetails = new MediawikiEventUserDetails(
+        // userId: NA
+        // userTextHistorical: NA
+        // userText: NA
+        // userBlocksHistorical: NA
+        // userBlocks: NA
+        // userGroupsHistorical: NA
+        // userGroups: NA
+        // userCreationTimestamp: NA
+      ),
+      revisionDetails = new MediawikiEventRevisionDetails(
+        // revId: NA
+        // revParentId: NA
+        // revMinorEdit: NA
+        // revTextBytes: NA
+        // revTextBytesDiff: NA
+        // revTextSha1: NA
+        // revContentModel: NA
+        // revContentFormat: NA
 
-      // revDeletedTimestamp: NA
-      // revRevertedTimestamp: NA
+        // revDeletedTimestamp: NA
+        // revRevertedTimestamp: NA
+      )
     )
-  )
+  }
 
   /**
     * Object functions out of methods for passing them as parameters

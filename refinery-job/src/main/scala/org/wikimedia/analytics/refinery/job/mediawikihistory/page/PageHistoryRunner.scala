@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.sql.SQLHelper
 import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper}
 
 
@@ -9,9 +10,9 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
   * It delegates the reconstruction part of it's process to the
   * [[PageHistoryBuilder]] class.
   *
-  * The [[run]] function loads [[PageEvent]] and [[PageState]] RDDs from raw path
-  * using [[PageEventBuilder]] utilities. It then calls
-  * [[PageHistoryBuilder.run]] to partition the RDDs and rebuild history.
+  * The [[run]] function loads [[PageEvent]] and [[PageState]] RDDs from expected
+  * already defined logging and page views using [[PageEventBuilder]] utilities.
+  * It then calls [[PageHistoryBuilder.run]] to partition the RDDs and rebuild history.
   *
   * It finally writes the resulting [[PageState]] data in parquet format.
   *
@@ -21,11 +22,10 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
 class PageHistoryRunner(
                          val spark: SparkSession,
                          val statsAccumulator: Option[MapAccumulator[String, Long]],
-                         numPartitions: Int
+                         val numPartitions: Int
                        ) extends StatsHelper with Serializable {
 
   import org.apache.spark.sql.SaveMode
-  import com.databricks.spark.avro._
   import org.apache.log4j.Logger
   import org.apache.spark.sql.Row
   import org.apache.spark.sql.types._
@@ -42,24 +42,14 @@ class PageHistoryRunner(
   val METRIC_WRITTEN_ROWS = "pageHistory.writtenRows"
 
   /**
-    * Extract and clean [[PageEvent]] and [[PageState]] RDDs,
-    * then launch the reconstruction and
+    * Extract and clean [[PageEvent]] and [[PageState]] RDDs from expected already
+    * defined logging and user views, then launch the reconstruction and
     * writes the results (and potentially the errors).
     *
-    * @param wikiConstraint The wiki database names on which to execute the job (empty for all wikis)
-    * @param loggingDataPath The path of the logging data (avro files partitioned by wiki_db)
-    * @param pageDataPath The path of the page data (avro files partitioned by wiki_db)
-    * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
-    * @param namespacesPath The path of the namespaces data (CSV file)
     * @param outputPath The path to output the reconstructed page history (parquet files)
     * @param errorsPathOption An optional path to output errors (csv files) if defined
     */
   def run(
-           wikiConstraint: Seq[String],
-           loggingDataPath: String,
-           pageDataPath: String,
-           revisionDataPath: String,
-           namespacesPath: String,
            outputPath: String,
            errorsPathOption: Option[String]
   ): Unit = {
@@ -70,40 +60,11 @@ class PageHistoryRunner(
     // Prepare page events and states RDDs
     //***********************************
 
-    // Work with 2 times more partitions that expected for file production
+    // Work with 4 times more partitions that expected for file production
     spark.sql("SET spark.sql.shuffle.partitions=" + 4 * numPartitions)
 
-    val loggingDf = spark.read.avro(loggingDataPath)
-    loggingDf.createOrReplaceTempView("logging")
-    spark.table("logging")
-
-    val pageDf = spark.read.avro(pageDataPath)
-    pageDf.createOrReplaceTempView("page")
-    spark.table("page")
-
-    val revisionDf = spark.read.avro(revisionDataPath)
-    revisionDf.createOrReplaceTempView("revision")
-    spark.table("revision")
-
-    val wikiClause = if (wikiConstraint.isEmpty) "" else {
-      "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
-    }
-
-    val namespacesCsvSchema = StructType(
-        Seq(StructField("domain", StringType, nullable = false),
-            StructField("wiki_db", StringType, nullable = false),
-            StructField("namespace", IntegerType, nullable = false),
-            StructField("namespace_canonical_name",
-                        StringType,
-                        nullable = false),
-            StructField("namespace_localized_name",
-                        StringType,
-                        nullable = false),
-            StructField("is_content", IntegerType, nullable = false)))
-
-    val namespaces = spark.read
-      .schema(namespacesCsvSchema)
-      .csv(namespacesPath)
+    val namespaces = spark
+      .sql(s"SELECT * FROM ${SQLHelper.NAMESPACES_VIEW}")
       .rdd
       .map(r => {
         val wikiDb = r.getString(1)
@@ -145,26 +106,16 @@ class PageHistoryRunner(
     log_action,
     log_page,
     log_timestamp,
-    CAST(log_user AS BIGINT) AS log_user,
+    log_user,
+    log_user_text,
     log_title,
     log_params,
     log_namespace,
     wiki_db
-  FROM logging l
+  FROM ${SQLHelper.LOGGING_VIEW}
   WHERE ((log_type = 'move')
           OR (log_type = 'delete'
               AND log_action IN ('delete', 'restore')))
-      $wikiClause
-  GROUP BY -- Grouping by to enforce expected partitioning
-    log_type,
-    log_action,
-    log_page,
-    log_timestamp,
-    log_user,
-    log_title,
-    log_params,
-    log_namespace,
-    wiki_db
       """)
       .rdd
       .map(row =>
@@ -183,77 +134,41 @@ class PageHistoryRunner(
     val pageStates = spark.sql(
       s"""
   SELECT
+    wiki_db,
     page_id,
-    rev.rev_timestamp,
     page_title,
     page_namespace,
-    rev2.rev_user,
-    page.wiki_db,
-    page_is_redirect
-  FROM page
-    INNER JOIN (
-      -- crazy but true: there are multiple revisions with rev_parent_id = 0 for the same page
-      SELECT
-        min(rev_timestamp) as rev_timestamp,
-        rev_page,
-        wiki_db as wiki_db_rev
-      FROM revision
-      WHERE TRUE
-        $wikiClause
-      GROUP BY
-        rev_page,
-        wiki_db
-    ) rev
-      ON page_id = rev_page
-        AND page.wiki_db = rev.wiki_db_rev
-    INNER JOIN (
-      SELECT
-        rev_page,
-        wiki_db as wiki_db_rev2,
-        rev_timestamp,
-        -- TODO: this is null 0 if the user is anonymous but also null if rev_deleted&4, need to verify that's ok
-        rev_user
-      FROM revision r
-      WHERE TRUE
-        $wikiClause
-    ) rev2
-      ON rev.rev_page = rev2.rev_page
-        AND rev.wiki_db_rev = rev2.wiki_db_rev2
-        AND rev.rev_timestamp = rev2.rev_timestamp
-  WHERE page.page_title IS NOT NULL -- Used for Graph partitioning, not accepting undefined
-    $wikiClause
-  GROUP BY -- Grouping by to enforce expected partitioning
-    page_id,
-    rev.rev_timestamp,
-    page_title,
-    page_namespace,
-    rev2.rev_user,
-    page.wiki_db,
-    page_is_redirect
+    page_is_redirect,
+    page_first_rev_timestamp,
+    page_first_rev_user_id,
+    page_first_rev_user_text
+  FROM ${SQLHelper.PAGE_VIEW}
       """)
       .rdd
       .map(row => {
-        val wikiDb = row.getString(5)
+        val wikiDb = row.getString(0)
         val title = row.getString(2)
         val namespace = row.getInt(3)
         val isContentNamespace = isContentNamespaceMap((wikiDb, namespace))
         addOptionalStat(s"$wikiDb.$METRIC_INITIAL_STATES", 1L)
         new PageState(
-          pageId = if (row.isNullAt(0)) None else Some(row.getLong(0)),
-          pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
-          pageFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
+          // No need to check for null as they're filtered in view
+          pageId = Some(row.getLong(1)),
+          pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
+          pageFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
           titleHistorical = title,
           title = title,
           namespaceHistorical = namespace,
           namespaceIsContentHistorical = isContentNamespace,
           namespace = namespace,
           namespaceIsContent = isContentNamespace,
-          isRedirect = Some(row.getBoolean(6)),
+          isRedirect = Some(row.getBoolean(4)),
           isDeleted = false,
-          startTimestamp = TimestampHelpers.makeMediawikiTimestamp(row.getString(1)),
+          startTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
           endTimestamp = None,
           causedByEventType = "create",
-          causedByUserId = if (row.isNullAt(4)) None else Some(row.getLong(4)),
+          causedByUserId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
+          causedByUserText = Option(row.getString(7)),
           wikiDb = wikiDb
         )
       })

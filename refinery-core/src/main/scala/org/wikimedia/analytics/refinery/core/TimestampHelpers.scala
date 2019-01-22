@@ -11,10 +11,14 @@ object TimestampHelpers {
   lazy val timestampPattern = "^\\d{14}$".r
   lazy val timestampParser = DateTimeFormat.forPattern("YYYYMMddHHmmss")
 
-  def makeMediawikiTimestamp(s: String): Option[Timestamp] = {
+  def makeMediawikiTimestamp(s: String): Timestamp = {
+    new Timestamp(timestampParser.parseDateTime(s).getMillis)
+  }
+
+  def makeMediawikiTimestampOption(s: String): Option[Timestamp] = {
     Option(s) // Handle null string case
       .filter(timestampPattern.findFirstIn(_).isDefined) // Handle wrongly formatted timestamp
-      .map(s =>new Timestamp(timestampParser.parseDateTime(s).getMillis)) // Handle regular use case
+      .map(s =>makeMediawikiTimestamp(s)) // Handle regular use case
   }
 
 

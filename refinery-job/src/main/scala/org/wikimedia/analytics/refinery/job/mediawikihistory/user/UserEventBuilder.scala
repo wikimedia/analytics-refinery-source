@@ -11,7 +11,6 @@ object UserEventBuilder extends Serializable {
 
   import org.apache.spark.sql.Row
   import org.joda.time.DateTime
-  import java.sql.Timestamp
   import org.joda.time.format.DateTimeFormat
   import org.wikimedia.analytics.refinery.core.PhpUnserializer
   import org.wikimedia.analytics.refinery.core.TimestampHelpers
@@ -244,8 +243,8 @@ object UserEventBuilder extends Serializable {
     (newUserBlocks, Some(blockExpiration), None)
   }
 
-  def isValidLog(log: Row): Boolean = {
-    log.getString(4) match {
+  def isValidLogTitle(title: String): Boolean = {
+    title match {
       case ipPattern(_) => false
       case macPattern(_) => false
       case weirdIdPattern(_) => false
@@ -257,23 +256,21 @@ object UserEventBuilder extends Serializable {
     val logType = log.getString(0)
     val logAction = log.getString(1)
     val logTimestampString = log.getString(2)
-    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
-    val logUser = if (log.isNullAt(3)) None else Some(log.getLong(3))
-    val logTitle = log.getString(4)
-    val logComment = log.getString(5)
-    val logParams = log.getString(6)
-    val wikiDb = log.getString(7)
+    // no need to check timestamp validity, only valid timestamps gathered from SQL
+    val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
+    val logUserNum = if (log.isNullAt(3)) 0L else log.getLong(3)
+    val logUser = if (logUserNum <= 0L) None else Some(logUserNum)
+    val logUserText = Option(log.getString(4))
+    val logTitle = log.getString(5)
+    val logComment = log.getString(6)
+    val logParams = log.getString(7)
+    val wikiDb = log.getString(8)
 
     val eventType = logType match {
       case "renameuser" => "rename"
       case "rights" => "altergroups"
       case "block" => "alterblocks"
       case "newusers" => "create"
-    }
-
-    val (logTimestamp, timestampError) = logTimestampUnchecked match {
-      case Some(timestamp) =>(timestamp, None)
-      case None => (new Timestamp(0L), Some("Could not parse timestamp"))
     }
 
     val (oldUserText, newUserText, userTextsError) = eventType match {
@@ -305,13 +302,14 @@ object UserEventBuilder extends Serializable {
     val createdBySystem = createEvent && (logAction == "autocreate")
     val createdByPeer = createEvent && ((logAction == "create2") || (logAction == "byemail"))
 
-    val parsingErrors = groupsError ++ blocksError ++ userTextsError ++ timestampError
+    val parsingErrors = groupsError ++ blocksError ++ userTextsError
 
     new UserEvent(
         wikiDb = wikiDb,
         timestamp = logTimestamp,
         eventType = eventType,
         causedByUserId = logUser,
+        causedByUserText = logUserText,
         oldUserText = oldUserText,
         newUserText = newUserText,
         oldUserGroups = oldUserGroups,

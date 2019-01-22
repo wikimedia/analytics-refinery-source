@@ -12,6 +12,7 @@ object TestPageHistoryHelpers {
     timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
     causedByUserId: Option[Long] = Some(0L),
+    causedByUserText: Option[String] = Some("User"),
     pageId: Option[Long] = None,
     oldTitle: Option[String] = Some("Title"),
     newTitle: Option[String] = Some("Title"),
@@ -34,6 +35,7 @@ object TestPageHistoryHelpers {
           case "time" | "timestamp" => ("timestamp" -> TestHelpers.timestamp(v))
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
+          case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
           case "id" | "pageId" => ("pageId" -> long(v))
           case "oldTitle" => ("oldTitle" -> string(v))
           case "newTitle" => ("newTitle" -> string(v))
@@ -50,6 +52,7 @@ object TestPageHistoryHelpers {
         timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
+        causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
         oldTitle = valueMap.getOrElse("oldTitle", oldTitle).get.asInstanceOf[String],
         newTitle = valueMap.getOrElse("newTitle", newTitle).get.asInstanceOf[String],
@@ -69,6 +72,7 @@ object TestPageHistoryHelpers {
     endTimestamp: Option[Timestamp] = None,
     causedByEventType: Option[String] = Some("test"),
     causedByUserId: Option[Long] = Some(0L),
+    causedByUserText: Option[String] = Some("User"),
     pageId: Option[Long] = Some(1L),
     pageIdArtificial: Option[String] = None,
     titleHistorical: Option[String] = Some("Title"),
@@ -95,6 +99,7 @@ object TestPageHistoryHelpers {
           case "end" | "endTimestamp" => ("endTimestamp" -> timestamp(v))
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
+          case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
           case "id" | "pageId" => ("pageId" -> long(v))
           case "artificial" | "pageIdArtificial" => ("pageIdArtificial" -> string(v))
           case "titleH" => ("titleHistorical" -> string(v))
@@ -118,6 +123,7 @@ object TestPageHistoryHelpers {
         endTimestamp = valueMap.getOrElse("endTimestamp", endTimestamp).asInstanceOf[Option[Timestamp]],
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
+        causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
         pageArtificialId = valueMap.getOrElse("pageIdArtificial", pageIdArtificial).asInstanceOf[Option[String]],
         titleHistorical = titleHistoricalVal,

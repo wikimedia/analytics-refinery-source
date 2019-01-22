@@ -17,7 +17,6 @@ class PageEventBuilder(
                       ) extends Serializable {
 
   import org.apache.spark.sql.Row
-  import java.sql.Timestamp
   import org.wikimedia.analytics.refinery.core.PhpUnserializer
   import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
@@ -57,6 +56,7 @@ class PageEventBuilder(
     *   log_page
     *   log_timestamp
     *   log_user
+    *   log_user_text
     *   log_title
     *   log_params
     *   log_namespace
@@ -70,16 +70,16 @@ class PageEventBuilder(
     */
   def buildMovePageEvent(log: Row): PageEvent = {
     val logType = log.getString(0)
-    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
+    // Only valid timestamps accepted in SQL - no need to check parsing here
+    val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     val logUser = if (log.isNullAt(4)) None else Some(log.getLong(4))
-    val logTitle = log.getString(5)
-    val logParams = log.getString(6)
-    val logNamespace = if (log.isNullAt(7)) Integer.MIN_VALUE else log.getInt(7)
-    val wikiDb = log.getString(8)
-
-    // Handle timestamp possible error
-    val logTimestamp = logTimestampUnchecked.getOrElse(new Timestamp(0L))
-    val timestampError = if (logTimestampUnchecked.isEmpty) Seq("Could not parse timestamp") else Seq.empty[String]
+    val logUserText = Option(log.getString(5))
+    val logTitle = log.getString(6)
+    val logParams = log.getString(7)
+    val logNamespace = if (log.isNullAt(8)) Integer.MIN_VALUE else log.getInt(8)
+    val wikiDb = log.getString(9)
+    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
+    val pageId = if (pageIdNum <= 0L) None else Some(pageIdNum)
 
     // Get old and new titles
     if (logTitle == null || logParams == null)
@@ -91,11 +91,14 @@ class PageEventBuilder(
         newTitle = "",
         newTitlePrefix = "",
         newTitleWithoutPrefix = "",
-        oldNamespace = Integer.MIN_VALUE,
+        oldNamespace = Int.MinValue,
         oldNamespaceIsContent = false,
-        newNamespace = Integer.MIN_VALUE,
+        newNamespace = Int.MinValue,
         newNamespaceIsContent = false,
-        parsingErrors = timestampError ++ Seq("Could not parse old and new titles from null logTitle or logParams")
+        pageId = pageId,
+        causedByUserId = logUser,
+        causedByUserText = logUserText,
+        parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
       )
     else {
       val (oldTitle, newTitle) = getOldAndNewTitles(logTitle, logParams)
@@ -109,11 +112,16 @@ class PageEventBuilder(
         case _ => ("", newTitle)
       }
 
-      val newNamespace = newTitlePrefix match {
-        case "" => 0
+      val (newNamespace: Int, errors: Seq[String]) = newTitlePrefix match {
+        case "" => (0, Seq.empty[String])
         case prefix =>
-          localizedNamespaceMap.getOrElse((wikiDb, prefix),
-            canonicalNamespaceMap.getOrElse((wikiDb, prefix), 0))
+          if (localizedNamespaceMap.contains((wikiDb, prefix))) {
+            (localizedNamespaceMap((wikiDb, prefix)), Seq.empty[String])
+          } else if (canonicalNamespaceMap.contains((wikiDb, prefix))) {
+            (canonicalNamespaceMap((wikiDb, prefix)), Seq.empty[String])
+          } else {
+            (Int.MinValue, Seq(s"Could not find new-namespace value '$prefix' in namespace maps"))
+          }
       }
       new PageEvent(
           wikiDb = wikiDb,
@@ -124,11 +132,13 @@ class PageEventBuilder(
           oldNamespace = logNamespace,
           oldNamespaceIsContent = isContentNamespaceMap((wikiDb, logNamespace)),
           newNamespace = newNamespace,
-          newNamespaceIsContent = isContentNamespaceMap((wikiDb, newNamespace)),
+          newNamespaceIsContent = isContentNamespaceMap.getOrElse((wikiDb, newNamespace), false),
+          pageId = pageId,
           timestamp = logTimestamp,
           eventType = logType,
           causedByUserId = logUser,
-          parsingErrors = timestampError
+          causedByUserText = logUserText,
+          parsingErrors = errors
       )
     }
   }
@@ -141,6 +151,7 @@ class PageEventBuilder(
     *   log_page
     *   log_timestamp
     *   log_user
+    *   log_user_text
     *   log_title
     *   log_params
     *   log_namespace
@@ -153,22 +164,20 @@ class PageEventBuilder(
     * @return The [[PageEvent]] built
     */
   def buildSimplePageEvent(log: Row): PageEvent = {
-    val wikiDb = log.getString(8)
+    val wikiDb = log.getString(9)
 
     // Handle possible title error
-    val title = log.getString(5)
+    val title = log.getString(6)
     val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
 
-    val namespace = if (log.isNullAt(7)) Integer.MIN_VALUE else log.getInt(7)
+    val namespace = if (log.isNullAt(8)) Integer.MIN_VALUE else log.getInt(8)
     val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
-    val logTimestampUnchecked = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
-
-    // Handle possible timestamp error
-    val logTimestamp = logTimestampUnchecked.getOrElse(new Timestamp(0L))
-    val timestampError = if (logTimestampUnchecked.isEmpty) Seq("Could not parse timestamp") else Seq.empty[String]
+    // Only valid timestamps accepted in SQL - no need to check parsing here
+    val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
+    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
 
     new PageEvent(
-      pageId = if (log.isNullAt(2)) None else Some(log.getLong(2)),
+      pageId = if (pageIdNum <= 0L) None else Some(pageIdNum),
       oldTitle = title,
       // in delete and restore events, old title = new title
       newTitle = title,
@@ -181,8 +190,9 @@ class PageEventBuilder(
       timestamp = logTimestamp,
       eventType = log.getString(1),
       causedByUserId = if (log.isNullAt(4)) None else Some(log.getLong(4)),
+      causedByUserText = Option(log.getString(5)),
       wikiDb = wikiDb,
-      parsingErrors = titleError ++ timestampError
+      parsingErrors = titleError
     )
   }
 }

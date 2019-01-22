@@ -21,7 +21,7 @@ class TestDenormalizedRunner
 
   override def beforeEach(): Unit = {
     statsAccumulator = Some(new MapAccumulator[String, Long])
-    denormalizedRunner = new DenormalizedRunner(spark, statsAccumulator, 1)
+    denormalizedRunner = new DenormalizedRunner(spark, statsAccumulator, 1, Seq.empty)
     statsAccumulator.foreach(statsAcc => spark.sparkContext.register(statsAcc))
   }
 

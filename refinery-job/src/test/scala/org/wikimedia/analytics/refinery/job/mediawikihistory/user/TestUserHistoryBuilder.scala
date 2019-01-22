@@ -64,8 +64,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User   1   02"
     )
     val expectedResults = userStateSet()(
-      "start  end   textH id  registration  groupsH  eventType  adminId  inferred",
-      "02     None  User  1   02            ()       create     None     unclosed"
+      "start  end   textH id  registration  groupsH  eventType  adminId  adminText  inferred",
+      "02     None  User  1   02            ()       create     None     None       unclosed"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -77,8 +77,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   01"
     )
     val expectedResults = userStateSet()(
-      "start  end   textH id  registration  eventType  adminId  inferred",
-      "01     None  User  1   01            create     None     unclosed"
+      "start  end   textH id  registration  eventType  adminId  adminText  inferred",
+      "01     None  User  1   01            create     None     None       unclosed"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -95,8 +95,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   01"
     )
     val expectedResults = userStateSet()(
-      "start  end   eventType  textH  id  registration  adminId  inferred",
-      "02     None  create     User  1   02            None     conflict"
+      "start  end   eventType  textH  id  registration  adminId  adminText  inferred",
+      "02     None  create     User   1   02            None     None       conflict"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -234,18 +234,18 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   20010101000001   (flood)"
     )
     val expectedResults = userStateSet(
-      userText = Some("User"), userId = Some(1L), userRegistration = TimestampHelpers.makeMediawikiTimestamp("20010101000001")
+      userText = Some("User"), userId = Some(1L), userRegistration = TimestampHelpers.makeMediawikiTimestampOption("20010101000001")
     )(
-      "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType    adminId  inferred",
-      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       0        None",
-      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  0        None",
-      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  0        None",
-      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None     unblock", // Inserted.
-      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  0        None",
-      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  0        None",
-      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  0        None",    // Explicit.
-      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  0        None",
-      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None     unblock"  // Inserted.
+      "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType    adminId  adminText  inferred",
+      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       0       User       None",
+      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  0       User       None",
+      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  0       User       None",
+      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None    None       unblock", // Inserted.
+      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  0       User       None",
+      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  0       User       None",
+      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  0       User       None",    // Explicit.
+      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  0       User       None",
+      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None    None       unblock"  // Inserted.
     )
     process(events, states) should be (Seq(expectedResults))
   }

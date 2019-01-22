@@ -13,6 +13,7 @@ object TestUserHistoryHelpers {
     timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
     causedByUserId: Option[Long] = Some(0L),
+    causedByUserText: Option[String] = Some("User"),
     oldUserText: Option[String] = Some("User"),
     newUserText: Option[String] = Some("User"),
     oldUserGroups: Option[Seq[String]] = Some(Seq.empty),
@@ -34,6 +35,7 @@ object TestUserHistoryHelpers {
           case "time" | "timestamp" => ("timestamp" -> TestHelpers.timestamp(v))
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
+          case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
           case "oldText" | "oldUserText" => ("oldUserText" -> string(v))
           case "newText" | "newUserText" => ("newUserText" -> string(v))
           case "oldGroups" | "oldUserGroups" => ("oldUserGroups" -> list(v))
@@ -48,6 +50,7 @@ object TestUserHistoryHelpers {
         timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
+        causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         oldUserText = valueMap.getOrElse("oldUserText", oldUserText).get.asInstanceOf[String],
         newUserText = valueMap.getOrElse("newUserText", newUserText).get.asInstanceOf[String],
         oldUserGroups = valueMap.getOrElse("oldUserGroups", oldUserGroups).get.asInstanceOf[Seq[String]],
@@ -66,6 +69,7 @@ object TestUserHistoryHelpers {
                     endTimestamp: Option[Timestamp] = None,
                     causedByEventType: Option[String] = Some(null),
                     causedByUserId: Option[Long] = Some(0L),
+                    causedByUserText: Option[String] = Some("User"),
                     userId: Option[Long] = Some(1L),
                     userTextHistorical: Option[String] = Some("User"),
                     userText: Option[String] = None,
@@ -73,7 +77,7 @@ object TestUserHistoryHelpers {
                     userGroups: Option[Seq[String]] = Some(Seq.empty),
                     userBlocksHistorical: Option[Seq[String]] = Some(Seq.empty),
                     userBlocks: Option[Seq[String]] = Some(Seq.empty),
-                    userRegistration: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestamp("20010115000000"),
+                    userRegistration: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
                     autoCreate: Option[Boolean] = Some(false),
                     causedByBlockExpiration: Option[String] = None,
                     inferredFrom: Option[String] = None
@@ -91,6 +95,7 @@ object TestUserHistoryHelpers {
           case "end" | "endTimestamp" => ("endTimestamp" -> timestamp(v))
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
+          case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
           case "id" | "userId" => ("userId" -> long(v))
           case "textH" | "userTextH" => ("userTextHistorical" -> string(v))
           case "text" | "userText" => ("userText" -> string(v))
@@ -113,6 +118,7 @@ object TestUserHistoryHelpers {
         endTimestamp = valueMap.getOrElse("endTimestamp", endTimestamp).asInstanceOf[Option[Timestamp]],
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
+        causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         userId = valueMap.getOrElse("userId", userId).get.asInstanceOf[Long],
         userTextHistorical = userTextHistoricalVal,
         userText = valueMap.getOrElse("userText", Some(userTextHistoricalVal)).get.asInstanceOf[String],

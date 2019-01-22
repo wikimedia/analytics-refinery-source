@@ -22,7 +22,7 @@ object TestHistoryEventHelpers {
                           wikiDb: Option[String] = Some("testwiki"),
                           eventEntity: String = "revision",
                           eventType: String = "create",
-                          eventTimestamp: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestamp("20010115000000"),
+                          eventTimestamp: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
 
                           eventUserId: Option[Long] = Some(1L),
 

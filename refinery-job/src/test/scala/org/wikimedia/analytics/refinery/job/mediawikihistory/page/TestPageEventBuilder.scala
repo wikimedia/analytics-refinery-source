@@ -1,7 +1,5 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-import java.sql.Timestamp
-
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.TimestampHelpers
@@ -79,7 +77,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
 
   val eventTypeMove = "move"
   val eventActionMove = "move"
-  "parsePageLog" should "work for namespace 0 event" in {
+  "parsePageLog" should "set no page_id of 0" in {
 
     val testRow = Row.fromTuple((
       eventTypeMove,
@@ -87,6 +85,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       0L,
       "20130202200839",
       220966L,
+      "fakeUser",
       "The_Night_Watch",
       "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
       0,
@@ -101,9 +100,79 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 0,
       newNamespaceIsContent = true,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventTypeMove,
-      causedByUserId = Some(220966L)
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("fakeUser"),
+      pageId = None
+    )
+
+    pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
+
+  }
+
+  "parsePageLog" should "set a page_id if greater than 0" in {
+
+    val testRow = Row.fromTuple((
+      eventTypeMove,
+      eventActionMove,
+      1L,
+      "20130202200839",
+      220966L,
+      "fakeUser",
+      "The_Night_Watch",
+      "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
+      0,
+      wikiDb))
+    val expectedEvent = new PageEvent(
+      wikiDb = wikiDb,
+      oldTitle = "The_Night_Watch",
+      newTitle = "The_Nightwatch",
+      newTitlePrefix = "",
+      newTitleWithoutPrefix = "The_Nightwatch",
+      oldNamespace = 0,
+      oldNamespaceIsContent = true,
+      newNamespace = 0,
+      newNamespaceIsContent = true,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
+      eventType = eventTypeMove,
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("fakeUser"),
+      pageId = Some(1L)
+    )
+
+    pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
+
+  }
+
+  "parsePageLog" should "work for namespace 0 event" in {
+
+    val testRow = Row.fromTuple((
+      eventTypeMove,
+      eventActionMove,
+      0L,
+      "20130202200839",
+      220966L,
+      "fakeUser",
+      "The_Night_Watch",
+      "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
+      0,
+      wikiDb))
+    val expectedEvent = new PageEvent(
+      wikiDb = wikiDb,
+      oldTitle = "The_Night_Watch",
+      newTitle = "The_Nightwatch",
+      newTitlePrefix = "",
+      newTitleWithoutPrefix = "The_Nightwatch",
+      oldNamespace = 0,
+      oldNamespaceIsContent = true,
+      newNamespace = 0,
+      newNamespaceIsContent = true,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
+      eventType = eventTypeMove,
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("fakeUser"),
+      pageId = None
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -115,9 +184,10 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      1L,
       "20130202200839",
       220966L,
+      "test_user",
       "test_user",
       "a:2:{s:9:\"4::target\";s:14:\"User:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       0,
@@ -132,9 +202,11 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 1,
       newNamespaceIsContent = false,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventTypeMove,
-      causedByUserId = Some(220966L)
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("test_user"),
+      pageId = Some(1L)
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -150,6 +222,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "20130202200839",
       220966L,
       "test_user",
+      "test_user",
       "a:2:{s:9:\"4::target\";s:24:\"Localized User:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       1,
       wikiDb))
@@ -163,9 +236,46 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = false,
       newNamespace = 1,
       newNamespaceIsContent = false,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventTypeMove,
-      causedByUserId = Some(220966L)
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("test_user"),
+      pageId = None
+    )
+
+    pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
+
+  }
+
+  it should "return an event with error for non-reference namespace event" in {
+
+    val testRow = Row.fromTuple((
+      eventTypeMove,
+      eventActionMove,
+      0L,
+      "20130202200839",
+      220966L,
+      "test_user",
+      "test_user",
+      "a:2:{s:9:\"4::target\";s:25:\"Wrong namespace:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
+      1,
+      wikiDb))
+    val expectedEvent = new PageEvent(
+      wikiDb = wikiDb,
+      oldTitle = "test_user",
+      newTitle = "Wrong_namespace:test_user",
+      newTitlePrefix = "Wrong_namespace",
+      newTitleWithoutPrefix = "test_user",
+      oldNamespace = 1,
+      oldNamespaceIsContent = false,
+      newNamespace = Int.MinValue,
+      newNamespaceIsContent = false,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
+      eventType = eventTypeMove,
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("test_user"),
+      pageId = None,
+      parsingErrors = Seq("Could not find new-namespace value 'Wrong_namespace' in namespace maps")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -177,16 +287,17 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      1L,
       "20130202200839",
       220966L,
+      null,
       null,
       "a:2:{s:9:\"4::target\";s:24:\"Localized User:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       1,
       wikiDb))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventTypeMove,
       oldTitle = "",
       newTitle = "",
@@ -196,6 +307,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = false,
       newNamespace = Integer.MIN_VALUE,
       newNamespaceIsContent = false,
+      causedByUserId = Some(220966L),
+      causedByUserText = None,
+      pageId = Some(1L),
       parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
     )
 
@@ -212,12 +326,13 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "20130202200839",
       220966L,
       "test_user",
+      "test_user",
       null,
       1,
       wikiDb))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventTypeMove,
       oldTitle = "",
       newTitle = "",
@@ -227,6 +342,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = false,
       newNamespace = Integer.MIN_VALUE,
       newNamespaceIsContent = false,
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("test_user"),
+      pageId = None,
       parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
     )
 
@@ -245,6 +363,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       1L,
       "20130202200839",
       220966L,
+      "fakeUser",
       "The_Nightwatch",
       null,
       0,
@@ -260,9 +379,10 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 0,
       newNamespaceIsContent = true,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventActionSimple,
-      causedByUserId = Some(220966L)
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("fakeUser")
     )
 
     pageEventBuilder.buildSimplePageEvent(testRow) should equal(expectedEvent)
@@ -279,6 +399,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       220966L,
       null,
       null,
+      null,
       0,
       wikiDb))
     val expectedEvent = new PageEvent(
@@ -292,43 +413,11 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       oldNamespaceIsContent = true,
       newNamespace = 0,
       newNamespaceIsContent = true,
-      timestamp = TimestampHelpers.makeMediawikiTimestamp("20130202200839").get,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventActionSimple,
       causedByUserId = Some(220966L),
+      causedByUserText = None,
       parsingErrors = Seq("Could not get title from null logTitle")
-    )
-
-    pageEventBuilder.buildSimplePageEvent(testRow) should equal(expectedEvent)
-
-  }
-
-  it should "make a page event with error if incorrect timestamp" in {
-
-    val testRow = Row.fromTuple((
-      eventTypeSimple,
-      eventActionSimple,
-      1L,
-      "201302022008",
-      220966L,
-      "The_Nightwatch",
-      null,
-      0,
-      wikiDb))
-    val expectedEvent = new PageEvent(
-      wikiDb = wikiDb,
-      pageId = Some(1L),
-      oldTitle = "The_Nightwatch",
-      newTitle = "The_Nightwatch",
-      newTitlePrefix = "",
-      newTitleWithoutPrefix = "The_Nightwatch",
-      oldNamespace = 0,
-      oldNamespaceIsContent = true,
-      newNamespace = 0,
-      newNamespaceIsContent = true,
-      timestamp = new Timestamp(0L),
-      eventType = eventActionSimple,
-      causedByUserId = Some(220966L),
-      parsingErrors = Seq("Could not parse timestamp")
     )
 
     pageEventBuilder.buildSimplePageEvent(testRow) should equal(expectedEvent)

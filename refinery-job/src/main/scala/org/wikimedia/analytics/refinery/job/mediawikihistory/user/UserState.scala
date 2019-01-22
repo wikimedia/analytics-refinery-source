@@ -21,6 +21,7 @@ case class UserState(
                       endTimestamp: Option[Timestamp] = None,
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
+                      causedByUserText: Option[String] = None,
                       // Specific fields
                       userId: Long,
                       userTextHistorical: String,
@@ -61,6 +62,7 @@ case class UserState(
       //endTimestamp.orNull,
       causedByEventType,
       causedByUserId.orNull,
+      causedByUserText.orNull,
       causedByBlockExpiration.orNull,
       inferredFrom.orNull
   )
@@ -101,8 +103,9 @@ object UserState {
       //endTimestamp = if (row.isNullAt(15)) None else Some(row.getTimestamp(15)),
       causedByEventType = row.getString(16),
       causedByUserId = if (row.isNullAt(17)) None else Some(row.getLong(17)),
-      causedByBlockExpiration = Option(row.getString(18)),
-      inferredFrom = Option(row.getString(19))
+      causedByUserText = Option(row.getString(18)),
+      causedByBlockExpiration = Option(row.getString(19)),
+      inferredFrom = Option(row.getString(20))
   )
 
   val schema = StructType(
@@ -128,6 +131,7 @@ object UserState {
       //StructField("end_timestamp", TimestampType, nullable = true),
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
+      StructField("caused_by_user_text", StringType, nullable = true),
       StructField("caused_by_block_expiration", StringType, nullable = true),
       StructField("inferred_from", StringType, nullable = true)
     )

@@ -15,10 +15,11 @@ case class PageEvent(
     wikiDb: String,
     timestamp: Timestamp,
     eventType: String,
-    causedByUserId: Option[Long] = None,
+    causedByUserId: Option[Long],
+    causedByUserText: Option[String],
     parsingErrors: Seq[String] = Seq.empty[String],
     // Specific fields
-    pageId: Option[Long] = None,
+    pageId: Option[Long],
     oldTitle: String,
     newTitle: String,
     newTitlePrefix: String,

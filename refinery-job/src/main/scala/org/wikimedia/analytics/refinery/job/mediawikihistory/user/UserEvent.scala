@@ -17,6 +17,7 @@ case class UserEvent(
                       timestamp: Timestamp,
                       eventType: String,
                       causedByUserId: Option[Long],
+                      causedByUserText: Option[String],
                       parsingErrors: Seq[String] = Seq.empty[String],
                       // Specific fields
                       oldUserText: String,

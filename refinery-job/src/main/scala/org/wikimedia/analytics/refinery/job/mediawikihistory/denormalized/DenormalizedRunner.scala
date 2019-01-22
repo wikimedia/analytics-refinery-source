@@ -1,8 +1,8 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.job.mediawikihistory.sql.SQLHelper
 import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.SkewedJoinHelper
 
 /**
   * This class defines the functions for revisions-denormalization process.
@@ -21,7 +21,8 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.SkewedJoinHelper
 class DenormalizedRunner(
                           val spark: SparkSession,
                           val statsAccumulator: Option[MapAccumulator[String, Long]],
-                          val numPartitions: Int
+                          val numPartitions: Int,
+                          val wikiConstraint: Seq[String]
                         ) extends StatsHelper with Serializable {
 
   import org.apache.spark.sql.{SaveMode, Row}
@@ -119,7 +120,7 @@ class DenormalizedRunner(
       val state = UserState.fromRow(r)
       addOptionalStat(s"${state.wikiDb}.$METRIC_INITIAL_USER_STATES", 1)
       state
-    }).cache()
+    })
     filterStates[UserState](
       userStatesToFilter, DenormalizedKeysHelper.userStateKey, METRIC_FILTERED_OUT_USER_STATES
     ).cache()
@@ -134,107 +135,29 @@ class DenormalizedRunner(
         addOptionalStat(s"${state.wikiDb}.$METRIC_INITIAL_PAGE_STATES", 1)
         state
       })
-      .filter(state => {
-        val validId = state.pageId.getOrElse(0L) > 0 && state.pageArtificialId.isEmpty
-        if (!validId) addOptionalStat(s"${state.wikiDb}.$METRIC_WRONG_IDS_PAGE_STATES", 1)
-        validId
-      }).cache()
     filterStates[PageState](
       pageStatesToFilter, DenormalizedKeysHelper.pageStateKey, METRIC_FILTERED_OUT_PAGE_STATES
     ).cache()
   }
 
   def getLiveRevisions(wikiClause: String) = {
-    // TODO: simplify or remove joins as source table imports change
-    // TODO: content model and format are nulled, replace with join to slots if needed
-    // NOTE: rev_comment_id is created by cloud views and sanitized to 0 based on rev_deleted, it can be used to join
-    // NOTE: rev_actor is created by cloud views and sanitized to null based on rev_deleted, it can be used to join
-    // NOTE: It's important to keep coalesce(comment_text, rev_comment) and coalesce(actor_name, rev_user_text)
-    //       in that order as the revision values are not nullified but emptied.
     spark.sql(
       s"""
   SELECT
-    r.wiki_db AS wiki_db,
+    wiki_db,
     rev_timestamp,
-    coalesce(comment_text, rev_comment) AS rev_comment,
+    rev_comment,
     rev_user,
-    coalesce(actor_name, rev_user_text) AS rev_user_text,
+    rev_user_text,
     rev_page,
     rev_id,
     rev_parent_id,
     rev_minor_edit,
     rev_len,
     rev_sha1,
-    null rev_content_model,
-    null rev_content_format
-  FROM (
-    -- This subquery is needed to assign random rev_comment_split and rev_actor_split values
-    -- Random functions are not (yet?) allowed in joining sections.
-    SELECT
-      wiki_db,
-      rev_timestamp,
-      rev_comment,
-      rev_user,
-      rev_user_text,
-      rev_page,
-      rev_id,
-      rev_parent_id,
-      rev_minor_edit,
-      rev_len,
-      rev_sha1,
-      rev_actor,
-      -- assign a random subgroup among the actor splits determined and broadcast above
-      CAST(rand() * getRevActorSplits(wiki_db, rev_actor) AS INT) AS rev_actor_split,
-      rev_comment_id,
-      -- assign a random subgroup among the comment splits determined and broadcast above
-      CAST(rand() * getRevCommentSplits(wiki_db, rev_comment_id) AS INT) AS rev_comment_split
-    FROM revision
-    WHERE TRUE
-      $wikiClause
-  ) r
-
-    LEFT JOIN (
-      SELECT
-        wiki_db,
-        actor_id,
-        actor_name,
-        EXPLODE(getRevActorSplitsList(wiki_db, actor_id)) as actor_split
-      FROM actor
-      WHERE TRUE
-        $wikiClause
-    ) a
-      ON a.wiki_db = r.wiki_db
-        AND a.actor_id = r.rev_actor
-        AND a.actor_split = r.rev_actor_split
-
-    LEFT JOIN (
-      SELECT
-        wiki_db,
-        comment_id,
-        comment_text,
-        EXPLODE(getRevCommentSplitsList(wiki_db, comment_id)) as comment_split
-      FROM comment
-      WHERE TRUE
-        $wikiClause
-    ) c
-      ON c.wiki_db = r.wiki_db
-        AND c.comment_id = r.rev_comment_id
-        AND c.comment_split = r.rev_comment_split
-
-  -- Trick to force using defined number of partitions
-  GROUP BY
-    r.wiki_db,
-    rev_timestamp,
-    coalesce(comment_text, rev_comment),
-    rev_user,
-    coalesce(actor_name, rev_user_text),
-    rev_page,
-    rev_id,
-    rev_parent_id,
-    rev_minor_edit,
-    rev_len,
-    rev_sha1,
-    rev_actor
+    rev_content_model,
+    rev_content_format
+  FROM ${SQLHelper.REVISION_VIEW}
         """)
       .rdd
       .map(row => {
@@ -257,11 +180,11 @@ class DenormalizedRunner(
     spark.sql(
       s"""
   SELECT
-    ar.wiki_db AS wiki_db,
+    wiki_db,
     ar_timestamp,
     ar_comment,
     ar_user,
-    coalesce(actor_name, ar_user_text) AS ar_user_text,
+    ar_user_text,
     ar_page_id,
     ar_title,
     ar_namespace,
@@ -270,69 +193,9 @@ class DenormalizedRunner(
     ar_minor_edit,
     ar_len,
     ar_sha1,
-    null AS ar_content_model,
-    null AS ar_content_format
-  FROM (
-    -- This subquery is needed to compute the randomized ar_actor in the select.
-    -- Random functions are not (yet?) allowed in joining sections.
-    SELECT
-      wiki_db,
-      ar_timestamp,
-      ar_comment,
-      ar_user,
-      ar_user_text,
-      ar_page_id,
-      ar_title,
-      ar_namespace,
-      ar_rev_id,
-      ar_parent_id,
-      ar_minor_edit,
-      ar_len,
-      ar_sha1,
-      ar_actor,
-      -- assign a random subgroup among the actor splits determined and broadcast above
-      CAST(rand() * getArActorSplits(wiki_db, ar_actor) AS INT) AS ar_actor_split
-    FROM archive
-    WHERE TRUE
-      $wikiClause
-  ) ar
-    -- This is needed to prevent archived revisions having
-    -- existing live revisions to cause problem
-    FULL OUTER JOIN revision
-      ON ar.wiki_db = revision.wiki_db
-        AND ar.ar_rev_id = revision.rev_id
-
-    LEFT JOIN (
-      SELECT
-        wiki_db,
-        actor_id,
-        actor_name,
-        EXPLODE(getArActorSplitsList(wiki_db, actor_id)) as actor_split
-      FROM actor
-      WHERE TRUE
-        $wikiClause
-    ) a
-      ON a.wiki_db = ar.wiki_db
-        AND a.actor_id = ar.ar_actor
-        AND a.actor_split = ar.ar_actor_split
-
-  WHERE revision.rev_id IS NULL
-
-  -- Trick to force using defined number of partitions
-  GROUP BY
-    ar.wiki_db,
-    ar_timestamp,
-    ar_comment,
-    ar_user,
-    coalesce(actor_name, ar_user_text),
-    ar_page_id,
-    ar_title,
-    ar_namespace,
-    ar_rev_id,
-    ar_parent_id,
-    ar_minor_edit,
-    ar_len,
-    ar_sha1
+    ar_content_model,
+    ar_content_format
+  FROM ${SQLHelper.ARCHIVE_VIEW}
       """)
       .rdd
       .map(row => {
@@ -342,6 +205,10 @@ class DenormalizedRunner(
       })
   }
 
+
+  /**
+    * Keep only the most recent archived revision if there are multiple sharing the same rev_id
+    */
   def filterArchivedRevisions(archivedRevisionsNotFiltered: RDD[MediawikiEvent]): RDD[MediawikiEvent] = {
     archivedRevisionsNotFiltered.
       keyBy(r => DenormalizedKeysHelper.revisionMediawikiEventKey(r).partitionKey).
@@ -365,21 +232,11 @@ class DenormalizedRunner(
     *  - Union of revisions, users and pages denormalized data
     *  - result output in parquet files
     *
-    * @param wikiConstraint The wiki database names on which to execute the job (empty for all wikis)
-    * @param revisionDataPath The path of the revision data (avro files partitioned by wiki_db)
-    * @param archiveDataPath The paths of the archive data (avro files partitioned by wiki_db)
-    * @param actorDataPath The path of the actor data (avro files partitioned by wiki_db)
-    * @param commentDataPath The paths of the comment data (avro files partitioned by wiki_db)
     * @param userHistoryPath The path of the user states built in UserHistory process
     * @param pageHistoryPath The path of the page states built in PageHistory process (parquet files)
     * @param outputPath The path to output the denormalized history (parquet files)
     */
   def run(
-           wikiConstraint: Seq[String],
-           revisionDataPath: String,
-           archiveDataPath: String,
-           actorDataPath: String,
-           commentDataPath: String,
            userHistoryPath: String,
            pageHistoryPath: String,
            outputPath: String,
@@ -395,77 +252,13 @@ class DenormalizedRunner(
     // Work with 4 times more partitions that expected for file production
     spark.sql("SET spark.sql.shuffle.partitions=" + workPartitions)
 
-    val revisionDf = spark.read.avro(revisionDataPath)
-    revisionDf.createOrReplaceTempView("revision")
-
-    val archiveDf = spark.read.avro(archiveDataPath)
-    archiveDf.createOrReplaceTempView("archive")
-
-    val actorDf = spark.read.avro(actorDataPath)
-    actorDf.createOrReplaceTempView("actor")
-
-    val commentDf = spark.read.avro(commentDataPath)
-    commentDf.createOrReplaceTempView("comment")
-
-    val wikiClause = if (wikiConstraint.isEmpty) ""
-                     else "AND wiki_db IN (" + wikiConstraint.map(w => s"'$w'").mkString(", ") + ")\n"
-
+    val wikiClause = SQLHelper.inClause("wiki_db", wikiConstraint)
 
     val userStates = getUserStates(userHistoryPath, wikiClause)
     val pageStates = getPageStates(pageHistoryPath, wikiClause)
 
-    val splitter = new SkewedJoinHelper(spark)
-
-    // prepare for any skewed joins by splitting up skewed columns
-    val revActorSplits = splitter.splitByWikiDbAndLong("revision", "rev_actor", wikiClause, 4, 3)
-    val revCommentSplits = splitter.splitByWikiDbAndLong("revision", "rev_comment_id", wikiClause, 4, 3)
-    val arActorSplits = splitter.splitByWikiDbAndLong("archive", "ar_actor", wikiClause, 4, 3)
-
-    // register skewed join helper udfs here to separate and protect their scope
-    val revActorSplitsMap = spark.sparkContext.broadcast(revActorSplits)
-    val revCommentSplitsMap = spark.sparkContext.broadcast(revCommentSplits)
-    val arActorSplitsMap = spark.sparkContext.broadcast(arActorSplits)
-
-    spark.udf.register(
-      "getRevActorSplits",
-      (wiki_db: String, actor_id: Long) =>
-          revActorSplitsMap.value.getOrElse((wiki_db, actor_id), 1)
-    )
-    spark.udf.register(
-      "getRevActorSplitsList",
-      (wiki_db: String, actor_id: Long) => {
-        val splitsA = revActorSplitsMap.value.getOrElse((wiki_db, actor_id), 1)
-        (0 until splitsA).toArray
-      }
-    )
-    spark.udf.register(
-      "getRevCommentSplits",
-      (wiki_db: String, comment_id: Long) =>
-          revCommentSplitsMap.value.getOrElse((wiki_db, comment_id), 1)
-    )
-    spark.udf.register(
-      "getRevCommentSplitsList",
-      (wiki_db: String, comment_id: Long) => {
-        val splitsC = revCommentSplitsMap.value.getOrElse((wiki_db, comment_id), 1)
-        (0 until splitsC).toArray
-      }
-    )
-    spark.udf.register(
-      "getArActorSplits",
-      (wiki_db: String, actor_id: Long) =>
-          arActorSplitsMap.value.getOrElse((wiki_db, actor_id), 1)
-    )
-    spark.udf.register(
-      "getArActorSplitsList",
-      (wiki_db: String, actor_id: Long) => {
-        val splitsA1 = arActorSplitsMap.value.getOrElse((wiki_db, actor_id), 1)
-        (0 until splitsA1).toArray
-      }
-    )
-
     val liveRevisions = getLiveRevisions(wikiClause)
     val archivedRevisionsNotFiltered = getArchivedRevisionsNotFiltered(wikiClause)
-
 
     val userMediawikiEvents = userStates.map(userState => {
       addOptionalStat(s"${userState.wikiDb}.$METRIC_INITIAL_USER", 1)

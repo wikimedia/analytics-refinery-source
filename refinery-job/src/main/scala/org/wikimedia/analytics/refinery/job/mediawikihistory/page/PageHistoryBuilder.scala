@@ -104,6 +104,7 @@ class PageHistoryBuilder(
         startTimestamp = Some(event1.timestamp),
         causedByEventType = event1.eventType,
         causedByUserId = event1.causedByUserId,
+        causedByUserText = event1.causedByUserText,
         inferredFrom = None
       )
       status1.copy(
@@ -126,6 +127,7 @@ class PageHistoryBuilder(
           startTimestamp = Some(event1.timestamp),
           causedByEventType = event1.eventType,
           causedByUserId = event1.causedByUserId,
+          causedByUserText = event1.causedByUserText,
           inferredFrom = None
       )
       status1.copy(
@@ -168,6 +170,7 @@ class PageHistoryBuilder(
         startTimestamp = Some(newEvent.timestamp),
         pageCreationTimestamp = Some(newEvent.timestamp),
         causedByUserId = None,
+        causedByUserText = None,
         inferredFrom = Some("delete-conflict")
       )
       (
@@ -188,6 +191,7 @@ class PageHistoryBuilder(
         startTimestamp = Some(event1.timestamp),
         causedByEventType = "delete",
         causedByUserId = event1.causedByUserId,
+        causedByUserText = event1.causedByUserText,
         inferredFrom = None
       )
       val newPotentialState = state.copy(
@@ -234,6 +238,7 @@ class PageHistoryBuilder(
         endTimestamp = Some(event1.timestamp),
         causedByEventType = "delete",
         causedByUserId = event1.causedByUserId,
+        causedByUserText = event1.causedByUserText,
         isDeleted = true
       )
       status1.copy(
@@ -268,6 +273,7 @@ class PageHistoryBuilder(
           startTimestamp = Some(event.timestamp),
           causedByEventType = "restore",
           causedByUserId = event.causedByUserId,
+          causedByUserText = event.causedByUserText,
           inferredFrom = Some("restore-conflict")
         )
       )
@@ -283,7 +289,8 @@ class PageHistoryBuilder(
       val newKnownState = state.copy(
         startTimestamp = Some(event.timestamp),
         causedByEventType = event.eventType,
-        causedByUserId = event.causedByUserId
+        causedByUserId = event.causedByUserId,
+        causedByUserText = event.causedByUserText
       )
       status.copy(
         potentialStates = status.potentialStates - toKey,
@@ -360,7 +367,11 @@ class PageHistoryBuilder(
             (state.startTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime,
               state.endTimestamp.getOrElse(new Timestamp(Long.MaxValue)).getTime))
           val pageCreationTimestamp = sortedStates.head.pageCreationTimestamp
-          sortedStates.map(s => s.copy(pageCreationTimestamp = pageCreationTimestamp))
+          val firstEditTimestamp = sortedStates.head.pageFirstEditTimestamp
+          sortedStates.map(s => s.copy(
+            pageCreationTimestamp = pageCreationTimestamp,
+            pageFirstEditTimestamp = firstEditTimestamp
+          ))
       }
       .toSeq
   }
