@@ -1,3 +1,7 @@
+## v0.0.84
+* Update mediawiki-history comment and actor joins
+* Update mediawiki-history joining to new actor and comment tables
+
 ## v0.0.83
 * Add --ignore_done_flag option to Refine
 * Add wikitech to pageview definition
