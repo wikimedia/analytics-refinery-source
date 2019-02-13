@@ -1,3 +1,8 @@
+## v0.0.85
+* Update big spark job settings following advices from
+  https://towardsdatascience.com/how-does-facebook-tune-apache-spark-for-large-scale-workloads-3238ddda0830
+* Update graphframes to 0.7.0 in refinery-spark
+
 ## v0.0.84
 * Update mediawiki-history comment and actor joins
 * Update mediawiki-history joining to new actor and comment tables
