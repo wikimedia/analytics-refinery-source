@@ -140,6 +140,7 @@ SELECT
   ar_rev_id,
   ar_parent_id,
   ar_minor_edit,
+  ar_deleted,
   ar_len,
   ar_sha1,
   null AS ar_content_model,

@@ -121,21 +121,21 @@ class DenormalizedRevisionsBuilder(
       .map {
         case (_, (r, None)) => // No delete nor max timestamp -- Use event one (should never happen)
           addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_EVENT_TS", 1)
-          r.IsRevisionDeleted(r.eventTimestamp)
+          r.IsRevisionDeletedByPageDeletion(r.eventTimestamp)
         case (_, (r, Some((maxTs, deleteTs)))) =>
           if (deleteTs.isEmpty) { // No delete timestamp -- Use max archived revision one
             addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
-            r.IsRevisionDeleted(maxTs)
+            r.IsRevisionDeletedByPageDeletion(maxTs)
           } else {
             // In case event timestamp is empty, firstBigger will return deleteTs first value
             val foundDeleteTs = firstBigger(r.eventTimestamp.map(_.getTime).getOrElse(-1L), deleteTs.get).map(new Timestamp(_))
             foundDeleteTs match {
               case None => // No delete timestamp -- Use max archived revision one
                 addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_MAX_ARCHIVE_TS", 1)
-                r.IsRevisionDeleted(maxTs)
+                r.IsRevisionDeletedByPageDeletion(maxTs)
               case _ => // Use delete timestamp
                 addOptionalStat(s"${r.wikiDb}.$METRIC_ARCHIVE_DELETE_TS_PAGE_DELETE_TS", 1)
-                r.IsRevisionDeleted(foundDeleteTs)
+                r.IsRevisionDeletedByPageDeletion(foundDeleteTs)
             }
           }
       }

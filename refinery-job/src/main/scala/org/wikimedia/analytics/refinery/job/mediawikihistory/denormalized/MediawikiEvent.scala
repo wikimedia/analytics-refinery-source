@@ -88,18 +88,42 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
 case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revParentId: Option[Long] = None,
                                          revMinorEdit: Option[Boolean] = None,
+                                         revDeletedParts: Option[Seq[String]] = None,
+                                         revDeletedPartsAreSuppressed: Option[Boolean] = None,
                                          revTextBytes: Option[Long] = None,
                                          revTextBytesDiff: Option[Long] = None,
                                          revTextSha1: Option[String] = None,
                                          revContentModel: Option[String] = None,
                                          revContentFormat: Option[String] = None,
-                                         revIsDeleted: Option[Boolean] = None,
-                                         revDeletedTimestamp: Option[Timestamp] = None,
+                                         revIsDeletedByPageDeletion: Option[Boolean] = None,
+                                         revDeletedByPageDeletionTimestamp: Option[Timestamp] = None,
                                          revIsIdentityReverted: Option[Boolean] = None,
                                          revFirstIdentityRevertingRevisionId: Option[Long] = None,
                                          revSecondsToIdentityRevert: Option[Long] = None,
                                          revIsIdentityRevert: Option[Boolean] = None
                                         )
+
+object MediawikiEventRevisionDetails {
+  private val deletionFlags = Seq(
+    (1, "text"),
+    (2, "comment"),
+    (4, "user")
+  )
+
+  def getRevDeletedParts(revDeleted: Int): Seq[String] = {
+    deletionFlags.flatMap { case (flag, hiddenPart) =>
+      if ((revDeleted & flag) == flag) {
+        Seq(hiddenPart)
+      } else {
+        Seq.empty
+      }
+    }
+  }
+
+  def getRevDeletedPartsAreSuppressed(revDeleted: Int): Boolean = {
+    (revDeleted & 8) == 8
+  }
+}
 
 case class MediawikiEvent(
                            wikiDb: String,
@@ -170,13 +194,15 @@ case class MediawikiEvent(
     revisionDetails.revId.orNull,
     revisionDetails.revParentId.orNull,
     revisionDetails.revMinorEdit.orNull,
+    revisionDetails.revDeletedParts.orNull,
+    revisionDetails.revDeletedPartsAreSuppressed.orNull,
     revisionDetails.revTextBytes.orNull,
     revisionDetails.revTextBytesDiff.orNull,
     revisionDetails.revTextSha1.orNull,
     revisionDetails.revContentModel.orNull,
     revisionDetails.revContentFormat.orNull,
-    revisionDetails.revIsDeleted.orNull,
-    revisionDetails.revDeletedTimestamp.map(_.toString).orNull,
+    revisionDetails.revIsDeletedByPageDeletion.orNull,
+    revisionDetails.revDeletedByPageDeletionTimestamp.map(_.toString).orNull,
     //revisionDetails.revDeletedTimestamp.orNull,
     revisionDetails.revIsIdentityReverted.orNull,
     revisionDetails.revFirstIdentityRevertingRevisionId.orNull,
@@ -184,9 +210,12 @@ case class MediawikiEvent(
     revisionDetails.revIsIdentityRevert.orNull
   )
   def textBytesDiff(value: Option[Long]) = this.copy(revisionDetails = this.revisionDetails.copy(revTextBytesDiff = value))
-  def IsRevisionDeleted(deleteTimestamp: Option[Timestamp]) = this.copy(revisionDetails = this.revisionDetails.copy(
-    revIsDeleted = Some(true),
-    revDeletedTimestamp = deleteTimestamp))
+  def IsRevisionDeletedByPageDeletion(deleteTimestamp: Option[Timestamp]) = this.copy(
+    revisionDetails = this.revisionDetails.copy(
+      revIsDeletedByPageDeletion = Some(true),
+      revDeletedByPageDeletionTimestamp = deleteTimestamp
+    )
+  )
   def isIdentityRevert = this.copy(revisionDetails = this.revisionDetails.copy(revIsIdentityRevert = Some(true)))
   def isIdentityReverted(
                           revertingRevisionId: Option[Long],
@@ -275,13 +304,15 @@ object MediawikiEvent {
       StructField("revision_id", LongType, nullable = true),
       StructField("revision_parent_id", LongType, nullable = true),
       StructField("revision_minor_edit", BooleanType, nullable = true),
+      StructField("revision_deleted_parts", ArrayType(StringType, containsNull = true), nullable = true),
+      StructField("revision_deleted_parts_are_suppressed", BooleanType, nullable = true),
       StructField("revision_text_bytes", LongType, nullable = true),
       StructField("revision_text_bytes_diff", LongType, nullable = true),
       StructField("revision_text_sha1", StringType, nullable = true),
       StructField("revision_content_model", StringType, nullable = true),
       StructField("revision_content_format", StringType, nullable = true),
-      StructField("revision_is_deleted", BooleanType, nullable = true),
-      StructField("revision_deleted_timestamp", StringType, nullable = true),
+      StructField("revision_is_deleted_by_page_deletion", BooleanType, nullable = true),
+      StructField("revision_deleted_by_page_deletion_timestamp", StringType, nullable = true),
       //StructField("revision_deleted_timestamp", TimestampType, nullable = true),
       StructField("revision_is_identity_reverted", BooleanType, nullable = true),
       StructField("revision_first_identity_reverting_revision_id", LongType, nullable = true),
@@ -350,17 +381,19 @@ object MediawikiEvent {
         revId = if (row.isNullAt(46)) None else Some(row.getLong(46)),
         revParentId = if (row.isNullAt(47)) None else Some(row.getLong(47)),
         revMinorEdit = if (row.isNullAt(48)) None else Some(row.getBoolean(48)),
-        revTextBytes = if (row.isNullAt(49)) None else Some(row.getLong(49)),
-        revTextBytesDiff = if (row.isNullAt(50)) None else Some(row.getLong(50)),
-        revTextSha1 = Option(row.getString(51)),
-        revContentModel = Option(row.getString(52)),
-        revContentFormat = Option(row.getString(53)),
-        revIsDeleted = if (row.isNullAt(54)) None else Some(row.getBoolean(54)),
-        revDeletedTimestamp = if (row.isNullAt(55)) None else Some(Timestamp.valueOf(row.getString(55))),
-        revIsIdentityReverted = if (row.isNullAt(56)) None else Some(row.getBoolean(56)),
-        revFirstIdentityRevertingRevisionId = if (row.isNullAt(57)) None else Some(row.getLong(57)),
-        revSecondsToIdentityRevert = if (row.isNullAt(58)) None else Some(row.getLong(58)),
-        revIsIdentityRevert = if (row.isNullAt(59)) None else Some(row.getBoolean(59))
+        revDeletedParts = Option(row.getSeq[String](49)),
+        revDeletedPartsAreSuppressed = if (row.isNullAt(50)) None else Some(row.getBoolean(50)),
+        revTextBytes = if (row.isNullAt(51)) None else Some(row.getLong(51)),
+        revTextBytesDiff = if (row.isNullAt(52)) None else Some(row.getLong(52)),
+        revTextSha1 = Option(row.getString(53)),
+        revContentModel = Option(row.getString(54)),
+        revContentFormat = Option(row.getString(55)),
+        revIsDeletedByPageDeletion = if (row.isNullAt(56)) None else Some(row.getBoolean(56)),
+        revDeletedByPageDeletionTimestamp = if (row.isNullAt(57)) None else Some(Timestamp.valueOf(row.getString(57))),
+        revIsIdentityReverted = if (row.isNullAt(58)) None else Some(row.getBoolean(58)),
+        revFirstIdentityRevertingRevisionId = if (row.isNullAt(59)) None else Some(row.getLong(59)),
+        revSecondsToIdentityRevert = if (row.isNullAt(60)) None else Some(row.getLong(60)),
+        revIsIdentityRevert = if (row.isNullAt(61)) None else Some(row.getBoolean(61))
       )
     )
 
@@ -374,6 +407,7 @@ object MediawikiEvent {
           rev_id,
           rev_parent_id,
           rev_minor_edit,
+          rev_deleted,
           rev_len,
           rev_sha1,
           rev_content_model,
@@ -383,6 +417,8 @@ object MediawikiEvent {
   def fromRevisionRow(row: Row): MediawikiEvent = {
     val userIdNum = if (row.isNullAt(3)) 0L else row.getLong(3)
     val userText = row.getString(4)
+    val textBytes = if (row.isNullAt(10)) None else Some(row.getLong(10))
+    val revDeletedFlag = if (row.isNullAt(9)) None else Some(row.getInt(9))
     new MediawikiEvent(
       wikiDb = row.getString(0),
       eventEntity = "revision",
@@ -420,13 +456,17 @@ object MediawikiEvent {
         revId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
         revParentId = if (row.isNullAt(7)) None else Some(row.getLong(7)),
         revMinorEdit = if (row.isNullAt(8)) None else Some(row.getBoolean(8)),
-        revTextBytes = if (row.isNullAt(9)) None else Some(row.getLong(9)),
+        revDeletedParts = revDeletedFlag.map(
+          MediawikiEventRevisionDetails.getRevDeletedParts),
+        revDeletedPartsAreSuppressed = revDeletedFlag.map(
+          MediawikiEventRevisionDetails.getRevDeletedPartsAreSuppressed),
+        revTextBytes = textBytes,
         // Initializing revTextBytesDiff to current textBytes, will be updated later
-        revTextBytesDiff = if (row.isNullAt(9)) None else Some(row.getLong(9)),
-        revTextSha1 = Option(row.getString(10)),
-        revContentModel = Option(row.getString(11)),
-        revContentFormat = Option(row.getString(12)),
-        revIsDeleted = Some(false),
+        revTextBytesDiff = textBytes,
+        revTextSha1 = Option(row.getString(11)),
+        revContentModel = Option(row.getString(12)),
+        revContentFormat = Option(row.getString(13)),
+        revIsDeletedByPageDeletion = Some(false),
         revIsIdentityReverted = Some(false),
         revSecondsToIdentityRevert = None,
         revIsIdentityRevert = Some(false)
@@ -448,6 +488,7 @@ object MediawikiEvent {
           ar_rev_id,
           ar_parent_id,
           ar_minor_edit,
+          ar_deleted,
           ar_len,
           ar_sha1,
           ar_content_model,
@@ -457,6 +498,8 @@ object MediawikiEvent {
   def fromArchiveRow(row: Row): MediawikiEvent = {
     val userIdNum = if (row.isNullAt(3)) 0L else row.getLong(3)
     val userText = row.getString(4)
+    val textBytes = if (row.isNullAt(12)) None else Some(row.getLong(12))
+    val revDeletedFlag = if (row.isNullAt(11)) None else Some(row.getInt(11))
     MediawikiEvent(
       wikiDb = row.getString(0),
       eventEntity = "revision",
@@ -494,13 +537,17 @@ object MediawikiEvent {
         revId = if (row.isNullAt(8)) None else Some(row.getLong(8)),
         revParentId = if (row.isNullAt(9)) None else Some(row.getLong(9)),
         revMinorEdit = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
-        revTextBytes = if (row.isNullAt(11)) None else Some(row.getLong(11)),
+        revDeletedParts = revDeletedFlag.map(
+          MediawikiEventRevisionDetails.getRevDeletedParts),
+        revDeletedPartsAreSuppressed = revDeletedFlag.map(
+          MediawikiEventRevisionDetails.getRevDeletedPartsAreSuppressed),
+        revTextBytes = textBytes,
         // Initializing revTextBytesDiff to current textBytes, will be updated later
-        revTextBytesDiff = if (row.isNullAt(11)) None else Some(row.getLong(11)),
-        revTextSha1 = Option(row.getString(12)),
-        revContentModel = Option(row.getString(13)),
-        revContentFormat = Option(row.getString(14)),
-        revIsDeleted = Option(true),
+        revTextBytesDiff = textBytes,
+        revTextSha1 = Option(row.getString(13)),
+        revContentModel = Option(row.getString(14)),
+        revContentFormat = Option(row.getString(15)),
+        revIsDeletedByPageDeletion = Option(true),
         revIsIdentityReverted = Some(false),
         revSecondsToIdentityRevert = None,
         revIsIdentityRevert = Some(false)
