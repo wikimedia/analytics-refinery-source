@@ -1,0 +1,32 @@
+title: test_event
+$id: /test_event.schema
+$schema: http://json-schema.org/draft-07/schema#
+type: object
+properties:
+  # global event fields
+  $schema:
+    type: string
+    description: The URI identifying the jsonschema for this event.
+  meta:
+    type: object
+    properties:
+      dt:
+        type: string
+        format: date-time
+        maxLength: 26
+        description: the time stamp of the event, in ISO8601 format
+      stream:
+        type: string
+        description: The name of the stream/queue that this event belongs in.
+        minLength: 1
+    required:
+    - dt
+    - stream
+  # event-specific fields
+  test:
+    type: string
+    default: default test value
+
+
+# e.g.
+# {"$schema": "/test/event/0.0.2", "meta": {"stream": "test.event", "id": "12345678-1234-5678-1234-567812345678", "dt": "2019-01-01T00:00:00Z", "domain": "wikimedia.org"}, "test": "specific test value"}

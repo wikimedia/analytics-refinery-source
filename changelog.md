@@ -1,3 +1,6 @@
+## v0.0.86
+* Add jsonschema loader and spark converter classes
+
 ## v0.0.85
 * Update big spark job settings following advices from
   https://towardsdatascience.com/how-does-facebook-tune-apache-spark-for-large-scale-workloads-3238ddda0830

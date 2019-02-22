@@ -1,0 +1,15 @@
+{
+  "title": "Echo",
+  "description": "Logs events related to the generation of notifications via the Echo extension",
+  "properties": {
+    "version": {
+      "type": "string",
+      "required": true,
+      "description": "References the full specifications of the current version of Echo, example: 1.1"
+    },
+    "revisionId": {
+      "type": "integer",
+      "description": "Revision ID of the edit that the event is for"
+    }
+  }
+}
