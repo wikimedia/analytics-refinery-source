@@ -37,6 +37,8 @@ class AllViewsRegisterer(
     namespacesCSVPath: String,
     actorUnprocessedPath: String,
     archiveUnprocessedPath: String,
+    changeTagUnprocessedPath: String,
+    changeTagDefUnprocessedPath: String,
     commentUnprocessedPath: String,
     loggingUnprocessedPath: String,
     pageUnprocessedPath: String,
@@ -53,6 +55,9 @@ class AllViewsRegisterer(
 
     // Warning: using CSV reader for namespace data, not provided readerFormat
     new NamespaceViewRegisterer(spark, wikiClause, "csv").registerNamespacesView(namespacesCSVPath)
+
+    new ChangeTagsViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .registerChangeTagsView(changeTagUnprocessedPath, changeTagDefUnprocessedPath)
 
     new ArchiveViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
       .registerArchiveView(actorUnprocessedPath, archiveUnprocessedPath, revisionUnprocessedPath)

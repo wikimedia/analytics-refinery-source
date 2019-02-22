@@ -48,16 +48,12 @@ class UserViewRegisterer(
     spark.read.format(readerFormat).load(userUnprocessedPath).createOrReplaceTempView(userUnprocessedView)
     spark.read.format(readerFormat).load(userGroupsUnprocessedPath).createOrReplaceTempView(userGroupsUnprocessedView)
 
+    // Register needed UDF
+    SQLHelper.registerDedupListUDF(spark)
+
     // Assert that needed revision view is already registered
     assert(spark.sqlContext.tableNames().contains(SQLHelper.REVISION_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.ARCHIVE_VIEW))
-
-    // UDF deduplicating elements in a list (returns distinct elements)
-    // Needed to deduplicate user groups (in case)
-    spark.udf.register(
-      "dedup_list",
-      (a1: mutable.WrappedArray[String]) => a1.distinct
-    )
 
     spark.sql(s"""
 
@@ -153,7 +149,7 @@ SELECT
   dedup_list(collect_list(ug_group)) as user_groups
 FROM $userGroupsUnprocessedView
   WHERE TRUE
-  $wikiClause
+    $wikiClause
 GROUP BY
   wiki_db,
   ug_user

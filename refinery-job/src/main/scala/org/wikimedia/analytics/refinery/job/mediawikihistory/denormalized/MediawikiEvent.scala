@@ -100,7 +100,8 @@ case class MediawikiEventRevisionDetails(revId: Option[Long] = None,
                                          revIsIdentityReverted: Option[Boolean] = None,
                                          revFirstIdentityRevertingRevisionId: Option[Long] = None,
                                          revSecondsToIdentityRevert: Option[Long] = None,
-                                         revIsIdentityRevert: Option[Boolean] = None
+                                         revIsIdentityRevert: Option[Boolean] = None,
+                                         revTags: Option[Seq[String]] = None
                                         )
 
 object MediawikiEventRevisionDetails {
@@ -207,7 +208,8 @@ case class MediawikiEvent(
     revisionDetails.revIsIdentityReverted.orNull,
     revisionDetails.revFirstIdentityRevertingRevisionId.orNull,
     revisionDetails.revSecondsToIdentityRevert.orNull,
-    revisionDetails.revIsIdentityRevert.orNull
+    revisionDetails.revIsIdentityRevert.orNull,
+    revisionDetails.revTags.orNull
   )
   def textBytesDiff(value: Option[Long]) = this.copy(revisionDetails = this.revisionDetails.copy(revTextBytesDiff = value))
   def IsRevisionDeletedByPageDeletion(deleteTimestamp: Option[Timestamp]) = this.copy(
@@ -317,7 +319,8 @@ object MediawikiEvent {
       StructField("revision_is_identity_reverted", BooleanType, nullable = true),
       StructField("revision_first_identity_reverting_revision_id", LongType, nullable = true),
       StructField("revision_seconds_to_identity_revert", LongType, nullable = true),
-      StructField("revision_is_identity_revert", BooleanType, nullable = true)
+      StructField("revision_is_identity_revert", BooleanType, nullable = true),
+      StructField("revision_tags", ArrayType(StringType, containsNull = true), nullable = true)
     )
   )
 
@@ -393,7 +396,8 @@ object MediawikiEvent {
         revIsIdentityReverted = if (row.isNullAt(58)) None else Some(row.getBoolean(58)),
         revFirstIdentityRevertingRevisionId = if (row.isNullAt(59)) None else Some(row.getLong(59)),
         revSecondsToIdentityRevert = if (row.isNullAt(60)) None else Some(row.getLong(60)),
-        revIsIdentityRevert = if (row.isNullAt(61)) None else Some(row.getBoolean(61))
+        revIsIdentityRevert = if (row.isNullAt(61)) None else Some(row.getBoolean(61)),
+        revTags = Option(row.getSeq[String](62))
       )
     )
 
@@ -411,7 +415,8 @@ object MediawikiEvent {
           rev_len,
           rev_sha1,
           rev_content_model,
-          rev_content_format
+          rev_content_format,
+          rev_tags
      from revision
    */
   def fromRevisionRow(row: Row): MediawikiEvent = {
@@ -469,9 +474,10 @@ object MediawikiEvent {
         revIsDeletedByPageDeletion = Some(false),
         revIsIdentityReverted = Some(false),
         revSecondsToIdentityRevert = None,
-        revIsIdentityRevert = Some(false)
+        revIsIdentityRevert = Some(false),
+        revTags = Option(row.getSeq[String](14))
         // revDeletedTimestamp: NA
-        // revRevertedTimestamp: need self join
+        // revRevertedTimestamp: need self join,
       )
     )
   }
@@ -492,7 +498,8 @@ object MediawikiEvent {
           ar_len,
           ar_sha1,
           ar_content_model,
-          ar_content_format
+          ar_content_format,
+          ar_tags
      from archive
    */
   def fromArchiveRow(row: Row): MediawikiEvent = {
@@ -550,8 +557,10 @@ object MediawikiEvent {
         revIsDeletedByPageDeletion = Option(true),
         revIsIdentityReverted = Some(false),
         revSecondsToIdentityRevert = None,
-        revIsIdentityRevert = Some(false)
+        revIsIdentityRevert = Some(false),
+        revTags = Option(row.getSeq[String](16))
         // revRevertedTimestamp: need self join
+
       )
     )
   }

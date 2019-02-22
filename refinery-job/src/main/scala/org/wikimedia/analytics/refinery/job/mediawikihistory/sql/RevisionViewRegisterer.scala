@@ -34,7 +34,8 @@ class RevisionViewRegisterer(
 
   /**
    * Register the revision view in spark session joining the revision unprocessed table
-   * to the actor and comment ones using broadcast join tricks
+   * to the actor and comment ones using broadcast join tricks. Also join to change_tags
+   * predefined view to get tags.
    */
   def registerRevisionView(
     actorUnprocessedPath : String,
@@ -43,6 +44,9 @@ class RevisionViewRegisterer(
   ): Unit = {
 
     log.info(s"Registering revision view")
+
+    // Assert that needed change_tags view is already registered
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.CHANGE_TAGS_VIEW))
 
     // Register needed unprocessed-views
     spark.read.format(readerFormat).load(actorUnprocessedPath).createOrReplaceTempView(actorUnprocessedView)
@@ -169,7 +173,8 @@ SELECT
   rev_len,
   rev_sha1,
   null rev_content_model,
-  null rev_content_format
+  null rev_content_format,
+  change_tags AS rev_tags
 
 FROM revision_actor_comment_splits r
   LEFT JOIN actor_split a
@@ -177,9 +182,12 @@ FROM revision_actor_comment_splits r
       AND r.rev_actor = a.actor_id
       AND r.rev_actor_split = a.actor_split
   LEFT JOIN comment_split c
-      ON r.wiki_db = c.wiki_db
-        AND r.rev_comment_id = c.comment_id
-        AND r.rev_comment_split = c.comment_split
+    ON r.wiki_db = c.wiki_db
+      AND r.rev_comment_id = c.comment_id
+      AND r.rev_comment_split = c.comment_split
+  LEFT JOIN ${SQLHelper.CHANGE_TAGS_VIEW} ct
+    ON r.wiki_db = ct.wiki_db
+      AND r.rev_id = ct.ct_rev_id
 
     """
     ).repartition(numPartitions).createOrReplaceTempView(SQLHelper.REVISION_VIEW)

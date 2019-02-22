@@ -34,7 +34,9 @@ class ArchiveViewRegisterer(
 
   /**
    * Register the archive view in spark session joining the archive unprocessed table
-   * to the actor one for user resolution using the broadcast join trick
+   * to the actor one for user resolution using the broadcast join trick. Also joins
+   * to change_tag and change_tag_def to get tags, and finally anti-join to revision
+   * to enforce non-duplicated revision_id.
    */
   def registerArchiveView(
     actorUnprocessedPath : String,
@@ -43,6 +45,9 @@ class ArchiveViewRegisterer(
   ): Unit = {
 
     log.info(s"Registering Archive view")
+
+    // Assert that needed change_tags view is already registered
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.CHANGE_TAGS_VIEW))
 
     // Register needed unprocessed-views
     spark.read.format(readerFormat).load(actorUnprocessedPath).createOrReplaceTempView(actorUnprocessedView)
@@ -144,7 +149,8 @@ SELECT
   ar_len,
   ar_sha1,
   null AS ar_content_model,
-  null AS ar_content_format
+  null AS ar_content_format,
+  change_tags AS ar_tags
 
 FROM archive_actor_split ar
   -- This is needed to prevent archived revisions having
@@ -156,6 +162,9 @@ FROM archive_actor_split ar
     ON ar.wiki_db = a.wiki_db
       AND ar.ar_actor = a.actor_id
       AND ar.ar_actor_split = a.actor_split
+  LEFT JOIN ${SQLHelper.CHANGE_TAGS_VIEW} ct
+    ON ar.wiki_db = ct.wiki_db
+      AND ar.ar_rev_id = ct.ct_rev_id
 
     """
     ).repartition(numPartitions).createOrReplaceTempView(SQLHelper.ARCHIVE_VIEW)

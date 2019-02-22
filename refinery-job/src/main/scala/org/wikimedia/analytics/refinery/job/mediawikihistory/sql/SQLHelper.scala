@@ -1,5 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.sql
 
+import org.apache.spark.sql.SparkSession
+
+import scala.collection.mutable
+
 /**
  * Knows how to split up skewed joins by the following process:
  * 1. figure out how many times to split up a skewed join
@@ -12,10 +16,12 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.sql
 object SQLHelper {
 
   val NAMESPACES_VIEW = "project_namespace_map"
+
   val ARCHIVE_VIEW = "archive"
-  val REVISION_VIEW = "revision"
+  val CHANGE_TAGS_VIEW = "change_tags"
   val LOGGING_VIEW = "logging"
   val PAGE_VIEW = "page"
+  val REVISION_VIEW = "revision"
   val USER_VIEW = "user"
 
   /**
@@ -57,6 +63,18 @@ object SQLHelper {
     $columns
   HAVING count(*) > pow(10, $log10ThresholdMagnitude + 1)
         """
+  }
+
+  /**
+   * Function registering the dedup_list UDF to the given spark-context
+   */
+  def registerDedupListUDF(spark: SparkSession): Unit = {
+    // UDF deduplicating elements in a list (returns distinct elements)
+    // Needed to deduplicate user groups (in case)
+    spark.udf.register(
+      "dedup_list",
+      (a1: mutable.WrappedArray[String]) => a1.distinct
+    )
   }
 
 }

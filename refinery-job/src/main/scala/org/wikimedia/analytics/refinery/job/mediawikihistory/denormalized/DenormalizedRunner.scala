@@ -157,7 +157,8 @@ class DenormalizedRunner(
     rev_len,
     rev_sha1,
     rev_content_model,
-    rev_content_format
+    rev_content_format,
+    rev_tags
   FROM ${SQLHelper.REVISION_VIEW}
         """)
       .rdd
@@ -196,7 +197,8 @@ class DenormalizedRunner(
     ar_len,
     ar_sha1,
     ar_content_model,
-    ar_content_format
+    ar_content_format,
+    ar_tags
   FROM ${SQLHelper.ARCHIVE_VIEW}
       """)
       .rdd

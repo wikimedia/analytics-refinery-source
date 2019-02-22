@@ -208,6 +208,8 @@ object MediawikiHistoryRunner {
         val basePrivateDataPath = mediawikiPrivateBasePath + "/tables"
 
         val archiveDataPath = baseDataPath + "/archive" + snapshotPartition
+        val changeTagDataPath = baseDataPath + "/change_tag" + snapshotPartition
+        val changeTagDefDataPath = baseDataPath + "/change_tag_def" + snapshotPartition
         val loggingDataPath = baseDataPath + "/logging" + snapshotPartition
         val pageDataPath = baseDataPath +  "/page" + snapshotPartition
         val revisionDataPath = baseDataPath + "/revision" + snapshotPartition
@@ -313,6 +315,8 @@ object MediawikiHistoryRunner {
           namespacesPath,
           actorPrivateDataPath,
           archiveDataPath,
+          changeTagDataPath,
+          changeTagDefDataPath,
           commentPrivateDataPath,
           loggingDataPath,
           pageDataPath,
