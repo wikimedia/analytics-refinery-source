@@ -92,7 +92,10 @@ class UserHistoryBuilder(
               causedByEventType = "create",
               causedByUserId = None,
               causedByUserText = None,
-              inferredFrom = Some("unclosed")
+              inferredFrom = Some("unclosed"),
+              sourceLogId = Some(event.sourceLogId),
+              sourceLogComment = Some(event.sourceLogComment),
+              sourceLogParams = Some(event.sourceLogParams)
             )
         )
       } else this
@@ -117,7 +120,10 @@ class UserHistoryBuilder(
                   causedByEventType = "create",
                   causedByUserId = None,
                   causedByUserText = None,
-                  inferredFrom = Some("conflict")
+                  inferredFrom = Some("conflict"),
+                  sourceLogId = Some(event.sourceLogId),
+                  sourceLogComment = Some(event.sourceLogComment),
+                  sourceLogParams = Some(event.sourceLogParams)
               )
         )
       } else this
@@ -161,7 +167,10 @@ class UserHistoryBuilder(
                   causedByEventType = event.eventType,
                   causedByUserId = event.causedByUserId,
                   causedByUserText = event.causedByUserText,
-                  causedByBlockExpiration = event.blockExpiration
+                  causedByBlockExpiration = event.blockExpiration,
+                  sourceLogId = Some(event.sourceLogId),
+                  sourceLogComment = Some(event.sourceLogComment),
+                  sourceLogParams = Some(event.sourceLogParams)
               )
         )
       } else {

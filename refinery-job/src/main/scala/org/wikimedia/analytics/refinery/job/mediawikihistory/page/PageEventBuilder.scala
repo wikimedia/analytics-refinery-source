@@ -21,12 +21,6 @@ class PageEventBuilder(
   import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
   /**
-    * Regular expression matching a string that should contain a map of php serialized
-    * values (starting with: a:NUMBER:{...})
-    */
-  val serializedParams = """^(a\:\d+\:\{.*\})$""".r
-
-  /**
     *  Try to extract new title from logParams, normalizes both old and new titles
     *  and return them as a pair of String
     *
@@ -36,17 +30,11 @@ class PageEventBuilder(
     * @return A pair containing (old title, new title)
     */
   def getOldAndNewTitles(logTitle: String,
-                         logParams: String): (String, String) = {
-    val logParamsParsed = logParams match {
-      case serializedParams(logParamsMatched) =>
-        val logParamsMap = PhpUnserializer
-          .unserialize(logParamsMatched)
-          .asInstanceOf[Map[String, Any]]
-        logParamsMap("4::target").asInstanceOf[String]
-      case _ =>
-        logParams
-    }
-    (PageEventBuilder.normalizeTitle(logTitle), PageEventBuilder.normalizeTitle(logParamsParsed))
+                         logParams: Either[Map[String, Any], String]): (String, String) = {
+    (
+      PageEventBuilder.normalizeTitle(logTitle),
+      PageEventBuilder.normalizeTitle(logParams.fold(m => m.getOrElse("4::target", logParams).toString, s => s))
+    )
   }
 
   /**
@@ -61,6 +49,7 @@ class PageEventBuilder(
     *   log_params
     *   log_namespace
     *   wiki_db
+    *   log_id
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is so far use on.ly with move value in this function. See [[buildSimplePageEvent]].
@@ -75,14 +64,17 @@ class PageEventBuilder(
     val logUser = if (log.isNullAt(4)) None else Some(log.getLong(4))
     val logUserText = Option(log.getString(5))
     val logTitle = log.getString(6)
-    val logParams = log.getString(7)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
     val logNamespace = if (log.isNullAt(8)) Integer.MIN_VALUE else log.getInt(8)
     val wikiDb = log.getString(9)
     val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
     val pageId = if (pageIdNum <= 0L) None else Some(pageIdNum)
+    // logId always defined
+    val logId = log.getLong(10)
+    val logComment = log.getString(11)
 
     // Get old and new titles
-    if (logTitle == null || logParams == null)
+    if (logTitle == null || (logParams.isRight && logParams.right.get == null))
       new PageEvent(
         wikiDb = wikiDb,
         timestamp = logTimestamp,
@@ -98,6 +90,9 @@ class PageEventBuilder(
         pageId = pageId,
         causedByUserId = logUser,
         causedByUserText = logUserText,
+        sourceLogId = logId,
+        sourceLogComment = logComment,
+        sourceLogParams = PageEventBuilder.normalizeLogParams(logParams),
         parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
       )
     else {
@@ -138,6 +133,9 @@ class PageEventBuilder(
           eventType = logType,
           causedByUserId = logUser,
           causedByUserText = logUserText,
+          sourceLogId = logId,
+          sourceLogComment = logComment,
+          sourceLogParams = PageEventBuilder.normalizeLogParams(logParams),
           parsingErrors = errors
       )
     }
@@ -155,7 +153,8 @@ class PageEventBuilder(
     *   log_title
     *   log_params
     *   log_namespace
-    *   wiki_db
+    *   wiki_db,
+    *   log_id
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is to be either delete or restore in this function. See [[buildMovePageEvent]]
@@ -175,7 +174,8 @@ class PageEventBuilder(
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
-
+    val eventType = log.getString(1)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
     new PageEvent(
       pageId = if (pageIdNum <= 0L) None else Some(pageIdNum),
       oldTitle = title,
@@ -188,10 +188,13 @@ class PageEventBuilder(
       newNamespace = namespace,
       newNamespaceIsContent = namespaceIsContent,
       timestamp = logTimestamp,
-      eventType = log.getString(1),
+      eventType = eventType,
       causedByUserId = if (log.isNullAt(4)) None else Some(log.getLong(4)),
       causedByUserText = Option(log.getString(5)),
       wikiDb = wikiDb,
+      sourceLogId = log.getLong(10),
+      sourceLogComment = log.getString(11),
+      sourceLogParams = PageEventBuilder.normalizeLogParams(logParams),
       parsingErrors = titleError
     )
   }
@@ -210,5 +213,10 @@ object PageEventBuilder {
     title.trim.replaceAll(" ", "_").stripSuffix("\n1")
   }
 
+  def normalizeLogParams(logParams: Either[Map[String, Any], String]): Map[String, String] =
+    logParams.fold[Map[String,String]](
+      m => m.mapValues(_.toString), // The map with string values if parsed
+      s => if (s != null) Map("unparsed" -> s) else Map.empty
+    )
 
 }

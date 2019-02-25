@@ -27,7 +27,10 @@ case class PageEvent(
     oldNamespace: Int,
     oldNamespaceIsContent: Boolean,
     newNamespace: Int,
-    newNamespaceIsContent: Boolean
+    newNamespaceIsContent: Boolean,
+    sourceLogId: Long,
+    sourceLogComment: String,
+    sourceLogParams: Map[String, String]
 ) extends Edge[(String, String, Int)] {
   override def fromKey: (String, String, Int) = (wikiDb, oldTitle, oldNamespace)
   override def toKey: (String, String, Int) = (wikiDb, newTitleWithoutPrefix, newNamespace)

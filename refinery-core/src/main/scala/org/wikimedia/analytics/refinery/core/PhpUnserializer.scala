@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.core
 
 import scala.annotation.tailrec
+import scala.util.Try
 
 /**
   * This code is a scala adaptation of the Locutus JavaScript Php Unserializer
@@ -88,6 +89,14 @@ object PhpUnserializer extends Serializable {
 
   def unserialize(phpSerialized: String): Any = {
     unserialize(phpSerialized.getBytes("UTF-8"), 0)._3
+  }
+
+  def tryUnserializeMap(phpSerialized: String): Either[Map[String, Any], String] = {
+    Try(Left(
+      PhpUnserializer
+        .unserialize(phpSerialized)
+        .asInstanceOf[Map[String, Any]]
+    )).getOrElse(Right(phpSerialized))
   }
 
 }

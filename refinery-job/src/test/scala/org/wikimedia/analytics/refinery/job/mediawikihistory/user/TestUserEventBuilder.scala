@@ -30,7 +30,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   "getOldAndNewUserTexts" should "parse userTexts from php blob" in {
     getOldAndNewUserTexts(
-        """a:3:{s:10:"4::olduser";s:7:"Claaser";s:10:"5::newuser";s:6:"ClaasA";s:8:"6::edits";i:0;}""",
+        Left(Map("4::olduser" -> "Claaser", "5::newuser" -> "ClaasA", "6::edits" -> 0)),
         "",
         ""
     ) should be ("Claaser", "ClaasA", None)
@@ -38,7 +38,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   it should "parse userTexts from comment" in {
     getOldAndNewUserTexts(
-        "",
+        Right(""),
         """Renamed the user "[[User:Yurik|Yurik]]" to "[[User:YurikBot|YurikBot]]" """,
         ""
     ) should be ("Yurik", "YurikBot", None)
@@ -46,7 +46,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   it should "read userTexts from title and params" in {
     getOldAndNewUserTexts(
-        "New Name", // log_params is not normalized
+        Right("New Name"), // log_params is not normalized
         "",
         "Old_Name" // log_title is normalized
     ) should be ("Old Name", "New Name", None) // result is not normalized
@@ -54,7 +54,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   it should "return error reading from title if null title " in {
     getOldAndNewUserTexts(
-      "",
+      Right(""),
       "",
       null
     ) should be (null, null, Some("Could not get old userText from null logTitle or logParams"))
@@ -62,7 +62,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   it should "return error reading from title if null params " in {
     getOldAndNewUserTexts(
-      null,
+      Right(null),
       "",
       ""
     ) should be (null, null, Some("Could not get old userText from null logTitle or logParams"))
@@ -91,26 +91,26 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   "getOldAndNewUserGroups" should "parse groups from php blob" in {
     getOldAndNewUserGroups(
-      """a:2:{s:12:"4::oldgroups";a:1:{i:0;s:5:"sysop";}s:12:"5::newgroups";a:2:{i:0;s:5:"sysop";i:1;s:5:"flood";}}""",
+      Left(Map("4::oldgroups" -> Map(0 -> "sysop"), "5::newgroups" -> Map(0 ->"sysop", 1 -> "flood"))),
       ""
     ) should be (List("sysop"), List("sysop", "flood"), None)
   }
 
   it should "parse groups from params" in {
     getOldAndNewUserGroups(
-      """flood, sysop
-sysop""", // note the line break
+      Right("""flood, sysop
+sysop"""), // note the line break
       ""
     ) should be (List("flood", "sysop"), List("sysop"), None)
   }
 
   it should "parse groups from comment" in {
-    getOldAndNewUserGroups("", "=sysop,flood") should be (
+    getOldAndNewUserGroups(Right(""), "=sysop,flood") should be (
       List(),
       List("sysop", "flood"),
       None
     )
-    getOldAndNewUserGroups("", "+sysop +flood") should be (
+    getOldAndNewUserGroups(Right(""), "+sysop +flood") should be (
       List(),
       List("sysop", "flood"),
       None
@@ -118,15 +118,15 @@ sysop""", // note the line break
   }
 
   it should "fail when params is invalid" in {
-    getOldAndNewUserGroups("Invalid params", "") should be (
+    getOldAndNewUserGroups(Right("Invalid params"), "") should be (
       List(),
       List(),
-      Some("Could not parse groups from: Invalid params")
+      Some("Could not parse groups from: Right(Invalid params)")
     )
   }
 
   it should "fail when comment is invalid" in {
-    getOldAndNewUserGroups("", "Invalid comment") should be (
+    getOldAndNewUserGroups(Right(""), "Invalid comment") should be (
       List(),
       List(),
       Some("Could not parse groups from: Invalid comment")
@@ -173,31 +173,31 @@ sysop""", // note the line break
 
   "getNewUserBlocksAndBlockExpiration" should "parse info from php blob" in {
     getNewUserBlocksAndBlockExpiration(
-      """a:2:{s:11:"5::duration";s:10:"indefinite";s:8:"6::flags";s:8:"nocreate";}""",
+      Left(Map("5::duration" -> "indefinite", "6::flags" -> "nocreate")),
       "20160101000000"
     ) should be (List("nocreate"), Some("indefinite"), None)
   }
 
   it should "parse info from one-liner params" in {
     getNewUserBlocksAndBlockExpiration(
-      "24 hours",
+      Right("24 hours"),
       "20160101000000"
     ) should be (List(), Some("20160102000000"), None)
   }
 
   it should "parse info from two-liner params" in {
     getNewUserBlocksAndBlockExpiration(
-      """24 hours
-nocreate, noemail""",
+      Right("""24 hours
+nocreate, noemail"""),
       "20160101000000"
     ) should be (List("nocreate", "noemail"), Some("20160102000000"), None)
   }
 
   it should "fail with multi-liner params" in {
     getNewUserBlocksAndBlockExpiration(
-      """invalid
+      Right("""invalid
 multiline
-string""",
+string"""),
       "20160101000000"
     ) should be (List(), None, Some("""Could not parse blocks from: invalid
 multiline
@@ -206,8 +206,8 @@ string"""))
 
   it should "parse timestamp yyyy-MM-ddTHH:mm:ss" in {
     getNewUserBlocksAndBlockExpiration(
-      """2017-01-01T00:00:00
-nocreate""",
+      Right("""2017-01-01T00:00:00
+nocreate"""),
       "20160101000000"
     ) should be (List("nocreate"), Some("20170101000000"), None)
   }
@@ -215,51 +215,51 @@ nocreate""",
   // TODO: Fix timezone execution issue
   it should "parse timestamp yyyy-MM-ddTHH:mm:ssZ" in {
     getNewUserBlocksAndBlockExpiration(
-      """2017-01-01T00:00:00Z
-nocreate""",
+      Right("""2017-01-01T00:00:00Z
+nocreate"""),
       "20160101000000"
     ) should be (List("nocreate"), Some("20170101000000"), None)
   }
 
   it should "parse timestamp E, dd MMM yyyy HH:mm:ss GMT" in {
     getNewUserBlocksAndBlockExpiration(
-      """Sun, 01 Jan 2017 00:00:00 GMT
-nocreate""",
+      Right("""Sun, 01 Jan 2017 00:00:00 GMT
+nocreate"""),
       "20160101000000"
     ) should be (List("nocreate"), Some("20170101000000"), None)
   }
 
   it should "parse timestamp dd MMM yyyy HH:mm:ss GMT" in {
     getNewUserBlocksAndBlockExpiration(
-      """01 Jan 2017 00:00:00 GMT
-nocreate""",
+      Right("""01 Jan 2017 00:00:00 GMT
+nocreate"""),
       "20160101000000"
     ) should be (List("nocreate"), Some("20170101000000"), None)
   }
 
   it should "parse timestamp dd MMM yyyy" in {
     getNewUserBlocksAndBlockExpiration(
-      """01 Jan 2017
-nocreate""",
+      Right("""01 Jan 2017
+nocreate"""),
       "20160101000000"
     ) should be (List("nocreate"), Some("20170101000000"), None)
   }
 
   it should "parse timestamp yyyyMMddHH:mm" in {
     getNewUserBlocksAndBlockExpiration(
-      """21:35
-nocreate""",
+      Right("""21:35
+nocreate"""),
       "20160101000000"
     ) should be (List("nocreate"), Some("20160101213500"), None)
   }
 
   it should "fail invalid timestamp" in {
     getNewUserBlocksAndBlockExpiration(
-      """Invalid timestamp
-nocreate""",
+      Right("""Invalid timestamp
+nocreate"""),
       "20160101000000"
-    ) should be (List(), None, Some("""Could not parse blocks from: Invalid timestamp
-nocreate"""))
+    ) should be (List(), None, Some("""Could not parse blocks from: Right(Invalid timestamp
+nocreate)"""))
   }
 
   "isValidLogTitle" should "fail with ip-like user names" in {
@@ -288,7 +288,8 @@ nocreate"""))
       "OldUserText",
       "Some comment",
       "NewUserText",
-      "testwiki"
+      "testwiki",
+      1L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -299,7 +300,11 @@ nocreate"""))
       oldUserText = "OldUserText",
       newUserText = "NewUserText",
       oldUserGroups = Seq.empty,
-      newUserGroups = Seq.empty
+      newUserGroups = Seq.empty,
+      blockExpiration = None,
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "NewUserText")
     ))
   }
 
@@ -314,7 +319,8 @@ nocreate"""))
       "OldUserText",
       "Some comment",
       "NewUserText",
-      "testwiki"
+      "testwiki",
+      1L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -325,7 +331,11 @@ nocreate"""))
       oldUserText = "OldUserText",
       newUserText = "NewUserText",
       oldUserGroups = Seq.empty,
-      newUserGroups = Seq.empty
+      newUserGroups = Seq.empty,
+      blockExpiration = None,
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "NewUserText")
     ))
   }
 
@@ -338,9 +348,9 @@ nocreate"""))
       "user",
       "UserText",
       "Some comment",
-      """sysop
-sysop,flood""",
-      "testwiki"
+      "sysop\nsysop,flood", // mind the \n
+      "testwiki",
+      1L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -351,7 +361,11 @@ sysop,flood""",
       oldUserText = "UserText",
       newUserText = "UserText",
       oldUserGroups = Seq("sysop"),
-      newUserGroups = Seq("sysop", "flood")
+      newUserGroups = Seq("sysop", "flood"),
+      blockExpiration = None,
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "sysop\nsysop,flood")
     ))
   }
 
@@ -364,9 +378,9 @@ sysop,flood""",
       "user",
       "UserText",
       "Some comment",
-      """indefinite
-nocreate,noemail""",
-      "testwiki"
+      "indefinite\nnocreate,noemail", // mind the \n
+      "testwiki",
+      1L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -379,7 +393,10 @@ nocreate,noemail""",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
       newUserBlocks = Seq("nocreate", "noemail"),
-      blockExpiration = Some("indefinite")
+      blockExpiration = Some("indefinite"),
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "indefinite\nnocreate,noemail")
     ))
   }
 
@@ -393,7 +410,8 @@ nocreate,noemail""",
       "UserText",
       "Some comment",
       "Some params",
-      "testwiki"
+      "testwiki",
+      1L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -405,7 +423,11 @@ nocreate,noemail""",
       newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
-      createdBySystem = true
+      createdBySystem = true,
+      blockExpiration = None,
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "Some params")
     ))
   }
 
@@ -419,7 +441,8 @@ nocreate,noemail""",
       "UserText",
       "Some comment",
       "Some params",
-      "testwiki"
+      "testwiki",
+      1L
     )
 
     buildUserEvent(row) should be (new UserEvent(
@@ -432,7 +455,11 @@ nocreate,noemail""",
       newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
-      createdBySelf = true
+      createdBySelf = true,
+      blockExpiration = None,
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "Some params")
     ))
   }
 
@@ -446,7 +473,8 @@ nocreate,noemail""",
       "UserText",
       "Some comment",
       "Some params",
-      "testwiki"
+      "testwiki",
+      1L
     )
 
     buildUserEvent(row) should be (new UserEvent(
@@ -459,7 +487,11 @@ nocreate,noemail""",
       newUserText = "UserText",
       oldUserGroups = Seq.empty,
       newUserGroups = Seq.empty,
-      createdByPeer = true
+      createdByPeer = true,
+      blockExpiration = None,
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "Some params")
     ))
   }
 
@@ -473,7 +505,8 @@ nocreate,noemail""",
       "UserText",
       "Some comment",
       "Invalid params",
-      "testwiki"
+      "testwiki",
+      2L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -487,7 +520,10 @@ nocreate,noemail""",
       newUserGroups = Seq.empty,
       newUserBlocks = Seq.empty,
       blockExpiration = None,
-      parsingErrors = Seq("Could not parse blocks from: Invalid params")
+      sourceLogId = 2L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "Invalid params"),
+      parsingErrors = Seq("Could not parse blocks from: Right(Invalid params)")
     ))
   }
 
@@ -501,7 +537,8 @@ nocreate,noemail""",
       null,
       "Some comment",
       "Invalid params",
-      "testwiki"
+      "testwiki",
+      1L
     )
     buildUserEvent(row) should be (new UserEvent(
       wikiDb = "testwiki",
@@ -515,7 +552,10 @@ nocreate,noemail""",
       newUserGroups = Seq.empty,
       newUserBlocks = Seq.empty,
       blockExpiration = None,
-      parsingErrors = Seq("Could not parse blocks from: Invalid params",
+      sourceLogId = 1L,
+      sourceLogComment = "Some comment",
+      sourceLogParams = Map("unparsed"-> "Invalid params"),
+      parsingErrors = Seq("Could not parse blocks from: Right(Invalid params)",
         "Could not get userTexts from null logtitle")
     ))
   }

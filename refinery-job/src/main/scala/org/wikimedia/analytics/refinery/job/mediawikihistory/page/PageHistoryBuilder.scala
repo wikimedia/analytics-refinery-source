@@ -78,7 +78,10 @@ class PageHistoryBuilder(
         startTimestamp = Some(newEvent.timestamp),
         pageCreationTimestamp = Some(newEvent.timestamp),
         causedByEventType = "create",
-        inferredFrom = Some("move-conflict")
+        inferredFrom = Some("move-conflict"),
+        sourceLogId = Some(newEvent.sourceLogId),
+        sourceLogComment = Some(newEvent.sourceLogComment),
+        sourceLogParams = Some(newEvent.sourceLogParams)
       )
       (
         status.copy(
@@ -105,7 +108,10 @@ class PageHistoryBuilder(
         causedByEventType = event1.eventType,
         causedByUserId = event1.causedByUserId,
         causedByUserText = event1.causedByUserText,
-        inferredFrom = None
+        inferredFrom = None,
+        sourceLogId = Some(event1.sourceLogId),
+        sourceLogComment = Some(event1.sourceLogComment),
+        sourceLogParams = Some(event1.sourceLogParams)
       )
       status1.copy(
         potentialStates = status1.potentialStates + (event1.fromKey -> newPotentialState),
@@ -128,7 +134,10 @@ class PageHistoryBuilder(
           causedByEventType = event1.eventType,
           causedByUserId = event1.causedByUserId,
           causedByUserText = event1.causedByUserText,
-          inferredFrom = None
+          inferredFrom = None,
+          sourceLogId = Some(event1.sourceLogId),
+          sourceLogComment = Some(event1.sourceLogComment),
+          sourceLogParams = Some(event1.sourceLogParams)
       )
       status1.copy(
         potentialStates = status1.potentialStates - toKey + (event1.fromKey -> newPotentialState),
@@ -171,7 +180,10 @@ class PageHistoryBuilder(
         pageCreationTimestamp = Some(newEvent.timestamp),
         causedByUserId = None,
         causedByUserText = None,
-        inferredFrom = Some("delete-conflict")
+        inferredFrom = Some("delete-conflict"),
+        sourceLogId = Some(newEvent.sourceLogId),
+        sourceLogComment = Some(newEvent.sourceLogComment),
+        sourceLogParams = Some(newEvent.sourceLogParams)
       )
       (
         status.copy(
@@ -192,7 +204,10 @@ class PageHistoryBuilder(
         causedByEventType = "delete",
         causedByUserId = event1.causedByUserId,
         causedByUserText = event1.causedByUserText,
-        inferredFrom = None
+        inferredFrom = None,
+        sourceLogId = Some(event1.sourceLogId),
+        sourceLogComment = Some(event1.sourceLogComment),
+        sourceLogParams = Some(event1.sourceLogParams)
       )
       val newPotentialState = state.copy(
         endTimestamp = Some(event1.timestamp)
@@ -239,7 +254,10 @@ class PageHistoryBuilder(
         causedByEventType = "delete",
         causedByUserId = event1.causedByUserId,
         causedByUserText = event1.causedByUserText,
-        isDeleted = true
+        isDeleted = true,
+        sourceLogId = Some(event1.sourceLogId),
+        sourceLogComment = Some(event1.sourceLogComment),
+        sourceLogParams = Some(event1.sourceLogParams)
       )
       status1.copy(
         potentialStates = status1.potentialStates + (event1.fromKey -> newPotentialCreateState),
@@ -274,7 +292,10 @@ class PageHistoryBuilder(
           causedByEventType = "restore",
           causedByUserId = event.causedByUserId,
           causedByUserText = event.causedByUserText,
-          inferredFrom = Some("restore-conflict")
+          inferredFrom = Some("restore-conflict"),
+          sourceLogId = Some(event.sourceLogId),
+          sourceLogComment = Some(event.sourceLogComment),
+          sourceLogParams = Some(event.sourceLogParams)
         )
       )
     } else if (status.potentialStates.contains(toKey)) {
@@ -290,7 +311,10 @@ class PageHistoryBuilder(
         startTimestamp = Some(event.timestamp),
         causedByEventType = event.eventType,
         causedByUserId = event.causedByUserId,
-        causedByUserText = event.causedByUserText
+        causedByUserText = event.causedByUserText,
+        sourceLogId = Some(event.sourceLogId),
+        sourceLogComment = Some(event.sourceLogComment),
+        sourceLogParams = Some(event.sourceLogParams)
       )
       status.copy(
         potentialStates = status.potentialStates - toKey,
@@ -447,7 +471,10 @@ class PageHistoryBuilder(
     }
     val (fStates: Seq[PageState], unmatchedEvents: Seq[PageEvent]) = {
       if (sortedEvents.isEmpty) {
-        val finalStates = states.map(s => s.copy(startTimestamp = s.pageCreationTimestamp)).toSeq
+        val finalStates = states.map(s => s.copy(
+          startTimestamp = s.pageCreationTimestamp,
+          inferredFrom = Some("unclosed")
+        )).toSeq
         (finalStates, Seq.empty[PageEvent])
       } else {
         val initialStatus = new ProcessingStatus(

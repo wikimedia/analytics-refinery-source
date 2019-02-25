@@ -37,7 +37,10 @@ case class UserState(
                       anonymous: Boolean = false,
                       botByName: Boolean = false,
                       causedByBlockExpiration: Option[String] = None,
-                      inferredFrom: Option[String] = None
+                      inferredFrom: Option[String] = None,
+                      sourceLogId: Option[Long] = None,
+                      sourceLogComment: Option[String] = None,
+                      sourceLogParams: Option[Map[String, String]] = None
 ) extends Vertex[(String, String)] with TimeBoundaries {
 
   def toRow: Row = Row(
@@ -64,7 +67,10 @@ case class UserState(
       causedByUserId.orNull,
       causedByUserText.orNull,
       causedByBlockExpiration.orNull,
-      inferredFrom.orNull
+      inferredFrom.orNull,
+      sourceLogId.orNull,
+      sourceLogComment.orNull,
+      sourceLogParams.orNull
   )
 
   override def key: (String, String) = (wikiDb, userTextHistorical)
@@ -105,7 +111,10 @@ object UserState {
       causedByUserId = if (row.isNullAt(17)) None else Some(row.getLong(17)),
       causedByUserText = Option(row.getString(18)),
       causedByBlockExpiration = Option(row.getString(19)),
-      inferredFrom = Option(row.getString(20))
+      inferredFrom = Option(row.getString(20)),
+      sourceLogId = if (row.isNullAt(21)) None else Some(row.getLong(21)),
+      sourceLogComment = Option(row.getString(22)),
+      sourceLogParams = Option(row.getMap[String, String](23)).map(_.toMap)
   )
 
   val schema = StructType(
@@ -133,7 +142,10 @@ object UserState {
       StructField("caused_by_user_id", LongType, nullable = true),
       StructField("caused_by_user_text", StringType, nullable = true),
       StructField("caused_by_block_expiration", StringType, nullable = true),
-      StructField("inferred_from", StringType, nullable = true)
+      StructField("inferred_from", StringType, nullable = true),
+      StructField("source_log_id", LongType, nullable = true),
+      StructField("source_log_comment", StringType, nullable = true),
+      StructField("source_log_params", MapType(StringType, StringType, valueContainsNull = true), nullable = true)
     )
   )
 }

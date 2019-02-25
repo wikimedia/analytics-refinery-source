@@ -92,7 +92,8 @@ class LoggingViewRegisterer(
     )
 
     spark.sql(
-      // NOTE: Logging table has duplicated rows (same values except for IDS - We deduplicate them)
+      // NOTE: Logging table has duplicated rows (same values except for log_id)
+      //       We deduplicate them using group by taking the minimum log_id
       // NOTE: It's important to keep coalesce(actor_name, log_user_text)
       //       in that order as the revision values are not nullified but emptied
       //       (also applies for actor_user and comment_text).
@@ -100,6 +101,7 @@ class LoggingViewRegisterer(
 WITH distinct_filtered_logging AS (
   SELECT DISTINCT
     wiki_db,
+    MIN(log_id) AS log_id,
     log_type,
     log_action,
     log_timestamp,
@@ -121,6 +123,20 @@ WITH distinct_filtered_logging AS (
     AND SUBSTR(log_timestamp, 0, 4) >= '1990'
     -- Not dropping rows without page-links (can be user-oriented events)
     -- Not dropping rows without user-link
+  GROUP BY
+    wiki_db,
+    log_type,
+    log_action,
+    log_timestamp,
+    log_user,
+    log_user_text,
+    log_page,
+    log_title,
+    log_namespace,
+    log_params,
+    log_comment,
+    log_actor,
+    log_comment_id
 ),
 
 logging_actor_comment_splits AS (
@@ -128,6 +144,7 @@ logging_actor_comment_splits AS (
   -- Random functions are not (yet?) allowed in joining sections.
   SELECT
     wiki_db,
+    log_id,
     log_type,
     log_action,
     log_timestamp,
@@ -172,6 +189,7 @@ comment_split AS (
 
 SELECT
   l.wiki_db as wiki_db,
+  log_id,
   log_type,
   log_action,
   log_timestamp,

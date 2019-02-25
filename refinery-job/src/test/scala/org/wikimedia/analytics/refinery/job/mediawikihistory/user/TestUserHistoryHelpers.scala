@@ -21,6 +21,9 @@ object TestUserHistoryHelpers {
     newUserBlocks: Option[Seq[String]] = Some(Seq.empty),
     blockExpiration: Option[String] = None,
     autoCreate: Option[Boolean] = Some(false),
+    sourceLogId: Option[Long] = Some(0L),
+    sourceLogComment: Option[String] = Some("comment"),
+    sourceLogParams: Option[Map[String, String]] = Some(Map.empty),
     parsingErrors: Seq[String] = Seq.empty
   )(
     headerLine: String,
@@ -43,6 +46,9 @@ object TestUserHistoryHelpers {
           case "newBlocks" | "newUserBlocks" => ("newUserBlocks" -> list(v))
           case "expiration" | "blockExpiration" => ("blockExpiration" -> string(v))
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
+          case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
+          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
       new UserEvent(
@@ -58,6 +64,9 @@ object TestUserHistoryHelpers {
         newUserBlocks = valueMap.getOrElse("newUserBlocks", newUserBlocks).get.asInstanceOf[Seq[String]],
         blockExpiration = valueMap.getOrElse("blockExpiration", blockExpiration).asInstanceOf[Option[String]],
         createdBySystem = valueMap.getOrElse("autoCreate", autoCreate).get.asInstanceOf[Boolean],
+        sourceLogId = valueMap.getOrElse("sourceLogId", sourceLogId).get.asInstanceOf[Long],
+        sourceLogComment = valueMap.getOrElse("sourceLogComment", sourceLogComment).get.asInstanceOf[String],
+        sourceLogParams = valueMap.getOrElse("sourceLogParams", sourceLogParams).get.asInstanceOf[Map[String, String]],
         parsingErrors = parsingErrors
       )
     }
@@ -80,7 +89,11 @@ object TestUserHistoryHelpers {
                     userRegistration: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
                     autoCreate: Option[Boolean] = Some(false),
                     causedByBlockExpiration: Option[String] = None,
-                    inferredFrom: Option[String] = None
+                    inferredFrom: Option[String] = None,
+                    sourceLogId: Option[Long] = Some(0L),
+                    sourceLogComment: Option[String] = Some("comment"),
+                    sourceLogParams: Option[Map[String, String]] = Some(Map.empty)
+
   )(
     headerLine: String,
     stateLines: String*
@@ -107,6 +120,9 @@ object TestUserHistoryHelpers {
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
           case "expiration" | "causedByBlockExpiration" => ("causedByBlockExpiration" -> string(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
+          case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
+          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
       val userTextHistoricalVal = valueMap.getOrElse("userTextHistorical", userTextHistorical).get.asInstanceOf[String]
@@ -129,7 +145,10 @@ object TestUserHistoryHelpers {
         userRegistrationTimestamp = valueMap.getOrElse("userRegistration", userRegistration).asInstanceOf[Option[Timestamp]],
         createdBySystem = valueMap.getOrElse("autoCreate", autoCreate).get.asInstanceOf[Boolean],
         causedByBlockExpiration = valueMap.getOrElse("causedByBlockExpiration", causedByBlockExpiration).asInstanceOf[Option[String]],
-        inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]]
+        inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]],
+        sourceLogId = valueMap.getOrElse("sourceLogId", sourceLogId).asInstanceOf[Option[Long]],
+        sourceLogComment = valueMap.getOrElse("sourceLogComment", sourceLogComment).asInstanceOf[Option[String]],
+        sourceLogParams = valueMap.getOrElse("eventLogParams", sourceLogParams).asInstanceOf[Option[Map[String, String]]]
       )
     }
   }

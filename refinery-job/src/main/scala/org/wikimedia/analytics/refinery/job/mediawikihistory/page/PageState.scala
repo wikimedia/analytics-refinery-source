@@ -36,7 +36,10 @@ case class PageState(
                       isDeleted: Boolean,
                       pageCreationTimestamp: Option[Timestamp] = None,
                       pageFirstEditTimestamp: Option[Timestamp] = None,
-                      inferredFrom: Option[String] = None
+                      inferredFrom: Option[String] = None,
+                      sourceLogId: Option[Long] = None,
+                      sourceLogComment: Option[String] = None,
+                      sourceLogParams: Option[Map[String, String]] = None
 ) extends Vertex[(String, String, Int)] with TimeBoundaries {
 
   def toRow: Row = Row(
@@ -60,7 +63,10 @@ case class PageState(
     causedByEventType,
     causedByUserId.orNull,
     causedByUserText.orNull,
-    inferredFrom.orNull
+    inferredFrom.orNull,
+    sourceLogId.orNull,
+    sourceLogComment.orNull,
+    sourceLogParams.orNull
   )
 
   def key: (String, String, Int) = (wikiDb, titleHistorical, namespaceHistorical)
@@ -98,7 +104,10 @@ object PageState {
     causedByEventType = row.getString(14),
     causedByUserId = if (row.isNullAt(15)) None else Some(row.getLong(15)),
     causedByUserText = Option(row.getString(16)),
-    inferredFrom = Option(row.getString(17))
+    inferredFrom = Option(row.getString(17)),
+    sourceLogId = if (row.isNullAt(18)) None else Some(row.getLong(18)),
+    sourceLogComment = Option(row.getString(19)),
+    sourceLogParams = Option(row.getMap[String, String](20)).map(_.toMap)
   )
 
   val schema = StructType(
@@ -123,7 +132,10 @@ object PageState {
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
       StructField("caused_by_user_text", StringType, nullable = true),
-      StructField("inferred_from", StringType, nullable = true)
+      StructField("inferred_from", StringType, nullable = true),
+      StructField("source_log_id", LongType, nullable = true),
+      StructField("source_log_comment", StringType, nullable = true),
+      StructField("source_log_params", MapType(StringType, StringType, valueContainsNull = true), nullable = true)
     )
   )
 }

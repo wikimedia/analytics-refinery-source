@@ -21,7 +21,10 @@ object TestPageHistoryHelpers {
     oldNamespace: Option[Int] = Some(0),
     oldNamespaceIsContent: Option[Boolean] = Some(true),
     newNamespace: Option[Int] = Some(0),
-    newNamespaceIsContent: Option[Boolean] = Some(true)
+    newNamespaceIsContent: Option[Boolean] = Some(true),
+    sourceLogId: Option[Long] = Some(0L),
+    sourceLogComment: Option[String] = Some("comment"),
+    sourceLogParams: Option[Map[String, String]] = Some(Map.empty)
   )(
     headerLine: String,
     eventLines: String*
@@ -45,6 +48,9 @@ object TestPageHistoryHelpers {
           case "oldNsIC" | "oldNamespaceIsContent" => ("oldNamespaceIsContent" -> boolean(v))
           case "newNs" | "newNamespace" => ("newNamespace" -> int(v))
           case "newNsIC" | "newNamespaceIsContent" => ("newNamespaceIsContent" -> boolean(v))
+          case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
+          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
       new PageEvent(
@@ -61,7 +67,10 @@ object TestPageHistoryHelpers {
         oldNamespace = valueMap.getOrElse("oldNamespace", oldNamespace).get.asInstanceOf[Int],
         oldNamespaceIsContent = valueMap.getOrElse("oldNamespaceIsContent", oldNamespaceIsContent).get.asInstanceOf[Boolean],
         newNamespace = valueMap.getOrElse("newNamespace", newNamespace).get.asInstanceOf[Int],
-        newNamespaceIsContent = valueMap.getOrElse("newNamespaceIsContent", newNamespaceIsContent).get.asInstanceOf[Boolean]
+        newNamespaceIsContent = valueMap.getOrElse("newNamespaceIsContent", newNamespaceIsContent).get.asInstanceOf[Boolean],
+        sourceLogId = valueMap.getOrElse("sourceLogId", sourceLogId).get.asInstanceOf[Long],
+        sourceLogComment = valueMap.getOrElse("sourceLogComment", sourceLogComment).get.asInstanceOf[String],
+        sourceLogParams = valueMap.getOrElse("sourceLogParams", sourceLogParams).get.asInstanceOf[Map[String, String]]
       )
     }
   }
@@ -84,7 +93,10 @@ object TestPageHistoryHelpers {
     pageCreationTimestamp: Option[Timestamp] = None,
     pageFirstEditTimestamp: Option[Timestamp] = None,
     inferredFrom: Option[String] = None,
-    isDeleted: Option[Boolean] = Some(false)
+    isDeleted: Option[Boolean] = Some(false),
+    sourceLogId: Option[Long] = Some(0L),
+    sourceLogComment: Option[String] = Some("comment"),
+    sourceLogParams: Option[Map[String, String]] = Some(Map.empty)
   )(
     headerLine: String,
     stateLines: String*
@@ -112,6 +124,9 @@ object TestPageHistoryHelpers {
           case "firstEdit" | "pageFirstEditTimestamp" => ("pageFirstEditTimestamp" -> timestamp(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
           case "deleted" | "isDeleted" => ("isDeleted" -> boolean(v))
+          case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
+          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
       val titleHistoricalVal = valueMap.getOrElse("titleHistorical", titleHistorical).get.asInstanceOf[String]
@@ -135,7 +150,10 @@ object TestPageHistoryHelpers {
         pageCreationTimestamp = valueMap.getOrElse("pageCreationTimestamp", pageCreationTimestamp).asInstanceOf[Option[Timestamp]],
         pageFirstEditTimestamp = valueMap.getOrElse("pageFirstEditTimestamp", pageFirstEditTimestamp).asInstanceOf[Option[Timestamp]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]],
-        isDeleted = valueMap.getOrElse("isDeleted", isDeleted).get.asInstanceOf[Boolean]
+        isDeleted = valueMap.getOrElse("isDeleted", isDeleted).get.asInstanceOf[Boolean],
+        sourceLogId = valueMap.getOrElse("sourceLogId", sourceLogId).asInstanceOf[Option[Long]],
+        sourceLogComment = valueMap.getOrElse("sourceLogComment", sourceLogComment).asInstanceOf[Option[String]],
+        sourceLogParams = valueMap.getOrElse("sourceLogParams", sourceLogParams).asInstanceOf[Option[Map[String, String]]]
       )
     }
   }

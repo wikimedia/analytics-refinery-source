@@ -22,4 +22,18 @@ class TestPhpUnserializer extends FlatSpec with Matchers {
     })
   }
 
+  it should "correctly parse a Map or not" in {
+
+    val phpStrings: Seq[String] = Seq(
+      """a:2:{s:9:"4::target";s:19:"User:\uD800\uDF37u\uD800\uDF3Ca\uD800\uDF3D";s:10:"5::noredir";s:1:"0";}""",
+      """not_parsable_map """,
+      """a:2:{s:9:"4::target";s:39:"RPR болон DPT –н ойлголт";s:10:"5::noredir";s:1:"0";}""",
+      """s:9:"4::target""""
+    )
+    phpStrings.zipWithIndex.foreach{ case(str, i) => {
+      val mapOrString = PhpUnserializer.tryUnserializeMap(str)
+      mapOrString.isLeft shouldEqual(i % 2 == 0)
+      mapOrString.isRight shouldEqual(i % 2 != 0)
+    }}
+  }
 }

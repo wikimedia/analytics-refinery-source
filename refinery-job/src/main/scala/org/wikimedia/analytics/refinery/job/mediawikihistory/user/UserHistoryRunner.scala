@@ -75,7 +75,8 @@ class UserHistoryRunner(
     log_title,
     log_comment,
     log_params,
-    wiki_db
+    wiki_db,
+    log_id
   FROM ${SQLHelper.LOGGING_VIEW}
   WHERE log_type IN (
     'renameuser',

@@ -20,5 +20,13 @@ object TestHelpers {
     case "Empty" => Some(Seq.empty)
     case csv => Some(csv.filter(!"()".contains(_)).split(",").map(_.trim).filter(_.nonEmpty))
   }
+  def map(v: String): Option[Map[String, String]] = v match {
+    case "None" => None
+    case "Empty" => Some(Map.empty)
+    case sv => Some(sv.split(",").map(kv => {
+      val t = kv.trim.split(":").map(_.trim)
+      t(0) -> t(1)
+    }).toMap)
+  }
 
 }

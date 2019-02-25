@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.core.TimestampHelpers
+import org.wikimedia.analytics.refinery.core.{PhpUnserializer, TimestampHelpers}
 
 class TestPageEventBuilder extends FlatSpec with Matchers {
 
@@ -47,7 +47,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
 
   "getOldAndNewTitles" should "work correctly with php dictionary" in {
     val testLogTitle = "Johannes Chrysostomus Wolfgangus Theophilus Mozart"
-    val testLogParam = "a:2:{s:9:\"4::target\";s:23:\"Wolfgang Amadeus Mozart\";s:10:\"5::noredir\";s:1:\"0\";}"
+    val testLogParam = PhpUnserializer.tryUnserializeMap(
+      "a:2:{s:9:\"4::target\";s:23:\"Wolfgang Amadeus Mozart\";s:10:\"5::noredir\";s:1:\"0\";}"
+    )
 
     val expectedOldTitle = "Johannes_Chrysostomus_Wolfgangus_Theophilus_Mozart"
     val expectedNewTitle = "Wolfgang_Amadeus_Mozart"
@@ -58,7 +60,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
 
   it should "work correctly with a non php dictionary" in {
     val testLogTitle = "test old title"
-    val testLogParam = "test new title"
+    val testLogParam = PhpUnserializer.tryUnserializeMap("test new title")
 
     val expectedOldTitle = "test_old_title"
     val expectedNewTitle = "test_new_title"
@@ -69,7 +71,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
 
   it should "return an event with error in case of null title or params" in {
     an[NullPointerException] should be thrownBy pageEventBuilder
-      .getOldAndNewTitles(null, "")
+      .getOldAndNewTitles(null, PhpUnserializer.tryUnserializeMap(""))
     an[NullPointerException] should be thrownBy pageEventBuilder
       .getOldAndNewTitles("", null)
   }
@@ -89,7 +91,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "The_Night_Watch",
       "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
       0,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       oldTitle = "The_Night_Watch",
@@ -104,14 +108,17 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       eventType = eventTypeMove,
       causedByUserId = Some(220966L),
       causedByUserText = Some("fakeUser"),
-      pageId = None
+      pageId = None,
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "The Nightwatch", "5::noredir" -> "0")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
 
   }
 
-  "parsePageLog" should "set a page_id if greater than 0" in {
+  it should "set a page_id if greater than 0" in {
 
     val testRow = Row.fromTuple((
       eventTypeMove,
@@ -123,7 +130,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "The_Night_Watch",
       "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
       0,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       oldTitle = "The_Night_Watch",
@@ -138,14 +147,17 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       eventType = eventTypeMove,
       causedByUserId = Some(220966L),
       causedByUserText = Some("fakeUser"),
-      pageId = Some(1L)
+      pageId = Some(1L),
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "The Nightwatch", "5::noredir" -> "0")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
 
   }
 
-  "parsePageLog" should "work for namespace 0 event" in {
+  it should "work for namespace 0 event" in {
 
     val testRow = Row.fromTuple((
       eventTypeMove,
@@ -157,7 +169,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "The_Night_Watch",
       "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
       0,
-      wikiDb))
+      wikiDb,
+      2L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       oldTitle = "The_Night_Watch",
@@ -172,7 +186,10 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       eventType = eventTypeMove,
       causedByUserId = Some(220966L),
       causedByUserText = Some("fakeUser"),
-      pageId = None
+      pageId = None,
+      sourceLogId = 2L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "The Nightwatch", "5::noredir" -> "0")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -191,7 +208,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "test_user",
       "a:2:{s:9:\"4::target\";s:14:\"User:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       0,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       oldTitle = "test_user",
@@ -206,7 +225,10 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       eventType = eventTypeMove,
       causedByUserId = Some(220966L),
       causedByUserText = Some("test_user"),
-      pageId = Some(1L)
+      pageId = Some(1L),
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "User:test user", "5::noredir" -> "0")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -225,7 +247,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "test_user",
       "a:2:{s:9:\"4::target\";s:24:\"Localized User:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       1,
-      wikiDb))
+      wikiDb,
+      3L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       oldTitle = "test_user",
@@ -240,7 +264,10 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       eventType = eventTypeMove,
       causedByUserId = Some(220966L),
       causedByUserText = Some("test_user"),
-      pageId = None
+      pageId = None,
+      sourceLogId = 3L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "Localized User:test user", "5::noredir" -> "0")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -259,7 +286,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "test_user",
       "a:2:{s:9:\"4::target\";s:25:\"Wrong namespace:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       1,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       oldTitle = "test_user",
@@ -275,6 +304,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       causedByUserId = Some(220966L),
       causedByUserText = Some("test_user"),
       pageId = None,
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "Wrong namespace:test user", "5::noredir" -> "0"),
       parsingErrors = Seq("Could not find new-namespace value 'Wrong_namespace' in namespace maps")
     )
 
@@ -294,7 +326,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       null,
       "a:2:{s:9:\"4::target\";s:24:\"Localized User:test user\";s:10:\"5::noredir\";s:1:\"0\";}",
       1,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
@@ -310,6 +344,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       causedByUserId = Some(220966L),
       causedByUserText = None,
       pageId = Some(1L),
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "Localized User:test user", "5::noredir" -> "0"),
       parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
     )
 
@@ -329,7 +366,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "test_user",
       null,
       1,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
@@ -345,7 +384,49 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       causedByUserId = Some(220966L),
       causedByUserText = Some("test_user"),
       pageId = None,
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map.empty,
       parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
+    )
+
+    pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
+
+  }
+
+  it should "store the unparsed map parameter in event" in {
+
+    val testRow = Row.fromTuple((
+      eventTypeMove,
+      eventActionMove,
+      0L,
+      "20130202200839",
+      220966L,
+      "test_user",
+      "test_user",
+      "new_user",
+      1,
+      wikiDb,
+      1L,
+      "no-comment"))
+    val expectedEvent = new PageEvent(
+      wikiDb = wikiDb,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
+      eventType = eventTypeMove,
+      oldTitle = "test_user",
+      newTitle = "new_user",
+      newTitlePrefix = "",
+      newTitleWithoutPrefix = "new_user",
+      oldNamespace = 1,
+      oldNamespaceIsContent = false,
+      newNamespace = 0,
+      newNamespaceIsContent = true,
+      causedByUserId = Some(220966L),
+      causedByUserText = Some("test_user"),
+      pageId = None,
+      sourceLogId = 1L,
+      sourceLogComment = "no-comment",
+      sourceLogParams = Map("unparsed" -> "new_user")
     )
 
     pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
@@ -367,7 +448,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       "The_Nightwatch",
       null,
       0,
-      wikiDb))
+      wikiDb,
+      1L,
+      "comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       pageId = Some(1L),
@@ -382,7 +465,10 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
       eventType = eventActionSimple,
       causedByUserId = Some(220966L),
-      causedByUserText = Some("fakeUser")
+      causedByUserText = Some("fakeUser"),
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map.empty
     )
 
     pageEventBuilder.buildSimplePageEvent(testRow) should equal(expectedEvent)
@@ -401,7 +487,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       null,
       null,
       0,
-      wikiDb))
+      wikiDb,
+      1L,
+      "no-comment"))
     val expectedEvent = new PageEvent(
       wikiDb = wikiDb,
       pageId = Some(1L),
@@ -417,6 +505,9 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       eventType = eventActionSimple,
       causedByUserId = Some(220966L),
       causedByUserText = None,
+      sourceLogId = 1L,
+      sourceLogComment = "no-comment",
+      sourceLogParams = Map.empty,
       parsingErrors = Seq("Could not get title from null logTitle")
     )
 

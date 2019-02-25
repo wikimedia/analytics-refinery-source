@@ -111,11 +111,14 @@ class PageHistoryRunner(
     log_title,
     log_params,
     log_namespace,
-    wiki_db
+    wiki_db,
+    log_id,
+    log_comment
   FROM ${SQLHelper.LOGGING_VIEW}
   WHERE ((log_type = 'move')
           OR (log_type = 'delete'
-              AND log_action IN ('delete', 'restore')))
+              AND log_action IN ('delete', 'delete_redir', 'restore')
+          ))
       """)
       .rdd
       .map(row =>

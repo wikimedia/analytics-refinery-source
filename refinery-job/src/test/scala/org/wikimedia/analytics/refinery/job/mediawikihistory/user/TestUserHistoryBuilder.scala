@@ -103,20 +103,20 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
 
   it should "process rename chain properly" in {
     val events = userEventSet()(
-      "time  eventType  oldText  newText",
-      "01    create     Name3    Name3", // Non-historical names!
-      "02    rename     Name1    Name2",
-      "03    rename     Name2    Name3"
+      "logId  time  eventType  oldText  newText",
+      "1      01    create     Name3    Name3", // Non-historical names!
+      "2      02    rename     Name1    Name2",
+      "3      03    rename     Name2    Name3"
     )
     val states = userStateSet()(
       "textH  id  registration",
       "Name3  1   01"
     )
     val expectedResults = userStateSet(userId = Some(1L), userRegistration = Some(new Timestamp(1L)))(
-      "start  end   textH  text eventType",
-      "01     02    Name1  Name3  create",
-      "02     03    Name2  Name3  rename",
-      "03     None  Name3  Name3  rename"
+      "start  end   textH  text eventType  logId",
+      "01     02    Name1  Name3  create   1",
+      "02     03    Name2  Name3  rename   2",
+      "03     None  Name3  Name3  rename   3"
     )
     val actualResults = process(events, states)
     actualResults should be (Seq(expectedResults))

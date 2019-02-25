@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 
-
 /**
   * This object contains utility functions to parse user data
   * from the logging table.
@@ -32,13 +31,12 @@ object UserEventBuilder extends Serializable {
   }
 
   def getOldAndNewUserTexts(
-      logParams: String,
+      logParams: Either[Map[String, Any], String],
       logComment: String,
       logTitle: String
   ): (String, String, Option[String]) = {
     try {
-      val logParamsMap =
-        PhpUnserializer.unserialize(logParams).asInstanceOf[Map[String, Any]]
+      val logParamsMap = logParams.left.get
       (
           logParamsMap("4::olduser").asInstanceOf[String],
           logParamsMap("5::newuser").asInstanceOf[String],
@@ -53,8 +51,8 @@ object UserEventBuilder extends Serializable {
           }
         } catch {
           case _: Throwable =>
-            if ((logTitle != null) && (logParams != null))
-              (logTitle.replaceAll("_", " "), logParams, None)
+            if ((logTitle != null) && logParams.isRight && (logParams.right.get != null))
+              (logTitle.replaceAll("_", " "), logParams.right.get, None)
             else
               (null, null, Some("Could not get old userText from null logTitle or logParams"))
         }
@@ -85,12 +83,11 @@ object UserEventBuilder extends Serializable {
   }
 
   def getOldAndNewUserGroups(
-      logParams: String,
+      logParams: Either[Map[String, Any], String],
       logComment: String
   ): (Seq[String], Seq[String], Option[String]) = {
     try {
-      val paramsMap =
-        PhpUnserializer.unserialize(logParams).asInstanceOf[Map[String, Any]]
+      val paramsMap = logParams.left.get
       def paramToSeq(param: String): Seq[String] = {
         paramsMap(param).asInstanceOf[Map[String, String]].values.toList
       }
@@ -98,8 +95,9 @@ object UserEventBuilder extends Serializable {
     } catch {
       case _: Throwable =>
         try {
-          if (!logParams.contains("\n")) { throw new Exception }
-          val splitParams = logParams.split("\n")
+          val stringParams = logParams.right.get
+          if (!stringParams.contains("\n")) { throw new Exception }
+          val splitParams = stringParams.split("\n")
           if (splitParams.size == 1) {
             (csvToSeq(splitParams(0)), Seq.empty[String], None)
           } else if (splitParams.size == 2) {
@@ -109,8 +107,9 @@ object UserEventBuilder extends Serializable {
           } else { throw new Exception }
         } catch {
           case _: Throwable =>
-            if (logParams != null && logParams != "") {
-              (Seq.empty[String], Seq.empty[String], Some("Could not parse groups from: " + logParams))
+            if ((logParams.isLeft && logParams.left.get != null) ||
+                (logParams.isRight && logParams.right.get != null && logParams.right.get.nonEmpty)) {
+              (Seq.empty[String], Seq.empty[String], Some(s"Could not parse groups from: $logParams"))
             } else if (logComment != null && logComment.startsWith("=")) {
               (Seq.empty[String],
                logComment.replaceAll("=", "").split(",").map(_.trim),
@@ -157,34 +156,34 @@ object UserEventBuilder extends Serializable {
   }
 
   def getNewUserBlocksAndBlockExpiration(
-      logParams: String,
+      logParams: Either[Map[String, Any], String],
       timestamp: String
   ): (Seq[String], Option[String], Option[String]) = {
     val (newUserBlocksStr, blockExpirationStr) = try {
-      val paramsMap =
-        PhpUnserializer.unserialize(logParams).asInstanceOf[Map[String, Any]]
+      val paramsMap = logParams.left.get
       (
           paramsMap("6::flags").asInstanceOf[String],
           paramsMap("5::duration").asInstanceOf[String]
       )
     } catch {
       case _: Throwable =>
-        if (logParams != null) {
-          val eolCount = logParams.count(_ == '\n')
+        val stringParams = logParams.right.get
+        if (stringParams != null) {
+          val eolCount = stringParams.count(_ == '\n')
           if (eolCount == 0) {
-            ("", logParams.trim)
+            ("", stringParams.trim)
           } else if (eolCount == 1) {
-            val splitParams = logParams.split("\n", -1).map(_.trim)
+            val splitParams = stringParams.split("\n", -1).map(_.trim)
             (splitParams(1), splitParams(0))
           } else {
             return (Seq.empty[String],
               None,
-              Some("Could not parse blocks from: " + logParams))
+              Some("Could not parse blocks from: " + stringParams))
           }
         } else {
           return (Seq.empty[String],
             None,
-            Some("Could not parse blocks from: " + logParams))
+            Some("Could not parse blocks from: " + stringParams))
         }
   }
     val newUserBlocks = csvToSeq(newUserBlocksStr)
@@ -263,8 +262,9 @@ object UserEventBuilder extends Serializable {
     val logUserText = Option(log.getString(4))
     val logTitle = log.getString(5)
     val logComment = log.getString(6)
-    val logParams = log.getString(7)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
     val wikiDb = log.getString(8)
+    val logId = log.getLong(9)
 
     val eventType = logType match {
       case "renameuser" => "rename"
@@ -319,6 +319,11 @@ object UserEventBuilder extends Serializable {
         createdBySelf = createdBySelf,
         createdBySystem = createdBySystem,
         createdByPeer = createdByPeer,
+        sourceLogId = logId,
+        sourceLogComment = logComment,
+        sourceLogParams = logParams.fold[Map[String,String]](
+          m => m.mapValues(_.toString), // The map with string values if parsed
+          s => if (s != null) Map("unparsed" -> s) else Map.empty), // A string if not parsed or empty if null
         parsingErrors = parsingErrors.toSeq
     )
   }
