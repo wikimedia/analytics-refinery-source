@@ -173,9 +173,8 @@ object DenormalizedKeysHelper extends Serializable {
   }
 
   /**
-    * Generate a user-centered [[MediawikiEventKey]] for a
-    * given MW Event with using a fake value in place of
-    * user id if invalid (see [[idOrHashNegative]]).
+    * Generate a user-centered [[MediawikiEventKey]] for a given MW Event using a fake
+    * value in place of user_id if invalid (see [[idOrHashNegative]]).
     *
     * @param mwEvent The MW Event to generate key for
     * @return The MW Event key
@@ -192,23 +191,33 @@ object DenormalizedKeysHelper extends Serializable {
     */
 
   /**
-    * Generate the page-centered [[StateKey]] ((wikiDb, pageId, -1), start, end)
-    * (-1 as year) using a fake value in place of page id
-    * if invalid (see [[idOrHashNegative]]).
+    * Generate the page-centered [[StateKey]] ((wikiDb, pageId), start, end)
+    * using a fake value in place of page id if invalid (see [[idOrHashNegative]]).
+    *
+    * Uses pageFirstEditTimestamp as start if:
+    *  - useFirstEditTimestamp flag is set to true
+    *  - startTimestamp equals pageCreationTimestamp (first state of page)
+    *  - Both startTimestamp and pageFirstEditTimestamp are defined
+    *    (otherwise either no known edit, or undefined-start = beginning-of-time)
+    *  -  pageFirstEditTimestamp is before pageCreationTimestamp
     *
     * @param pageState The page state to generate key for
+    * @param useFirstEditTimestamp Whether to possibly use the page first edit as start-timestamp.
     * @return The key for the pageState
     */
-  def pageStateKey(pageState: PageState): StateKey = {
+  def pageStateKey(pageState: PageState, useFirstEditTimestamp: Boolean = false): StateKey = {
     val pageId = DenormalizedKeysHelper.idOrHashNegative(pageState.pageId, pageState)
-    StateKey(PartitionKey(pageState.wikiDb, pageId),
-      pageState.startTimestamp, pageState.endTimestamp)
+    if (useFirstEditTimestamp && (pageState.startTimestamp == pageState.pageCreationTimestamp) &&
+        pageState.pageFirstEditTimestamp.isDefined && pageState.startTimestamp.isDefined &&
+        pageState.pageFirstEditTimestamp.get.before(pageState.startTimestamp.get))
+      StateKey(PartitionKey(pageState.wikiDb, pageId), pageState.pageFirstEditTimestamp, pageState.endTimestamp)
+    else
+      StateKey(PartitionKey(pageState.wikiDb, pageId), pageState.startTimestamp, pageState.endTimestamp)
   }
 
   /**
-    * Generate a page-centered [[MediawikiEventKey]] for a
-    * given MW Event using a fake value in place of page id
-    * if invalid (see [[idOrHashNegative]]).
+    * Generate a page-centered [[MediawikiEventKey]] for a given MW Event using a fake
+    * value in place of page id if invalid (see [[idOrHashNegative]]).
     *
     * @param mwEvent The MW Event to generate key for
     * @return The MW Event key
@@ -225,9 +234,8 @@ object DenormalizedKeysHelper extends Serializable {
     */
 
   /**
-    * Generate a revision-centered [[MediawikiEventKey]] for a
-    * given MW Event with -1 as year using a fake
-    * value in place of revision id if invalid (see [[idOrHashNegative]]).
+    * Generate a revision-centered [[MediawikiEventKey]] for a given MW Event
+    * using a fake value in place of revision_id if invalid (see [[idOrHashNegative]]).
     *
     * @param mwEvent The MW Event to generate key for
     * @return The MW Event key

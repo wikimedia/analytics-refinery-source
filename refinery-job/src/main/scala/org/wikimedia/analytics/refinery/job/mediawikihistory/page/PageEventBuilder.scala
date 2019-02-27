@@ -61,7 +61,6 @@ class PageEventBuilder(
     */
   def buildMovePageEvent(log: Row): PageEvent = {
     val logType = log.getString(0)
-    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     // we check actor_name because that's a non-nullable field so a null value would mean the join failed
@@ -72,7 +71,7 @@ class PageEventBuilder(
     val logParams = PhpUnserializer.tryUnserializeMap(log.getString(8))
     val logNamespace = if (log.isNullAt(9)) Integer.MIN_VALUE else log.getInt(9)
     val wikiDb = log.getString(10)
-    val pageId = if (pageIdNum <= 0L) None else Some(pageIdNum)
+    val pageId = if (log.isNullAt(2)) None else Some(log.getLong(2))
     // logId always defined
     val logId = log.getLong(11)
     val commentText = log.getString(12)
@@ -175,7 +174,6 @@ class PageEventBuilder(
     val logAction = log.getString(1)
     // see [[PageHistoryRunner]] to make SURE this logic stays in sync with what log rows are selected
     val eventType = if (logAction == "delete_redir") logType else logAction
-    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     // we check actor_name because that's a non-nullable field so a null value would mean the join failed
@@ -194,7 +192,7 @@ class PageEventBuilder(
     val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
 
     new PageEvent(
-      pageId = if (pageIdNum <= 0L) None else Some(pageIdNum),
+      pageId = if (log.isNullAt(2)) None else Some(log.getLong(2)),
       oldTitle = title,
       // in delete and restore events, old title = new title
       newTitle = title,

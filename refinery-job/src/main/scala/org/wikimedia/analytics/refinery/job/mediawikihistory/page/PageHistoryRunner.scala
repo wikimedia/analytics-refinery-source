@@ -119,6 +119,8 @@ class PageHistoryRunner(
   WHERE ((log_type = 'move')
           OR (log_type = 'delete'
               AND log_action IN ('delete', 'delete_redir', 'restore')
+          OR (log_type = 'create' AND log_action = 'create')
+          OR (log_type = 'merge' AND log_action = 'merge')
           ))
       """)
       .rdd
@@ -160,8 +162,25 @@ class PageHistoryRunner(
     page_is_redirect,
     page_first_rev_timestamp,
     page_first_rev_user_id,
-    page_first_rev_user_text
+    page_first_rev_user_text,
+    FALSE as is_deleted,
+    'original-live-state' inferred_from
   FROM ${SQLHelper.PAGE_VIEW}
+
+  UNION ALL
+
+  SELECT
+    wiki_db,
+    page_id,
+    page_title,
+    page_namespace,
+    page_is_redirect,
+    page_first_rev_timestamp,
+    page_first_rev_user_id,
+    page_first_rev_user_text,
+    TRUE as is_deleted,
+    'original-deleted-state' inferred_from
+  FROM ${SQLHelper.DELETED_PAGE_VIEW}
       """)
       .rdd
       /* For reference below:
@@ -183,7 +202,7 @@ class PageHistoryRunner(
         new PageState(
           // No need to check for null as they're filtered in view
           pageId = Some(row.getLong(1)),
-          pageCreationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
+          pageCreationTimestamp = None,
           pageFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
           titleHistorical = title,
           title = title,
@@ -191,13 +210,14 @@ class PageHistoryRunner(
           namespaceIsContentHistorical = isContentNamespace,
           namespace = namespace,
           namespaceIsContent = isContentNamespace,
-          isRedirect = Some(row.getBoolean(4)),
-          isDeleted = false,
+          isRedirect = if (row.isNullAt(4)) None else Some(row.getBoolean(4)),
+          isDeleted = row.getBoolean(8),
           startTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
           endTimestamp = None,
           causedByEventType = "create",
           causedByUserId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
           causedByUserText = Option(row.getString(7)),
+          inferredFrom = Option(row.getString(9)),
           wikiDb = wikiDb
         )
       })

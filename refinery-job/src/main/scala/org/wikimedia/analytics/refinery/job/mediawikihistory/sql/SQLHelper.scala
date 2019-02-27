@@ -19,6 +19,7 @@ object SQLHelper {
 
   val ARCHIVE_VIEW = "archive"
   val CHANGE_TAGS_VIEW = "change_tags"
+  val DELETED_PAGE_VIEW = "deleted_page"
   val LOGGING_VIEW = "logging"
   val PAGE_VIEW = "page"
   val REVISION_VIEW = "revision"

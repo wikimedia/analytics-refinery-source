@@ -141,16 +141,16 @@ user_first_revision AS (
 ),
 
 grouped_user_groups AS (
-SELECT
-  wiki_db,
-  ug_user,
-  dedup_list(collect_list(ug_group)) as user_groups
-FROM $userGroupsUnprocessedView
+  SELECT
+    wiki_db,
+    ug_user,
+    dedup_list(collect_list(ug_group)) as user_groups
+  FROM $userGroupsUnprocessedView
   WHERE TRUE
     $wikiClause
-GROUP BY
-  wiki_db,
-  ug_user
+  GROUP BY
+    wiki_db,
+    ug_user
 )
 
 SELECT

@@ -47,6 +47,7 @@ case class PageState(
     pageId.orNull,
     pageArtificialId.orNull,
     pageCreationTimestamp.map(_.toString).orNull,
+    pageFirstEditTimestamp.map(_.toString).orNull,
     //pageCreationTimestamp.orNull,
     titleHistorical,
     title,
@@ -71,6 +72,8 @@ case class PageState(
   )
 
   def key: (String, String, Int) = (wikiDb, titleHistorical, namespaceHistorical)
+  def keyId: (String, Long) = (wikiDb, pageId.get)
+  def hasKeyId: Boolean = pageId.exists(_ > 0)
 }
 
 object PageState {
@@ -89,27 +92,29 @@ object PageState {
     pageId = if (row.isNullAt(1)) None else Some(row.getLong(1)),
     pageArtificialId = Option(row.getString(2)),
     pageCreationTimestamp = if (row.isNullAt(3)) None else Some(Timestamp.valueOf(row.getString(3))),
+    pageFirstEditTimestamp = if (row.isNullAt(4)) None else Some(Timestamp.valueOf(row.getString(4))),
     //pageCreationTimestamp = if (row.isNullAt(3)) None else Some(row.getTimestamp(3)),
-    titleHistorical = row.getString(4),
-    title = row.getString(5),
-    namespaceHistorical = row.getInt(6),
-    namespaceIsContentHistorical = row.getBoolean(7),
-    namespace = row.getInt(8),
-    namespaceIsContent = row.getBoolean(9),
-    isRedirect = if (row.isNullAt(10)) None else Some(row.getBoolean(10)),
-    isDeleted = row.getBoolean(11),
-    startTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
-    //startTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
-    endTimestamp = if (row.isNullAt(13)) None else Some(Timestamp.valueOf(row.getString(13))),
-    //endTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
-    causedByEventType = row.getString(14),
-    causedByUserId = if (row.isNullAt(15)) None else Some(row.getLong(15)),
-    causedByAnonymousUser = if (row.isNullAt(16)) None else Some(row.getBoolean(16)),
-    causedByUserText = Option(row.getString(17)),
-    inferredFrom = Option(row.getString(18)),
-    sourceLogId = if (row.isNullAt(19)) None else Some(row.getLong(19)),
-    sourceLogComment = Option(row.getString(20)),
-    sourceLogParams = Option(row.getMap[String, String](21)).map(_.toMap)
+    //pageFirstEditTimestamp = if (row.isNullAt(4)) None else Some(row.getTimestamp(4)),
+    titleHistorical = row.getString(5),
+    title = row.getString(6),
+    namespaceHistorical = row.getInt(7),
+    namespaceIsContentHistorical = row.getBoolean(8),
+    namespace = row.getInt(9),
+    namespaceIsContent = row.getBoolean(10),
+    isRedirect = if (row.isNullAt(11)) None else Some(row.getBoolean(11)),
+    isDeleted = row.getBoolean(12),
+    startTimestamp = if (row.isNullAt(13)) None else Some(Timestamp.valueOf(row.getString(13))),
+    //startTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
+    endTimestamp = if (row.isNullAt(14)) None else Some(Timestamp.valueOf(row.getString(14))),
+    //endTimestamp = if (row.isNullAt(14)) None else Some(row.getTimestamp(14)),
+    causedByEventType = row.getString(15),
+    causedByUserId = if (row.isNullAt(16)) None else Some(row.getLong(16)),
+    causedByAnonymousUser = if (row.isNullAt(17)) None else Some(row.getBoolean(17)),
+    causedByUserText = Option(row.getString(18)),
+    inferredFrom = Option(row.getString(19)),
+    sourceLogId = if (row.isNullAt(20)) None else Some(row.getLong(20)),
+    sourceLogComment = Option(row.getString(21)),
+    sourceLogParams = Option(row.getMap[String, String](22)).map(_.toMap)
   )
 
   val schema = StructType(
@@ -119,6 +124,8 @@ object PageState {
       StructField("page_artificial_id", StringType, nullable = true),
       StructField("page_creation_timestamp", StringType, nullable = true),
       //StructField("page_creation_timestamp", TimestampType, nullable = true),
+      StructField("page_first_edit_timestamp", StringType, nullable = true),
+      //StructField("page_first_edit_timestamp", TimestampType, nullable = true),
       StructField("page_title_historical", StringType, nullable = false),
       StructField("page_title", StringType, nullable = false),
       StructField("page_namespace_historical", IntegerType, nullable = false),

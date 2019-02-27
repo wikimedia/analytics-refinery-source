@@ -125,6 +125,15 @@ actor_split AS (
   FROM $actorUnprocessedView
   WHERE TRUE
     $wikiClause
+),
+
+revision_reduced AS (
+  SELECT
+    wiki_db,
+    rev_id
+  FROM $revisionUnprocessedView
+  WHERE TRUE
+    $wikiClause
 )
 
 SELECT
@@ -150,7 +159,7 @@ SELECT
 FROM archive_actor_split ar
   -- This is needed to prevent archived revisions having
   -- existing live revisions to cause problem
-  LEFT ANTI JOIN $revisionUnprocessedView rev
+  LEFT ANTI JOIN revision_reduced rev
     ON ar.wiki_db = rev.wiki_db
       AND ar.ar_rev_id = rev.rev_id
   LEFT JOIN actor_split a

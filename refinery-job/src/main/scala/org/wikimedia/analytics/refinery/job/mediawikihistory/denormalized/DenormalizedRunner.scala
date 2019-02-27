@@ -122,7 +122,6 @@ class DenormalizedRunner(
     })
     filterStates[UserState](
       userStatesToFilter,
-      // Use userCreation as first event start timestamp
       DenormalizedKeysHelper.userStateKey,
       METRIC_FILTERED_OUT_USER_STATES
     ).cache()
@@ -138,7 +137,12 @@ class DenormalizedRunner(
         state
       })
     filterStates[PageState](
-      pageStatesToFilter, DenormalizedKeysHelper.pageStateKey, METRIC_FILTERED_OUT_PAGE_STATES
+      pageStatesToFilter,
+      // We use the regular pageCreationTimestamp as start-timestamp of each page first event
+      // as the filtering stage is NOT about the link between page and revision, but about
+      // page information correctness
+      s => DenormalizedKeysHelper.pageStateKey(s, useFirstEditTimestamp = false),
+      METRIC_FILTERED_OUT_PAGE_STATES
     ).cache()
   }
 
@@ -176,7 +180,7 @@ class DenormalizedRunner(
     spark.sql(
       s"""
   SELECT
-    wiki_db,
+    a.wiki_db,
     ar_timestamp,
     comment_text,
     actor_user,
@@ -185,6 +189,8 @@ class DenormalizedRunner(
     ar_page_id,
     ar_title,
     ar_namespace,
+    -- Default to non-content namespace
+    CASE WHEN n.is_content IS NULL THEN NULL ELSE n.is_content == 1 END as ar_namespace_is_content,
     ar_rev_id,
     ar_parent_id,
     ar_minor_edit,
@@ -194,7 +200,10 @@ class DenormalizedRunner(
     ar_content_model,
     ar_content_format,
     ar_tags
-  FROM ${SQLHelper.ARCHIVE_VIEW}
+  FROM ${SQLHelper.ARCHIVE_VIEW} a
+    LEFT JOIN ${SQLHelper.NAMESPACES_VIEW} n
+      ON a.wiki_db = n.wiki_db
+        AND a.ar_namespace = n.namespace
       """)
       .rdd
       .map(row => {
@@ -281,15 +290,20 @@ class DenormalizedRunner(
     // Partitioned-sorted user and page states for future zipping
     val sortedUserStates = userStates
       .map(userState => {
-        // sortedUserStates is to be joined to revisions (and more), we use the user
-        // firstEditTimestamp as starting-point for the join.
         val userStateKey = DenormalizedKeysHelper.userStateKey(userState)
         (userStateKey, userState)
       })
       .repartitionAndSortWithinPartitions(statePartitioner)
       .cache()
     val sortedPageStates = pageStates
-      .map(pageState => (DenormalizedKeysHelper.pageStateKey(pageState),  pageState))
+      .map(pageState => {
+        // We use the firstRevisionTimestamp as start-timestamp of each page first event
+        // if it's before the pageCreationTimestamp, as sortedPageStates data is to link
+        // revisions to pages, and we want this link to happen for revisions having been
+        // imported into page and having timestamps before page creation (yes, this happens)
+        val pageStateKey = DenormalizedKeysHelper.pageStateKey(pageState, useFirstEditTimestamp = true)
+        (pageStateKey,  pageState)
+      })
       .repartitionAndSortWithinPartitions(statePartitioner)
 
     // user and page iterate functions setup
