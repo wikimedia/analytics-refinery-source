@@ -7,7 +7,6 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
-
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 
 import scala.util.matching.Regex
@@ -29,9 +28,22 @@ import scala.util.{Failure, Success, Try}
   * has an output path.  As such, this probably shouldn't be used for aggregation
   * type jobs, where multiple inputs are mapped to one output.
   *
-  * @param fs                   Hadoop FileSystem
+  * @param spark                SparkSession
   * @param inputPath            Full input partition path
   * @param partition            HivePartition
+  * @param schemaLoader         A SparkSchemaLoader that knows what the schema of this RefineTarget
+  *                             is.  The default is to not provide an explicit schema, which
+  *                             will rely on the spark DataFrameReader to infer the schema
+  *                             from the inputPath data.  This works well if the data is
+  *                             e.g. Parquet, but only semi-well if the data is JSON.
+  *                             You should provide an implemented SparkSchemaLoader
+  *                             for JSON data whenever you can.  The schemaLoader
+  *                             is only used when you call inputDataFrame, so if you
+  *                             only use this class to find targets (but not read them),
+  *                             you can omit providing this.
+  * @param inputFormatOpt       If given, this will be used as the input format when reading data.
+  *                             Should be one of "text", "json" "json_sequence" or "parquet".
+  *                             If not given, the input format will be inferred from the data.
   * @param doneFlag             Name of file that should be written upon success of
   *                             the refine job.  This can be created by calling
   *                             the writeDoneFlag method.
@@ -40,12 +52,25 @@ import scala.util.{Failure, Success, Try}
   *
   */
 case class RefineTarget(
-    fs: FileSystem,
+    spark: SparkSession,
     inputPath: Path,
     partition: HivePartition,
+    schemaLoader: SparkSchemaLoader = ExplicitSchemaLoader(None),
+    inputFormatOpt: Option[String] = None,
     doneFlag: String    = "_REFINED",
     failureFlag: String = "_REFINE_FAILED"
 ) extends LogHelper {
+    /**
+      * The FileSystem that Spark is operating in
+      */
+    val fs: FileSystem = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+
+    /**
+      * The value of inputFormatOpt if provided, else the value returned by inferInputFormat
+      */
+    lazy val inputFormat: String = inputFormatOpt.getOrElse(inferInputFormat)
+
+
     /**
       * Easy access to the fully qualified Hive table name.
       */
@@ -183,9 +208,8 @@ case class RefineTarget(
       * @return
       */
     def doneFlagMTime(): Option[DateTime] = {
-        if (doneFlagExists()) {
+        if (doneFlagExists())
             Some(readMTimeFromFile(doneFlagPath))
-        }
         else
             None
     }
@@ -196,9 +220,8 @@ case class RefineTarget(
       * @return
       */
     def failureFlagMTime(): Option[DateTime] = {
-        if (failureFlagExists()) {
+        if (failureFlagExists())
             Some(readMTimeFromFile(failureFlagPath))
-        }
         else
             None
     }
@@ -246,6 +269,7 @@ case class RefineTarget(
         true
     }
 
+
     /**
       * Given a RefineTarget, and option whitelist regex and blacklist regex,
       * this returns true if the RefineTarget should be refined, based on regex matching and
@@ -263,8 +287,6 @@ case class RefineTarget(
         ignoreFailureFlag  : Boolean = false,
         ignoreDoneFlag     : Boolean = false
     ): Boolean = {
-
-
         // Filter for targets that will refine to tables that match the whitelist
         if (tableWhitelistRegex.isDefined &&
             !RefineTarget.regexMatches(partition.table, tableWhitelistRegex.get)
@@ -326,8 +348,8 @@ case class RefineTarget(
         // Be the first file that does not start with an underscore and also
         // has a non zero size.
         val inputDataFiles = fs.listStatus(inputPath)
-            .filter(f => !f.getPath.getName.startsWith("_") && f.getLen > 0)
-            .map(_.getPath)
+             .filter(f => !f.getPath.getName.startsWith("_") && f.getLen > 0)
+             .map(_.getPath)
 
         // If we didn't find any data files at inputPath, then return "empty".
         if (inputDataFiles.isEmpty) return "empty"
@@ -339,71 +361,64 @@ case class RefineTarget(
         in.close()
 
         // Return empty we can't read any bytes from the first data file.
-        // This probably shoudln't happen, since we filtered where f.getLen > 0,
+        // This probably shouldn't happen, since we filtered where f.getLen > 0,
         // but is good just in case.
         if (bytesRead <= 0) return "empty"
 
         // Infer the format of inputPath's data based on the first few characters
         // in the first data file.
         buffer match {
-            case Array('P','A','R')                         => "parquet"
-            case Array('S','E','Q')                         => "sequence_json"
-            case _ if buffer(0) == '{' || buffer(0) == '['  => "json"
-            case _                                          => "text"
+            case Array('P','A','R')                        => "parquet"
+            case Array('S','E','Q')                        => "sequence_json"
+            case _ if buffer(0) == '{' || buffer(0) == '[' => "json"
+            case _                                         => "text"
         }
     }
 
 
     /**
-      * Reads inputPath into a DataFrame.
+      * Reads input path into a DataFrame.
       *
-      * @param spark        SparkSession
-      *
-      * @param schema       If given, the DataFrame will be created with this schema.
-      *                     Otherwise, it will be inferred from the data.  Note that
-      *                     if inputFormat is "text", you should not provide a schema,
-      *                     unless it is a single text column schema.  Not doing so will
-      *                     result in an AssertionError when reading the DataFrame,
-      *                     as the data will not match the schema.
-      *
-      * @param inputFormat  If given, the inputPath should be in this format.  Otherwise,
-      *                     the inputFormat will be inferred from this schema.  This must be
-      *                     one of "json", "sequence_json" (if the format is Sequence files with
-      *                     the values as JSON strings), or "parquet".
+      * schemaLoader will be used to load the schema for this RefineTarget.
+      * If schemaLoader returns Some, the schema will be used when reading the data.
+      * Otherwise schema will be inferred from the data by the Spark DataFrameReader.
+      * Note that if inputFormat is "text", schemaLoader should not return a schema
+      * unless it is a single text column schema.  Returning a schema for "text" data
+      * will result in an AssertionError when reading the DataFrame, as the data will
+      * not match the schema.
       *
       * @return
       */
-    def inputDataFrame(
-        spark: SparkSession,
-        schema: Option[StructType] = None,
-        inputFormat: Option[String] = None
-    ): DataFrame = {
-        // If we have a schema, then use it to read data,
-        // else just infer schemas while reading.
-        val dfReader = if (schema.isDefined) {
-            spark.read.schema(schema.get)
-        }
-        else {
-            spark.read
+    def inputDataFrame(): DataFrame = {
+        // If this RefineTarget was given a SchemaLoader, then
+        // use it to get the schema now.  If schemaLoader fails to load schema, this will error.
+        // If schemaLoader returns None, we will not use an explicit schema when reading data, but
+        // instead rely on Spark schema data inference.
+        val schema = schemaLoader.loadSchema(this)
+
+        val dfReader = schema match {
+            case None    => spark.read
+            case Some(s) => spark.read.schema(s)
         }
 
         // import spark implicits for dataset/dataframe conversion
         import spark.implicits._
-        // Read inputPath either as JSON, SequenceFile JSON, or Parquet, based
-        // provided value of inputFormat, or inferred from first line in inputPath.
-        inputFormat.getOrElse(inferInputFormat) match {
-            case "empty"         =>
-                if (schema.isDefined) spark.createDataFrame(spark.sparkContext.emptyRDD[Row], schema.get)
-                else spark.emptyDataFrame
-            case "text"          => dfReader.text(inputPath.toString)
-            // Expect data to be text JSON
-            case "json"          => dfReader.json(inputPath.toString)
+
+        // Read inputPath either as text, Parquet, JSON, or SequenceFile JSON, based on input format
+        inputFormat match {
+            case "text" | "json" | "parquet" => dfReader.format(inputFormat).load(inputPath.toString)
+
             // Expect data to be SequenceFiles with JSON strings as values.
             case "sequence_json" => dfReader.json(spark.createDataset[String](
                 spark.sparkContext.sequenceFile[Long, String](inputPath.toString).map(t => t._2)
             ))
-            // Expect data to be in Parquet format
-            case "parquet"       => dfReader.parquet(inputPath.toString)
+
+            // If there is no data at inputPath, then we either want a schema-less emptyDataFrame,
+            // or an empty DataFrame with schema
+            case "empty"         => schema match {
+                case None    => spark.emptyDataFrame
+                case Some(s) => spark.createDataFrame(spark.sparkContext.emptyRDD[Row], s)
+            }
         }
     }
 
@@ -433,6 +448,7 @@ case class RefineTarget(
     override def toString: String = {
         s"$inputPath -> $partition"
     }
+
 }
 
 
@@ -491,18 +507,22 @@ object RefineTarget {
       * @param untilDateTime                End date time to look for input partitions.
       *                                     Defaults to DateTime.now
       *
+      * @param schemaLoader                 Will be used to get the DataFrame with a specific schema.
+      *
       * @return
       */
     def find(
-        fs: FileSystem,
+        spark: SparkSession,
         baseInputPath: Path,
         baseTableLocationPath: Path,
         databaseName: String,
         inputPathDateTimeFormatter: DateTimeFormatter,
         inputPathRegex: Regex,
         sinceDateTime: DateTime,
-        untilDateTime: DateTime = DateTime.now
+        untilDateTime: DateTime = DateTime.now,
+        schemaLoader: SparkSchemaLoader = ExplicitSchemaLoader(None)
     ): Seq[RefineTarget] = {
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
         val inputDatasetPaths = subdirectoryPaths(fs, baseInputPath)
 
         // Map all partitions in each inputPaths since pastCutoffDateTime to RefineTargets
@@ -529,9 +549,10 @@ object RefineTarget {
                 )
 
                 RefineTarget(
-                    fs,
+                    spark,
                     partitionPath,
-                    partition
+                    partition,
+                    schemaLoader
                 )
             })
             // We only care about input partition paths that actually exist,
@@ -630,3 +651,21 @@ case class RefineTargetException(
     cause: Throwable = None.orNull
 ) extends Exception(message, cause) { }
 
+
+/**
+  * Abstract trait.  Given a RefineTarget, this loadSchema will inspect it and return a
+  * StructType Spark schema.
+  */
+trait SparkSchemaLoader {
+    def loadSchema(target: RefineTarget): Option[StructType]
+}
+
+
+/**
+  * This can be used to provide an explicit schema directly to RefineTarget rather than
+  * allowing it to infer the schema when loading a DataFrame.
+  * @param schema
+  */
+case class ExplicitSchemaLoader(schema: Option[StructType]) extends SparkSchemaLoader {
+    def loadSchema(target: RefineTarget): Option[StructType] = schema
+}

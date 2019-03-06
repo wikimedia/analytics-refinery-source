@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, _}
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.SparkSession
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.config._
 import org.wikimedia.analytics.refinery.core.{LogHelper, Utilities}
@@ -128,8 +129,14 @@ object RefineMonitor extends LogHelper with ConfigHelper {
 
         val config = loadConfig(args)
 
+        val spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
+        // if not running in yarn, make spark log level quieter.
+        if (spark.conf.get("spark.master") != "yarn") {
+            spark.sparkContext.setLogLevel("WARN")
+        }
+
         // Exit non-zero if if any refinements failed.
-        if ((apply _).tupled(Config.unapply(config).get))
+        if ((apply(spark) _).tupled(Config.unapply(config).get))
             sys.exit(0)
         else
             sys.exit(1)
@@ -149,7 +156,7 @@ object RefineMonitor extends LogHelper with ConfigHelper {
     }
 
 
-    def apply(
+    def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
         input_path: String,
         output_path: String,
         database: String                                = Config.default.database,
@@ -165,7 +172,6 @@ object RefineMonitor extends LogHelper with ConfigHelper {
         from_email: String                              = Config.default.from_email,
         to_emails: Seq[String]                          = Config.default.to_emails
     ): Boolean = {
-        val fs = FileSystem.get(new Configuration())
 
         // Ensure that inputPathPatternCaptureGroups contains "table", as this is needed
         // to determine the Hive table name we will refine into.
@@ -191,7 +197,7 @@ object RefineMonitor extends LogHelper with ConfigHelper {
 
         // Need RefineTargets for every existent input partition since pastCutoffDateTime
         val targets = RefineTarget.find(
-            fs,
+            spark,
             new Path(input_path),
             new Path(output_path),
             database,

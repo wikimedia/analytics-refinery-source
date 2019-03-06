@@ -8,6 +8,7 @@ import org.apache.spark.sql.SparkSession
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.core.jsonschema.{EventLoggingSchemaLoader, EventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
@@ -53,7 +54,9 @@ object Refine extends LogHelper with ConfigHelper {
         smtp_uri: String                                = "mx1001.wikimedia.org:25",
         from_email: String                              = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
         to_emails: Seq[String]                          = Seq(),
-        ignore_done_flag: Boolean                       = false
+        ignore_done_flag: Boolean                       = false,
+        schema_base_uri: Option[String]                 = None,
+        schema_field: String                            = "/$schema"
     )
 
     object Config {
@@ -145,7 +148,17 @@ object Refine extends LogHelper with ConfigHelper {
             "from_email" ->
                 s"Email report from sender email address.  Default: ${default.from_email}",
             "to_emails" ->
-                s"Email report recipient email addresses (comma separated):  Default: ${default.to_emails.mkString(",")}."
+                s"Email report recipient email addresses (comma separated):  Default: ${default.to_emails.mkString(",")}.",
+            "schema_base_uri" ->
+                s"""If given, the input data is assumed to be JSONSchemaed event data.  An EventSparkSchemaLoader will
+                  |be instantiated with an EventSchemaLoader that uses this URI prefix to load schemas URIs found at
+                  |schema_field.  If this is given as 'eventlogging', the special case EventLoggingSchemaLoader
+                  |will be used, and the value of schema_field will be ignored.  Default: None""",
+            "schema_field" ->
+                s"""Will be used to extract the schema URI from event data.  This is a JsonPath pointer.
+                   |Default: ${default.schema_field}"""
+
+
         )
 
         val usage: String =
@@ -258,11 +271,12 @@ object Refine extends LogHelper with ConfigHelper {
         smtp_uri: String                                = Config.default.smtp_uri,
         from_email: String                              = Config.default.from_email,
         to_emails: Seq[String]                          = Config.default.to_emails,
-        ignore_done_flag: Boolean                       = Config.default.ignore_done_flag
+        ignore_done_flag: Boolean                       = Config.default.ignore_done_flag,
+        schema_base_uri: Option[String]                 = Config.default.schema_base_uri,
+        schema_field: String                            = Config.default.schema_field
     ): Boolean = {
         // Initial setup - Spark Conf and Hadoop FileSystem
         spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
-        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
         // Ensure that inputPathPatternCaptureGroups contains "table", as this is needed
         // to determine the Hive table name we will refine into.
@@ -286,16 +300,26 @@ object Refine extends LogHelper with ConfigHelper {
             s"$since and $until"
         )
 
+        // If given a schema_base_uri, assume that this is a schema uri to use for
+        // looking up schemas from events. Create an appropriate EventSparkSchemaLoader.
+        val schemaLoader = schema_base_uri match {
+            case None => ExplicitSchemaLoader(None)
+            // eventlogging is a special case.
+            case Some("eventlogging") => new EventSparkSchemaLoader(new EventLoggingSchemaLoader())
+            case Some(baseUri)        => new EventSparkSchemaLoader(new EventSchemaLoader(baseUri, schema_field))
+        }
+
         // Need RefineTargets for every existent input partition since pastCutoffDateTime
         val targetsToRefine = RefineTarget.find(
-            fs,
+            spark,
             new Path(input_path),
             new Path(output_path),
             database,
             input_path_datetime_format,
             inputPathRegex,
             since,
-            until
+            until,
+            schemaLoader
         )
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
@@ -420,7 +444,35 @@ object Refine extends LogHelper with ConfigHelper {
       * @return
       */
     def apply(spark: SparkSession, config: Config): Boolean = {
-        (apply(spark) _).tupled(Config.unapply(config).get)
+        // NOTE: tupled and unapply don't work with more than 22 parameters :(
+        //(apply(spark) _).tupled(Config.unapply(config).get)
+
+        apply(spark)(
+            config.input_path,
+            config.input_path_regex,
+            config.input_path_regex_capture_groups,
+            config.output_path,
+            config.database,
+            config.hive_server_url,
+            config.since,
+            config.until,
+            config.input_path_datetime_format,
+            config.table_whitelist_regex,
+            config.table_blacklist_regex,
+            config.transform_functions,
+            config.ignore_failure_flag,
+            config.parallelism,
+            config.compression_codec,
+            config.limit,
+            config.dry_run,
+            config.should_email_report,
+            config.smtp_uri,
+            config.from_email,
+            config.to_emails,
+            config.ignore_done_flag,
+            config.schema_base_uri,
+            config.schema_field
+        )
     }
 
     /**
@@ -442,7 +494,7 @@ object Refine extends LogHelper with ConfigHelper {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val partDf = new PartitionedDataFrame(target.inputDataFrame(spark), target.partition)
+                val partDf = new PartitionedDataFrame(target.inputDataFrame(), target.partition)
                 val insertedDf = DataFrameToHive(
                     spark,
                     hiveServerUrl,

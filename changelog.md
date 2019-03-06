@@ -1,4 +1,5 @@
 ## v0.0.86
+* Add EventSparkSchemaLoader support to Refine
 * Add jsonschema loader and spark converter classes
 
 ## v0.0.85

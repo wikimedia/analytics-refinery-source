@@ -24,7 +24,7 @@ class TestJsonSchemaConverter extends FlatSpec with Matchers {
 
   it should "convert a properly formatted json schema (integer)" in {
     val testSchema = """{"properties":{"test_integer":{"type":"integer"}}}"""
-    val expectedFields = Array(StructField("test_integer", IntegerType, nullable = true))
+    val expectedFields = Array(StructField("test_integer", LongType, nullable = true))
 
     val node = mapper.readTree(testSchema)
     val sparkSchema = JsonSchemaConverter.toSparkSchema(node)
@@ -73,7 +73,7 @@ class TestJsonSchemaConverter extends FlatSpec with Matchers {
         |"subfield1":{"type":"string"},"subfield2":{"type":"integer"}}}}}""".stripMargin
     val subObjectSchema = StructType(Seq(
       StructField("subfield1", StringType, nullable = true),
-      StructField("subfield2", IntegerType, nullable = true)))
+      StructField("subfield2", LongType, nullable = true)))
     val expectedFields = Array(
       StructField("test_object", subObjectSchema, nullable = true))
 
@@ -121,6 +121,31 @@ class TestJsonSchemaConverter extends FlatSpec with Matchers {
     sparkSchema should not be null
     sparkSchema.fields should equal(expectedFields)
   }
+
+  it should "convert a properly formatted json schema with Draft 3 required property" in {
+    val testSchema =
+      """{"properties":{"test_boolean":{"type":"boolean", "required": true}}}"""
+    val expectedFields = Array(StructField("test_boolean", BooleanType, nullable = false))
+
+    val node = mapper.readTree(testSchema)
+    val sparkSchema = JsonSchemaConverter.toSparkSchema(node)
+
+    sparkSchema should not be null
+    sparkSchema.fields should equal(expectedFields)
+  }
+
+  it should "convert a properly formatted json schema with Draft 3 non-required property" in {
+    val testSchema =
+      """{"properties":{"test_boolean":{"type":"boolean", "required": false}}}"""
+    val expectedFields = Array(StructField("test_boolean", BooleanType, nullable = true))
+
+    val node = mapper.readTree(testSchema)
+    val sparkSchema = JsonSchemaConverter.toSparkSchema(node)
+
+    sparkSchema should not be null
+    sparkSchema.fields should equal(expectedFields)
+  }
+
 
   it should "convert a properly formatted complex json schema" in {
     val testSchema =
@@ -179,7 +204,7 @@ class TestJsonSchemaConverter extends FlatSpec with Matchers {
     val subObjectType = StructType(Seq(
       StructField("subfield1", StringType, nullable = true)
         .withComment("test test_object-subobject string comment"),
-      StructField("subfield2", IntegerType, nullable = false)
+      StructField("subfield2", LongType, nullable = false)
         .withComment("test test_object-subobject integer comment")
     ))
     val subArrayType = ArrayType(StructType(Seq(

@@ -137,6 +137,6 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
         val updatedConfig = refineMonitorConfig.copy(
             table_whitelist_regex = tableWhitelistRegex
         )
-        (RefineMonitor.apply _).tupled(RefineMonitor.Config.unapply(updatedConfig).get)
+        (RefineMonitor.apply(spark) _).tupled(RefineMonitor.Config.unapply(updatedConfig).get)
     }
 }
