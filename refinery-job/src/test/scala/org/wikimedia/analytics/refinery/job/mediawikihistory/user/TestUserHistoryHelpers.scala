@@ -87,6 +87,8 @@ object TestUserHistoryHelpers {
                     userBlocksHistorical: Option[Seq[String]] = Some(Seq.empty),
                     userBlocks: Option[Seq[String]] = Some(Seq.empty),
                     userRegistration: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
+                    userCreation: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
+                    userFirstEdit: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
                     autoCreate: Option[Boolean] = Some(false),
                     causedByBlockExpiration: Option[String] = None,
                     inferredFrom: Option[String] = None,
@@ -117,6 +119,8 @@ object TestUserHistoryHelpers {
           case "blocksH" | "userBlocksH" => ("userBlocksHistorical" -> list(v))
           case "blocks" | "userBlocks" => ("userBlocks" -> list(v))
           case "registration" | "userRegistration" => ("userRegistration" -> timestamp(v))
+          case "creation" | "userCreation" => ("userCreation" -> timestamp(v))
+          case "firstEdit" | "userFirstEdit" => ("userFirstEdit" -> timestamp(v))
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
           case "expiration" | "causedByBlockExpiration" => ("causedByBlockExpiration" -> string(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
@@ -143,6 +147,8 @@ object TestUserHistoryHelpers {
         userBlocksHistorical = userBlocksHistoricalVal,
         userBlocks = valueMap.getOrElse("userBlocks", Some(userBlocksHistoricalVal)).get.asInstanceOf[Seq[String]],
         userRegistrationTimestamp = valueMap.getOrElse("userRegistration", userRegistration).asInstanceOf[Option[Timestamp]],
+        userCreationTimestamp = valueMap.getOrElse("userCreation", userCreation).asInstanceOf[Option[Timestamp]],
+        userFirstEditTimestamp = valueMap.getOrElse("userFirstEdit", userFirstEdit).asInstanceOf[Option[Timestamp]],
         createdBySystem = valueMap.getOrElse("autoCreate", autoCreate).get.asInstanceOf[Boolean],
         causedByBlockExpiration = valueMap.getOrElse("causedByBlockExpiration", causedByBlockExpiration).asInstanceOf[Option[String]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]],

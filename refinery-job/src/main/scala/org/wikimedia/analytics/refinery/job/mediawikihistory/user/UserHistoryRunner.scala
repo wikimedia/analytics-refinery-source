@@ -123,19 +123,8 @@ FROM ${SQLHelper.USER_VIEW}
             userId = row.getLong(1),
             userTextHistorical = row.getString(2),
             userText = row.getString(2),
-            userRegistrationTimestamp = (row.getString(3), row.getString(4)) match {
-              // first-revision-timestamp is defined and parsable by SQL restriction
-              case (null, null) => None
-              case (null, timestamp) => Some(TimestampHelpers.makeMediawikiTimestamp(timestamp))
-              case (potentialTimestamp, null) => TimestampHelpers.makeMediawikiTimestampOption(potentialTimestamp)
-              // If both registration and first-revision timestamps are defined, use the oldest
-              case (potentialTimestamp1, potentialTimestamp2) =>
-                val pt1 = TimestampHelpers.makeMediawikiTimestampOption(potentialTimestamp1)
-                val t2 = TimestampHelpers.makeMediawikiTimestamp(potentialTimestamp2)
-                if (pt1.isDefined) {
-                  if (pt1.get.before(t2)) pt1 else Some(t2)
-                } else Some(t2)
-            },
+            userRegistrationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(3)),
+            userFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(4)),
             userGroupsHistorical = Seq.empty[String],
             userGroups = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),
             userBlocksHistorical = Seq.empty[String],
@@ -167,12 +156,12 @@ FROM ${SQLHelper.USER_VIEW}
     // Write results
     //***********************************
 
-    // Drop states having empty registration timestamp. Since registration timestamp
-    // is MIN(DB-registration-date, first-edit), no registration timestamp means no
-    // edit activity - We drop the data instead of trying to approximate it.
+    // Drop states having empty creation timestamp and empty first-edit timestamp.
     // TODO: Approximate creation dates using user-id/registration-date coherence.
     spark.createDataFrame(
-      userHistoryRdd.filter(_.userRegistrationTimestamp.isDefined).map(state => {
+      userHistoryRdd
+        .filter(s => s.userCreationTimestamp.isDefined || s.userFirstEditTimestamp.isDefined)
+        .map(state => {
           addOptionalStat(s"${state.wikiDb}.$METRIC_WRITTEN_ROWS", 1)
           state.toRow
         }), UserState.schema)
@@ -193,8 +182,8 @@ FROM ${SQLHelper.USER_VIEW}
           .union(unmatchedEvents.map(e => Row(e.wikiDb, "matching", e.toString)))
           .union(
             userHistoryRdd
-              .filter(_.userRegistrationTimestamp.isEmpty)
-              .map(s => Row(s.wikiDb, "empty-registration", s.toString))
+              .filter(s => s.userCreationTimestamp.isEmpty && s.userFirstEditTimestamp.isEmpty)
+              .map(s => Row(s.wikiDb, "empty-creation-or-firstedit", s.toString))
           ),
         StructType(Seq(
           StructField("wiki_db", StringType, nullable = false),
