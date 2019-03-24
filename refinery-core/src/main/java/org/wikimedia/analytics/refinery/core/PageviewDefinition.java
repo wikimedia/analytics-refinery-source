@@ -431,7 +431,7 @@ public class PageviewDefinition {
      *
      * @param uriPath The url's path
      * @param uriQuery The url's query
-     * @return The decoded page title name or UNKNOWN_PROJECT_VALUE
+     * @return The decoded page title name or UNKNOWN_PAGE_TITLE_VALUE
      */
     public String getPageTitleFromUri(String uriPath, String uriQuery) {
         // Normalize uriPath
