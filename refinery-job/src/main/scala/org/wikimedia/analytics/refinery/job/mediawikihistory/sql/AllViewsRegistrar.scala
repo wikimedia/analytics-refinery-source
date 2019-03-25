@@ -1,14 +1,17 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.sql
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper}
 
-import scala.collection.mutable
-
 /**
- * This class instantiates and runs view-registerer for namespace, archive,
+ * This class instantiates and runs view registrars for namespace, archive,
  * revision, logging, page and user views.
+ *
+ * A view registrar augments the SQL spark-context with a named temporary view,
+ * allowing SQL queries to be run using this table name. The temporary aspect
+ * of the view means it's only accessible in the spark-session it has been
+ * registered on, and that it will not be accessible anymore when the spark
+ * session terminates.
  *
  * @param spark the spark session to use
  * @param statsAccumulator the stats accumulator tracking job stats
@@ -17,10 +20,10 @@ import scala.collection.mutable
  *                       of wiki-project strings, empty for all.
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
- *                     NOTE: the reader used for NamespaceViewRegisterer is hard-coded
+ *                     NOTE: the reader used for NamespaceViewRegistrar is hard-coded
  *                           as CSV.
  */
-class AllViewsRegisterer(
+class AllViewsRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -54,29 +57,29 @@ class AllViewsRegisterer(
     val wikiClause = SQLHelper.inClause("wiki_db", wikiConstraint)
 
     // Warning: using CSV reader for namespace data, not provided readerFormat
-    new NamespaceViewRegisterer(spark, wikiClause, "csv").registerNamespacesView(namespacesCSVPath)
+    new NamespaceViewRegistrar(spark, wikiClause, "csv").run(namespacesCSVPath)
 
-    new ChangeTagsViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .registerChangeTagsView(changeTagUnprocessedPath, changeTagDefUnprocessedPath)
+    new ChangeTagsViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .run(changeTagUnprocessedPath, changeTagDefUnprocessedPath)
 
-    new ArchiveViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .registerArchiveView(actorUnprocessedPath, archiveUnprocessedPath, revisionUnprocessedPath)
+    new ArchiveViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .run(actorUnprocessedPath, archiveUnprocessedPath, revisionUnprocessedPath)
 
-    new RevisionViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .registerRevisionView(actorUnprocessedPath, commentUnprocessedPath, revisionUnprocessedPath)
+    new RevisionViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .run(actorUnprocessedPath, commentUnprocessedPath, revisionUnprocessedPath)
 
-    new LoggingViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .registerLoggingView(actorUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
+    new LoggingViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .run(actorUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
 
 
     // Warning: page and user view registration need to happen AFTER archive and revision one
     // as they are expected to be registered
 
-    new PageViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .registerPageView(pageUnprocessedPath)
+    new PageViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .run(pageUnprocessedPath)
 
-    new UserViewRegisterer(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .registerUserView(userUnprocessedPath, userGroupsUnprocessedPath)
+    new UserViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+      .run(userUnprocessedPath, userGroupsUnprocessedPath)
 
     log.info(s"All views registered")
 

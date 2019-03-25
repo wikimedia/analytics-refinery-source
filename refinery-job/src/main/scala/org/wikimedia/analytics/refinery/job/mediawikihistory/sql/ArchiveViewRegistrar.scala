@@ -14,7 +14,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class ArchiveViewRegisterer(
+class ArchiveViewRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -38,7 +38,7 @@ class ArchiveViewRegisterer(
    * to change_tag and change_tag_def to get tags, and finally anti-join to revision
    * to enforce non-duplicated revision_id.
    */
-  def registerArchiveView(
+  def run(
     actorUnprocessedPath : String,
     archiveUnprocessedPath: String,
     revisionUnprocessedPath: String

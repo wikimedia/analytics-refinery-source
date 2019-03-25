@@ -14,7 +14,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class LoggingViewRegisterer(
+class LoggingViewRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -36,7 +36,7 @@ class LoggingViewRegisterer(
    * Register the logging view in spark session joining the logging unprocessed table
    * to the actor and comment ones using broadcast join tricks
    */
-  def registerLoggingView(
+  def run(
     actorUnprocessedPath : String,
     commentUnprocessedPath: String,
     loggingUnprocessedPath: String

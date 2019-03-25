@@ -14,7 +14,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class RevisionViewRegisterer(
+class RevisionViewRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -37,7 +37,7 @@ class RevisionViewRegisterer(
    * to the actor and comment ones using broadcast join tricks. Also join to change_tags
    * predefined view to get tags.
    */
-  def registerRevisionView(
+  def run(
     actorUnprocessedPath : String,
     commentUnprocessedPath: String,
     revisionUnprocessedPath: String
