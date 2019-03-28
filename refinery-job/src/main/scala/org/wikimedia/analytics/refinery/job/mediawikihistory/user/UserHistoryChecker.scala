@@ -48,7 +48,8 @@ class UserHistoryChecker(
         |    SUM(IF(anonymous, 1, 0)) AS count_user_anonymous,
         |    SUM(IF(created_by_self, 1, 0)) AS count_user_self_created
         |FROM $tmpTable
-        |WHERE SUBSTR(start_timestamp, 0, 7) <= '$snapshot'
+        |-- Null start_timestamp means beginning of time, therefore before snapshot :)
+        |WHERE (start_timestamp IS NULL OR SUBSTR(start_timestamp, 0, 7) <= '$snapshot')
         |GROUP BY
         |    wiki_db,
         |    caused_by_event_type
