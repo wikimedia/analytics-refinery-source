@@ -111,7 +111,7 @@ public class TestEventLoggingSchemaLoader extends TestCase {
 
         assertEquals(
             "Should return an EventLogging schema URI with revid",
-            "file://" + resourcesPath + "/?action=jsonschema&formatversion=2&title=Echo&revid=7731316",
+            "file://" + resourcesPath + "/?action=jsonschema&formatversion=2&format=json&title=Echo&revid=7731316",
             uri.toString()
         );
     }
@@ -123,13 +123,13 @@ public class TestEventLoggingSchemaLoader extends TestCase {
 
         assertEquals(
             "Should return an EventLogging schema URI without revid",
-            "file://" + resourcesPath + "/?action=jsonschema&formatversion=2&title=Echo",
+            "file://" + resourcesPath + "/?action=jsonschema&formatversion=2&format=json&title=Echo",
             uri.toString()
         );
     }
 
     public void testGetSchemaURIFromEvent() throws Exception {
-        URI expectedSchemaUri = new URI("file://" + resourcesPath + "/?action=jsonschema&formatversion=2&title=Echo");
+        URI expectedSchemaUri = new URI("file://" + resourcesPath + "/?action=jsonschema&formatversion=2&format=json&title=Echo");
         URI uri = schemaLoader.getEventSchemaUri(testEchoEvent);
         assertEquals(
             "Should load schema URI from event schema field",

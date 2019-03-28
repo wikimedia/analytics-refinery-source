@@ -160,7 +160,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
 
 
     /**
-     * Given an EventLogging event schema name , this will get the
+     * Given an EventLogging schema name , this will get the
      * latest schema revision from EVENTLOGGING_SCHEMA_BASE_URI and encapsulate it.
      *
      * @param schemaName
@@ -195,7 +195,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
     protected URI eventLoggingSchemaUriFor(String name){
         try {
             URI schemaUri = new URI(this.baseURI +
-                "?action=jsonschema&formatversion=2" +
+                "?action=jsonschema&formatversion=2&format=json" +
                 "&title=" + name
             );
             log.debug("Built EventLogging schema URI for '" + name + "': " + schemaUri.toString());
@@ -219,7 +219,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
     protected URI eventLoggingSchemaUriFor(String name, Integer revision){
         try {
             URI schemaUri = new URI(this.baseURI +
-                "?action=jsonschema&formatversion=2" +
+                "?action=jsonschema&formatversion=2&format=json" +
                 "&title=" + name +
                 "&revid=" + revision
             );
