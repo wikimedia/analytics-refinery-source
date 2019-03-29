@@ -235,4 +235,46 @@ public class TestPageview {
 
     }
 
+    @Test
+    public void testPageTitlesWithSpecialCharacters() {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        assertEquals(
+                "Page title with \\n end-of-line in uri_path",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\ntitle", "")
+        );
+
+        assertEquals(
+                "Page title with \\r end-of-line in uri_path",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\rtitle", "")
+        );
+
+        assertEquals(
+                "Page title with tabulation in uri_path",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\ttitle", "")
+        );
+
+        assertEquals(
+                "Page title with \\n end-of-line in uri_query",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\ntitle")
+        );
+
+        assertEquals(
+                "Page title with \\r end-of-line in uri_query",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\rtitle")
+        );
+
+        assertEquals(
+                "Page title with tabulation in uri_query",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\ttitle")
+        );
+
+    }
+
 }

@@ -126,7 +126,21 @@ public class PageviewDefinition {
         "|action=submit"
     );
 
-
+    /**
+     * Simple regex to reject illegal title characters.
+     *
+     * Must be kept in sync with $wgLegalTitleChars.
+     */
+    private final Pattern titleValidPattern = Pattern.compile(
+        "^[ %!\"$&'()*,\\-./0-9:;=?@A-Z\\\\^_`a-z~\\x80-\\xFF\\u0080-\\uffff]+$"
+    );
+    /**
+     * Maximum possible title length in bytes.
+     * Although a title can only be 255 bytes, some Special pages may be longer
+     * because they include a title as a substring.  This comes from the magic
+     * number hardcoded into MediaWikiTitleCodec::splitTitleString
+     */
+    private final int titleMaxLength = 512;
 
     /**
      * Given a webrequest URI path, query and user agent,
@@ -477,8 +491,20 @@ public class PageviewDefinition {
             pageTitle = getPageTitleFromPath(normPath);
 
         // Normalize Decoding URL percent characters (if any)
-        return PercentDecoder.decode(pageTitle).replaceAll(" ", "_");
+        pageTitle = PercentDecoder.decode(pageTitle).replaceAll(" ", "_");
 
+        // Reject invalid titles.  Note that some endpoints allow an "optional"
+        // title parameter but ignore it without validation.  The title we see
+        // here may be outdated or completely wrong, until T152628 is fixed.
+        // We'll just catch the obvious stuff for now.
+        if (
+            pageTitle.getBytes().length > titleMaxLength
+            || !Utilities.patternIsFound(titleValidPattern, pageTitle)
+        ) {
+            return PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
+        }
+
+        return pageTitle;
     }
 
     /**
