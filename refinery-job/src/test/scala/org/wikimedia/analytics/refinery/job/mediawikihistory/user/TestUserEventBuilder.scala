@@ -8,7 +8,8 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
 
   import org.apache.spark.sql.Row
 
-  "isBotByName" should "correctly identify bots" in {
+  "isBotBy" should "correctly identify name bots" in {
+    val emptyGroups = Seq.empty[String]
     Seq(
       "easyBot",
       "easyBot2",
@@ -16,16 +17,43 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
       "noncapbot",
       "noncapbot2",
       "noncapbot3withend"
-    ).foreach(bot => isBotByName(bot) should equal(true))
+    ).foreach(bot => isBotBy(bot, emptyGroups) should equal(Seq("name")))
   }
 
-  it should "correctly not identify no-bots" in {
+  it should "correctly identify no name bots" in {
+    val emptyGroups = Seq.empty[String]
     Seq(
       "nonbotname",
       "nonBotnameeither",
       "notEvenTricky",
       null
-    ).foreach(bot => isBotByName(bot) should equal(false))
+    ).foreach(nonBot => isBotBy(nonBot, emptyGroups) should equal(Seq.empty[String]))
+  }
+
+  it should "correctly identify group-bots" in {
+    Seq(
+      Seq("bot", "other_group"),
+      Seq("bot")
+    ).foreach(groups => isBotBy("", groups) should equal(Seq("group")))
+  }
+
+  it should "correctly identify non-group-bots" in {
+    Seq(
+      Seq("other_group"),
+      Seq.empty
+    ).foreach(groups => isBotBy("", groups) should equal(Seq.empty))
+  }
+
+  it should "correctly identify bot name and group bots" in {
+    val groups = Seq("bot", "other")
+    Seq(
+      "easyBot",
+      "easyBot2",
+      "easyBot3WithEnd",
+      "noncapbot",
+      "noncapbot2",
+      "noncapbot3withend"
+    ).foreach(bot => isBotBy(bot, groups) should equal(Seq("name", "group")))
   }
 
   "getOldAndNewUserTexts" should "parse userTexts from php blob" in {

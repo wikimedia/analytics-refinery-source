@@ -23,11 +23,17 @@ object UserEventBuilder extends Serializable {
   val weirdIdPattern = """^(#[0-9]+)$""".r
   val botUsernamePattern = """(?i)^.*bot([^a-z].*$|$)""".r
 
-  def isBotByName(userText: String): Boolean = {
-    if (userText != null)
-      botUsernamePattern.findFirstIn(userText).isDefined
-    else
-      false
+  val botByName = "name"
+  val botByGroup = "group"
+
+  def isBotBy(userText: String, userGroups: Seq[String]): Seq[String] = {
+    val nameRegexBot = {
+      if (userText != null && botUsernamePattern.findFirstIn(userText).isDefined)
+        Some(botByName)
+      else None
+    }
+    val groupBot = if (userGroups.contains("bot")) Some(botByGroup) else None
+    Seq.empty ++ nameRegexBot ++ groupBot
   }
 
   def getOldAndNewUserTexts(

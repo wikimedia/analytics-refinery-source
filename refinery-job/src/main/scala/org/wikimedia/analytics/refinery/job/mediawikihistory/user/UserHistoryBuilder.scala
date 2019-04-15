@@ -280,16 +280,18 @@ class UserHistoryBuilder(
 
 
   /**
-    * Loops through states updating their anonymous
-    * and botByName values.
+    * Loops through states updating their anonymous and isBotBy values.
     *
     * @param states The states to update
     * @return The updated states
     */
-  def updateAnonymousAndBotByName(states: List[UserState]): List[UserState] = {
+  def updateAnonymousAndIsBotBy(states: List[UserState]): List[UserState] = {
+    val anonymous = states.head.userId == 0
+    val isBotBy = UserEventBuilder.isBotBy(states.head.userText, states.head.userGroups)
     states.map(s => s.copy(
-      anonymous = s.userId == 0,
-      botByName = UserEventBuilder.isBotByName(s.userTextHistorical)
+      anonymous = anonymous,
+      isBotBy = isBotBy,
+      isBotByHistorical = UserEventBuilder.isBotBy(s.userTextHistorical, s.userGroupsHistorical)
     ))
   }
 
@@ -418,7 +420,7 @@ class UserHistoryBuilder(
     * - [[propagateUserBlocks]]
     * - [[propagateUserGroups]]
     * - [[propagateUserCreationAndFirstEditAndCreatedBy]]
-    * - [[updateAnonymousAndBotByName]]
+    * - [[updateAnonymousAndIsBotBy]]
     *
     * @param states The states sequence to work
     * @return The updated states
@@ -435,7 +437,7 @@ class UserHistoryBuilder(
                     a.startTimestamp.get.before(b.startTimestamp.get)
               )
           }
-          updateAnonymousAndBotByName(
+          updateAnonymousAndIsBotBy(
             propagateUserCreationAndFirstEditAndCreatedBy(
               propagateUserGroups(
                 propagateUserBlocks(sortedStates)
