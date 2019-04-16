@@ -59,7 +59,8 @@ class DenormalizedHistoryChecker(
          |    SUM(IF(revision_is_identity_reverted, 1, 0)) AS count_revision_reverted,
          |    SUM(IF(revision_is_identity_revert, 1, 0)) AS count_revision_revert
          |FROM $tmpTable
-         |WHERE SUBSTR(event_timestamp, 0, 7) <= '$snapshot'
+         |-- Null event_timestamp means beginning of time, therefore before snapshot :)
+         |WHERE (event_timestamp IS NULL OR SUBSTR(event_timestamp, 0, 7) <= '$snapshot')
          |GROUP BY
          |    wiki_db,
          |    event_entity,

@@ -47,7 +47,8 @@ class PageHistoryChecker(
          |    COUNT(DISTINCT COALESCE(page_namespace_historical, page_namespace)) AS distinct_page_namespace,
          |    SUM(IF(page_is_redirect, 1, 0)) AS count_page_redirect
          |FROM $tmpTable
-         |WHERE SUBSTR(start_timestamp, 0, 7) <= '$snapshot'
+         |-- Null start_timestamp means beginning of time, therefore before snapshot :)
+         |WHERE (start_timestamp IS NULL OR SUBSTR(start_timestamp, 0, 7) <= '$snapshot')
          |GROUP BY
          |    wiki_db,
          |    caused_by_event_type
