@@ -14,7 +14,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class PageViewRegisterer(
+class PageViewRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -34,7 +34,7 @@ class PageViewRegisterer(
    * Register the page view in spark session joining the page unprocessed table
    * to the revision table for first-revision timestamp
    */
-  def registerPageView(
+  def run(
     pageUnprocessedPath : String
   ): Unit = {
 

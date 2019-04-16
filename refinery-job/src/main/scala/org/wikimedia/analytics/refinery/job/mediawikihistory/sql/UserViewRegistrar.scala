@@ -16,7 +16,7 @@ import scala.collection.mutable
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class UserViewRegisterer(
+class UserViewRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -37,7 +37,7 @@ class UserViewRegisterer(
    * Register the user view in spark session joining the user unprocessed table
    * to the revision and archive tables for first-revision timestamp
    */
-  def registerUserView(
+  def run(
     userUnprocessedPath : String,
     userGroupsUnprocessedPath : String
   ): Unit = {

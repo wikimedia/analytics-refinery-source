@@ -14,7 +14,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class ChangeTagsViewRegisterer(
+class ChangeTagsViewRegistrar(
   val spark: SparkSession,
   val statsAccumulator: Option[MapAccumulator[String, Long]],
   val numPartitions: Int,
@@ -35,7 +35,7 @@ class ChangeTagsViewRegisterer(
    * Register the change_tags view in spark session joining the change_tag unprocessed table
    * to the change_tag_def one
    */
-  def registerChangeTagsView(
+  def run(
     changeTagUnprocessedPath : String,
     changeTagDefUnprocessedPath : String
   ): Unit = {

@@ -539,7 +539,7 @@ object MediawikiEvent {
       eventComment = Option(row.getString(2)),
       eventUserDetails = new MediawikiEventUserDetails(
         userId = if (userIdNum <= 0L) None else Some(userIdNum),
-        // userText should be the same as historical if user is anonymous
+        // Anonymous users have same current and historical userText
         // https://phabricator.wikimedia.org/T206883
         userText = if (userIdNum <= 0L) Option(userText) else None,
         userTextHistorical = Option(userText),

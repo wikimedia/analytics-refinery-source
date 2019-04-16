@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import org.apache.spark.sql.SaveMode
-import org.wikimedia.analytics.refinery.job.mediawikihistory.sql.AllViewsRegisterer
+import org.wikimedia.analytics.refinery.job.mediawikihistory.sql.AllViewsRegistrar
 import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator}
 
 
@@ -305,7 +305,7 @@ object MediawikiHistoryRunner {
         statsAccumulator.foreach(statAcc => spark.sparkContext.register(statAcc, "statistics"))
 
         // Register precomputed complex views for namespaces, archive and revision
-        new AllViewsRegisterer(
+        new AllViewsRegistrar(
           spark,
           statsAccumulator,
           revisionsNumPartitions,

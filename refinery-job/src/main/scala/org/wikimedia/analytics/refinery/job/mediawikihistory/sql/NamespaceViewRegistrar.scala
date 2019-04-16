@@ -12,7 +12,7 @@ import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructT
  * @param readerFormat The spark reader format to use. Should be one of
  *                     com.databricks.spark.avro, parquet, json, csv
  */
-class NamespaceViewRegisterer(
+class NamespaceViewRegistrar(
   val spark: SparkSession,
   val wikiClause: String,
   val readerFormat: String
@@ -26,7 +26,7 @@ class NamespaceViewRegisterer(
   /**
    * Register the namespaces view in spark session
    */
-  def registerNamespacesView(namespacesCsvPath: String): Unit = {
+  def run(namespacesCsvPath: String): Unit = {
 
     log.info(s"Registering Namespaces view")
 
