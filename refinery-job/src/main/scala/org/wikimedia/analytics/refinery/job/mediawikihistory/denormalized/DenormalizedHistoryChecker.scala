@@ -55,7 +55,7 @@ class DenormalizedHistoryChecker(
          |    COUNT(DISTINCT page_namespace) AS distinct_page_namespace,
          |    SUM(IF(page_is_redirect, 1, 0)) AS count_page_redirect,
          |    -- Revision values
-         |    SUM(IF(revision_is_deleted, 1, 0)) AS count_revision_deleted,
+         |    SUM(IF(revision_is_deleted_by_page_deletion, 1, 0)) AS count_revision_deleted,
          |    SUM(IF(revision_is_identity_reverted, 1, 0)) AS count_revision_reverted,
          |    SUM(IF(revision_is_identity_revert, 1, 0)) AS count_revision_revert
          |FROM $tmpTable
