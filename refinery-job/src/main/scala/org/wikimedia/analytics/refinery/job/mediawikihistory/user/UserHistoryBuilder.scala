@@ -34,6 +34,35 @@ class UserHistoryBuilder(
   val METRIC_EVENTS_MATCHING_KO = "userHistory.eventsMatching.KO"
 
   /**
+    * Computes the startTimestamp as the minimum of registrationTimestamp,
+    * creationTimestamp and firstEditTimestamp (if not null), or null if all three values
+    * are nulls
+    */
+  def getStartTimestamp(
+      userRegistrationTimestamp: Option[Timestamp],
+      userCreationTimestamp: Option[Timestamp],
+      userFirstEditTimestamp: Option[Timestamp]
+  ): Option[Timestamp] = {
+      if (userRegistrationTimestamp.isEmpty &&
+              userCreationTimestamp.isEmpty &&
+              userFirstEditTimestamp.isEmpty) {
+          None
+      } else {
+          // At least one value exists, use the smallest with Long.MaxValue as default
+          Some(new Timestamp(
+              Math.min(
+                  Math.min(
+                      userRegistrationTimestamp.getOrElse(new Timestamp(Long.MaxValue)).getTime,
+                      userCreationTimestamp.getOrElse(new Timestamp(Long.MaxValue)).getTime
+                  ),
+                  userFirstEditTimestamp.getOrElse(new Timestamp(Long.MaxValue)).getTime
+              )
+          ))
+      }
+  }
+
+
+  /**
     * This case class contains the various state dictionary and list needed to
     * reconstruct the user history, as well as errors.
     * An object of this class is updated and passed along reconstruction,
@@ -83,12 +112,15 @@ class UserHistoryBuilder(
       */
     def flushExpiredState(event: UserEvent, toKey: UserHistoryBuilder.KEY): ProcessingStatus = {
       if (potentialStates.contains(toKey) &&
-          event.timestamp.before(potentialStates(toKey).userRegistrationTimestamp.getOrElse(new Timestamp(0L)))) {
+          event.timestamp.before(potentialStates(toKey).userCreationTimestamp.getOrElse(new Timestamp(0L)))) {
         val state = potentialStates(toKey)
         this.copy(
             potentialStates = potentialStates - toKey,
             knownStates = knownStates :+ state.copy(
-              startTimestamp = state.userRegistrationTimestamp,
+              startTimestamp = getStartTimestamp(
+                state.userRegistrationTimestamp,
+                state.userCreationTimestamp,
+                state.userFirstEditTimestamp),
               causedByEventType = "create",
               causedByUserId = None,
               causedByUserText = None,
@@ -115,7 +147,7 @@ class UserHistoryBuilder(
         this.copy(
             potentialStates = potentialStates - fromKey,
             knownStates = knownStates :+ state.copy(
-                  userRegistrationTimestamp = Some(event.timestamp),
+                  userCreationTimestamp = Some(event.timestamp),
                   startTimestamp = Some(event.timestamp),
                   causedByEventType = "create",
                   causedByUserId = None,
@@ -149,6 +181,20 @@ class UserHistoryBuilder(
       if (potentialStates.contains(toKey)) {
         addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
         val state = potentialStates(toKey)
+        val (startTimestamp, userCreationTimestamp) = {
+          // create-events special case:
+          if (event.eventType == "create") {
+            (
+                getStartTimestamp(
+                    state.userRegistrationTimestamp,
+                    Some(event.timestamp),
+                    state.userFirstEditTimestamp),
+                Some(event.timestamp)
+            )
+          } else {
+            (Some(event.timestamp), None)
+          }
+        }
         this.copy(
             potentialStates =
               if (event.eventType == "create") potentialStates - toKey
@@ -158,7 +204,8 @@ class UserHistoryBuilder(
                         endTimestamp = Some(event.timestamp)
                     )),
             knownStates = knownStates :+ state.copy(
-                  startTimestamp = Some(event.timestamp),
+                  startTimestamp = startTimestamp,
+                  userCreationTimestamp = userCreationTimestamp,
                   userGroupsHistorical = event.newUserGroups,
                   userBlocksHistorical = event.newUserBlocks,
                   createdBySelf = event.createdBySelf,
@@ -210,7 +257,7 @@ class UserHistoryBuilder(
     * - updates the linking-userTexts dictionaries (needed because
     *   some of the events of the table use old userTexts, and others today's userTexts),
     * - flushes (moves to known states) a joinable state (event.toKey == state.key)
-    *   if its user registration timestamp is after the event timestamp.
+    *   if its user creation timestamp is after the event timestamp.
     * - flushes conflicting state (event.fromKey == state.key) if any
     * - joins the event and state in a new returned processing status
     *
@@ -248,18 +295,22 @@ class UserHistoryBuilder(
 
 
   /**
-    * Propagate user registration and createdBy from first state to every next ones
+    * Propagate user-creation-timestamp, user-first-edit-timestamp
+    * and createdBy from first state to every next ones
     *
     * @param states The states to update (single user,  ordered by timestamp)
     * @return The updated states
     */
-  def propagateUserRegistrationAndCreatedBy(states: List[UserState]): List[UserState] = {
+  def propagateUserCreationAndFirstEditAndCreatedBy(states: List[UserState]): List[UserState] = {
+    val createEvent = states.head
     states.map(s => s.copy(
-      userRegistrationTimestamp = states.head.userRegistrationTimestamp,
-      createdBySelf = states.head.createdBySelf,
-      createdBySystem = states.head.createdBySystem,
-      createdByPeer = states.head.createdByPeer
-    ))
+            userRegistrationTimestamp = createEvent.userRegistrationTimestamp,
+            userCreationTimestamp = createEvent.userCreationTimestamp,
+            userFirstEditTimestamp = createEvent.userFirstEditTimestamp,
+            createdBySelf = createEvent.createdBySelf,
+            createdBySystem = createEvent.createdBySystem,
+            createdByPeer = createEvent.createdByPeer
+          ))
   }
 
 
@@ -366,7 +417,7 @@ class UserHistoryBuilder(
     * Groups states by user id, order them by timestamp in each group, and apply
     * - [[propagateUserBlocks]]
     * - [[propagateUserGroups]]
-    * - [[propagateUserRegistrationAndCreatedBy]]
+    * - [[propagateUserCreationAndFirstEditAndCreatedBy]]
     * - [[updateAnonymousAndBotByName]]
     *
     * @param states The states sequence to work
@@ -385,7 +436,7 @@ class UserHistoryBuilder(
               )
           }
           updateAnonymousAndBotByName(
-            propagateUserRegistrationAndCreatedBy(
+            propagateUserCreationAndFirstEditAndCreatedBy(
               propagateUserGroups(
                 propagateUserBlocks(sortedStates)
               )
@@ -431,10 +482,10 @@ class UserHistoryBuilder(
     val (fStates: Seq[UserState], unmatchedEvents: Seq[UserEvent]) = {
       if (sortedEvents.isEmpty) {
         val finalStates = states.map(s => s.copy(
-            startTimestamp = s.userRegistrationTimestamp,
-            causedByEventType = "create",
-            causedByUserId = None,
-            causedByUserText = None,
+            startTimestamp = getStartTimestamp(
+                s.userRegistrationTimestamp,
+                s.userCreationTimestamp,
+                s.userFirstEditTimestamp),
             inferredFrom = Some("unclosed")
           )).toSeq
         (finalStates, Seq.empty[UserEvent])
@@ -453,10 +504,10 @@ class UserHistoryBuilder(
           finalStatus.potentialStates.values.map(
             s =>
               s.copy(
-                startTimestamp = s.userRegistrationTimestamp,
-                causedByEventType = "create",
-                causedByUserId = None,
-                causedByUserText = None,
+                startTimestamp = getStartTimestamp(
+                  s.userRegistrationTimestamp,
+                  s.userCreationTimestamp,
+                  s.userFirstEditTimestamp),
                 inferredFrom = Some("unclosed")
               )).toSeq ++ finalStatus.knownStates
         }

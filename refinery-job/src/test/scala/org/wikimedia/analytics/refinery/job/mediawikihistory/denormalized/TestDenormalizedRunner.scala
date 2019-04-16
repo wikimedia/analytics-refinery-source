@@ -37,7 +37,10 @@ class TestDenormalizedRunner
     ))
 
     val result = denormalizedRunner
-      .filterStates[UserState](userStates, DenormalizedKeysHelper.userStateKey, "test_user")
+      .filterStates[UserState](
+        userStates,
+        s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+        "test_user")
       .collect()
 
     val expectedResults = Seq(
@@ -55,7 +58,10 @@ class TestDenormalizedRunner
     ))
 
     val result = denormalizedRunner
-      .filterStates[UserState](userStates, DenormalizedKeysHelper.userStateKey, "test_user")
+      .filterStates[UserState](
+        userStates,
+        s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+        "test_user")
       .collect()
 
     result.length should be(0)
@@ -70,7 +76,10 @@ class TestDenormalizedRunner
     val userStatesRdd = sc.parallelize(userStates)
 
     val result = denormalizedRunner
-      .filterStates[UserState](userStatesRdd, DenormalizedKeysHelper.userStateKey, "test_user")
+      .filterStates[UserState](
+        userStatesRdd,
+        s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+        "test_user")
       .collect()
 
     result.length should be(3)

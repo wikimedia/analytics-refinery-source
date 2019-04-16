@@ -162,16 +162,33 @@ object DenormalizedKeysHelper extends Serializable {
 
   /**
     * Generate the user-centered [[StateKey]] ((wikiDb, UserId), start, end)
-    * using a fake value in place of user id
-    * if invalid (see [[idOrHashNegative]]).
+    * using a fake value in place of user id if invalid (see [[idOrHashNegative]]).
+    *
+    * If useFirstEditTimestamp is set to true (default to false), use userFirstEditTimestamp
+    * as startTimestamp if the state is the first one for the user (startTimestamp equals
+    * userCreationTimestamp), both values are defined (otherwise either no known edit for that
+    * user, or undefined-start = beginning-of-time), and userFirstEditTimestamp is before
+    * userCreationTimestamp.
     *
     * @param userState The user state to generate key for
+    * @param useFirstEditTimestamp Whether to possibly use the user first edit
+    *                              as start-timestamp.
     * @return The key for the userState
     */
-  def userStateKey(userState: UserState): StateKey = {
+  def userStateKey(userState: UserState, useFirstEditTimestamp: Boolean = false): StateKey = {
     val userId = DenormalizedKeysHelper.idOrHashNegative(Some(userState.userId), userState)
-    StateKey(PartitionKey(userState.wikiDb, userId),
-      userState.startTimestamp, userState.endTimestamp)
+    // Use userFirstEditTimestamp as original startTimestamp if:
+    // - useFirstEditTimestamp flag is set to true
+    // - startTimestamp equals userCreationTimestamp (first state of user)
+    // - Both startTimestamp and userFirstEditTimestamp are defined
+    //    (otherwise either no known edit, or undefined-start = beginning-of-time)
+    // -  userFirstEditTimestamp is before userCreationTimestamp
+    if (useFirstEditTimestamp && (userState.startTimestamp == userState.userCreationTimestamp) &&
+      userState.userFirstEditTimestamp.isDefined && userState.startTimestamp.isDefined &&
+      userState.startTimestamp.get.before(userState.userFirstEditTimestamp.get))
+      StateKey(PartitionKey(userState.wikiDb, userId), userState.userFirstEditTimestamp, userState.endTimestamp)
+    else
+      StateKey(PartitionKey(userState.wikiDb, userId), userState.startTimestamp, userState.endTimestamp)
   }
 
   /**

@@ -122,7 +122,10 @@ class DenormalizedRunner(
       state
     })
     filterStates[UserState](
-      userStatesToFilter, DenormalizedKeysHelper.userStateKey, METRIC_FILTERED_OUT_USER_STATES
+      userStatesToFilter,
+      // Use userCreation as first event start timestamp
+      s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+      METRIC_FILTERED_OUT_USER_STATES
     ).cache()
   }
 
@@ -285,7 +288,12 @@ class DenormalizedRunner(
 
     // Partitioned-sorted user and page states for future zipping
     val sortedUserStates = userStates
-      .map(userState => (DenormalizedKeysHelper.userStateKey(userState), userState))
+      .map(userState => {
+        // sortedUserStates is to be joined to revisions (and more), we use the user
+        // firstEditTimestamp as starting-point for the join.
+        val userStateKey = DenormalizedKeysHelper.userStateKey(userState, useFirstEditTimestamp = true)
+        (userStateKey, userState)
+      })
       .repartitionAndSortWithinPartitions(statePartitioner)
       .cache()
     val sortedPageStates = pageStates
