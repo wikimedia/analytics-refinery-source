@@ -156,11 +156,15 @@ FROM ${SQLHelper.USER_VIEW}
     // Write results
     //***********************************
 
-    // Drop states having empty creation timestamp and empty first-edit timestamp.
+    // We drop users having no registration/creation/firstEdit timestamp
+    // as they have made no edits and we miss their creation-date info, meaning
+    // we don't even know since when they have been present.
     // TODO: Approximate creation dates using user-id/registration-date coherence.
     spark.createDataFrame(
       userHistoryRdd
-        .filter(s => s.userCreationTimestamp.isDefined || s.userFirstEditTimestamp.isDefined)
+        .filter(s => s.userRegistrationTimestamp.isDefined ||
+                     s.userCreationTimestamp.isDefined ||
+                     s.userFirstEditTimestamp.isDefined)
         .map(state => {
           addOptionalStat(s"${state.wikiDb}.$METRIC_WRITTEN_ROWS", 1)
           state.toRow
