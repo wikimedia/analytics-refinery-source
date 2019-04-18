@@ -28,7 +28,6 @@ class DenormalizedRunner(
   import org.apache.spark.sql.{SaveMode, Row}
   import org.apache.spark.sql.types.{StringType, StructField, StructType}
   import scala.reflect.ClassTag
-  import com.databricks.spark.avro._
   import org.apache.log4j.Logger
   import org.apache.spark.rdd.RDD
   import java.sql.Timestamp
@@ -124,7 +123,7 @@ class DenormalizedRunner(
     filterStates[UserState](
       userStatesToFilter,
       // Use userCreation as first event start timestamp
-      s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+      DenormalizedKeysHelper.userStateKey,
       METRIC_FILTERED_OUT_USER_STATES
     ).cache()
   }
@@ -291,7 +290,7 @@ class DenormalizedRunner(
       .map(userState => {
         // sortedUserStates is to be joined to revisions (and more), we use the user
         // firstEditTimestamp as starting-point for the join.
-        val userStateKey = DenormalizedKeysHelper.userStateKey(userState, useFirstEditTimestamp = true)
+        val userStateKey = DenormalizedKeysHelper.userStateKey(userState)
         (userStateKey, userState)
       })
       .repartitionAndSortWithinPartitions(statePartitioner)

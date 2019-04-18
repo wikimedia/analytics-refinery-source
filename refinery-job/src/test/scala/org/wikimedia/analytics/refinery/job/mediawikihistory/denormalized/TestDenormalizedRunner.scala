@@ -39,7 +39,7 @@ class TestDenormalizedRunner
     val result = denormalizedRunner
       .filterStates[UserState](
         userStates,
-        s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+        DenormalizedKeysHelper.userStateKey,
         "test_user")
       .collect()
 
@@ -60,7 +60,7 @@ class TestDenormalizedRunner
     val result = denormalizedRunner
       .filterStates[UserState](
         userStates,
-        s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+        DenormalizedKeysHelper.userStateKey,
         "test_user")
       .collect()
 
@@ -78,7 +78,7 @@ class TestDenormalizedRunner
     val result = denormalizedRunner
       .filterStates[UserState](
         userStatesRdd,
-        s => DenormalizedKeysHelper.userStateKey(s, useFirstEditTimestamp = false),
+        DenormalizedKeysHelper.userStateKey,
         "test_user")
       .collect()
 
