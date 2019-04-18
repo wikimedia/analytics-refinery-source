@@ -1,6 +1,16 @@
 ## v0.0.86
 * Add EventSparkSchemaLoader support to Refine
 * Add jsonschema loader and spark converter classes
+* Adapt EventLogging/WhiteListSanitization to new way of storing
+* Add change_tags and revision_deleted_parts to mediawiki history
+* Fix EventLogging schema URI to include format=json
+* Reject invalid page titles from pageview dumps
+* Correct names in mediawiki-history sql package
+* Update mw user-history timestamps
+* Fix mediawiki-history-checker after field renamed
+* Fix null-timestamps in checker
+* Fix mediawiki-user-history writing filter
+* Update mediawiki-history user bot fields
 
 ## v0.0.85
 * Update big spark job settings following advices from
