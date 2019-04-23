@@ -1,4 +1,4 @@
-## v0.0.86
+## v0.0.87
 * Add EventSparkSchemaLoader support to Refine
 * Add jsonschema loader and spark converter classes
 * Adapt EventLogging/WhiteListSanitization to new way of storing
@@ -11,6 +11,9 @@
 * Fix null-timestamps in checker
 * Fix mediawiki-user-history writing filter
 * Update mediawiki-history user bot fields
+
+## v0.0.86
+-- skipped due to deployment complications https://phabricator.wikimedia.org/T221466 --
 
 ## v0.0.85
 * Update big spark job settings following advices from
