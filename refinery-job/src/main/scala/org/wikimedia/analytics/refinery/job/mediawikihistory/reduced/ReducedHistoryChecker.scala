@@ -85,7 +85,7 @@ class ReducedHistoryChecker(
          |FROM $tmpTable
          |GROUP BY
          |    project
-         |SORT BY count_reduced_event DESC
+         |ORDER BY count_reduced_event DESC
          |LIMIT $wikisToCheck
       """.stripMargin).collect()
       .map(_.getString(0))
