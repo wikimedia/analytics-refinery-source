@@ -157,6 +157,45 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
 
   }
 
+  it should "set None causedByUserId if null" in {
+
+    val testRow = Row.fromTuple((
+      eventTypeMove,
+      eventActionMove,
+      1L,
+      "20130202200839",
+      null,
+      "127.0.0.1",
+      "The_Night_Watch",
+      "a:2:{s:9:\"4::target\";s:14:\"The Nightwatch\";s:10:\"5::noredir\";s:1:\"0\";}",
+      0,
+      wikiDb,
+      1L,
+      "comment"))
+    val expectedEvent = new PageEvent(
+      wikiDb = wikiDb,
+      oldTitle = "The_Night_Watch",
+      newTitle = "The_Nightwatch",
+      newTitlePrefix = "",
+      newTitleWithoutPrefix = "The_Nightwatch",
+      oldNamespace = 0,
+      oldNamespaceIsContent = true,
+      newNamespace = 0,
+      newNamespaceIsContent = true,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
+      eventType = eventTypeMove,
+      causedByUserId = None,
+      causedByUserText = Some("127.0.0.1"),
+      pageId = Some(1L),
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map("4::target" -> "The Nightwatch", "5::noredir" -> "0")
+    )
+
+    pageEventBuilder.buildMovePageEvent(testRow) should equal(expectedEvent)
+
+  }
+
   it should "work for namespace 0 event" in {
 
     val testRow = Row.fromTuple((

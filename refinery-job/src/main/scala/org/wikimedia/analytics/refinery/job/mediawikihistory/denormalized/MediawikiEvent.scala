@@ -452,7 +452,9 @@ object MediawikiEvent {
      from revision
    */
   def fromRevisionRow(row: Row): MediawikiEvent = {
-    val userIdNum = if (row.isNullAt(3)) 0L else row.getLong(3)
+    // We assume no userId is negative in tables
+    val userId = if (row.isNullAt(3)) None else Some(row.getLong(3))
+    val userIsAnonymous = userId.map(id => id == 0L)
     val userText = row.getString(4)
     val textBytes = if (row.isNullAt(10)) None else Some(row.getLong(10))
     val revDeletedFlag = if (row.isNullAt(9)) None else Some(row.getInt(9))
@@ -463,12 +465,12 @@ object MediawikiEvent {
       eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(1)),
       eventComment = Option(row.getString(2)),
       eventUserDetails = new MediawikiEventUserDetails(
-        userId = if (userIdNum <= 0L) None else Some(userIdNum),
+        userId = userId,
         // userText should be the same as historical if user is anonymous
         // https://phabricator.wikimedia.org/T206883
-        userText = if (userIdNum <= 0L) Option(userText) else None,
+        userText = if (userIsAnonymous.getOrElse(false)) Option(userText) else None,
         userTextHistorical = Option(userText),
-        userIsAnonymous = Some(userIdNum <= 0),
+        userIsAnonymous = userIsAnonymous,
         // Provide partial historical value based on usertext as userGroups are not available
         // No need to provide current value as only anonymous-usertext is propagated
         userIsBotByHistorical = Some(UserEventBuilder.isBotBy(userText, Seq.empty))
@@ -537,7 +539,8 @@ object MediawikiEvent {
      from archive
    */
   def fromArchiveRow(row: Row): MediawikiEvent = {
-    val userIdNum = if (row.isNullAt(3)) 0L else row.getLong(3)
+    val userId = if (row.isNullAt(3)) None else Some(row.getLong(3))
+    val userIsAnonymous = userId.map(id => id == 0L)
     val userText = row.getString(4)
     val textBytes = if (row.isNullAt(12)) None else Some(row.getLong(12))
     val revDeletedFlag = if (row.isNullAt(11)) None else Some(row.getInt(11))
@@ -548,12 +551,12 @@ object MediawikiEvent {
       eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(1)),
       eventComment = Option(row.getString(2)),
       eventUserDetails = new MediawikiEventUserDetails(
-        userId = if (userIdNum <= 0L) None else Some(userIdNum),
+        userId = userId,
         // Anonymous users have same current and historical userText
         // https://phabricator.wikimedia.org/T206883
-        userText = if (userIdNum <= 0L) Option(userText) else None,
+        userText = if (userIsAnonymous.getOrElse(false)) Option(userText) else None,
         userTextHistorical = Option(userText),
-        userIsAnonymous = Some(userIdNum <= 0),
+        userIsAnonymous = userIsAnonymous,
         // Provide partial historical value based on usertext as userGroups are not available
         // No need to provide current value as only anonymous-usertext is propagated
         userIsBotByHistorical = Some(UserEventBuilder.isBotBy(userText, Seq.empty))
@@ -602,7 +605,8 @@ object MediawikiEvent {
   }
 
   def fromUserState(userState: UserState): MediawikiEvent = {
-    val userIdNum = userState.causedByUserId.getOrElse(0L)
+    val userId = userState.causedByUserId
+    val userIsAnonymous = userId.map(id => id == 0L)
     val userText = userState.causedByUserText
     MediawikiEvent(
       wikiDb = userState.wikiDb,
@@ -611,11 +615,11 @@ object MediawikiEvent {
       eventTimestamp = userState.startTimestamp,
       eventComment = None,
       eventUserDetails = new MediawikiEventUserDetails(
-        userId = userState.causedByUserId,
+        userId = userId,
         userTextHistorical = userText,
         // Make historical username current one for anonymous users
-        userText = if (userIdNum <= 0L) userText else None,
-        userIsAnonymous = Some(userIdNum <= 0L),
+        userText = if (userIsAnonymous.getOrElse(false)) userText else None,
+        userIsAnonymous = userIsAnonymous,
         // Provide partial historical value based on usertext as userGroups are not available
         // No need to provide current value as only anonymous-usertext is propagated
         userIsBotByHistorical = Some(UserEventBuilder.isBotBy(userText.getOrElse(""), Seq.empty))
@@ -663,7 +667,8 @@ object MediawikiEvent {
   }
 
   def fromPageState(pageState: PageState): MediawikiEvent = {
-    val userIdNum = pageState.causedByUserId.getOrElse(0L)
+    val userId = pageState.causedByUserId
+    val userIsAnonymous = userId.map(id => id == 0L)
     MediawikiEvent(
       wikiDb = pageState.wikiDb,
       eventEntity = "page",
@@ -674,8 +679,8 @@ object MediawikiEvent {
         userId = pageState.causedByUserId,
         userTextHistorical = pageState.causedByUserText,
         // Make historical username current one for anonymous users
-        userText = if (userIdNum <= 0L) pageState.causedByUserText else None,
-        userIsAnonymous = Some(userIdNum <= 0L)
+        userText = if (userIsAnonymous.getOrElse(false)) pageState.causedByUserText else None,
+        userIsAnonymous = userIsAnonymous
       ),
       pageDetails = new MediawikiEventPageDetails(
         pageId = pageState.pageId,

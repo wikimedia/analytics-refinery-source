@@ -306,12 +306,12 @@ nocreate)"""))
     isValidLogTitle("Valid Username") should be (true)
   }
 
-  "parseUserLog" should "Set no user_id if 0" in {
+  "parseUserLog" should "Set no user_id if null" in {
     val row = Row(
       "renameuser",
       "renameuser",
       "20160101000000",
-      0L,
+      null,
       "user",
       "OldUserText",
       "Some comment",
@@ -372,7 +372,7 @@ nocreate)"""))
       "rights",
       "rights",
       "20160101000000",
-      0L,
+      null,
       "user",
       "UserText",
       "Some comment",

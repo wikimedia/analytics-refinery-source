@@ -263,8 +263,7 @@ object UserEventBuilder extends Serializable {
     val logTimestampString = log.getString(2)
     // no need to check timestamp validity, only valid timestamps gathered from SQL
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
-    val logUserNum = if (log.isNullAt(3)) 0L else log.getLong(3)
-    val logUser = if (logUserNum <= 0L) None else Some(logUserNum)
+    val logUser = if (log.isNullAt(3)) None else Some(log.getLong(3))
     val logUserText = Option(log.getString(4))
     val logTitle = log.getString(5)
     val logComment = log.getString(6)

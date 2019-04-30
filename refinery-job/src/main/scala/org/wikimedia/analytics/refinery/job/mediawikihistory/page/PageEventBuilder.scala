@@ -174,6 +174,7 @@ class PageEventBuilder(
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
+    val logUser = if (log.isNullAt(4)) None else Some(log.getLong(4))
     val eventType = log.getString(1)
     val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
     new PageEvent(
@@ -189,7 +190,7 @@ class PageEventBuilder(
       newNamespaceIsContent = namespaceIsContent,
       timestamp = logTimestamp,
       eventType = eventType,
-      causedByUserId = if (log.isNullAt(4)) None else Some(log.getLong(4)),
+      causedByUserId = logUser,
       causedByUserText = Option(log.getString(5)),
       wikiDb = wikiDb,
       sourceLogId = log.getLong(10),
