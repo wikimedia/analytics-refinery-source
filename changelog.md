@@ -1,3 +1,8 @@
+## v0.0.88
+* Fix mediawiki_page_history userId and anonymous
+* Fix mediawiki_history_reduced checker
+* Fix mediawiki-history user event join
+
 ## v0.0.87
 * Add EventSparkSchemaLoader support to Refine
 * Add jsonschema loader and spark converter classes
