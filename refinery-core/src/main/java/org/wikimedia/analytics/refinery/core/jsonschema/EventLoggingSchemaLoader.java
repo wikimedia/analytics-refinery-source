@@ -83,7 +83,6 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
         capsuleSchemaProperties.set("revision", jf.objectNode().put("type", "integer"));
         capsuleSchemaProperties.set("topic", jf.objectNode().put("type", "string"));
         capsuleSchemaProperties.set("recvFrom", jf.objectNode().put("type", "string"));
-        capsuleSchemaProperties.set("timestamp", jf.objectNode().put("type", "integer"));
 
         capsuleSchema = jf.objectNode();
         capsuleSchema.put("type", "object");
