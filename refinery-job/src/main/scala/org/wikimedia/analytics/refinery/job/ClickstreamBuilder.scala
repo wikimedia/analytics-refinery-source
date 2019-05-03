@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job
 
 import org.apache.spark.sql.SparkSession
+import java.net.URLDecoder
 
 object ClickstreamBuilder {
 
@@ -312,7 +313,7 @@ object ClickstreamBuilder {
       .map(r => {
         val project = r.getString(0)
         val wiki = projectToWikiMap(project)
-        ((wiki, r.getString(1)), (r.getString(2), r.getLong(3))) //
+        ((wiki, URLDecoder.decode(r.getString(1), "UTF-8").replace(' ', '_')), (r.getString(2), r.getLong(3))) //
       }).
       // Get fromPageId instead of fromPageTitle and keep only fromNamespace == 0
       join(pagesPerTitles).
