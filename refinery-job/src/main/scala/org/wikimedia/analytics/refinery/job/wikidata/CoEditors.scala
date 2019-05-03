@@ -84,7 +84,7 @@ object CoEditors {
               AND event_entity = 'revision'
               AND event_type = 'create'
               AND wiki_db = 'wikidatawiki'
-              AND NOT revision_is_deleted
+              AND NOT revision_is_deleted_by_page_deletion
               AND NOT event_user_is_anonymous
               AND NOT ARRAY_CONTAINS(event_user_groups, 'bot')
               AND event_timestamp RLIKE '^${params.year}-${"%02d".format(params.month)}.*'
@@ -99,7 +99,7 @@ object CoEditors {
           WHERE snapshot = '${params.year}-${"%02d".format(params.month)}'
             AND event_entity = 'revision'
             AND event_type = 'create'
-            AND NOT revision_is_deleted
+            AND NOT revision_is_deleted_by_page_deletion
             AND NOT mwh.event_user_is_anonymous
             AND NOT ARRAY_CONTAINS(mwh.event_user_groups, 'bot')
             AND mwh.event_timestamp RLIKE '^${params.year}-${"%02d".format(params.month)}.*'
