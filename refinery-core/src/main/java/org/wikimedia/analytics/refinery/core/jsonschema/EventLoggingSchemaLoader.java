@@ -60,8 +60,8 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
         userAgentSchema.set("browser_major", jf.objectNode().put("type", "string"));
         userAgentSchema.set("browser_minor", jf.objectNode().put("type", "string"));
         userAgentSchema.set("device_family", jf.objectNode().put("type", "string"));
-        userAgentSchema.set("is_bot", jf.objectNode().put("type", "string"));
-        userAgentSchema.set("is_mediawiki", jf.objectNode().put("type", "string"));
+        userAgentSchema.set("is_bot", jf.objectNode().put("type", "boolean"));
+        userAgentSchema.set("is_mediawiki", jf.objectNode().put("type", "boolean"));
         userAgentSchema.set("os_family", jf.objectNode().put("type", "string"));
         userAgentSchema.set("os_major", jf.objectNode().put("type", "string"));
         userAgentSchema.set("os_minor", jf.objectNode().put("type", "string"));

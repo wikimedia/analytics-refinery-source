@@ -1,3 +1,6 @@
+## v0.0.89
+* Fix EventLoggingSchemaLoader to properly set useragent is_bot and is_mediawiki fields as booleans
+
 ## v0.0.88
 * Fix mediawiki_page_history userId and anonymous
 * Fix mediawiki_history_reduced checker
