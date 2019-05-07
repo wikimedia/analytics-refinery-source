@@ -236,6 +236,38 @@ public class TestPageview {
     }
 
     @Test
+    public void testWikipedia15IsNotPageview() {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        WebrequestData webrequest = new WebrequestData(
+            "15.wikipedia.org",
+            "/",
+            "?search=something",
+            "200",
+            "text/html",
+            "Mozilla/5.0...",
+            "https=1");
+
+        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
+    }
+
+    @Test
+    public void testWikidataQueryIsNotPageview() {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        WebrequestData webrequest = new WebrequestData(
+            "query.wikidata.org",
+            "/wiki/SomePage",
+            "?search=something",
+            "200",
+            "text/html",
+            "Mozilla/5.0...",
+            "https=1");
+
+        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
+    }
+
+    @Test
     public void testPageTitlesWithSpecialCharacters() {
         PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
