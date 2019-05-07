@@ -1,6 +1,7 @@
 ## v0.0.89
 * Fix EventLoggingSchemaLoader to properly set useragent is_bot and is_mediawiki fields as booleans
 * Fix EventLoggingSchemaLoader to not include depcrecated `timestamp` in capsule schema
+* RefineTarget - allow missing required fields when reading textual (e.g. JSON) data using JSONSchemas.
 
 ## v0.0.88
 * Fix mediawiki_page_history userId and anonymous

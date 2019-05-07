@@ -156,7 +156,7 @@ object JsonSchemaConverter extends LogHelper {
 
     /**
       * If a field has a 'required' property as a boolean, assume this is a JSONSchema Draft3
-      * style schema and the required property is refering to the current field, not a list of
+      * style schema and the required property is referring to the current field, not a list of
       * required sub properties.  This returns true if the jsonSchema has required: true
       *
       * @param jsonSchema

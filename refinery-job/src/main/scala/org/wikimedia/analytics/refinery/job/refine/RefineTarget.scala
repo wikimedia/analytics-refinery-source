@@ -8,6 +8,7 @@ import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
@@ -398,7 +399,12 @@ case class RefineTarget(
 
         val dfReader = schema match {
             case None    => spark.read
-            case Some(s) => spark.read.schema(s)
+            // If we're loading from textual data, then assume that we will want all fields
+            // in the schema to be nullable (AKA not required).
+            case Some(s) => inputFormat match {
+                case "text" | "json" | "sequence_json" => spark.read.schema(s.makeNullable())
+                case _ => spark.read.schema(s)
+            }
         }
 
         // import spark implicits for dataset/dataframe conversion
