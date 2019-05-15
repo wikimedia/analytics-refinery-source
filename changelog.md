@@ -1,5 +1,6 @@
 ## v0.0.90
-Fix javax.mail dependency conflict introduced by including json-schema-validator
+* Fix javax.mail dependency conflict introduced by including json-schema-validator
+* Improve CamusPartitionChecker error output
 
 ## v0.0.89
 * Fix wikidata-coeditor job after MWH-refactor

@@ -82,6 +82,7 @@ object CamusPartitionChecker {
     errors: Seq[String] = Seq.empty
   )
 
+
   /** Compute complete hours imported on a camus run by topic. Log errors if
     * the camus run state is not correct (missing topics or import-time not moving),
     * but doesn't prevent other topics to be processed
@@ -119,7 +120,32 @@ object CamusPartitionChecker {
 
           // Else there is probably a problem.
           else {
-            val errorMessage = s"Error on topic ${previousTopic} - Latest offset time is either missing or not after the previous run's offset time. Either there has been no new data since the previous run, or Camus is failing to import data."
+            val previousDt = new DateTime(previousTime,  DateTimeZone.UTC);
+            val currentDt =
+              if (currentTopicsAndOldestTimes.contains(previousTopic))
+                new DateTime(currentTopicsAndOldestTimes(previousTopic),  DateTimeZone.UTC)
+              else
+                "none"
+
+            var errorMessage =
+              s"Error on topic ${previousTopic} - Latest offset time is either missing " +
+               "or not after the previous run's offset time. Either there has been no new data " +
+               "since the previous run, messages have late arrival times (possibly due to backfilling) " +
+               "or Camus is failing to import data." + s"""|
+               |- Previous import oldest date time: ${previousDt}
+               |- Current import oldest date time: ${currentDt}
+               |- Previous import offsets:
+               |${previousOffsets.filter(_.getTopic() == previousTopic).sortBy(_.getPartition()).mkString("\n")}
+               |""".stripMargin
+
+            if (currentTopicsAndOldestTimes.contains(previousTopic)) {
+              errorMessage +=
+                s"""- Current import offsets:
+                |${currentOffsets.filter(_.getTopic() == previousTopic).sortBy(_.getPartition()).mkString("\n")}
+                |""".stripMargin
+            }
+
+
             log.error(errorMessage)
             camusPartitionsToFlag.copy(
                 errors = camusPartitionsToFlag.errors :+ errorMessage
@@ -293,7 +319,7 @@ object CamusPartitionChecker {
                 params.fromEmail,
                 params.toEmails.toArray,
                 s"Camus failure report for ${params.camusPropertiesFilePath}",
-                camusPartitionsToFlag.errors.mkString("\n")
+                s"Import history at ${p} encountered possible errors:\n\n${camusPartitionsToFlag.errors.mkString("\n---\n")}"
               )
             }
           })
