@@ -1,3 +1,6 @@
+## v0.0.90
+Fix javax.mail dependency conflict introduced by including json-schema-validator
+
 ## v0.0.89
 * Fix wikidata-coeditor job after MWH-refactor
 * ClickstreamBuilder: Decode refferer url to utf-8
