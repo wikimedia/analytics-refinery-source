@@ -11,8 +11,9 @@ object TestPageHistoryHelpers {
     wikiDb: Option[String] = Some("testwiki"),
     timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
-    causedByUserId: Option[Long] = Some(0L),
+    causedByUserId: Option[Long] = None,
     causedByUserText: Option[String] = Some("User"),
+    causedByAnonymousUser: Option[Boolean] = None,
     pageId: Option[Long] = None,
     oldTitle: Option[String] = Some("Title"),
     newTitle: Option[String] = Some("Title"),
@@ -39,6 +40,7 @@ object TestPageHistoryHelpers {
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
+          case "adminAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
           case "id" | "pageId" => ("pageId" -> long(v))
           case "oldTitle" => ("oldTitle" -> string(v))
           case "newTitle" => ("newTitle" -> string(v))
@@ -49,7 +51,7 @@ object TestPageHistoryHelpers {
           case "newNs" | "newNamespace" => ("newNamespace" -> int(v))
           case "newNsIC" | "newNamespaceIsContent" => ("newNamespaceIsContent" -> boolean(v))
           case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
-          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "commentText" | "sourceLogComment" => ("sourceLogComment" -> string(v))
           case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
@@ -59,6 +61,7 @@ object TestPageHistoryHelpers {
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
+        causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
         oldTitle = valueMap.getOrElse("oldTitle", oldTitle).get.asInstanceOf[String],
         newTitle = valueMap.getOrElse("newTitle", newTitle).get.asInstanceOf[String],
@@ -80,8 +83,9 @@ object TestPageHistoryHelpers {
     startTimestamp: Option[Timestamp] = None,
     endTimestamp: Option[Timestamp] = None,
     causedByEventType: Option[String] = Some("test"),
-    causedByUserId: Option[Long] = Some(0L),
+    causedByUserId: Option[Long] = None,
     causedByUserText: Option[String] = Some("User"),
+    causedByAnonymousUser: Option[Boolean] = None,
     pageId: Option[Long] = Some(1L),
     pageIdArtificial: Option[String] = None,
     titleHistorical: Option[String] = Some("Title"),
@@ -112,6 +116,7 @@ object TestPageHistoryHelpers {
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
+          case "adminIsAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
           case "id" | "pageId" => ("pageId" -> long(v))
           case "artificial" | "pageIdArtificial" => ("pageIdArtificial" -> string(v))
           case "titleH" => ("titleHistorical" -> string(v))
@@ -125,7 +130,7 @@ object TestPageHistoryHelpers {
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
           case "deleted" | "isDeleted" => ("isDeleted" -> boolean(v))
           case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
-          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "commentText" | "sourceLogComment" => ("sourceLogComment" -> string(v))
           case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
@@ -139,6 +144,7 @@ object TestPageHistoryHelpers {
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
+        causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
         pageArtificialId = valueMap.getOrElse("pageIdArtificial", pageIdArtificial).asInstanceOf[Option[String]],
         titleHistorical = titleHistoricalVal,

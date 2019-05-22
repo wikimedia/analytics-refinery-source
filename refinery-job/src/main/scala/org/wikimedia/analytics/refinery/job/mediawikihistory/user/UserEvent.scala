@@ -4,7 +4,6 @@ import java.sql.Timestamp
 
 import org.wikimedia.analytics.refinery.spark.utils.Edge
 
-
 /**
   * This case class represents a user event object, by opposition
   * to a user state object. It extends [[Edge]] (for graph partitioning)
@@ -17,6 +16,7 @@ case class UserEvent(
                       timestamp: Timestamp,
                       eventType: String,
                       causedByUserId: Option[Long],
+                      causedByAnonymousUser: Option[Boolean] = None,
                       causedByUserText: Option[String],
                       parsingErrors: Seq[String] = Seq.empty[String],
                       // Specific fields

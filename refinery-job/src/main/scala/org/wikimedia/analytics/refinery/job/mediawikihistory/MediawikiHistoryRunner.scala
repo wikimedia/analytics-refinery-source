@@ -25,23 +25,26 @@ import org.wikimedia.analytics.refinery.spark.utils.{StatsHelper, MapAccumulator
   * when running denormalize to cover for huge joins
   * (spark.yarn.executor.memoryOverhead=2048)
   *
-  * Example launch command (using joal settings):
+  * Example launch command (customize to your own user):
   *
-  * sudo -u hdfs spark2-submit \
+  * sudo -u analytics spark2-submit \
   *     --master yarn \
-  *     --deploy-mode client \
+  *     --deploy-mode cluster \
   *     --executor-memory 32G \
-  *     --driver-memory 16G \
+  *     --driver-memory 32G \
   *     --executor-cores 4 \
   *     --conf spark.dynamicAllocation.maxExecutors=32 \
   *     --conf spark.executor.memoryOverhead=8192 \
   *     --class org.wikimedia.analytics.refinery.job.mediawikihistory.MediawikiHistoryRunner \
-  *     /home/joal/code/refinery-source/refinery-job/target/refinery-job-0.0.85-SNAPSHOT.jar \
+  *     /home/milimetric/refinery-source/refinery-job/target/refinery-job-0.0.91-SNAPSHOT.jar \
   *     -i /wmf/data/raw/mediawiki \
   *     -p /wmf/data/raw/mediawiki_private \
-  *     -o /wmf/data/wmf/mediawiki \
-  *     -s 2019-01
+  *     -o /user/milimetric/wmf/data/wmf/mediawiki \
+  *     -s 2019-04 \
+  *     -w simplewiki,fawiki \
+  *     -n 8
   */
+
 object MediawikiHistoryRunner {
 
   import org.apache.log4j.{Level, Logger}

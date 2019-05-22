@@ -67,14 +67,14 @@ class PageHistoryBuilder(
     val (status1, event1) = if (status.potentialStates.contains(fromKey)) {
       val state = status.potentialStates(fromKey)
       val timeDiff = event.timestamp.getTime - state.pageCreationTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime
-      val newEvent = {
+      val newEvent:PageEvent = {
         if (timeDiff >= 0 && timeDiff <= 2000) {
           event.copy(timestamp = state.pageCreationTimestamp.getOrElse(new Timestamp(0L)))
         } else {
           event
         }
       }
-      val newKnownState = state.copy(
+      val newKnownState:PageState = state.copy(
         startTimestamp = Some(newEvent.timestamp),
         pageCreationTimestamp = Some(newEvent.timestamp),
         causedByEventType = "create",
@@ -97,17 +97,18 @@ class PageHistoryBuilder(
       // Flush move event and make restoredState a potential one
       addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       val state = status1.restoredStates(toKey)
-      val newPotentialState = state.copy(
+      val newPotentialState:PageState = state.copy(
         titleHistorical = event1.oldTitle,
         namespaceHistorical = event1.oldNamespace,
         namespaceIsContentHistorical = event1.oldNamespaceIsContent,
         endTimestamp = Some(event1.timestamp)
       )
-      val newKnownState = state.copy(
+      val newKnownState:PageState = state.copy(
         startTimestamp = Some(event1.timestamp),
         causedByEventType = event1.eventType,
         causedByUserId = event1.causedByUserId,
         causedByUserText = event1.causedByUserText,
+        causedByAnonymousUser = event1.causedByAnonymousUser,
         inferredFrom = None,
         sourceLogId = Some(event1.sourceLogId),
         sourceLogComment = Some(event1.sourceLogComment),
@@ -123,17 +124,18 @@ class PageHistoryBuilder(
       // and create new potentialState with old values
       addOptionalStat(s"${event1.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       val state = status1.potentialStates(toKey)
-      val newPotentialState = state.copy(
+      val newPotentialState: PageState = state.copy(
           titleHistorical = event1.oldTitle,
           namespaceHistorical = event1.oldNamespace,
           namespaceIsContentHistorical = event1.oldNamespaceIsContent,
           endTimestamp = Some(event1.timestamp)
       )
-      val newKnownState = state.copy(
+      val newKnownState:PageState = state.copy(
           startTimestamp = Some(event1.timestamp),
           causedByEventType = event1.eventType,
           causedByUserId = event1.causedByUserId,
           causedByUserText = event1.causedByUserText,
+          causedByAnonymousUser = event1.causedByAnonymousUser,
           inferredFrom = None,
           sourceLogId = Some(event1.sourceLogId),
           sourceLogComment = Some(event1.sourceLogComment),
@@ -168,18 +170,19 @@ class PageHistoryBuilder(
       // Uses original pageCreationTimestamp if it happens 2 seconds or less before delete event timestamp
       val state = status.potentialStates(fromKey)
       val timeDiff = event.timestamp.getTime - state.pageCreationTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime
-      val newEvent = {
+      val newEvent:PageEvent = {
         if (timeDiff >= 0 && timeDiff <= 2000) {
           event.copy(timestamp = state.pageCreationTimestamp.getOrElse(new Timestamp(0L)))
         } else {
           event
         }
       }
-      val newKnownState = state.copy(
+      val newKnownState:PageState = state.copy(
         startTimestamp = Some(newEvent.timestamp),
         pageCreationTimestamp = Some(newEvent.timestamp),
         causedByUserId = None,
         causedByUserText = None,
+        causedByAnonymousUser = None,
         inferredFrom = Some("delete-conflict"),
         sourceLogId = Some(newEvent.sourceLogId),
         sourceLogComment = Some(newEvent.sourceLogComment),
@@ -199,17 +202,18 @@ class PageHistoryBuilder(
       // Move restored state to potential-state and add delete state to known-states
       // Uses original pageCreationTimestamp if it happens 2 seconds or less before restore start timestamp
       val state = status1.restoredStates(fromKey)
-      val newKnownState = state.copy(
+      val newKnownState:PageState = state.copy(
         startTimestamp = Some(event1.timestamp),
         causedByEventType = "delete",
         causedByUserId = event1.causedByUserId,
         causedByUserText = event1.causedByUserText,
+        causedByAnonymousUser = event1.causedByAnonymousUser,
         inferredFrom = None,
         sourceLogId = Some(event1.sourceLogId),
         sourceLogComment = Some(event1.sourceLogComment),
         sourceLogParams = Some(event1.sourceLogParams)
       )
-      val newPotentialState = state.copy(
+      val newPotentialState:PageState = state.copy(
         endTimestamp = Some(event1.timestamp)
       )
       status1.copy(
@@ -254,6 +258,7 @@ class PageHistoryBuilder(
         causedByEventType = "delete",
         causedByUserId = event1.causedByUserId,
         causedByUserText = event1.causedByUserText,
+        causedByAnonymousUser = event1.causedByAnonymousUser,
         isDeleted = true,
         sourceLogId = Some(event1.sourceLogId),
         sourceLogComment = Some(event1.sourceLogComment),
@@ -285,13 +290,16 @@ class PageHistoryBuilder(
       addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       status.copy(
         restoredStates = status.restoredStates - toKey + (toKey -> conflictingRestoredState.copy(
+          // [[PageState]]
           endTimestamp = Some(event.timestamp)
         )),
         knownStates = status.knownStates :+ conflictingRestoredState.copy(
+          // [[PageState]]
           startTimestamp = Some(event.timestamp),
           causedByEventType = "restore",
           causedByUserId = event.causedByUserId,
           causedByUserText = event.causedByUserText,
+          causedByAnonymousUser = event.causedByAnonymousUser,
           inferredFrom = Some("restore-conflict"),
           sourceLogId = Some(event.sourceLogId),
           sourceLogComment = Some(event.sourceLogComment),
@@ -304,14 +312,15 @@ class PageHistoryBuilder(
       // and create new restoredState
       addOptionalStat(s"${event.wikiDb}.$METRIC_EVENTS_MATCHING_OK", 1)
       val state = status.potentialStates(toKey)
-      val newRestoredState = state.copy(
+      val newRestoredState:PageState = state.copy(
         endTimestamp = Some(event.timestamp)
       )
-      val newKnownState = state.copy(
+      val newKnownState:PageState = state.copy(
         startTimestamp = Some(event.timestamp),
         causedByEventType = event.eventType,
         causedByUserId = event.causedByUserId,
         causedByUserText = event.causedByUserText,
+        causedByAnonymousUser = event.causedByAnonymousUser,
         sourceLogId = Some(event.sourceLogId),
         sourceLogComment = Some(event.sourceLogComment),
         sourceLogParams = Some(event.sourceLogParams)
@@ -358,6 +367,7 @@ class PageHistoryBuilder(
       status.copy(
         potentialStates = status.potentialStates - toKey,
         knownStates = status.knownStates :+ state.copy(
+          // [[PageState]]
           startTimestamp = state.pageCreationTimestamp
         )
       )
@@ -393,6 +403,7 @@ class PageHistoryBuilder(
           val pageCreationTimestamp = sortedStates.head.pageCreationTimestamp
           val firstEditTimestamp = sortedStates.head.pageFirstEditTimestamp
           sortedStates.map(s => s.copy(
+            // [[PageState]]
             pageCreationTimestamp = pageCreationTimestamp,
             pageFirstEditTimestamp = firstEditTimestamp
           ))
@@ -419,6 +430,7 @@ class PageHistoryBuilder(
                 // If no startTimestamp use min timestamp => don't update
                 val startTimestamp = state.startTimestamp.getOrElse(new Timestamp(Long.MinValue))
                 if (state.causedByEventType == "create" && firstEditTimestamp.before(startTimestamp)) {
+                  // [[PageState]]
                   state.copy(startTimestamp = state.pageFirstEditTimestamp)
                 } else {
                   state
@@ -472,6 +484,7 @@ class PageHistoryBuilder(
     val (fStates: Seq[PageState], unmatchedEvents: Seq[PageEvent]) = {
       if (sortedEvents.isEmpty) {
         val finalStates = states.map(s => s.copy(
+          // [[PageState]]
           startTimestamp = s.pageCreationTimestamp,
           inferredFrom = Some("unclosed")
         )).toSeq
@@ -485,6 +498,7 @@ class PageHistoryBuilder(
         )
         val finalStatus = sortedEvents.foldLeft(initialStatus)(processEvent)
         val finalStates = finalStatus.knownStates ++
+          // [[PageState]]
           finalStatus.potentialStates.values.map(s => s.copy(startTimestamp = s.pageCreationTimestamp))
         (finalStates, finalStatus.unmatchedEvents)
       }

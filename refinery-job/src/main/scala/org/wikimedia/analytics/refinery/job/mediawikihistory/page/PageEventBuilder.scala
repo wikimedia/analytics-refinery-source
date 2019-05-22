@@ -39,17 +39,19 @@ class PageEventBuilder(
 
   /**
     * Builds a move [[PageEvent]] from a row following this schema:
-    *   log_type
-    *   log_action
-    *   log_page
-    *   log_timestamp
-    *   log_user
-    *   log_user_text
-    *   log_title
-    *   log_params
-    *   log_namespace
-    *   wiki_db
-    *   log_id
+    *   0 log_type,
+    *   1 log_action,
+    *   2 log_page,
+    *   3 log_timestamp,
+    *   4 actor_user,
+    *   5 actor_name,
+    *   6 actor_is_anon,
+    *   7 log_title,
+    *   8 log_params,
+    *   9 log_namespace,
+    *  10 wiki_db,
+    *  11 log_id,
+    *  12 comment_text
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is so far use on.ly with move value in this function. See [[buildSimplePageEvent]].
@@ -59,19 +61,21 @@ class PageEventBuilder(
     */
   def buildMovePageEvent(log: Row): PageEvent = {
     val logType = log.getString(0)
+    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
-    val logUser = if (log.isNullAt(4)) None else Some(log.getLong(4))
-    val logUserText = Option(log.getString(5))
-    val logTitle = log.getString(6)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
-    val logNamespace = if (log.isNullAt(8)) Integer.MIN_VALUE else log.getInt(8)
-    val wikiDb = log.getString(9)
-    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
+    // we check actor_name because that's a non-nullable field so a null value would mean the join failed
+    val actorUser = if (log.isNullAt(4) || log.isNullAt(5)) None else Some(log.getLong(4))
+    val actorName = Option(log.getString(5))
+    val actorIsAnon = if (log.isNullAt(6)) None else Some(log.getBoolean(6))
+    val logTitle = log.getString(7)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(8))
+    val logNamespace = if (log.isNullAt(9)) Integer.MIN_VALUE else log.getInt(9)
+    val wikiDb = log.getString(10)
     val pageId = if (pageIdNum <= 0L) None else Some(pageIdNum)
     // logId always defined
-    val logId = log.getLong(10)
-    val logComment = log.getString(11)
+    val logId = log.getLong(11)
+    val commentText = log.getString(12)
 
     // Get old and new titles
     if (logTitle == null || (logParams.isRight && logParams.right.get == null))
@@ -88,10 +92,11 @@ class PageEventBuilder(
         newNamespace = Int.MinValue,
         newNamespaceIsContent = false,
         pageId = pageId,
-        causedByUserId = logUser,
-        causedByUserText = logUserText,
+        causedByUserId = actorUser,
+        causedByAnonymousUser = actorIsAnon,
+        causedByUserText = actorName,
         sourceLogId = logId,
-        sourceLogComment = logComment,
+        sourceLogComment = commentText,
         sourceLogParams = PageEventBuilder.normalizeLogParams(logParams),
         parsingErrors = Seq("Could not parse old and new titles from null logTitle or logParams")
       )
@@ -131,10 +136,11 @@ class PageEventBuilder(
           pageId = pageId,
           timestamp = logTimestamp,
           eventType = logType,
-          causedByUserId = logUser,
-          causedByUserText = logUserText,
+          causedByUserId = actorUser,
+          causedByAnonymousUser = actorIsAnon,
+          causedByUserText = actorName,
           sourceLogId = logId,
-          sourceLogComment = logComment,
+          sourceLogComment = commentText,
           sourceLogParams = PageEventBuilder.normalizeLogParams(logParams),
           parsingErrors = errors
       )
@@ -144,17 +150,19 @@ class PageEventBuilder(
   /**
     * Builds a [[PageEvent]] from a map isContent value for each project/namespace
     * and a row following this schema:
-    *   log_type
-    *   log_action
-    *   log_page
-    *   log_timestamp
-    *   log_user
-    *   log_user_text
-    *   log_title
-    *   log_params
-    *   log_namespace
-    *   wiki_db,
-    *   log_id
+    *   0 log_type,
+    *   1 log_action,
+    *   2 log_page,
+    *   3 log_timestamp,
+    *   4 actor_user,
+    *   5 actor_name,
+    *   6 actor_is_anon,
+    *   7 log_title,
+    *   8 log_params,
+    *   9 log_namespace,
+    *  10 wiki_db,
+    *  11 log_id,
+    *  12 comment_text
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is to be either delete or restore in this function. See [[buildMovePageEvent]]
@@ -163,20 +171,28 @@ class PageEventBuilder(
     * @return The [[PageEvent]] built
     */
   def buildSimplePageEvent(log: Row): PageEvent = {
-    val wikiDb = log.getString(9)
-
-    // Handle possible title error
-    val title = log.getString(6)
-    val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
-
-    val namespace = if (log.isNullAt(8)) Integer.MIN_VALUE else log.getInt(8)
-    val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
+    val logType = log.getString(0)
+    val logAction = log.getString(1)
+    // see [[PageHistoryRunner]] to make SURE this logic stays in sync with what log rows are selected
+    val eventType = if (logAction == "delete_redir") logType else logAction
+    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
-    val pageIdNum = if (log.isNullAt(2)) 0L else log.getLong(2)
-    val logUser = if (log.isNullAt(4)) None else Some(log.getLong(4))
-    val eventType = log.getString(1)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
+    // we check actor_name because that's a non-nullable field so a null value would mean the join failed
+    val actorUser = if (log.isNullAt(4) || log.isNullAt(5)) None else Some(log.getLong(4))
+    val actorName = Option(log.getString(5))
+    val actorIsAnon = if (log.isNullAt(6)) None else Some(log.getBoolean(6))
+    val title = log.getString(7)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(8))
+    val namespace = if (log.isNullAt(9)) Integer.MIN_VALUE else log.getInt(9)
+    val wikiDb = log.getString(10)
+    val logId = log.getLong(11)
+    val commentText = log.getString(12)
+
+    val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
+    // Handle possible title error
+    val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
+
     new PageEvent(
       pageId = if (pageIdNum <= 0L) None else Some(pageIdNum),
       oldTitle = title,
@@ -190,11 +206,12 @@ class PageEventBuilder(
       newNamespaceIsContent = namespaceIsContent,
       timestamp = logTimestamp,
       eventType = eventType,
-      causedByUserId = logUser,
-      causedByUserText = Option(log.getString(5)),
+      causedByUserId = actorUser,
+      causedByAnonymousUser = actorIsAnon,
+      causedByUserText = actorName,
       wikiDb = wikiDb,
-      sourceLogId = log.getLong(10),
-      sourceLogComment = log.getString(11),
+      sourceLogId = logId,
+      sourceLogComment = commentText,
       sourceLogParams = PageEventBuilder.normalizeLogParams(logParams),
       parsingErrors = titleError
     )

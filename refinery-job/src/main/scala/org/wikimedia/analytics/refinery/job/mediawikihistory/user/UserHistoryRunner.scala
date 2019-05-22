@@ -70,10 +70,11 @@ class UserHistoryRunner(
     log_type,
     log_action,
     log_timestamp,
-    log_user,
-    log_user_text,
+    actor_user,
+    actor_name,
+    actor_is_anon,
     log_title,
-    log_comment,
+    comment_text,
     log_params,
     wiki_db,
     log_id
@@ -86,15 +87,28 @@ class UserHistoryRunner(
   )
         """)
       .rdd
+      /* For reference below:
+           0 log_type,
+           1 log_action,
+           2 log_timestamp,
+           3 actor_user,
+           4 actor_name,
+           5 actor_is_anon,
+           6 log_title,
+           7 comment_text,
+           8 log_params,
+           9 wiki_db,
+          10 log_id
+       */
       .filter(row => {
-        val wikiDb = row.getString(8)
-        val isValid = UserEventBuilder.isValidLogTitle(row.getString(5))
+        val wikiDb = row.getString(9)
+        val isValid = UserEventBuilder.isValidLogTitle(row.getString(6))
         val metricName = if (isValid) METRIC_VALID_LOGS_OK else METRIC_VALID_LOGS_KO
         addOptionalStat(s"$wikiDb.$metricName", 1)
         isValid
       })
       .map(row => {
-        val wikiDb = row.getString(8)
+        val wikiDb = row.getString(9)
         val userEvent = UserEventBuilder.buildUserEvent(row)
         val metricName = if (userEvent.parsingErrors.isEmpty) METRIC_EVENTS_PARSING_OK else METRIC_EVENTS_PARSING_KO
         addOptionalStat(s"$wikiDb.$metricName", 1)
@@ -116,6 +130,14 @@ SELECT
 FROM ${SQLHelper.USER_VIEW}
       """)
       .rdd
+      /* For reference below:
+           0 wiki_db,
+           1 user_id,
+           2 user_text,
+           3 user_registration,
+           4 user_first_rev_timestamp,
+           5 user_groups
+       */
       .map { row =>
         val wikiDb = row.getString(0)
         addOptionalStat(s"$wikiDb.$METRIC_INITIAL_STATES", 1L)

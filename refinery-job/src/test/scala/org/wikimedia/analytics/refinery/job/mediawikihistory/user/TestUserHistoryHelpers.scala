@@ -14,6 +14,7 @@ object TestUserHistoryHelpers {
     eventType: Option[String] = None,
     causedByUserId: Option[Long] = Some(0L),
     causedByUserText: Option[String] = Some("User"),
+    causedByAnonymousUser: Option[Boolean] = Some(false),
     oldUserText: Option[String] = Some("User"),
     newUserText: Option[String] = Some("User"),
     oldUserGroups: Option[Seq[String]] = Some(Seq.empty),
@@ -39,6 +40,7 @@ object TestUserHistoryHelpers {
           case "type" | "eventType" => ("eventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
+          case "adminAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
           case "oldText" | "oldUserText" => ("oldUserText" -> string(v))
           case "newText" | "newUserText" => ("newUserText" -> string(v))
           case "oldGroups" | "oldUserGroups" => ("oldUserGroups" -> list(v))
@@ -47,7 +49,7 @@ object TestUserHistoryHelpers {
           case "expiration" | "blockExpiration" => ("blockExpiration" -> string(v))
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
           case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
-          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "commentText" | "sourceLogComment" => ("sourceLogComment" -> string(v))
           case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
@@ -56,6 +58,7 @@ object TestUserHistoryHelpers {
         timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
+        causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         oldUserText = valueMap.getOrElse("oldUserText", oldUserText).get.asInstanceOf[String],
         newUserText = valueMap.getOrElse("newUserText", newUserText).get.asInstanceOf[String],
@@ -79,6 +82,7 @@ object TestUserHistoryHelpers {
                     causedByEventType: Option[String] = Some(null),
                     causedByUserId: Option[Long] = Some(0L),
                     causedByUserText: Option[String] = Some("User"),
+                    causedByAnonymousUser: Option[Boolean] = Some(false),
                     userId: Option[Long] = Some(1L),
                     userTextHistorical: Option[String] = Some("User"),
                     userText: Option[String] = None,
@@ -111,6 +115,7 @@ object TestUserHistoryHelpers {
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
+          case "adminAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
           case "id" | "userId" => ("userId" -> long(v))
           case "textH" | "userTextH" => ("userTextHistorical" -> string(v))
           case "text" | "userText" => ("userText" -> string(v))
@@ -125,7 +130,7 @@ object TestUserHistoryHelpers {
           case "expiration" | "causedByBlockExpiration" => ("causedByBlockExpiration" -> string(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
           case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
-          case "logComment" | "sourceLogComment" => ("sourceLogComment" -> string(v))
+          case "commentText" | "sourceLogComment" => ("sourceLogComment" -> string(v))
           case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
@@ -139,6 +144,7 @@ object TestUserHistoryHelpers {
         causedByEventType = valueMap.getOrElse("causedByEventType", causedByEventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
+        causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
         userId = valueMap.getOrElse("userId", userId).get.asInstanceOf[Long],
         userTextHistorical = userTextHistoricalVal,
         userText = valueMap.getOrElse("userText", Some(userTextHistoricalVal)).get.asInstanceOf[String],
