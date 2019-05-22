@@ -22,7 +22,8 @@ case class TestData(
     meta: SubObject = SubObject(),
     //IPv4 addresses taken from MaxMind's test suite
     ip: String = "81.2.69.160",
-    tags: Array[String] = Array("tag1", "tag2")
+    tags: Array[String] = Array("tag1", "tag2"),
+    webHost: String = "en.wikipedia.org"
 )
 
 class TestTransformFunctions extends FlatSpec
@@ -31,6 +32,7 @@ class TestTransformFunctions extends FlatSpec
     val data1 = TestData()
     val data2 = TestData(uuid="b0f7848f973f5e90ac531055b45bfeba")
     val data3 = TestData(meta=SubObject(id="f6770c245746515089a6237f9fa6536b"))
+    val data4 = TestData(webHost="invalid.hostname.org")
 
     val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location", ListMap("year" -> Some("2018")))
 
@@ -50,8 +52,19 @@ class TestTransformFunctions extends FlatSpec
         val partDf = new PartitionedDataFrame(spark.createDataFrame(sc.parallelize(Seq(data1))), fakeHivePartition)
         val transformedDf = geocode_ip(partDf)
         transformedDf.df.columns.contains("geocoded_data") should equal(true)
-
         transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
     }
 
+    it should "filter_out_non_wiki_hostname" in {
+        val partDf = new PartitionedDataFrame(
+            spark.createDataFrame(
+                sc.parallelize(Seq(data2, data3, data4)
+            )
+        ), fakeHivePartition)
+        val transformedDf = filter_out_non_wiki_hostname(partDf)
+        transformedDf.df.count should equal(2)
+        transformedDf.df.select("webHost").collect.foreach(
+            r => r.getString(0) should equal("en.wikipedia.org")
+        )
+    }
 }

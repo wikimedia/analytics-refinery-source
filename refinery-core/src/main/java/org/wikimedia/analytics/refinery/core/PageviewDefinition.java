@@ -260,21 +260,28 @@ public class PageviewDefinition {
         if (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim().equalsIgnoreCase("1"))
             return false;
 
+        boolean successRequestForSupportedProject = (
+            Webrequest.isSuccess(data.getHttpStatus()) &&
+            isWikimediaHost(data.getUriHost())
+        );
 
-        boolean successRequestForSupportedProject = Webrequest.isSuccess(data.getHttpStatus())
-                // A pageview must be from either a wikimedia.org domain,
-                // or a 'project' domain, e.g. en.wikipedia.org
-                && ( Utilities.patternIsFound(uriHostWikimediaDomainPattern,  data.getUriHost())
-                || Utilities.patternIsFound(uriHostOtherProjectsPattern, data.getUriHost())
-                || Utilities.patternIsFound(uriHostProjectDomainPattern, data.getUriHost()));
+        // Check if it is an app pageview if it was not a web one.
+        return (
+            successRequestForSupportedProject &&
+            (isWebPageview(data) || isAppPageview(data))
+        );
+    }
 
-
-      //check if it is  an app pageview if it was not a web one
-
-      return successRequestForSupportedProject
-          && (isWebPageview(data)
-              || isAppPageview(data));
-
+    /**
+     * Returns true when the host belongs to either a wikimedia.org domain,
+     * or a 'project' domain, e.g. en.wikipedia.org. Returns false otherwise.
+     */
+    public boolean isWikimediaHost(String host) {
+        return (
+            Utilities.patternIsFound(uriHostWikimediaDomainPattern, host) ||
+            Utilities.patternIsFound(uriHostOtherProjectsPattern, host) ||
+            Utilities.patternIsFound(uriHostProjectDomainPattern, host)
+        );
     }
 
     /**

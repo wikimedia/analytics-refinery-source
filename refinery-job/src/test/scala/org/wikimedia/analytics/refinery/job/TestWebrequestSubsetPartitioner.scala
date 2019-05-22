@@ -3,7 +3,6 @@ package org.wikimedia.analytics.refinery.job
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
-import org.wikimedia.analytics.refinery.job.refine.TestData
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 import scala.collection.immutable.ListMap
@@ -14,10 +13,18 @@ case class WebrequestSubsetTags(
                                  webrequest_subset: String
                                  )
 
+case class WebrequestSubsetTestData(
+    greeting: String = "hi",
+    uuid: String = "2a9de856da6a5fdc82a7f19f2b5cf99c",
+    ip: String = "81.2.69.160",
+    tags: Array[String] = Array("tag1", "tag2"),
+    webhost: String = "en.wikipedia.org"
+)
+
 class TestWebrequestSubsetPartitioner extends FlatSpec
 with Matchers with DataFrameSuiteBase {
 
-  val fakeData = TestData()
+  val fakeData = WebrequestSubsetTestData()
   val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location", ListMap("year" -> Some("2018")))
 
   it should "join a dataframe to webrequest_subset_tags on tags" in {

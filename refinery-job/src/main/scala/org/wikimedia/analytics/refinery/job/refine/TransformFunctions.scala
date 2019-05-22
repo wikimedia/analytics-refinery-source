@@ -12,6 +12,7 @@ import org.apache.spark.sql.types.{MapType, StringType}
 import org.apache.spark.sql.{Column, AnalysisException, Row}
 import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory
+import org.wikimedia.analytics.refinery.core.PageviewDefinition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 import scala.collection.JavaConverters._
@@ -82,3 +83,38 @@ object geocode_ip extends LogHelper {
     }
 }
 
+/**
+  * Filters out records that have a hostname that is not a wiki.
+  * Accepted values include:
+  *   wikipedia.org, en.wiktionary.org, ro.m.wikibooks,
+  *   zh-an.wikivoyage.org, mediawiki.org, www.wikidata.org, etc.
+  * Filtered out values include:
+  *   en-wiki.org, en.wikipedia.nom.it, en.wikipedi0.org,
+  *   translate.googleusercontent.com, www.translatoruser-int.com, etc.
+  */
+object filter_out_non_wiki_hostname extends LogHelper {
+
+    // The hostname should be in a field named 'webHost'.
+    val hostnameColumnName = "webHost"
+
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+        // Make sure this df has the corresponding hostname column.
+        try {
+            partDf.df(hostnameColumnName)
+        } catch {
+            case e: AnalysisException =>
+                log.warn(s"${partDf.partition} does not have a `$hostnameColumnName` field, skipping.")
+                return partDf
+        }
+
+        log.debug(s"Filtering out non-wiki hostnames in ${partDf.partition}")
+        val schema = partDf.df.schema
+        partDf.copy(df = partDf.df.sparkSession.createDataFrame(
+            partDf.df.rdd.filter { row =>
+                val hostname = row.getAs[String](hostnameColumnName)
+                PageviewDefinition.getInstance.isWikimediaHost(hostname)
+            },
+            schema
+        ))
+    }
+}
