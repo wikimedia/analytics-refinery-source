@@ -1,3 +1,6 @@
+## v0.0.91
+* Update CirrusRequestDeser.java to use new schema of mediawiki/cirrussearch/request event
+
 ## v0.0.90
 * Fix javax.mail dependency conflict introduced by including json-schema-validator
 * Improve CamusPartitionChecker error output

@@ -27,7 +27,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
  * Helper class for dealing with the array<struct<...>> in
  * cirrussearchrequestset.
  *
- * Currently only extracts querytype and indices, but can be expanded as
+ * Currently only extracts query_type and indices, but can be expanded as
  * necessary to meet our needs in various UDFs.
  */
 class CirrusRequestDeser {
@@ -59,11 +59,11 @@ class CirrusRequestDeser {
     public CirrusRequestDeser(GenericUDFHelper argsHelper, int i, StructObjectInspector oi)
         throws UDFArgumentTypeException {
         this.oi = oi;
-        // verify the 'querytype' field is a string
-        queryTypeField = oi.getStructFieldRef("querytype");
+        // verify the 'query_type' field is a string
+        queryTypeField = oi.getStructFieldRef("query_type");
         if (queryTypeField == null) {
             throw new UDFArgumentTypeException(i,
-                argsHelper.getFuncName() + " Argument should contain a struct with a 'querytype' field");
+                argsHelper.getFuncName() + " Argument should contain a struct with a 'query_type' field");
         }
         ObjectInspector queryTypeOI = queryTypeField.getFieldObjectInspector();
         argsHelper.checkArgType(queryTypeOI, i, PrimitiveCategory.STRING);

@@ -43,7 +43,7 @@ public class TestGetMainSearchRequestUDF {
         List<String> fields = new ArrayList<>();
         List<ObjectInspector> fieldOIs = new ArrayList<>();
 
-        fields.add("querytype");
+        fields.add("query_type");
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
 
         fields.add("indices");
@@ -144,13 +144,13 @@ public class TestGetMainSearchRequestUDF {
                 // This type of request should generally not be recorded, but
                 // test the UDF with some odd inputs to ensure it is robust to
                 // the oddities that may occasionally arise.
-                "invalid record with null querytype", -1, "zhwiki",
+                "invalid record with null query_type", -1, "zhwiki",
                 new Object[] { new Object[] { null, new String[] { "zhwiki_content" } } } },
             new Object[] {
                 // This type of request should generally not be recorded, but
                 // test the UDF with some odd inputs to ensure it is robust to
                 // the oddities that may occasionally arise.
-                "invalid record null querytype later", -1, "thwiki",
+                "invalid record null query_type later", -1, "thwiki",
                 new Object[] {
                     new Object[] { "near_match", new String[] { "thwiki_content" } },
                     new Object[] { null, new String[] { "thwiki_content" } } } },
