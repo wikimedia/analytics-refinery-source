@@ -133,7 +133,7 @@ public class PageviewDefinition {
      * Must be kept in sync with $wgLegalTitleChars.
      */
     private final Pattern titleValidPattern = Pattern.compile(
-        "^[ %!\"$&'()*,\\-./0-9:;=?@A-Z\\\\^_`a-z~\\x80-\\xFF\\u0080-\\uffff]+$"
+        "^[ %!\"$&'()*,\\-./0-9:;=?@A-Z\\\\^_`a-z~\\x80-\\xFF\\u0080-\\uffff+]+$"
     );
     /**
      * Maximum possible title length in bytes.
