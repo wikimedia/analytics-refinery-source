@@ -142,7 +142,7 @@ public class TestUAParserUserAgentRecognition extends TestCase {
     }
 
     /**
-     * Tests user_agent string longer than 512.
+     * Tests user_agent string longer than UAParser.MAX_UA_LENGTH.
      * It should return an empty map (full of -), preventing
      * to spend too much time parsing probably wrong values
      **/

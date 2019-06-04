@@ -29,7 +29,10 @@ import java.util.Map;
  */
 public class UAParser {
 
-    public static final int MAX_UA_LENGTH = 1024;
+    // On 2019-06-05 we reduced this limit from 1024 to 400
+    // to prevent this code to parse malicious user agent strings
+    // that clog the regular expressions in the ua parser.
+    public static final int MAX_UA_LENGTH = 400;
 
     public static final String NA = "-";
 
