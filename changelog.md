@@ -1,5 +1,8 @@
 ## v0.0.91
 * Update CirrusRequestDeser.java to use new schema of mediawiki/cirrussearch/request event
+* Add refine transform function to filter our non-wiki hostnames
+* Allow for plus signs in the article titles in the PageviewDefinition
+* Reduce the size limit of user agent strings in the UAParser
 
 ## v0.0.90
 * Fix javax.mail dependency conflict introduced by including json-schema-validator
