@@ -231,8 +231,9 @@ object DataFrameToHive extends LogHelper {
             // The connection must use the current user for HDFS file permissions
             try {
                 val hiveDriver = new HiveDriver()
-                val jdbcUser = System.getProperty("user.name")
+                val jdbcUser = spark.sparkContext.sparkUser
                 val jdbcUrl = s"jdbc:hive2://$hiveServerUrl/default;user=$jdbcUser;password="
+                log.info(s"Connecting to hive with url ${jdbcUrl}")
                 val connection: Connection = hiveDriver.connect(jdbcUrl, new Properties())
                 val statement = connection.createStatement()
                 ddlStatements.foreach { (s) =>
