@@ -91,6 +91,9 @@ object geocode_ip extends LogHelper {
   * Filtered out values include:
   *   en-wiki.org, en.wikipedia.nom.it, en.wikipedi0.org,
   *   translate.googleusercontent.com, www.translatoruser-int.com, etc.
+ *
+  * Given that webhost is an optional field on the capsule we need to accept
+  * as valid records for which webhost is null.
   */
 object filter_out_non_wiki_hostname extends LogHelper {
 
@@ -98,23 +101,19 @@ object filter_out_non_wiki_hostname extends LogHelper {
     val hostnameColumnName = "webHost"
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
-        // Make sure this df has the corresponding hostname column.
-        try {
-            partDf.df(hostnameColumnName)
-        } catch {
-            case e: AnalysisException =>
-                log.warn(s"${partDf.partition} does not have a `$hostnameColumnName` field, skipping.")
-                return partDf
+        if (partDf.df.columns.contains(hostnameColumnName)) {
+            log.debug(s"Filtering out non-wiki hostnames in ${partDf.partition}")
+            val schema = partDf.df.schema
+            partDf.copy(df = partDf.df.sparkSession.createDataFrame(
+                partDf.df.rdd.filter { row =>
+                    val hostname = row.getAs[String](hostnameColumnName)
+                    hostname == null || PageviewDefinition.getInstance.isWikimediaHost(hostname)
+                },
+                schema
+            ))
+        } else {
+            log.info(s"${partDf.partition} does not have a `$hostnameColumnName` field, skipping non-wiki filtering.")
+            partDf
         }
-
-        log.debug(s"Filtering out non-wiki hostnames in ${partDf.partition}")
-        val schema = partDf.df.schema
-        partDf.copy(df = partDf.df.sparkSession.createDataFrame(
-            partDf.df.rdd.filter { row =>
-                val hostname = row.getAs[String](hostnameColumnName)
-                PageviewDefinition.getInstance.isWikimediaHost(hostname)
-            },
-            schema
-        ))
     }
 }

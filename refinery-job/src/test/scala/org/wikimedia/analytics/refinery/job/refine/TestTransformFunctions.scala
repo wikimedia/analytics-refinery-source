@@ -29,10 +29,15 @@ case class TestData(
 class TestTransformFunctions extends FlatSpec
     with Matchers with DataFrameSuiteBase {
 
+    val subObject1 = SubObject(id="f6770c245746515089a6237f9fa6536b")
+
     val data1 = TestData()
     val data2 = TestData(uuid="b0f7848f973f5e90ac531055b45bfeba")
-    val data3 = TestData(meta=SubObject(id="f6770c245746515089a6237f9fa6536b"))
+    val data3 = TestData(meta=subObject1)
     val data4 = TestData(webHost="invalid.hostname.org")
+    val data5 = TestData(webHost=null)
+
+
 
     val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location", ListMap("year" -> Some("2018")))
 
@@ -57,14 +62,30 @@ class TestTransformFunctions extends FlatSpec
 
     it should "filter_out_non_wiki_hostname" in {
         val partDf = new PartitionedDataFrame(
-            spark.createDataFrame(
-                sc.parallelize(Seq(data2, data3, data4)
-            )
-        ), fakeHivePartition)
+            spark.createDataFrame(sc.parallelize(Seq(data2, data3, data4))),
+            fakeHivePartition)
         val transformedDf = filter_out_non_wiki_hostname(partDf)
         transformedDf.df.count should equal(2)
         transformedDf.df.select("webHost").collect.foreach(
             r => r.getString(0) should equal("en.wikipedia.org")
         )
+    }
+
+    it should "not fail filtering_out_non_wiki_hostname if webHost column is null" in {
+        val partDf = new PartitionedDataFrame(
+            spark.createDataFrame(
+                sc.parallelize(Seq(data5))
+            ), fakeHivePartition)
+        val transformedDf = filter_out_non_wiki_hostname(partDf)
+        transformedDf.df.count should equal(1)
+    }
+
+    it should "not fail filtering_out_non_wiki_hostname if webHost column doesn't exist" in {
+        val partDf = new PartitionedDataFrame(
+            spark.createDataFrame(
+                sc.parallelize(Seq(subObject1))
+            ), fakeHivePartition)
+        val transformedDf = filter_out_non_wiki_hostname(partDf)
+        transformedDf.df.count should equal(1)
     }
 }

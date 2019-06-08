@@ -57,7 +57,9 @@ public class Utilities {
      * @return boolean
      */
     public static boolean patternIsFound(Pattern pattern, String target) {
-        return pattern.matcher(target).find();
+
+        return (target == null ||  target.isEmpty() )? false: pattern.matcher(target).find();
+
     }
 
     /**
