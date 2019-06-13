@@ -1,3 +1,7 @@
+## v0.0.92
+* Fix wrongly getting the yarn user name in DataFrameToHive
+* Fix transform function for NULL values and for dataframes without the webHost column
+
 ## v0.0.91
 * Update CirrusRequestDeser.java to use new schema of mediawiki/cirrussearch/request event
 * Add refine transform function to filter our non-wiki hostnames
