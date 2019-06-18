@@ -15,6 +15,8 @@
 package org.wikimedia.analytics.refinery.core;
 
 import junit.framework.TestCase;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlParser;
 
 public class TestMediaFileUrlParser extends TestCase {
 
@@ -40,10 +42,9 @@ public class TestMediaFileUrlParser extends TestCase {
         assertOriginal(url, url);
     }
 
-    private void assertImage(final String url,
-            final String baseName, final Integer width) {
-        assertParsed(url,
-                MediaFileUrlInfo.createTranscodedToImage(baseName, width));
+    private void assertImage(final String url, final String baseName, final Integer width) {
+        MediaFileUrlInfo info = MediaFileUrlInfo.createTranscodedToImage(baseName, width);
+        assertParsed(url, info);
     }
 
     private void assertMovie(final String url,

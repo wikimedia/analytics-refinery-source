@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.core;
 
-import org.wikimedia.analytics.refinery.core.MediaFileUrlInfo.Classification;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo.TranscodingClassification;
 
 import junit.framework.TestCase;
 
@@ -21,8 +22,8 @@ public class TestMediaFileUrlInfo extends TestCase {
         MediaFileUrlInfo info = MediaFileUrlInfo.createUnknown();
 
         assertNull("Base name not null", info.getBaseName());
-        assertEquals("Classification does not match",
-                Classification.UNKNOWN, info.getClassification());
+        assertEquals("TranscodingClassification does not match",
+                TranscodingClassification.UNKNOWN, info.getTranscodingClassification());
         assertNull("Width not null", info.getWidth());
         assertNull("Height not null", info.getHeight());
     }
@@ -31,8 +32,8 @@ public class TestMediaFileUrlInfo extends TestCase {
         MediaFileUrlInfo info = MediaFileUrlInfo.createOriginal("foo");
 
         assertEquals("Base name does not match", "foo", info.getBaseName());
-        assertEquals("Classification does not match",
-                Classification.ORIGINAL, info.getClassification());
+        assertEquals("TranscodingClassification does not match",
+                TranscodingClassification.ORIGINAL, info.getTranscodingClassification());
         assertNull("Width not null for unknown", info.getWidth());
         assertNull("Height not null for unknown", info.getHeight());
     }
@@ -41,8 +42,8 @@ public class TestMediaFileUrlInfo extends TestCase {
         MediaFileUrlInfo info = MediaFileUrlInfo.createTranscodedToAudio("foo");
 
         assertEquals("Base name does not match", "foo", info.getBaseName());
-        assertEquals("Classification does not match",
-                Classification.TRANSCODED_TO_AUDIO, info.getClassification());
+        assertEquals("TranscodingClassification does not match",
+                TranscodingClassification.TRANSCODED_TO_AUDIO, info.getTranscodingClassification());
         assertNull("Width not null for unknown", info.getWidth());
         assertNull("Height not null for unknown", info.getHeight());
     }
@@ -51,8 +52,8 @@ public class TestMediaFileUrlInfo extends TestCase {
         MediaFileUrlInfo info = MediaFileUrlInfo.createTranscodedToImage("foo", 42);
 
         assertEquals("Base name does not match", "foo", info.getBaseName());
-        assertEquals("Classification does not match",
-                Classification.TRANSCODED_TO_IMAGE, info.getClassification());
+        assertEquals("TranscodingClassification does not match",
+                MediaFileUrlInfo.TranscodingClassification.TRANSCODED_TO_IMAGE, info.getTranscodingClassification());
         assertEquals("Width does not match", 42, info.getWidth());
         assertNull("Height not null", info.getHeight());
     }
@@ -61,8 +62,8 @@ public class TestMediaFileUrlInfo extends TestCase {
         MediaFileUrlInfo info = MediaFileUrlInfo.createTranscodedToMovie("foo", 42);
 
         assertEquals("Base name does not match", "foo", info.getBaseName());
-        assertEquals("Classification does not match",
-                Classification.TRANSCODED_TO_MOVIE, info.getClassification());
+        assertEquals("TranscodingClassification does not match",
+                MediaFileUrlInfo.TranscodingClassification.TRANSCODED_TO_MOVIE, info.getTranscodingClassification());
         assertNull("Width not null", info.getWidth());
         assertEquals("Height does not match", 42, info.getHeight());
     }

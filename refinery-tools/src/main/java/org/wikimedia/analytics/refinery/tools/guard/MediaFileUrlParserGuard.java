@@ -14,9 +14,9 @@
 
 package org.wikimedia.analytics.refinery.tools.guard;
 
-import org.wikimedia.analytics.refinery.core.MediaFileUrlParser;
-import org.wikimedia.analytics.refinery.core.MediaFileUrlInfo;
-import org.wikimedia.analytics.refinery.core.MediaFileUrlInfo.Classification;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlParser;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo.TranscodingClassification;
 
 /**
  * Guard for parsing urls for media files in the upload domain.
@@ -38,7 +38,7 @@ public class MediaFileUrlParserGuard extends StdinGuard {
         if (capsule == null) {
             throw new GuardException("Could not identify \"" + line + "\"");
         }
-        if (capsule.getClassification() == Classification.UNKNOWN) {
+        if (capsule.getTranscodingClassification() == TranscodingClassification.UNKNOWN) {
             throw new GuardException("Could not identify \"" + line + "\"");
         }
     }

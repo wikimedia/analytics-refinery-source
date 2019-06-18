@@ -12,18 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wikimedia.analytics.refinery.core;
-
-import org.apache.commons.lang3.StringUtils;
-import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo;
+package org.wikimedia.analytics.refinery.core.media;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.StringUtils;
+import org.wikimedia.analytics.refinery.core.PercentDecoder;
 
 /**
  * Parse an url for MediaFileUrlInfo
  */
 public class MediaFileUrlParser {
+    /**
+     * If a URL is longer than this, the parser will return null
+     */
+    private static final int MAX_URL_LENGTH = 1024;
+
     /**
      * Pattern to match wikis within other patterns
      */
@@ -119,7 +124,7 @@ public class MediaFileUrlParser {
     public static MediaFileUrlInfo parse(String url) {
         final MediaFileUrlInfo ret;
 
-        if (url == null) {
+        if (url == null || url.length() > MAX_URL_LENGTH) {
             return null;
         }
 
