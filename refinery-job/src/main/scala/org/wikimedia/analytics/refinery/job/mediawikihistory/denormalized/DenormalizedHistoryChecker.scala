@@ -45,14 +45,14 @@ class DenormalizedHistoryChecker(
          |    COUNT(1) AS count_denorm_event,
          |    -- User values
          |    COUNT(DISTINCT event_user_id) AS distinct_user_id,
-         |    COUNT(DISTINCT event_user_text) AS distinct_user_text,
-         |    SUM(IF(ARRAY_CONTAINS(event_user_groups, "bot"), 1, 0)) AS count_user_group_bot,
+         |    COUNT(DISTINCT event_user_text_historical) AS distinct_user_text,
+         |    SUM(IF(ARRAY_CONTAINS(event_user_groups_historical, "bot"), 1, 0)) AS count_user_group_bot,
          |    SUM(IF(event_user_is_anonymous, 1, 0)) AS count_user_anonymous,
          |    SUM(IF(event_user_is_created_by_self, 1, 0)) AS count_user_self_created,
          |    -- Page values
          |    COUNT(DISTINCT page_id) AS distinct_page_id,
-         |    COUNT(DISTINCT page_title) AS distinct_page_title,
-         |    COUNT(DISTINCT page_namespace) AS distinct_page_namespace,
+         |    COUNT(DISTINCT page_title_historical) AS distinct_page_title,
+         |    COUNT(DISTINCT page_namespace_historical) AS distinct_page_namespace,
          |    SUM(IF(page_is_redirect, 1, 0)) AS count_page_redirect,
          |    -- Revision values
          |    SUM(IF(revision_is_deleted_by_page_deletion, 1, 0)) AS count_revision_deleted,

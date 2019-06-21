@@ -44,7 +44,7 @@ class UserHistoryChecker(
         |    COUNT(1) AS count_user_event,
         |    COUNT(DISTINCT user_id) AS distinct_user_id,
         |    COUNT(DISTINCT user_text) AS distinct_user_text,
-        |    SUM(IF(ARRAY_CONTAINS(user_groups, "bot"), 1, 0)) AS count_user_group_bot,
+        |    SUM(IF(ARRAY_CONTAINS(user_groups_historical, "bot"), 1, 0)) AS count_user_group_bot,
         |    SUM(IF(anonymous, 1, 0)) AS count_user_anonymous,
         |    SUM(IF(created_by_self, 1, 0)) AS count_user_self_created
         |FROM $tmpTable
