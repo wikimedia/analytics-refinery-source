@@ -85,15 +85,14 @@ user_first_live_revision AS (
   FROM (
     SELECT
       wiki_db,
-      rev_user AS user_id,
+      actor_user AS user_id,
       rev_id AS user_first_rev_id,
       rev_timestamp AS user_first_rev_timestamp,
-      row_number() OVER (PARTITION BY wiki_db, rev_user ORDER BY rev_timestamp, rev_id) as row_num
+      row_number() OVER (PARTITION BY wiki_db, actor_user ORDER BY rev_timestamp, rev_id) as row_num
     FROM ${SQLHelper.REVISION_VIEW}
     WHERE TRUE
-      -- Drop undefined rev_user (not done in view)
-      AND rev_user IS NOT NULL
-      AND rev_user > 0
+      -- exclude undefined actor_user (anonymous or sanitized)
+      AND actor_user IS NOT NULL
   ) t
   WHERE row_num = 1
 
@@ -108,15 +107,14 @@ user_first_archive_revision AS (
   FROM (
     SELECT
       wiki_db,
-      ar_user AS user_id,
+      actor_user AS user_id,
       ar_rev_id AS user_first_rev_id,
       ar_timestamp AS user_first_rev_timestamp,
-      row_number() OVER (PARTITION BY wiki_db, ar_user ORDER BY ar_timestamp, ar_rev_id) as row_num
+      row_number() OVER (PARTITION BY wiki_db, actor_user ORDER BY ar_timestamp, ar_rev_id) as row_num
     FROM ${SQLHelper.ARCHIVE_VIEW}
     WHERE TRUE
-      -- Drop undefined rev_user (not done in view)
-      AND ar_user IS NOT NULL
-      AND ar_user > 0
+      -- exclude undefined actor_user (anonymous or sanitized)
+      AND actor_user IS NOT NULL
   ) t
   WHERE row_num = 1
 

@@ -97,8 +97,8 @@ class PageHistoryRunner(
     val parsedPageEvents = spark.sql(
       // NOTE: The following fields are sanitized according to log_deleted on cloud dbs:
       //  &1: log_action, log_namespace, log_title, log_page
-      //  &2: log_comment_id, log_comment
-      //  &4: log_user_text, log_actor
+      //  &2: log_comment_id
+      //  &4: log_actor
       //  log_deleted is not null or 0: log_params
       s"""
   SELECT
@@ -106,14 +106,15 @@ class PageHistoryRunner(
     log_action,
     log_page,
     log_timestamp,
-    log_user,
-    log_user_text,
+    actor_user,
+    actor_name,
+    actor_is_anon,
     log_title,
     log_params,
     log_namespace,
     wiki_db,
     log_id,
-    log_comment
+    comment_text
   FROM ${SQLHelper.LOGGING_VIEW}
   WHERE ((log_type = 'move')
           OR (log_type = 'delete'
@@ -121,6 +122,21 @@ class PageHistoryRunner(
           ))
       """)
       .rdd
+      /* For reference below:
+           0 log_type,
+           1 log_action,
+           2 log_page,
+           3 log_timestamp,
+           4 actor_user,
+           5 actor_name,
+           6 actor_is_anon,
+           7 log_title,
+           8 log_params,
+           9 log_namespace,
+          10 wiki_db,
+          11 log_id,
+          12 comment_text
+       */
       .map(row =>
       {
         val pageEvent = {
@@ -148,6 +164,16 @@ class PageHistoryRunner(
   FROM ${SQLHelper.PAGE_VIEW}
       """)
       .rdd
+      /* For reference below:
+           0 wiki_db,
+           1 page_id,
+           2 page_title,
+           3 page_namespace,
+           4 page_is_redirect,
+           5 page_first_rev_timestamp,
+           6 page_first_rev_user_id,
+           7 page_first_rev_user_text
+       */
       .map(row => {
         val wikiDb = row.getString(0)
         val title = row.getString(2)

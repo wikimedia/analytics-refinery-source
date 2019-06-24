@@ -97,19 +97,15 @@ class RevisionViewRegistrar(
 
     spark.sql(
       // TODO: content model and format are nulled, replace with join to slots if needed
-      // NOTE: It's important to keep coalesce(actor_name, ar_user_text)
-      //       in that order as the revision values are not nullified but emptied
-      //       (also applies to actor_user and comment_text).
+      // NOTE: we LEFT join to actor because we want to keep records where actors have been sanitized out
+      //       (eg modules/profile/templates/labs/db/views/maintain-views.yaml)
       s"""
 WITH revision_actor_comment_splits AS (
-  -- Needed to compute the randomized rev_actor/rev_comment in the select.
+  -- Needed to compute the randomized rev_actor/rev_comment_id in the select.
   -- Random functions are not (yet?) allowed in joining sections.
   SELECT
     wiki_db,
     rev_timestamp,
-    rev_comment,
-    rev_user,
-    rev_user_text,
     rev_page,
     rev_id,
     rev_parent_id,
@@ -162,9 +158,10 @@ comment_split AS (
 SELECT
   r.wiki_db AS wiki_db,
   rev_timestamp,
-  coalesce(comment_text, rev_comment) AS rev_comment,
-  coalesce(actor_user, rev_user) AS rev_user,
-  coalesce(actor_name, rev_user_text) AS rev_user_text,
+  comment_text,
+  actor_user,
+  actor_name,
+  if(actor_name is null, null, actor_user is null) actor_is_anon,
   rev_page,
   rev_id,
   rev_parent_id,

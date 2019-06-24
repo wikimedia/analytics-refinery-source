@@ -94,9 +94,6 @@ class LoggingViewRegistrar(
     spark.sql(
       // NOTE: Logging table has duplicated rows (same values except for log_id)
       //       We deduplicate them using group by taking the minimum log_id
-      // NOTE: It's important to keep coalesce(actor_name, log_user_text)
-      //       in that order as the revision values are not nullified but emptied
-      //       (also applies for actor_user and comment_text).
       s"""
 WITH distinct_filtered_logging AS (
   SELECT DISTINCT
@@ -105,13 +102,10 @@ WITH distinct_filtered_logging AS (
     log_type,
     log_action,
     log_timestamp,
-    log_user,
-    log_user_text,
     log_page,
     log_title,
     log_namespace,
     log_params,
-    log_comment,
     log_actor,
     log_comment_id
   FROM $loggingUnprocessedView
@@ -128,19 +122,16 @@ WITH distinct_filtered_logging AS (
     log_type,
     log_action,
     log_timestamp,
-    log_user,
-    log_user_text,
     log_page,
     log_title,
     log_namespace,
     log_params,
-    log_comment,
     log_actor,
     log_comment_id
 ),
 
 logging_actor_comment_splits AS (
-  -- Needed to compute the randomized log_actor/log_comment in the select.
+  -- Needed to compute the randomized log_actor/log_comment_id in the select.
   -- Random functions are not (yet?) allowed in joining sections.
   SELECT
     wiki_db,
@@ -148,13 +139,10 @@ logging_actor_comment_splits AS (
     log_type,
     log_action,
     log_timestamp,
-    log_user,
-    log_user_text,
     log_page,
     log_title,
     log_namespace,
     log_params,
-    log_comment,
     log_actor,
     -- assign a random subgroup among the actor splits determined and broadcast above
     CAST(rand() * getLogActorSplits(wiki_db, log_actor) AS INT) AS log_actor_split,
@@ -193,13 +181,14 @@ SELECT
   log_type,
   log_action,
   log_timestamp,
-  coalesce(actor_user, log_user) AS log_user,
-  coalesce(actor_name, log_user_text) AS log_user_text,
+  actor_user,
+  actor_name,
+  if(actor_name is null, null, actor_user is null) actor_is_anon,
   log_page,
   log_title,
   log_namespace,
   log_params,
-  coalesce(comment_text, log_comment) AS log_comment
+  comment_text
 FROM logging_actor_comment_splits l
   LEFT JOIN actor_split a
     ON l.wiki_db = a.wiki_db

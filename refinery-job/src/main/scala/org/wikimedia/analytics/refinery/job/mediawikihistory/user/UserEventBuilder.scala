@@ -38,7 +38,7 @@ object UserEventBuilder extends Serializable {
 
   def getOldAndNewUserTexts(
       logParams: Either[Map[String, Any], String],
-      logComment: String,
+      commentText: String,
       logTitle: String
   ): (String, String, Option[String]) = {
     try {
@@ -51,7 +51,7 @@ object UserEventBuilder extends Serializable {
     } catch {
       case _: Throwable =>
         try {
-          logComment match {
+          commentText match {
             case userRenamePattern(oldUserText, newUserText) =>
               (oldUserText, newUserText, None)
           }
@@ -66,11 +66,11 @@ object UserEventBuilder extends Serializable {
   }
 
   def getCreationUserTexts(
-      logComment: String,
+      commentText: String,
       logTitle: String
   ): (String, String, Option[String]) = {
     try {
-      logComment match {
+      commentText match {
         case userCreatePattern(userText) => (userText, userText, None)
       }
     } catch {
@@ -90,7 +90,7 @@ object UserEventBuilder extends Serializable {
 
   def getOldAndNewUserGroups(
       logParams: Either[Map[String, Any], String],
-      logComment: String
+      commentText: String
   ): (Seq[String], Seq[String], Option[String]) = {
     try {
       val paramsMap = logParams.left.get
@@ -116,16 +116,16 @@ object UserEventBuilder extends Serializable {
             if ((logParams.isLeft && logParams.left.get != null) ||
                 (logParams.isRight && logParams.right.get != null && logParams.right.get.nonEmpty)) {
               (Seq.empty[String], Seq.empty[String], Some(s"Could not parse groups from: $logParams"))
-            } else if (logComment != null && logComment.startsWith("=")) {
+            } else if (commentText != null && commentText.startsWith("=")) {
               (Seq.empty[String],
-               logComment.replaceAll("=", "").split(",").map(_.trim),
+               commentText.replaceAll("=", "").split(",").map(_.trim),
                None)
-            } else if (logComment != null && logComment.contains("+")) {
+            } else if (commentText != null && commentText.contains("+")) {
               (Seq.empty[String],
-               logComment.split(" ").map(_.replace("+", "").trim),
+               commentText.split(" ").map(_.replace("+", "").trim),
                None)
             } else {
-              (Seq.empty[String], Seq.empty[String], Some("Could not parse groups from: " + logComment))
+              (Seq.empty[String], Seq.empty[String], Some("Could not parse groups from: " + commentText))
             }
         }
     }
@@ -257,19 +257,34 @@ object UserEventBuilder extends Serializable {
     }
   }
 
+  /**
+    * Builds a move [[UserEvent]] from a row following this schema:
+    *   0 log_type,
+    *   1 log_action,
+    *   2 log_timestamp,
+    *   3 actor_user,
+    *   4 actor_name,
+    *   5 actor_is_anon
+    *   6 log_title,
+    *   7 comment_text,
+    *   8 log_params,
+    *   9 wiki_db,
+    *  10 log_id
+    */
   def buildUserEvent(log: Row): UserEvent = {
     val logType = log.getString(0)
     val logAction = log.getString(1)
     val logTimestampString = log.getString(2)
     // no need to check timestamp validity, only valid timestamps gathered from SQL
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
-    val logUser = if (log.isNullAt(3)) None else Some(log.getLong(3))
-    val logUserText = Option(log.getString(4))
-    val logTitle = log.getString(5)
-    val logComment = log.getString(6)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(7))
-    val wikiDb = log.getString(8)
-    val logId = log.getLong(9)
+    val actorUser = if (log.isNullAt(3) || log.isNullAt(4)) None else Some(log.getLong(3))
+    val actorName = Option(log.getString(4))
+    val actorIsAnon = if (log.isNullAt(5)) None else Some(log.getBoolean(5))
+    val logTitle = log.getString(6)
+    val commentText = log.getString(7)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(8))
+    val wikiDb = log.getString(9)
+    val logId = log.getLong(10)
 
     val eventType = logType match {
       case "renameuser" => "rename"
@@ -280,9 +295,9 @@ object UserEventBuilder extends Serializable {
 
     val (oldUserText, newUserText, userTextsError) = eventType match {
       case "rename" =>
-        getOldAndNewUserTexts(logParams, logComment, logTitle)
+        getOldAndNewUserTexts(logParams, commentText, logTitle)
       case "create" =>
-        getCreationUserTexts(logComment, logTitle)
+        getCreationUserTexts(commentText, logTitle)
       case _ =>
         if (logTitle != null) {
           val userText = logTitle.replaceAll("_", " ")
@@ -292,7 +307,7 @@ object UserEventBuilder extends Serializable {
     }
 
     val (oldUserGroups, newUserGroups, groupsError) = eventType match {
-      case "altergroups" => getOldAndNewUserGroups(logParams, logComment)
+      case "altergroups" => getOldAndNewUserGroups(logParams, commentText)
       case _ => (Seq.empty, Seq.empty, None)
     }
 
@@ -313,8 +328,9 @@ object UserEventBuilder extends Serializable {
         wikiDb = wikiDb,
         timestamp = logTimestamp,
         eventType = eventType,
-        causedByUserId = logUser,
-        causedByUserText = logUserText,
+        causedByUserId = actorUser,
+        causedByAnonymousUser = actorIsAnon,
+        causedByUserText = actorName,
         oldUserText = oldUserText,
         newUserText = newUserText,
         oldUserGroups = oldUserGroups,
@@ -325,7 +341,7 @@ object UserEventBuilder extends Serializable {
         createdBySystem = createdBySystem,
         createdByPeer = createdByPeer,
         sourceLogId = logId,
-        sourceLogComment = logComment,
+        sourceLogComment = commentText,
         sourceLogParams = logParams.fold[Map[String,String]](
           m => m.mapValues(_.toString), // The map with string values if parsed
           s => if (s != null) Map("unparsed" -> s) else Map.empty), // A string if not parsed or empty if null

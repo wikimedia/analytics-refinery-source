@@ -148,9 +148,10 @@ class DenormalizedRunner(
   SELECT
     wiki_db,
     rev_timestamp,
-    rev_comment,
-    rev_user,
-    rev_user_text,
+    comment_text,
+    actor_user,
+    actor_name,
+    actor_is_anon,
     rev_page,
     rev_id,
     rev_parent_id,
@@ -172,23 +173,15 @@ class DenormalizedRunner(
   }
 
   def getArchivedRevisionsNotFiltered(wikiClause: String): RDD[MediawikiEvent] = {
-    // TODO: simplify or remove joins as source table imports change
-    // TODO: content model and format are nulled, replace with join to slots if needed
-    // NOTE: ar_len is nulled if ar_deleted&1, not sure how this affects metrics
-    // NOTE: ar_comment is always null when it comes from cloud dbs
-    // NOTE: ar_user and ar_user_text are null on cloud dbs if ar_deleted&4
-    // NOTE: ar_actor is 0 on cloud dbs if ar_deleted&4
-    // NOTE: ar_sha1 is null on cloud dbs if ar_deleted&1
-    // NOTE: It's important to keep coalesce(actor_name, ar_user_text)
-    //       in that order as the revision values are not nullified but emptied.
     spark.sql(
       s"""
   SELECT
     wiki_db,
     ar_timestamp,
-    ar_comment,
-    ar_user,
-    ar_user_text,
+    comment_text,
+    actor_user,
+    actor_name,
+    actor_is_anon,
     ar_page_id,
     ar_title,
     ar_namespace,

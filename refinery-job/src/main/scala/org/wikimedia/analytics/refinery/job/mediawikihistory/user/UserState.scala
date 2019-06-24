@@ -21,6 +21,7 @@ case class UserState(
                       endTimestamp: Option[Timestamp] = None,
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
+                      causedByAnonymousUser: Option[Boolean] = None,
                       causedByUserText: Option[String] = None,
                       // Specific fields
                       userId: Long,
@@ -73,6 +74,7 @@ case class UserState(
       //endTimestamp.orNull,
       causedByEventType,
       causedByUserId.orNull,
+      causedByAnonymousUser.orNull,
       causedByUserText.orNull,
       causedByBlockExpiration.orNull,
       inferredFrom.orNull,
@@ -122,12 +124,13 @@ object UserState {
       //endTimestamp = if (row.isNullAt(18)) None else Some(row.getTimestamp(18)),
       causedByEventType = row.getString(19),
       causedByUserId = if (row.isNullAt(20)) None else Some(row.getLong(20)),
-      causedByUserText = Option(row.getString(21)),
-      causedByBlockExpiration = Option(row.getString(22)),
-      inferredFrom = Option(row.getString(23)),
-      sourceLogId = if (row.isNullAt(24)) None else Some(row.getLong(24)),
-      sourceLogComment = Option(row.getString(25)),
-      sourceLogParams = Option(row.getMap[String, String](26)).map(_.toMap)
+      causedByAnonymousUser = if (row.isNullAt(21)) None else Some(row.getBoolean(21)),
+      causedByUserText = Option(row.getString(22)),
+      causedByBlockExpiration = Option(row.getString(23)),
+      inferredFrom = Option(row.getString(24)),
+      sourceLogId = if (row.isNullAt(25)) None else Some(row.getLong(25)),
+      sourceLogComment = Option(row.getString(26)),
+      sourceLogParams = Option(row.getMap[String, String](27)).map(_.toMap)
   )
 
   val schema = StructType(
@@ -158,6 +161,7 @@ object UserState {
       //StructField("end_timestamp", TimestampType, nullable = true),
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
+      StructField("caused_by_anonymous_user", BooleanType, nullable = true),
       StructField("caused_by_user_text", StringType, nullable = true),
       StructField("caused_by_block_expiration", StringType, nullable = true),
       StructField("inferred_from", StringType, nullable = true),

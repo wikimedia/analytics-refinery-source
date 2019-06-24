@@ -81,8 +81,8 @@ page_first_revision AS (
       wiki_db,
       rev_page AS page_id,
       rev_id as page_first_rev_id,
-      rev_user AS page_first_rev_user_id,
-      rev_user_text AS page_first_rev_user_text,
+      actor_user AS page_first_rev_user_id,
+      actor_name AS page_first_rev_user_text,
       rev_timestamp AS page_first_rev_timestamp,
       row_number() OVER (PARTITION BY wiki_db, rev_page ORDER BY rev_timestamp, rev_id) as row_num
     FROM ${SQLHelper.REVISION_VIEW}

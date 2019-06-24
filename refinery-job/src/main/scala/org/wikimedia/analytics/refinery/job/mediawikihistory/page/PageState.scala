@@ -7,7 +7,6 @@ import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TimeBoundaries
 import org.wikimedia.analytics.refinery.spark.utils.Vertex
 
-
 /**
   * This case class represents a page state object, by opposition
   * to a page event object. It extends [[Vertex]] (for graph partitioning)
@@ -22,6 +21,7 @@ case class PageState(
                       endTimestamp: Option[Timestamp] = None,
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
+                      causedByAnonymousUser: Option[Boolean] = None,
                       causedByUserText: Option[String] = None,
                       // Specific fields
                       pageId: Option[Long] = None,
@@ -62,6 +62,7 @@ case class PageState(
     //endTimestamp.orNull,
     causedByEventType,
     causedByUserId.orNull,
+    causedByAnonymousUser.orNull,
     causedByUserText.orNull,
     inferredFrom.orNull,
     sourceLogId.orNull,
@@ -103,11 +104,12 @@ object PageState {
     //endTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
     causedByEventType = row.getString(14),
     causedByUserId = if (row.isNullAt(15)) None else Some(row.getLong(15)),
-    causedByUserText = Option(row.getString(16)),
-    inferredFrom = Option(row.getString(17)),
-    sourceLogId = if (row.isNullAt(18)) None else Some(row.getLong(18)),
-    sourceLogComment = Option(row.getString(19)),
-    sourceLogParams = Option(row.getMap[String, String](20)).map(_.toMap)
+    causedByAnonymousUser = if (row.isNullAt(16)) None else Some(row.getBoolean(16)),
+    causedByUserText = Option(row.getString(17)),
+    inferredFrom = Option(row.getString(18)),
+    sourceLogId = if (row.isNullAt(19)) None else Some(row.getLong(19)),
+    sourceLogComment = Option(row.getString(20)),
+    sourceLogParams = Option(row.getMap[String, String](21)).map(_.toMap)
   )
 
   val schema = StructType(
@@ -131,6 +133,7 @@ object PageState {
       //StructField("end_timestamp", TimestampType, nullable = true),
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
+      StructField("caused_by_anonymous_user", BooleanType, nullable = true),
       StructField("caused_by_user_text", StringType, nullable = true),
       StructField("inferred_from", StringType, nullable = true),
       StructField("source_log_id", LongType, nullable = true),

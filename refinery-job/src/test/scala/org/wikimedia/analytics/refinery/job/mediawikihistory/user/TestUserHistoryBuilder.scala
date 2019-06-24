@@ -46,10 +46,10 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "New    1   01        (sysop)"
     )
     val expectedResults = userStateSet(userId = Some(1L), userCreation = Some(new Timestamp(1L)))(
-      "start  end   textH text groupsH   groups   eventType",
-      "01     02    Old   New    ()       (sysop)  create",
-      "02     03    Old   New    (sysop)  (sysop)  altergroups",
-      "03     None  New   New    (sysop)  (sysop)  rename"
+      "start  end   textH text adminAnon  groupsH  groups   eventType",
+      "01     02    Old   New  false      ()       (sysop)  create",
+      "02     03    Old   New  false      (sysop)  (sysop)  altergroups",
+      "03     None  New   New  false      (sysop)  (sysop)  rename"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -64,8 +64,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User   1   02"
     )
     val expectedResults = userStateSet()(
-      "start  end   textH id  creation  groupsH  eventType  adminId  adminText  inferred",
-      "02     None  User  1   02        ()       create     None     None       unclosed"
+      "start  end   textH id  creation  groupsH  eventType  adminId  adminText  adminAnon  inferred",
+      "02     None  User  1   02        ()       create     None     None       None       unclosed"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -73,12 +73,12 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
   it should "flush states that are left without create event" in {
     val events = Seq()
     val states = userStateSet()(
-      "textH id  creation eventType  adminId  adminText",
-      "User  1   01       create     None    None"
+      "textH id  creation eventType  adminId  adminText  adminAnon",
+      "User  1   01       create     None     None       None"
     )
     val expectedResults = userStateSet()(
-      "start  end   textH id  creation  eventType  adminId  adminText  inferred",
-      "01     None  User  1   01        create     None     None       unclosed"
+      "start  end   textH id  creation  eventType  adminId  adminText  adminAnon  inferred",
+      "01     None  User  1   01        create     None     None       None       unclosed"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -95,8 +95,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   01"
     )
     val expectedResults = userStateSet()(
-      "start  end   eventType  textH  id  creation  adminId  adminText  inferred",
-      "02     None  create     User   1   02        None     None       conflict"
+      "start  end   eventType  textH  id  creation  adminId  adminText  adminAnon  inferred",
+      "02     None  create     User   1   02        None     None       None       conflict"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -111,8 +111,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "Name1  1   1            None"
     )
     val expectedResults = userStateSet()(
-      "start  end   creation  registration  textH  text eventType  logId",
-      "1      None  10000     1         Name1  Name1  create   1"
+      "start  end   creation  registration  textH  text   eventType  logId",
+      "1      None  10000     1             Name1  Name1  create     1"
     )
     val actualResults = process(events, states)
     actualResults should be (Seq(expectedResults))
@@ -124,8 +124,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "Name1  1   None          None       None      create"
     )
     val expectedResults = userStateSet()(
-      "start  end   creation  registration  firstEdit  textH  text   eventType inferred",
-      "None   None  None      None          None       Name1  Name1   create    unclosed"
+      "start  end   creation  registration  firstEdit  textH  text   adminAnon  eventType inferred",
+      "None   None  None      None          None       Name1  Name1  false      create    unclosed"
     )
     val actualResults = process(Seq.empty, states)
     actualResults should be (Seq(expectedResults))
@@ -141,8 +141,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "Name1  1   None"
     )
     val expectedResults = userStateSet()(
-      "start  end   creation  textH  text eventType  logId",
-      "01     None  01        Name1  Name1  create   1"
+      "start  end   creation  textH  text   adminAnon  eventType  logId",
+      "01     None  01        Name1  Name1  false      create     1"
     )
     val actualResults = process(events, states)
     actualResults should be (Seq(expectedResults))
@@ -210,6 +210,31 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "03     None  (nocreate,noemail)  (nocreate,noemail)  indefinite       alterblocks"
     )
     process(events, states) should be (Seq(expectedResults))
+  }
+
+  it should "process colliding rename AFTER create when at same time" in {
+    val events = userEventSet()(
+      "logId  time  eventType  oldText  newText",
+      "1      01    create     Name2    Name2",
+      "2      02    create     Name2    Name2",
+      "3      02    rename     Name2    Name3"
+    )
+    val states = userStateSet()(
+      "textH  id  creation",
+      "Name3  1   01",
+      "Name2  2   02"
+    )
+    val expectedResults1 = userStateSet(userId = Some(1L), userCreation = Some(new Timestamp(1L)))(
+      "start  end   textH  text eventType  logId",
+      "01     02    Name2  Name3  create   1",
+      "02     None  Name3  Name3  rename   3"
+    )
+    val expectedResults2 = userStateSet(userId = Some(2L), userCreation = Some(new Timestamp(2L)))(
+      "start  end   textH  text eventType  logId",
+      "02     None  Name2  Name2  create   2"
+    )
+    val actualResults = process(events, states)
+    actualResults should be (Seq(expectedResults1, expectedResults2))
   }
 
   it should "populate states with caused by fields" in {
@@ -283,16 +308,16 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResults = userStateSet(
       userText = Some("User"), userId = Some(1L), userCreation = TimestampHelpers.makeMediawikiTimestampOption("20010101000001")
     )(
-      "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType    adminId  adminText  inferred",
-      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       0       User       None",
-      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  0       User       None",
-      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  0       User       None",
-      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None    None       unblock", // Inserted.
-      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  0       User       None",
-      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  0       User       None",
-      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  0       User       None",    // Explicit.
-      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  0       User       None",
-      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None    None       unblock"  // Inserted.
+      "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType     adminId  adminText  adminAnon  inferred",
+      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       0        User       false      None",
+      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  0        User       false      None",
+      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  0        User       false      None",
+      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None     None       None       unblock", // Inserted.
+      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  0        User       false      None",
+      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  0        User       false      None",
+      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  0        User       false      None",    // Explicit.
+      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  0        User       false      None",
+      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None     None       None       unblock"  // Inserted.
     )
     process(events, states) should be (Seq(expectedResults))
   }

@@ -80,13 +80,10 @@ class ArchiveViewRegistrar(
     spark.sql(
       // TODO: simplify or remove joins as source table imports change
       // TODO: content model and format are nulled, replace with join to slots if needed
+      // NOTE: ar_comment_id is always null on labsdb, so we don't process it at all
       // NOTE: ar_len is nulled if ar_deleted&1, not sure how this affects metrics
-      // NOTE: ar_comment is always null when it comes from cloud dbs
-      // NOTE: ar_user and ar_user_text are null on cloud dbs if ar_deleted&4
       // NOTE: ar_actor is 0 on cloud dbs if ar_deleted&4
       // NOTE: ar_sha1 is null on cloud dbs if ar_deleted&1
-      // NOTE: It's important to keep coalesce(actor_name, ar_user_text)
-      //       in that order as the revision values are not nullified but emptied.
       s"""
 WITH archive_actor_split AS (
   -- Needed to compute the randomized ar_actor in the select.
@@ -94,9 +91,6 @@ WITH archive_actor_split AS (
   SELECT
     wiki_db,
     ar_timestamp,
-    ar_comment,
-    ar_user,
-    ar_user_text,
     ar_page_id,
     ar_namespace,
     ar_title,
@@ -136,9 +130,10 @@ actor_split AS (
 SELECT
   ar.wiki_db AS wiki_db,
   ar_timestamp,
-  ar_comment,
-  coalesce(actor_user, ar_user) AS ar_user,
-  coalesce(actor_name, ar_user_text) AS ar_user_text,
+  null comment_text,
+  actor_user,
+  actor_name,
+  if(actor_name is null, null, actor_user is null) actor_is_anon,
   ar_page_id,
   ar_title,
   ar_namespace,
@@ -148,8 +143,8 @@ SELECT
   ar_deleted,
   ar_len,
   ar_sha1,
-  null AS ar_content_model,
-  null AS ar_content_format,
+  null ar_content_model,
+  null ar_content_format,
   change_tags AS ar_tags
 
 FROM archive_actor_split ar
