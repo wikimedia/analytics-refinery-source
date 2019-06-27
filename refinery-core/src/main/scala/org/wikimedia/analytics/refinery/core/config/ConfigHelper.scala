@@ -44,7 +44,7 @@ import scala.reflect.macros.blackbox
   *     val usage = "MyApp --path CUSTOM_PATH --dt CUSTOM_DT"
   *     val propertiesDoc = ListMap[String, String] = ListMap(
   *         "path" -> "Path to file",
-  *         "dt"   -> "date time to use, ISO-8601 format"
+  *         "dt"   -> "date time to use, yyyy-MM-dd'T'HH:mm:ss format"
   *     )
   *     ...
   *     if (args.contains('--help')) {
@@ -59,7 +59,7 @@ import scala.reflect.macros.blackbox
   *
   */
 trait ConfigHelper {
-    private final val iso8601DateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
+    private final val dateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
     // implicit conversion from string to Option[Regex]
     implicit val decodeOptionString: Decoder[Option[String]] = Decoder.decodeString.emap { s =>
@@ -125,14 +125,14 @@ trait ConfigHelper {
 
     // Support implicit DateTime conversion from string to DateTime
     // The opt can either be given in integer hours ago, or
-    // as an ISO-8601 date time.
+    // as a yyyy-MM-dd'T'HH:mm:ss formatted date time.
     implicit val decodeDateTime: Decoder[DateTime] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal({
             if (s.forall(Character.isDigit)) DateTime.now - s.toInt.hours
-            else DateTime.parse(s, iso8601DateFormatter)
+            else DateTime.parse(s, dateFormatter)
         }).leftMap(t => throw new RuntimeException(
             s"Failed parsing '$s' into a DateTime. Must provide either an integer hours ago, " +
-             "or an ISO-8601 formatted string."
+             "or a yyyy-MM-dd'T'HH:mm:ss formatted string."
         ))
     }
 
