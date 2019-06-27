@@ -72,11 +72,13 @@ class AllViewsRegistrar(
       .run(actorUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
 
 
-    // Warning: page and user view registration need to happen AFTER archive and revision one
-    // as they are expected to be registered
+    // Warning: page, deleted_page and user view registration need to happen
+    // AFTER archive and revision one as they are expected to be registered
 
     new PageViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
       .run(pageUnprocessedPath)
+
+    new DeletedPageViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat).run()
 
     new UserViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
       .run(userUnprocessedPath, userGroupsUnprocessedPath)

@@ -43,8 +43,9 @@ class PageViewRegistrar(
     // Register needed unprocessed-views
     spark.read.format(readerFormat).load(pageUnprocessedPath).createOrReplaceTempView(pageUnprocessedView)
 
-    // Assert that needed revision view is already registered
+    // Assert that needed revision and archive views are already registered
     assert(spark.sqlContext.tableNames().contains(SQLHelper.REVISION_VIEW))
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.ARCHIVE_VIEW))
 
     // Register the complex view
     spark.sql(s"""
@@ -66,9 +67,34 @@ WITH filtered_page AS (
     AND page_title IS NOT NULL
 ),
 
--- No need to get archived revisions here as we consider only live pages.
--- Getting deleted-first-revision for deleted pages is done as part of the
--- page reconstruction algorithm
+-- Need both live and archive revisions, as live pages can have both
+all_revisions AS (
+  SELECT
+    wiki_db,
+    rev_page AS page_id,
+    rev_id as page_first_rev_id,
+    actor_user AS page_first_rev_user_id,
+    actor_name AS page_first_rev_user_text,
+    rev_timestamp AS page_first_rev_timestamp
+  FROM ${SQLHelper.REVISION_VIEW}
+
+  UNION ALL
+
+  SELECT
+    wiki_db,
+    ar_page_id AS page_id,
+    ar_rev_id as page_first_rev_id,
+    actor_user AS page_first_rev_user_id,
+    actor_name AS page_first_rev_user_text,
+    ar_timestamp AS page_first_rev_timestamp
+  FROM ${SQLHelper.ARCHIVE_VIEW}
+  -- Filter undefined rev_ids and page_ids
+  WHERE ar_rev_id IS NOT NULL
+    AND ar_rev_id > 0
+    AND ar_page_id IS NOT NULL
+    AND ar_page_id > 0
+),
+
 page_first_revision AS (
   SELECT
       wiki_db,
@@ -79,15 +105,14 @@ page_first_revision AS (
   FROM (
     SELECT
       wiki_db,
-      rev_page AS page_id,
-      rev_id as page_first_rev_id,
-      actor_user AS page_first_rev_user_id,
-      actor_name AS page_first_rev_user_text,
-      rev_timestamp AS page_first_rev_timestamp,
-      row_number() OVER (PARTITION BY wiki_db, rev_page ORDER BY rev_timestamp, rev_id) as row_num
-    FROM ${SQLHelper.REVISION_VIEW}
+      page_id,
+      page_first_rev_id,
+      page_first_rev_user_id,
+      page_first_rev_user_text,
+      page_first_rev_timestamp,
+      row_number() OVER (PARTITION BY wiki_db, page_id ORDER BY page_first_rev_timestamp, page_first_rev_id) as row_num
+    FROM all_revisions
   ) t
-  -- No need to filter on data correction not page-link defined, done in revision view
   -- Only keep first row (minimum timestamp, minimum rev_id if same timestamp)
   WHERE row_num = 1
 )

@@ -11,9 +11,9 @@ object TestPageHistoryHelpers {
     wikiDb: Option[String] = Some("testwiki"),
     timestamp: Option[Timestamp] = None,
     eventType: Option[String] = None,
-    causedByUserId: Option[Long] = None,
+    causedByUserId: Option[Long] = Some(1L),
     causedByUserText: Option[String] = Some("User"),
-    causedByAnonymousUser: Option[Boolean] = None,
+    causedByAnonymousUser: Option[Boolean] = Some(false),
     pageId: Option[Long] = None,
     oldTitle: Option[String] = Some("Title"),
     newTitle: Option[String] = Some("Title"),
@@ -83,9 +83,9 @@ object TestPageHistoryHelpers {
     startTimestamp: Option[Timestamp] = None,
     endTimestamp: Option[Timestamp] = None,
     causedByEventType: Option[String] = Some("test"),
-    causedByUserId: Option[Long] = None,
+    causedByUserId: Option[Long] = Some(1L),
     causedByUserText: Option[String] = Some("User"),
-    causedByAnonymousUser: Option[Boolean] = None,
+    causedByAnonymousUser: Option[Boolean] = Some(false),
     pageId: Option[Long] = Some(1L),
     pageIdArtificial: Option[String] = None,
     titleHistorical: Option[String] = Some("Title"),
@@ -116,7 +116,7 @@ object TestPageHistoryHelpers {
           case "type" | "eventType" | "causedByEventType" => ("causedByEventType" -> string(v))
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
-          case "adminIsAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
+          case "adminAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
           case "id" | "pageId" => ("pageId" -> long(v))
           case "artificial" | "pageIdArtificial" => ("pageIdArtificial" -> string(v))
           case "titleH" => ("titleHistorical" -> string(v))

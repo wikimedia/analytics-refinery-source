@@ -59,6 +59,16 @@ WITH filtered_ct AS (
   FROM $changeTagUnprocessedView ct
   WHERE TRUE
     $wikiClause
+),
+
+change_tag_def_reduced AS (
+  SELECT
+    wiki_db,
+    ctd_id,
+    ctd_name
+  FROM $changeTagDefUnprocessedView
+  WHERE TRUE
+    $wikiClause
 )
 
 SELECT
@@ -66,7 +76,7 @@ SELECT
   ct.ct_rev_id,
   dedup_list(collect_list(ctd_name)) as change_tags
 FROM filtered_ct ct
-  INNER JOIN $changeTagDefUnprocessedView ctd
+  INNER JOIN change_tag_def_reduced ctd
     ON ct.wiki_db = ctd.wiki_db
       AND ct.ct_tag_id = ctd.ctd_id
 GROUP BY

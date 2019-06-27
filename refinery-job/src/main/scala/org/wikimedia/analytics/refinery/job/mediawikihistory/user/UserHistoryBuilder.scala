@@ -493,8 +493,17 @@ class UserHistoryBuilder(
     val sortedEvents = events.toList.sortWith {
       case (a, b) => {
         a.timestamp.after(b.timestamp) ||
-          // Sort create events to be processed first,
-          // thus avoiding confusion with "rename" events.
+          // Force create events to be processed first.
+          // This is needed if a rename event happens at the same time as a create
+          // one, with the rename from-name being the same as create name.
+          // By processing the create event first, currently processed user lineage
+          // is finished (doesn't exist before its create state), and the rename from-name
+          // doesn't conflict with existing user-name.
+          // Without the following sorting, we could process the rename event first. In that
+          // case the currently processed user conflicts on rename from-name, and a fake
+          // create-event is generated to mitigate the conflict. Then the rename is applied,
+          // to finally match the create event, closing the lineage of the newly renamed user.
+          // Incorrect!
           (
             a.timestamp.equals(b.timestamp) &&
               a.eventType == "create" &&

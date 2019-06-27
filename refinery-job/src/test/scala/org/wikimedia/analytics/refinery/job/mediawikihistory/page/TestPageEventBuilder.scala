@@ -79,12 +79,12 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
 
   val eventTypeMove = "move"
   val eventActionMove = "move"
-  "parsePageLog" should "set no page_id of 0" in {
+  "parsePageLog" should "set no page_id if null" in {
 
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      null,
       "20130202200839",
       220966L,
       "fakeUser",
@@ -207,7 +207,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      null,
       "20130202200839",
       220966L,
       "fakeUser",
@@ -289,7 +289,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      null,
       "20130202200839",
       220966L,
       "test_user",
@@ -356,7 +356,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       causedByUserId = Some(220966L),
       causedByUserText = Some("test_user"),
       causedByAnonymousUser = Some(false),
-      pageId = None,
+      pageId = Some(0L),
       sourceLogId = 1L,
       sourceLogComment = "comment",
       sourceLogParams = Map("4::target" -> "Wrong namespace:test user", "5::noredir" -> "0"),
@@ -414,7 +414,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      null,
       "20130202200839",
       220966L,
       "test_user",
@@ -456,7 +456,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
     val testRow = Row.fromTuple((
       eventTypeMove,
       eventActionMove,
-      0L,
+      null,
       "20130202200839",
       220966L,
       "test_user",
@@ -495,7 +495,7 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
   val eventTypeSimple = "simpleType"
   val eventActionSimple = "simpleAction"
 
-  "makePageEvent" should "make a pageEvent without error from a regular row" in {
+  "buildSimplePageEvent" should "make a pageEvent without error from a regular row" in {
 
     val testRow = Row.fromTuple((
       eventTypeSimple,
@@ -527,6 +527,47 @@ class TestPageEventBuilder extends FlatSpec with Matchers {
       causedByUserId = Some(220966L),
       causedByUserText = Some("fakeUser"),
       causedByAnonymousUser = Some(false),
+      sourceLogId = 1L,
+      sourceLogComment = "comment",
+      sourceLogParams = Map.empty
+    )
+
+    pageEventBuilder.buildSimplePageEvent(testRow) should equal(expectedEvent)
+
+  }
+
+  it should "make a pageEvent with delete type when logAction is delete_redir" in {
+
+    val testRow = Row.fromTuple((
+      "delete",
+      "delete_redir",
+      1L,
+      "20130202200839",
+      220966L,
+      "fakeUser",
+      false,
+      "The_Nightwatch",
+      null,
+      0,
+      wikiDb,
+      1L,
+      "comment"))
+    val expectedEvent = new PageEvent(
+      wikiDb = wikiDb,
+      pageId = Some(1L),
+      oldTitle = "The_Nightwatch",
+      newTitle = "The_Nightwatch",
+      newTitlePrefix = "",
+      newTitleWithoutPrefix = "The_Nightwatch",
+      oldNamespace = 0,
+      oldNamespaceIsContent = true,
+      newNamespace = 0,
+      newNamespaceIsContent = true,
+      timestamp = TimestampHelpers.makeMediawikiTimestampOption("20130202200839").get,
+      eventType = "delete",
+      causedByUserId = Some(220966L),
+      causedByAnonymousUser = Some(false),
+      causedByUserText = Some("fakeUser"),
       sourceLogId = 1L,
       sourceLogComment = "comment",
       sourceLogParams = Map.empty
