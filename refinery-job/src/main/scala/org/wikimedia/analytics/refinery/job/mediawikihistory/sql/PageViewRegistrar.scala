@@ -74,6 +74,7 @@ all_revisions AS (
     rev_page AS page_id,
     rev_id as page_first_rev_id,
     actor_user AS page_first_rev_user_id,
+    actor_is_anon AS page_first_rev_anon_user,
     actor_name AS page_first_rev_user_text,
     rev_timestamp AS page_first_rev_timestamp
   FROM ${SQLHelper.REVISION_VIEW}
@@ -85,6 +86,7 @@ all_revisions AS (
     ar_page_id AS page_id,
     ar_rev_id as page_first_rev_id,
     actor_user AS page_first_rev_user_id,
+    actor_is_anon AS page_first_rev_anon_user,
     actor_name AS page_first_rev_user_text,
     ar_timestamp AS page_first_rev_timestamp
   FROM ${SQLHelper.ARCHIVE_VIEW}
@@ -100,6 +102,7 @@ page_first_revision AS (
       wiki_db,
       page_id,
       page_first_rev_user_id,
+      page_first_rev_anon_user,
       page_first_rev_user_text,
       page_first_rev_timestamp
   FROM (
@@ -108,6 +111,7 @@ page_first_revision AS (
       page_id,
       page_first_rev_id,
       page_first_rev_user_id,
+      page_first_rev_anon_user,
       page_first_rev_user_text,
       page_first_rev_timestamp,
       row_number() OVER (PARTITION BY wiki_db, page_id ORDER BY page_first_rev_timestamp, page_first_rev_id) as row_num
@@ -124,6 +128,7 @@ SELECT
   p.page_namespace,
   p.page_is_redirect,
   fr.page_first_rev_user_id,
+  fr.page_first_rev_anon_user,
   fr.page_first_rev_user_text,
   fr.page_first_rev_timestamp
 FROM filtered_page p
@@ -137,6 +142,7 @@ GROUP BY -- Grouping by to enforce expected partitioning
   p.page_namespace,
   p.page_is_redirect,
   fr.page_first_rev_user_id,
+  fr.page_first_rev_anon_user,
   fr.page_first_rev_user_text,
   fr.page_first_rev_timestamp
 

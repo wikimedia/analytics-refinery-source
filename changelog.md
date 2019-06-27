@@ -1,3 +1,10 @@
+## v0.0.93
+* Refactor mediawiki-page-history computation + fix
+* Mediawiki-history: Handle dropping of user fields in labs views
+* Update mediawiki_history checker to historical values 
+* Update pageview definition to exclude non wiki sites
+* Add entropy UDAF to refinery-hive
+
 ## v0.0.92
 * Fix wrongly getting the yarn user name in DataFrameToHive
 * Fix transform function for NULL values and for dataframes without the webHost column

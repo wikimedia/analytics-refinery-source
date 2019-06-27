@@ -194,20 +194,19 @@ object DenormalizedKeysHelper extends Serializable {
     * Generate the page-centered [[StateKey]] ((wikiDb, pageId), start, end)
     * using a fake value in place of page id if invalid (see [[idOrHashNegative]]).
     *
-    * Uses pageFirstEditTimestamp as start if:
-    *  - useFirstEditTimestamp flag is set to true
-    *  - startTimestamp equals pageCreationTimestamp (first state of page)
+    *  pageFirstEditTimestamp if:
+    *  - pageFirstState is true - first state of the page lineage
     *  - Both startTimestamp and pageFirstEditTimestamp are defined
     *    (otherwise either no known edit, or undefined-start = beginning-of-time)
     *  -  pageFirstEditTimestamp is before pageCreationTimestamp
     *
     * @param pageState The page state to generate key for
-    * @param useFirstEditTimestamp Whether to possibly use the page first edit as start-timestamp.
     * @return The key for the pageState
     */
-  def pageStateKey(pageState: PageState, useFirstEditTimestamp: Boolean = false): StateKey = {
+  def pageStateKey(pageState: PageState): StateKey = {
     val pageId = DenormalizedKeysHelper.idOrHashNegative(pageState.pageId, pageState)
-    if (useFirstEditTimestamp && (pageState.startTimestamp == pageState.pageCreationTimestamp) &&
+    if (pageState.pageFirstState &&
+        // If firstEdit is undefined, no revision to link, no need to update startTimestamp
         pageState.pageFirstEditTimestamp.isDefined && pageState.startTimestamp.isDefined &&
         pageState.pageFirstEditTimestamp.get.before(pageState.startTimestamp.get))
       StateKey(PartitionKey(pageState.wikiDb, pageId), pageState.pageFirstEditTimestamp, pageState.endTimestamp)

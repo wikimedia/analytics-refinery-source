@@ -318,7 +318,7 @@ object UserEventBuilder extends Serializable {
     }
 
     val createEvent = eventType == "create"
-    val createdBySelf = createEvent && (logAction == "create")
+    val createdBySelf = createEvent && ((logAction == "create") || (logAction == "newusers"))
     val createdBySystem = createEvent && (logAction == "autocreate")
     val createdByPeer = createEvent && ((logAction == "create2") || (logAction == "byemail"))
 

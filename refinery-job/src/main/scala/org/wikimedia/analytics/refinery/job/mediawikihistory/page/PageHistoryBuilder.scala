@@ -61,8 +61,6 @@ class PageHistoryBuilder(
    */
   private object StatusDestination {
     sealed trait EnumVal
-    // Don't store the state
-    case object Nowhere extends EnumVal
     // Store the state in potential states maps
     case object Potential extends EnumVal
     // Store the state in restore states maps
@@ -309,9 +307,7 @@ class PageHistoryBuilder(
         val newKnownState = matchedState.copy(
           startTimestamp = Some(event.timestamp),
           pageCreationTimestamp = creationTimestamp,
-          causedByUserId = None,
-          causedByAnonymousUser = None,
-          causedByUserText = None,
+          // if we have causedBy* fields on the state, they're the best guess as to the actor, so keep them
           inferredFrom = Some(conflictType),
           sourceLogId = Some(event.sourceLogId),
           sourceLogComment = Some(event.sourceLogComment),
@@ -382,9 +378,7 @@ class PageHistoryBuilder(
 
           val newKnownState = matchedState.copy(
             pageCreationTimestamp = creationTimestamp,
-            causedByUserId = None,
-            causedByAnonymousUser = None,
-            causedByUserText = None,
+            // if we have causedBy* fields on the state, they're the best guess as to the actor, so keep them
             inferredFrom = Some("delete-conflict"),
             sourceLogId = Some(event.sourceLogId),
             sourceLogComment = Some(event.sourceLogComment),
@@ -485,8 +479,8 @@ class PageHistoryBuilder(
     }
 
     /**
-     * Create a new state and adds it to a destination store (potential, restore or
-     * no-update in case of create event). States are always stored in by-title stores,
+     * Create a new state and adds it to a destination store (potential, restore).
+     * States are always stored in by-title stores,
      * and are stored in by-page_id stores only if the byId parameter is set to true.
      *
      * @param event The event used to build the new state
@@ -515,7 +509,6 @@ class PageHistoryBuilder(
       )
 
       newStateDestination match {
-        case StatusDestination.Nowhere => this
         case StatusDestination.Potential => this.copy(
           potentialStatesByTitle = this.potentialStatesByTitle + (newState.key -> newState),
           potentialStatesById = if (byId) this.potentialStatesById + (newState.keyId -> newState)
@@ -782,10 +775,9 @@ class PageHistoryBuilder(
           val matchedState = status1.getMatchedState(event)
           status1.updateStatusWithEvent(event, matchedState, StatusDestination.Potential)
 
-        case "create" =>
+        case "create-page" =>
           val matchedState = status1.getMatchedState(event)
-          // In case of create event, stop the page lineage (destination = nowhere)
-          status1.updateStatusWithEvent(event, matchedState, StatusDestination.Nowhere)
+          status1.updateStatusWithEvent(event, matchedState, StatusDestination.Potential)
 
         case _ =>
           // Update statistics and add events to unmatched
@@ -800,17 +792,12 @@ class PageHistoryBuilder(
   /**
     * Propagates page creation and first edit timestamps. It groups by page id
     * (or artificial page id) and sort states by startTimestamp, endTimestamp
-    * in an ascending way. It then checks for pageCreationTimestamp correctness:
+    * in an ascending way. It then checks for pageFirstEditTimestamp correctness:
     * first state of the sorted list (normally a create state) should have its
-    * startTimestamp matching the pageCreationTimestamp. If it doesn't, update
-    * pageCreationTimestamp to the state startTimestamp. the function finally
+    * startTimestamp matching the pageFirstEditTimestamp. If it doesn't, update
+    * pageFirstEditTimestamp to the state startTimestamp. the function finally
     * loops through all the states, propagating the page creation timestamp
     * and first edit timestamp values.
-    *
-    * Note: It's important for pageCreationTimestamp to match first event startTimestamp
-    *       as this equality is used in
-    *       [[org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.DenormalizedKeysHelper.pageStateKey]]
-    *       to determine if a pageState is the first of its lineage.
     *
     * @param states The states sequence to propagate page creation and first edit on
     * @return The state sequence with update page creation and first edit timestamps
@@ -823,18 +810,20 @@ class PageHistoryBuilder(
           val sortedStates = pageStates.toList.sortBy(state =>
             (state.startTimestamp.getOrElse(new Timestamp(Long.MinValue)).getTime,
               state.endTimestamp.getOrElse(new Timestamp(Long.MaxValue)).getTime))
-          val firstState = sortedStates.head
-          // Force pageCreation to match first event start date
-          val pageCreationTimestamp = {
-            if (firstState.pageCreationTimestamp == firstState.startTimestamp) firstState.pageCreationTimestamp
-            else firstState.startTimestamp
+          // Flag first state using pageFirstState
+          val firstState = sortedStates.head.copy(pageFirstState = true)
+          // Values to propagate, enforcing pageCreation to match firstState timestamp if empty
+          val pageCreation = {
+            if (firstState.pageCreationTimestamp.isEmpty) firstState.startTimestamp
+            else firstState.pageCreationTimestamp
           }
-          val firstEditTimestamp = firstState.pageFirstEditTimestamp
-          // Loop over all states to also update first one if needed
-          sortedStates.map(s => s.copy(
+          val firstEdit = firstState.pageFirstEditTimestamp
+
+          // Loop over all states to update first one as well
+          (Seq(firstState) ++ sortedStates.tail).map(s => s.copy(
             // [[PageState]]
-            pageCreationTimestamp = pageCreationTimestamp,
-            pageFirstEditTimestamp = firstEditTimestamp
+            pageCreationTimestamp = pageCreation,
+            pageFirstEditTimestamp = firstEdit
           ))
       }
       .toSeq
@@ -883,7 +872,7 @@ class PageHistoryBuilder(
       if (sortedEvents.isEmpty) {
         val finalStates = states.map(s => s.copy(
           // [[PageState]]
-          startTimestamp = s.pageCreationTimestamp,
+          startTimestamp = s.pageFirstEditTimestamp,
           inferredFrom = Some("unclosed")
         )).toSeq
         (finalStates, Seq.empty[PageEvent])
@@ -906,7 +895,8 @@ class PageHistoryBuilder(
         val unmatchedStates = finalStatus.potentialStatesByTitle.values ++
                               finalStatus.restoredStatesByTitle.values ++
                               finalStatus.baseDeletedStatesByTitle.values
-        val finalStates = finalStatus.knownStates ++ unmatchedStates.map(s => s.copy(startTimestamp = s.pageCreationTimestamp))
+        val finalStates = finalStatus.knownStates ++
+          unmatchedStates.map(s => s.copy(startTimestamp = s.pageFirstEditTimestamp))
         (finalStates, finalStatus.unmatchedEvents)
       }
     }

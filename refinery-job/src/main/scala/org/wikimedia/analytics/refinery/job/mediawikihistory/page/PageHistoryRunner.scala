@@ -162,6 +162,7 @@ class PageHistoryRunner(
     page_is_redirect,
     page_first_rev_timestamp,
     page_first_rev_user_id,
+    page_first_rev_anon_user,
     page_first_rev_user_text,
     FALSE as is_deleted,
     'original-live-state' inferred_from
@@ -177,6 +178,7 @@ class PageHistoryRunner(
     page_is_redirect,
     page_first_rev_timestamp,
     page_first_rev_user_id,
+    page_first_rev_anon_user,
     page_first_rev_user_text,
     TRUE as is_deleted,
     'original-deleted-state' inferred_from
@@ -191,7 +193,10 @@ class PageHistoryRunner(
            4 page_is_redirect,
            5 page_first_rev_timestamp,
            6 page_first_rev_user_id,
-           7 page_first_rev_user_text
+           7 page_first_rev_anon_user,
+           8 page_first_rev_user_text,
+           9 is_deleted,
+          10 inferred_from
        */
       .map(row => {
         val wikiDb = row.getString(0)
@@ -211,13 +216,14 @@ class PageHistoryRunner(
           namespace = namespace,
           namespaceIsContent = isContentNamespace,
           isRedirect = if (row.isNullAt(4)) None else Some(row.getBoolean(4)),
-          isDeleted = row.getBoolean(8),
+          isDeleted = row.getBoolean(9),
           startTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
           endTimestamp = None,
           causedByEventType = "create",
           causedByUserId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
-          causedByUserText = Option(row.getString(7)),
-          inferredFrom = Option(row.getString(9)),
+          causedByAnonymousUser = if (row.isNullAt(7)) None else Some(row.getBoolean(7)),
+          causedByUserText = Option(row.getString(8)),
+          inferredFrom = Option(row.getString(10)),
           wikiDb = wikiDb
         )
       })

@@ -100,7 +100,8 @@ object TestPageHistoryHelpers {
     isDeleted: Option[Boolean] = Some(false),
     sourceLogId: Option[Long] = Some(0L),
     sourceLogComment: Option[String] = Some("comment"),
-    sourceLogParams: Option[Map[String, String]] = Some(Map.empty)
+    sourceLogParams: Option[Map[String, String]] = Some(Map.empty),
+    firstState: Option[Boolean] = Some(false)
   )(
     headerLine: String,
     stateLines: String*
@@ -132,6 +133,7 @@ object TestPageHistoryHelpers {
           case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
           case "commentText" | "sourceLogComment" => ("sourceLogComment" -> string(v))
           case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
+          case "first" | "firstState" | "pageFirstState" => ("pageFirstState" -> boolean(v))
         }
       }.toMap
       val titleHistoricalVal = valueMap.getOrElse("titleHistorical", titleHistorical).get.asInstanceOf[String]
@@ -159,7 +161,8 @@ object TestPageHistoryHelpers {
         isDeleted = valueMap.getOrElse("isDeleted", isDeleted).get.asInstanceOf[Boolean],
         sourceLogId = valueMap.getOrElse("sourceLogId", sourceLogId).asInstanceOf[Option[Long]],
         sourceLogComment = valueMap.getOrElse("sourceLogComment", sourceLogComment).asInstanceOf[Option[String]],
-        sourceLogParams = valueMap.getOrElse("sourceLogParams", sourceLogParams).asInstanceOf[Option[Map[String, String]]]
+        sourceLogParams = valueMap.getOrElse("sourceLogParams", sourceLogParams).asInstanceOf[Option[Map[String, String]]],
+        pageFirstState = valueMap.getOrElse("pageFirstState", firstState).get.asInstanceOf[Boolean]
       )
     }
   }

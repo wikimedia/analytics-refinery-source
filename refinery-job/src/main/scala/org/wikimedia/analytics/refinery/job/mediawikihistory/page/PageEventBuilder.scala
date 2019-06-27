@@ -173,7 +173,13 @@ class PageEventBuilder(
     val logType = log.getString(0)
     val logAction = log.getString(1)
     // see [[PageHistoryRunner]] to make SURE this logic stays in sync with what log rows are selected
-    val eventType = if (logAction == "delete_redir") logType else logAction
+    val eventType = logAction match {
+      case "delete_redir" => logType
+      // Make an explicit create-page event to differentiate from the first-revision creation one
+      // as the metrics use the latter.
+      case "create" => "create-page"
+      case _ =>  logAction
+    }
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     // we check actor_name because that's a non-nullable field so a null value would mean the join failed

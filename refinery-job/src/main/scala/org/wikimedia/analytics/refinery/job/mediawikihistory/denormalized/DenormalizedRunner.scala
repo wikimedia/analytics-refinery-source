@@ -141,7 +141,7 @@ class DenormalizedRunner(
       // We use the regular pageCreationTimestamp as start-timestamp of each page first event
       // as the filtering stage is NOT about the link between page and revision, but about
       // page information correctness
-      s => DenormalizedKeysHelper.pageStateKey(s, useFirstEditTimestamp = false),
+      s => DenormalizedKeysHelper.pageStateKey(s),
       METRIC_FILTERED_OUT_PAGE_STATES
     ).cache()
   }
@@ -297,11 +297,7 @@ class DenormalizedRunner(
       .cache()
     val sortedPageStates = pageStates
       .map(pageState => {
-        // We use the firstRevisionTimestamp as start-timestamp of each page first event
-        // if it's before the pageCreationTimestamp, as sortedPageStates data is to link
-        // revisions to pages, and we want this link to happen for revisions having been
-        // imported into page and having timestamps before page creation (yes, this happens)
-        val pageStateKey = DenormalizedKeysHelper.pageStateKey(pageState, useFirstEditTimestamp = true)
+        val pageStateKey = DenormalizedKeysHelper.pageStateKey(pageState)
         (pageStateKey,  pageState)
       })
       .repartitionAndSortWithinPartitions(statePartitioner)

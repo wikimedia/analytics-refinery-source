@@ -39,7 +39,8 @@ case class PageState(
                       inferredFrom: Option[String] = None,
                       sourceLogId: Option[Long] = None,
                       sourceLogComment: Option[String] = None,
-                      sourceLogParams: Option[Map[String, String]] = None
+                      sourceLogParams: Option[Map[String, String]] = None,
+                      pageFirstState: Boolean = false
 ) extends Vertex[(String, String, Int)] with TimeBoundaries {
 
   def toRow: Row = Row(
@@ -68,7 +69,8 @@ case class PageState(
     inferredFrom.orNull,
     sourceLogId.orNull,
     sourceLogComment.orNull,
-    sourceLogParams.orNull
+    sourceLogParams.orNull,
+    pageFirstState
   )
 
   def key: (String, String, Int) = (wikiDb, titleHistorical, namespaceHistorical)
@@ -114,7 +116,8 @@ object PageState {
     inferredFrom = Option(row.getString(19)),
     sourceLogId = if (row.isNullAt(20)) None else Some(row.getLong(20)),
     sourceLogComment = Option(row.getString(21)),
-    sourceLogParams = Option(row.getMap[String, String](22)).map(_.toMap)
+    sourceLogParams = Option(row.getMap[String, String](22)).map(_.toMap),
+    pageFirstState = row.getBoolean(23)
   )
 
   val schema = StructType(
@@ -145,7 +148,8 @@ object PageState {
       StructField("inferred_from", StringType, nullable = true),
       StructField("source_log_id", LongType, nullable = true),
       StructField("source_log_comment", StringType, nullable = true),
-      StructField("source_log_params", MapType(StringType, StringType, valueContainsNull = true), nullable = true)
+      StructField("source_log_params", MapType(StringType, StringType, valueContainsNull = true), nullable = true),
+      StructField("page_first_state", BooleanType, nullable = true)
     )
   )
 }

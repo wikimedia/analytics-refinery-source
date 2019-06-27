@@ -55,6 +55,7 @@ SELECT DISTINCT
   NULL as page_is_redirect,
   FIRST_VALUE(ar_timestamp) OVER by_page_window AS page_first_rev_timestamp,
   FIRST_VALUE(actor_user) OVER by_page_window AS page_first_rev_user_id,
+  FIRST_VALUE(actor_is_anon) OVER by_page_window AS page_first_rev_anon_user,
   FIRST_VALUE(actor_name) OVER by_page_window AS page_first_rev_user_text
 FROM ${SQLHelper.ARCHIVE_VIEW} a
   -- Only keep page_id not present in page
