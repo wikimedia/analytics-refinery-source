@@ -138,9 +138,6 @@ class DenormalizedRunner(
       })
     filterStates[PageState](
       pageStatesToFilter,
-      // We use the regular pageCreationTimestamp as start-timestamp of each page first event
-      // as the filtering stage is NOT about the link between page and revision, but about
-      // page information correctness
       s => DenormalizedKeysHelper.pageStateKey(s),
       METRIC_FILTERED_OUT_PAGE_STATES
     ).cache()
