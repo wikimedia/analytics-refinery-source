@@ -69,6 +69,13 @@ public class PageviewDefinition {
     public static final String URI_PATH_API = "api.php";
 
 
+    /** Most special pages do not denote content consumption **/
+    private static Set<String> SPECIAL_PAGES_ACCEPTED = new HashSet<String>(Arrays.asList(
+        "search",
+        "recentchanges",
+        "version"
+    ));
+
     /*
      * Now back to the good part.
      */
@@ -102,14 +109,7 @@ public class PageviewDefinition {
         "\\?((cur|old)id|title|search)="
     );
 
-    private final Pattern uriPathUnwantedSpecialPagesPattern = Pattern.compile(
-        "BannerRandom|HideBanners|CentralAutoLogin|MobileEditor|Undefined"
-	+ "MobileMenu|BlankPage|UserLogin|ZeroRatedMobileAccess"
-    );
 
-    private final Pattern uriQueryUnwantedSpecialPagesPattern = Pattern.compile(
-        "CentralAutoLogin|MobileEditor|UserLogin|ZeroRatedMobileAccess"
-    );
 
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
         /**
@@ -158,8 +158,6 @@ public class PageviewDefinition {
      * See: https://wikitech.wikimedia.org/wiki/X-Analytics#Keys
      * for x-analytics info.
      *
-     * Please note that requests tagged as 'preview' are not counted
-     * as pageviews.
      *
      * We let apps decide whether a request is a pageview by tagging it as such
      * on x-analytics header, if pageview=1 is present
@@ -184,8 +182,6 @@ public class PageviewDefinition {
         final String iOsAppUserAgent    = "Wikipedia/5.0.";
 
 
-        if (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim().equalsIgnoreCase("1"))
-            return false;
 
         boolean isTaggedPageview = (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "pageview").trim().equalsIgnoreCase("1"));
 
@@ -218,9 +214,7 @@ public class PageviewDefinition {
                                 || Utilities.patternIsFound(uriQueryPattern, data.getUriQuery())
                 )
 
-                        // A pageview will not have these Special: pages in the uriPath or uriQuery
-                        && !Utilities.patternIsFound(uriPathUnwantedSpecialPagesPattern, data.getUriPath())
-                        && !Utilities.patternIsFound(uriQueryUnwantedSpecialPagesPattern, data.getUriQuery())
+
                         // Edits now come through as text/html. They should not be included.
                         // Luckily the query parameter does not seem to be localised.
                         && !Utilities.patternIsFound(uriQueryUnwantedActions, data.getUriQuery())
@@ -258,21 +252,50 @@ public class PageviewDefinition {
      */
     public boolean isPageview(WebrequestData data) {
 
-        if (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim().equalsIgnoreCase("1"))
-            return false;
+            boolean successRequestForWikimediaProject = (
+                Webrequest.isSuccess(data.getHttpStatus()) && isWikimediaHost(data.getUriHost())
+            );
 
-        boolean successRequestForSupportedProject = (
-            Webrequest.isSuccess(data.getHttpStatus()) &&
-            isWikimediaHost(data.getUriHost())
-        );
+            if (successRequestForWikimediaProject && pageDenotesContentConsumption(data)) {
+                // Check if it is an app pageview if it was not a web one.
+                return (isWebPageview(data) || isAppPageview(data)) ;
 
-        // Check if it is an app pageview if it was not a web one.
-        return (
-            successRequestForSupportedProject &&
-            (isWebPageview(data) || isAppPageview(data))
-        );
+            } else {
+                return false;
+            }
     }
 
+    /**
+     * False if page at hand is not considered to denote content consumption
+     *
+     * Have in mind that pageview definition tries
+     * to count pageviews of content delivered to users, not actions
+     *
+     * Most Special pages are excluded as of 2019-07
+     * this was a long standing bug:
+     * https://phabricator.wikimedia.org/T226730
+     *
+     * @return
+     */
+    private boolean pageDenotesContentConsumption(WebrequestData data){
+
+        // if x-analytics header is empty just move on, we cannnot infer anything
+        if (data.getRawXAnalyticsHeader().isEmpty())
+            return true;
+
+        String special = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "special").trim().toLowerCase();
+        String preview = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim();
+
+        // in the absence of preview or special there is little we can infer
+        // about content from x-analytics
+        if (preview.isEmpty() && special.isEmpty()){
+            return true;
+        } else if (preview.equals("1")) {
+            return false;
+        }
+
+        return SPECIAL_PAGES_ACCEPTED.contains(special);
+    }
     /**
      * Returns true when the host belongs to either a wikimedia.org domain,
      * or a 'project' domain, e.g. en.wikipedia.org. Returns false otherwise.
