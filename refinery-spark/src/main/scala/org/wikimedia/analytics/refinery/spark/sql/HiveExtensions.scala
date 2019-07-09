@@ -7,6 +7,7 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.core.LogHelper
+import scala.util.Try
 
 /**
   * Implicit method extensions to Spark's StructType and StructField.
@@ -697,6 +698,10 @@ object HiveExtensions extends LogHelper {
 
         def normalizeAndWiden(): DataFrame = {
             df.normalize().widen()
+        }
+
+        def hasColumn(columnName: String): Boolean = {
+            Try(df(columnName)).isSuccess
         }
     }
 

@@ -2,6 +2,7 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports.{DateTime, _}
 import java.io.{BufferedReader, InputStreamReader}
+
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
@@ -10,6 +11,7 @@ import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
+import scala.util.control.Exception.allCatch
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
@@ -116,6 +118,17 @@ case class RefineTarget(
       * @return
       */
     def outputExists(): Boolean = fs.exists(outputPath)
+
+    /**
+      * True if the Hive table for this target exists
+      * @return
+      */
+    def tableExists(): Boolean = {
+        allCatch.opt(spark.table(tableName)) match {
+            case Some(_) => true
+            case _       => false
+        }
+    }
 
     /**
       * True if the outputPath/doneFlag exists

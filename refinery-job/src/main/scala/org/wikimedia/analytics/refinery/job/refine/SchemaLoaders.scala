@@ -2,6 +2,7 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import org.wikimedia.analytics.refinery.core.jsonschema.EventSchemaLoader
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.core.LogHelper
 
@@ -76,11 +77,39 @@ class EventSparkSchemaLoader(eventSchemaLoader: EventSchemaLoader)
                 log.debug(s"Loaded JSONSchema for event data in ${target.inputPath}:\n${jsonSchema}")
 
                 val sparkSchema = JsonSchemaConverter.toSparkSchema(jsonSchema)
-                log.debug(
-                    s"Converted JSONSchema for event data in ${target.inputPath} " +
+
+                // If the target Hive table exists, then go ahead and merge the
+                // input JSONSchema into the Hive schema, keeping the casing on top
+                // level field names where possible (since this schema will be used to
+                // load JSON data). Because we only use the $schema for the first
+                // event in the input target data, merging whatever that is with
+                // the Hive schema will ensure that other events in the file
+                // that have fields that Hive has, but that the first event's schema
+                // doesn't have, will still be read.  Ideally this wouldn't matter,
+                // since different schema versions should all be backwards compatible,
+                // but is is very possible that the first event in the input data is
+                // using an older schema.  Without merging, events with newer schemas
+                // and new fields (that have already been evolved into the Hive schema)
+                // would have their new fields nulled.
+                // See also:
+                // - https://phabricator.wikimedia.org/T227088
+                // - https://phabricator.wikimedia.org/T226219
+                val schema = if (target.tableExists) {
+                    val s = target.spark.table(target.tableName).schema.merge(sparkSchema, false)
+                    log.debug(
+                        s"Converted JSONSchema for event data in ${target.inputPath} " +
+                        s"to Spark schema and merged with table ${target.tableName} schema:\n${s.treeString}"
+                    )
+                    s
+
+                } else {
+                    log.debug(
+                        s"Converted JSONSchema for event data in ${target.inputPath} " +
                         s"to Spark schema:\n${sparkSchema.treeString}"
-                )
-                Some(sparkSchema)
+                    )
+                    sparkSchema
+                }
+                Some(schema)
         }
     }
 }

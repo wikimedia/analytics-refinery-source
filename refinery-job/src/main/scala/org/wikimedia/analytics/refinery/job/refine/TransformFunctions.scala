@@ -5,6 +5,18 @@ package org.wikimedia.analytics.refinery.job.refine
   * to JSONRefine to do transformations on a DataFrame before
   * inserting into a Hive table.
   *
+  * After https://gerrit.wikimedia.org/r/#/c/analytics/refinery/source/+/521563/
+  * we are merging JSONSchema with Hive schema before we get to these transforms
+  * this means that if there are additional columns on Hive that are not on
+  * the JSON Schema they will already be part of the dataframe (with null values)
+  * when we get to these transform functions.
+  *
+  * Then, if a transform method is the one that determines the value
+  * of this Hive-only column, the transform code needs to drop the column
+  * (it holds a null value as it has not been populated with schema values)
+  * and re-insert it with the calculated value. See geocode column
+  * for an example.
+  *
   * See the JSONRefine --transform-function CLI option documentation.
   */
 import org.apache.spark.sql.functions.col
@@ -14,6 +26,7 @@ import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory
 import org.wikimedia.analytics.refinery.core.PageviewDefinition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
 import scala.collection.JavaConverters._
 
@@ -65,11 +78,20 @@ object geocode_ip extends LogHelper {
                 return partDf
         }
 
+        // If the input DataFrame already has a geocodedDataColumnName column, drop it now.
+        // We'll re-add it with newly geocoded data as the same name.
+        val workingDf = if (partDf.df.hasColumn(geocodedDataColumnName)) {
+            log.debug(s"Input DataFrame already has ${geocodedDataColumnName} column; dropping it before geocoding")
+            partDf.df.drop(geocodedDataColumnName)
+        } else {
+            partDf.df
+        }
+
         log.debug(s"Geocoding `$ipColumnName` into `$geocodedDataColumnName` in ${partDf.partition}")
         // create a new DataFrame
-        partDf.copy(df = partDf.df.sparkSession.createDataFrame(
+        partDf.copy(df = workingDf.sparkSession.createDataFrame(
             // Map each of our input df to its Spark partitions
-            partDf.df.rdd.mapPartitions { iter =>
+            workingDf.rdd.mapPartitions { iter =>
                 // Instantiate a Maxmind database reader for this Spark partition
                 val geocoder = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader()
                 // Map each Row in this partition to a new row that includes the geocoded IP data Map
@@ -78,7 +100,7 @@ object geocode_ip extends LogHelper {
                 }
             },
             // The new DataFrame will be created with the df schema + appeneded geocoded_data Map column.
-            partDf.df.schema.add(geocodedDataColumnName, MapType(StringType, StringType), nullable=true)
+            workingDf.schema.add(geocodedDataColumnName, MapType(StringType, StringType), nullable=true)
         ))
     }
 }
