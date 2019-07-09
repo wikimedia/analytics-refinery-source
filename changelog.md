@@ -1,3 +1,6 @@
+## v0.0.94
+* EventSchemaLoader uses JsonParser for event data rather than YAMLParser - T227484
+
 ## v0.0.93
 * Refactor mediawiki-page-history computation + fix
 * Mediawiki-history: Handle dropping of user fields in labs views

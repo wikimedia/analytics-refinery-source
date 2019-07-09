@@ -67,7 +67,10 @@ public class TestEventSchemaLoader extends TestCase {
         // Build the expected test event with $schema set to test event schema URI
         testEvent.put("$schema", "/test_event.schema.yaml");
         testEvent.set("meta", eventMeta);
-        testEvent.put("test", "yoohoo");
+        // Include unicode characters in the test event that are not allowed in yaml.
+        // An event should be parsed using JsonParser instead of YAMLParser.
+        // https://phabricator.wikimedia.org/T227484
+        testEvent.put("test", "yoohoo \uD862\uDF4E");
     }
 
 
