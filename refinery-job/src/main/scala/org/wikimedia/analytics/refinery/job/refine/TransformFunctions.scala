@@ -106,35 +106,49 @@ object geocode_ip extends LogHelper {
 }
 
 /**
-  * Filters out records that have a hostname that is not a wiki.
+  * Filters out records that have a hostname that is not a wiki
+  * except if those records match domains on a whitelist
+  *
   * Accepted values include:
   *   wikipedia.org, en.wiktionary.org, ro.m.wikibooks,
   *   zh-an.wikivoyage.org, mediawiki.org, www.wikidata.org, etc.
+  *
   * Filtered out values include:
   *   en-wiki.org, en.wikipedia.nom.it, en.wikipedi0.org,
-  *   translate.googleusercontent.com, www.translatoruser-int.com, etc.
- *
+  *   www.translatoruser-int.com, etc.
+  *
   * Given that webhost is an optional field on the capsule we need to accept
   * as valid records for which webhost is null.
+  *
   */
-object filter_out_non_wiki_hostname extends LogHelper {
+object eventlogging_filter_is_allowed_hostname extends LogHelper {
 
-    // The hostname should be in a field named 'webHost'.
-    val hostnameColumnName = "webHost"
+    import org.apache.spark.sql.functions.udf;
+    val hostnameColumnName = "webhost"
+
+    // TODO
+    // if this changes frequently data for whitelist should
+    // probably come from hive
+    //using scala 'r' regex builder
+    var whitelist  = List("translate.google").mkString("|").r;
+
+
+    val isAllowedHostname = udf((hostname:String) => {
+        if (hostname == null || hostname.isEmpty) true
+        else if (whitelist.findFirstMatchIn(hostname.toLowerCase()) != None) true
+        else if (PageviewDefinition.getInstance.isWikimediaHost(hostname)) true
+        else false
+    })
+
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         if (partDf.df.columns.contains(hostnameColumnName)) {
-            log.debug(s"Filtering out non-wiki hostnames in ${partDf.partition}")
+            log.debug(s"Filtering for allowed EventLogging hostnames in ${partDf.partition}")
             val schema = partDf.df.schema
-            partDf.copy(df = partDf.df.sparkSession.createDataFrame(
-                partDf.df.rdd.filter { row =>
-                    val hostname = row.getAs[String](hostnameColumnName)
-                    hostname == null || PageviewDefinition.getInstance.isWikimediaHost(hostname)
-                },
-                schema
-            ))
+            partDf.copy( df=partDf.df.filter(isAllowedHostname(col(hostnameColumnName))))
+
         } else {
-            log.info(s"${partDf.partition} does not have a `$hostnameColumnName` field, skipping non-wiki filtering.")
+            log.info(s"${partDf.partition} does not have a `$hostnameColumnName` field, skipping allowed EventLogging hostname filtering.")
             partDf
         }
     }
