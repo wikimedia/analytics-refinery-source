@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
+import org.wikimedia.analytics.refinery.core.Webrequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -128,7 +129,7 @@ public class GetPageviewInfoUDF extends GenericUDF {
         String uriPath = inputsOI[1].getPrimitiveJavaObject(arguments[1].get());
         String uriQuery = inputsOI[2].getPrimitiveJavaObject(arguments[2].get());
 
-        result.put(PROJECT_KEY, pageviewDefinition.getProjectFromHost(uriHost));
+        result.put(PROJECT_KEY, Webrequest.getProjectFromHost(uriHost));
         result.put(LANGUAGE_VARIANT_KEY, pageviewDefinition.getLanguageVariantFromPath(uriPath));
         result.put(PAGE_TITLE_KEY, pageviewDefinition.getPageTitleFromUri(uriPath, uriQuery));
 

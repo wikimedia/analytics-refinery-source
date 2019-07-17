@@ -46,19 +46,6 @@ public class PageviewDefinition {
         return instance;
     }
 
-    public static final Set<String> URI_PORTIONS_TO_REMOVE = new HashSet<String>(Arrays.asList(
-        "m",
-        "mobile",
-        "wap",
-        "zero",
-        "www",
-        "download"
-    ));
-
-    /**
-     * Static values for project, dialect and article
-     */
-    public static final String UNKNOWN_PROJECT_VALUE = "-";
     public static final String UNKNOWN_LANGUAGE_VARIANT_VALUE = "-";
     public static final String UNKNOWN_PAGE_TITLE_VALUE = "-";
     public static final String DEFAULT_LANGUAGE_VARIANT_VALUE = "default";
@@ -76,36 +63,13 @@ public class PageviewDefinition {
         "version"
     ));
 
-    /*
-     * Now back to the good part.
-     */
-    private final Pattern uriHostWikimediaDomainPattern = Pattern.compile(
-        // any of these domain names
-        "^(?!doc)" // wikimedia domain sites to exclude because they're not wikis
-        + "(commons|foundation|meta|incubator|species|outreach|usability|strategy|advisory|wikitech|[a-zA-Z]{2,3})\\."
-        + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
-        + "wikimedia\\.org$"    // ending with wikimedia.org
-    );
-
-    private final Pattern uriHostProjectDomainPattern = Pattern.compile(
-        // starting with a letter but not starting with "www" "test", "donate" or "arbcom"
-        "^((?!www)(?!donate)(?!arbcom)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
-        + "(wik(ibooks|"  // match project domains ending in .org
-        + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
-    );
-
     //
 
-    private final Pattern uriHostOtherProjectsPattern = Pattern.compile(
-        "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
-        + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
-    );
-
-    private final Pattern uriPathPattern = Pattern.compile(
+    private final static Pattern URI_PATH_PATTERN = Pattern.compile(
         "^(/sr(-(ec|el))?|/w(iki)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
     );
 
-    private final Pattern uriQueryPattern = Pattern.compile(
+    private final static Pattern PATTERN = Pattern.compile(
         "\\?((cur|old)id|title|search)="
     );
 
@@ -210,8 +174,8 @@ public class PageviewDefinition {
                         // Either a pageview's uriPath will match the first pattern,
                         // or its uriQuery will match the second
                         &&  (
-                        Utilities.patternIsFound(uriPathPattern, data.getUriPath())
-                                || Utilities.patternIsFound(uriQueryPattern, data.getUriQuery())
+                        Utilities.patternIsFound(URI_PATH_PATTERN, data.getUriPath())
+                                || Utilities.patternIsFound(PATTERN, data.getUriQuery())
                 )
 
 
@@ -253,7 +217,7 @@ public class PageviewDefinition {
     public boolean isPageview(WebrequestData data) {
 
             boolean successRequestForWikimediaProject = (
-                Webrequest.isSuccess(data.getHttpStatus()) && isWikimediaHost(data.getUriHost())
+                Webrequest.isSuccess(data.getHttpStatus()) && Webrequest.isWikimediaHost(data.getUriHost())
             );
 
             if (successRequestForWikimediaProject && pageDenotesContentConsumption(data)) {
@@ -295,54 +259,6 @@ public class PageviewDefinition {
         }
 
         return SPECIAL_PAGES_ACCEPTED.contains(special);
-    }
-    /**
-     * Returns true when the host belongs to either a wikimedia.org domain,
-     * or a 'project' domain, e.g. en.wikipedia.org. Returns false otherwise.
-     */
-    public boolean isWikimediaHost(String host) {
-        return (
-            Utilities.patternIsFound(uriHostWikimediaDomainPattern, host) ||
-            Utilities.patternIsFound(uriHostOtherProjectsPattern, host) ||
-            Utilities.patternIsFound(uriHostProjectDomainPattern, host)
-        );
-    }
-
-    /**
-     * Identifies a project from a pageview uriHost
-     * NOTE: Provides correct result only if used with is_pageview = true
-     *
-     * @param uriHost The url's host
-     * @return The project identifier in format [xxx.]xxxx (en.wikipedia or wikisource for instance)
-     */
-    public String getProjectFromHost(String uriHost) {
-        if (uriHost == null) return PageviewDefinition.UNKNOWN_PROJECT_VALUE;
-        String[] uri_parts = uriHost.toLowerCase().split("\\.");
-        switch (uri_parts.length) {
-            // case wikixxx.org
-            case 2:
-                return uri_parts[0];
-            //case xx.wikixxx.org - Remove unwanted parts
-            case 3:
-                if (PageviewDefinition.URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
-                    return uri_parts[1];
-                else
-                    return uri_parts[0] + "." + uri_parts[1];
-            //xx.[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
-            case 4:
-                if (PageviewDefinition.URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
-                    return uri_parts[2];
-                else
-                    return uri_parts[0] + "." + uri_parts[2];
-            //xx.[m|mobile|wap|zero].[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
-            case 5:
-                if (PageviewDefinition.URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
-                    return uri_parts[3];
-                else
-                    return uri_parts[0] + "." + uri_parts[3];
-            default:
-                return PageviewDefinition.UNKNOWN_PROJECT_VALUE;
-        }
     }
 
     /**

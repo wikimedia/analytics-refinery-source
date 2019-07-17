@@ -27,6 +27,18 @@ import java.util.regex.Pattern;
  */
 public class Webrequest {
 
+    public static final Set<String> URI_PORTIONS_TO_REMOVE = new HashSet<String>(Arrays.asList(
+        "m",
+        "mobile",
+        "wap",
+        "zero",
+        "www",
+        "download"
+    ));
+    /**
+     * Static values for project, dialect and article
+     */
+    public static final String UNKNOWN_PROJECT_VALUE = "-";
     /*
      * Meta-methods to enable eager instantiation in a singleton-based way.
      * in non-Java terms: you get to only create one class instance, and only
@@ -64,7 +76,23 @@ public class Webrequest {
         "text/html; charset=UTF-8"
     ));
 
-
+    public final static Pattern URI_HOST_WIKIMEDIA_DOMAIN_PATTERN = Pattern.compile(
+            // any of these domain names
+            "^(?!doc)" // wikimedia domain sites to exclude because they're not wikis
+                    + "(commons|foundation|meta|incubator|species|outreach|usability|strategy|advisory|wikitech|[a-zA-Z]{2,3})\\."
+                    + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
+                    + "wikimedia\\.org$"    // ending with wikimedia.org
+    );
+    public final static Pattern URI_HOST_PROJECT_DOMAIN_PATTERN = Pattern.compile(
+            // starting with a letter but not starting with "www" "test", "donate" or "arbcom"
+            "^((?!www)(?!donate)(?!arbcom)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
+                    + "(wik(ibooks|"  // match project domains ending in .org
+                    + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
+    );
+    public final static Pattern URI_HOST_OTHER_PROJECTS_PATTERN = Pattern.compile(
+            "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
+                    + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
+    );
 
 
     /* Regex to coarsely match email addresses in the user-agent as part of spider identification,
@@ -120,6 +148,59 @@ public class Webrequest {
     private static final Pattern appAgentPattern = Pattern.compile(
         "Wikipedia(App|/5.0.)"
     );
+
+    private static final int MAX_ADDRESS_LENGTH = 800;
+
+    /**
+     * Returns true when the host belongs to either a wikimedia.org domain,
+     * or a 'project' domain, e.g. en.wikipedia.org. Returns false otherwise.
+     */
+    public static boolean isWikimediaHost(String host) {
+        host = host.toLowerCase();
+        if (host.length() > MAX_ADDRESS_LENGTH) return false;
+        return (
+            Utilities.patternIsFound(URI_HOST_WIKIMEDIA_DOMAIN_PATTERN, host) ||
+            Utilities.patternIsFound(URI_HOST_OTHER_PROJECTS_PATTERN, host) ||
+            Utilities.patternIsFound(URI_HOST_PROJECT_DOMAIN_PATTERN, host)
+        );
+    }
+
+    /**
+     * Identifies a project from a pageview uriHost
+     * NOTE: Provides correct result only if used with is_pageview = true
+     *
+     * @param uriHost The url's host
+     * @return The project identifier in format [xxx.]xxxx (en.wikipedia or wikisource for instance)
+     */
+    public static String getProjectFromHost(String uriHost) {
+        if (uriHost == null || uriHost.length() > MAX_ADDRESS_LENGTH) return UNKNOWN_PROJECT_VALUE;
+        String[] uri_parts = uriHost.toLowerCase().split("\\.");
+        switch (uri_parts.length) {
+            // case wikixxx.org
+            case 2:
+                return uri_parts[0];
+            //case xx.wikixxx.org - Remove unwanted parts
+            case 3:
+                if (URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
+                    return uri_parts[1];
+                else
+                    return uri_parts[0] + "." + uri_parts[1];
+            //xx.[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
+            case 4:
+                if (URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
+                    return uri_parts[2];
+                else
+                    return uri_parts[0] + "." + uri_parts[2];
+            //xx.[m|mobile|wap|zero].[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
+            case 5:
+                if (URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
+                    return uri_parts[3];
+                else
+                    return uri_parts[0] + "." + uri_parts[3];
+            default:
+                return UNKNOWN_PROJECT_VALUE;
+        }
+    }
 
     /**
      * Identify a bunch of spiders; returns TRUE
