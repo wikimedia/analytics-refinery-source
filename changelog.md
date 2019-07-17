@@ -1,4 +1,5 @@
 ## v0.0.94
+* Pageview Definition. Most special pages should not be counted - T226730
 * EventSchemaLoader uses JsonParser for event data rather than YAMLParser - T227484
 * EventSparkSchemaLoader now merges input JSONSchema with Hive schema before loading - T227088
 * Added whitelist to eventlogging filtering of webhost domains so data from google translate
