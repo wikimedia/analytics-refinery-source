@@ -219,9 +219,12 @@ object RefineMonitor extends LogHelper with ConfigHelper {
         }
 
         else {
-            val report = s"The following dataset targets in $input_path between " +
+            val report = s" The following dataset targets in $input_path between " +
                 s"$since and $until have not yet " +
-                s"been refined to $output_path:\n\n\t" +
+                s"been refined. The output path is $output_path:\n\n\t  If data is present " +
+              s"in $output_path it will be worth checking if there is a discrepancy " +
+              s"with the data in $input_path, " +
+              s"since there might be a backfill procedure in progress. " +
                 targets.map(_.partition).mkString("\n\t")
             log.warn(report)
 
