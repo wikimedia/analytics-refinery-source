@@ -25,9 +25,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.wikimedia.analytics.refinery.core.MediaFileUrlParser;
-import org.wikimedia.analytics.refinery.core.MediaFileUrlInfo;
-import org.wikimedia.analytics.refinery.core.MediaFileUrlInfo.Classification;
+import org.wikimedia.analytics.refinery.core.media.MediaType;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlParser;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo;
+import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo.TranscodingClassification;
 import org.wikimedia.analytics.refinery.core.PercentEncoder;
 
 import java.util.LinkedList;
@@ -39,6 +40,8 @@ import java.util.List;
  * The UDF will return a map with the following keys:
  * <ul>
  * <li>{@code base_name} String. base_name of the file. (Without thumbs, transcodings, etc.)</li>
+ * <li>{@code media_classification} String. general type of media (image, audio, video...)</li>
+ * <li>{@code file_type} String. extension of original file before transcoding, if applicable</li>
  * <li>{@code is_original} bool true iff the url is for the raw, original uploaded file</li>
  * <li>{@code is_transcoded_to_audio} bool true iff the url is for a transcoding to audio</li>
  * <li>{@code is_transcoded_to_image} bool true iff the url is for a transcoding to an image</li>
@@ -65,6 +68,8 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
     private int IDX_IS_TRANSCODED_MOVIE;
     private int IDX_WIDTH;
     private int IDX_HEIGHT;
+    private int IDX_MEDIA_CLASSIFICATION;
+    private int IDX_FILE_EXTENSION;
 
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
@@ -90,6 +95,14 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
         fieldNames.add("base_name");
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
         IDX_BASE_NAME=idx++;
+
+        fieldNames.add("media_classification");
+        fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+        IDX_MEDIA_CLASSIFICATION =idx++;
+
+        fieldNames.add("file_type");
+        fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+        IDX_FILE_EXTENSION =idx++;
 
         fieldNames.add("is_original");
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaBooleanObjectInspector);
@@ -141,6 +154,9 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
         if (info == null) {
             result[IDX_BASE_NAME] = null;
 
+            result[IDX_FILE_EXTENSION] = null;
+            result[IDX_MEDIA_CLASSIFICATION] = null;
+
             result[IDX_IS_ORIGINAL] = false;
             result[IDX_IS_TRANSCODED_AUDIO] = false;
             result[IDX_IS_TRANSCODED_IMAGE] = false;
@@ -151,11 +167,15 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
         } else {
             result[IDX_BASE_NAME] = PercentEncoder.encode(info.getBaseName());
 
-            Classification classification = info.getClassification();
-            result[IDX_IS_ORIGINAL] = (classification == Classification.ORIGINAL);
-            result[IDX_IS_TRANSCODED_AUDIO] = (classification == Classification.TRANSCODED_TO_AUDIO);
-            result[IDX_IS_TRANSCODED_IMAGE] = (classification == Classification.TRANSCODED_TO_IMAGE);
-            result[IDX_IS_TRANSCODED_MOVIE] = (classification == Classification.TRANSCODED_TO_MOVIE);
+            MediaType mediaType = info.getMediaType();
+            result[IDX_FILE_EXTENSION] = mediaType.getFileExtension();
+            result[IDX_MEDIA_CLASSIFICATION] = mediaType.getParentType();
+
+            TranscodingClassification transcodingClassification = info.getTranscodingClassification();
+            result[IDX_IS_ORIGINAL] = (transcodingClassification == MediaFileUrlInfo.TranscodingClassification.ORIGINAL);
+            result[IDX_IS_TRANSCODED_AUDIO] = (transcodingClassification == MediaFileUrlInfo.TranscodingClassification.TRANSCODED_TO_AUDIO);
+            result[IDX_IS_TRANSCODED_IMAGE] = (transcodingClassification == MediaFileUrlInfo.TranscodingClassification.TRANSCODED_TO_IMAGE);
+            result[IDX_IS_TRANSCODED_MOVIE] = (transcodingClassification == MediaFileUrlInfo.TranscodingClassification.TRANSCODED_TO_MOVIE);
 
             result[IDX_WIDTH] = info.getWidth();
             result[IDX_HEIGHT] = info.getHeight();

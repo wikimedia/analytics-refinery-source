@@ -1,8 +1,8 @@
-package org.wikimedia.analytics.refinery.core;
+package org.wikimedia.analytics.refinery.core.media;
 
 public class MediaFileUrlInfo {
 
-    public enum Classification {
+    public enum TranscodingClassification {
         UNKNOWN,
         ORIGINAL,
         TRANSCODED_TO_AUDIO,
@@ -11,43 +11,55 @@ public class MediaFileUrlInfo {
     }
 
     private String baseName;
-    private Classification classification;
+    private TranscodingClassification transcodingClassification;
     private Integer width;
     private Integer height;
+    private MediaTypeClassifier mediaTypeClassifier = new MediaTypeClassifier();
+
+    private MediaType mediaType;
 
     public static MediaFileUrlInfo createUnknown() {
-        return new MediaFileUrlInfo(null, Classification.UNKNOWN,
-                null, null);
+        return new MediaFileUrlInfo(null,
+                TranscodingClassification.UNKNOWN,
+                null,
+                null);
     }
 
     public static MediaFileUrlInfo createOriginal(final String baseName) {
-        return new MediaFileUrlInfo(baseName, Classification.ORIGINAL,
-                null, null);
+        return new MediaFileUrlInfo(baseName, TranscodingClassification.ORIGINAL, null, null);
     }
 
     public static MediaFileUrlInfo createTranscodedToImage(
             final String baseName, final Integer width) {
         return new MediaFileUrlInfo(baseName,
-                Classification.TRANSCODED_TO_IMAGE, width, null);
+                TranscodingClassification.TRANSCODED_TO_IMAGE,
+                width,
+                null);
     }
 
     public static MediaFileUrlInfo createTranscodedToMovie(
             final String baseName, final int height) {
         return new MediaFileUrlInfo(baseName,
-                Classification.TRANSCODED_TO_MOVIE, null, height);
+                TranscodingClassification.TRANSCODED_TO_MOVIE,
+                null,
+                height);
     }
 
     public static MediaFileUrlInfo createTranscodedToAudio(
             final String baseName) {
         return new MediaFileUrlInfo(baseName,
-                Classification.TRANSCODED_TO_AUDIO, null, null);
+                TranscodingClassification.TRANSCODED_TO_AUDIO,
+                null,
+                null);
     }
 
     private MediaFileUrlInfo(final String baseName,
-            final Classification quality, final Integer width,
-            final Integer height) {
+                             final TranscodingClassification quality,
+                             final Integer width,
+                             final Integer height) {
         this.baseName = baseName;
-        this.classification = quality;
+        this.transcodingClassification = quality;
+        this.mediaType = mediaTypeClassifier.classify(baseName);
         this.width = width;
         this.height = height;
     }
@@ -56,8 +68,12 @@ public class MediaFileUrlInfo {
         return baseName;
     }
 
-    public Classification getClassification() {
-        return classification;
+    public TranscodingClassification getTranscodingClassification() {
+        return transcodingClassification;
+    }
+
+    public MediaType getMediaType() {
+        return mediaType;
     }
 
     public Integer getWidth() {
@@ -78,7 +94,7 @@ public class MediaFileUrlInfo {
 
             ret = true;
 
-            ret &= classification == other.classification;
+            ret &= transcodingClassification == other.transcodingClassification;
 
             if (baseName == null) {
                 ret &= other.baseName == null;
@@ -105,7 +121,7 @@ public class MediaFileUrlInfo {
     @Override
     public String toString() {
         String ret = "MediaFileUrlInfo[";
-        switch (classification) {
+        switch (transcodingClassification) {
         case UNKNOWN:
             ret += "unknown";
             break;
