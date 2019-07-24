@@ -131,7 +131,7 @@ public class TestPageview {
         assertEquals(
                 test_description,
                 project,
-                PageviewDefinitionInstance.getProjectFromHost(uri_host)
+                Webrequest.getProjectFromHost(uri_host)
         );
     }
 

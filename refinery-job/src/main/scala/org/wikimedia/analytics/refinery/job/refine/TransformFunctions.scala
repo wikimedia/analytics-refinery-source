@@ -24,7 +24,7 @@ import org.apache.spark.sql.types.{MapType, StringType}
 import org.apache.spark.sql.{Column, AnalysisException, Row}
 import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory
-import org.wikimedia.analytics.refinery.core.PageviewDefinition
+import org.wikimedia.analytics.refinery.core.Webrequest
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
@@ -136,7 +136,7 @@ object eventlogging_filter_is_allowed_hostname extends LogHelper {
     val isAllowedHostname = udf((hostname:String) => {
         if (hostname == null || hostname.isEmpty) true
         else if (whitelist.findFirstMatchIn(hostname.toLowerCase()) != None) true
-        else if (PageviewDefinition.getInstance.isWikimediaHost(hostname)) true
+        else if (Webrequest.isWikimediaHost(hostname)) true
         else false
     })
 

@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
+import org.wikimedia.analytics.refinery.core.Webrequest;
 
 import java.io.IOException;
 import java.util.Map;
@@ -119,7 +120,7 @@ public class TestGetPageviewInfoUDF {
         Map<String, String> result = (Map<String, String>)udf.evaluate(args);
         udf.close();
 
-        assertEquals("Empty project", PageviewDefinition.UNKNOWN_PROJECT_VALUE, result.get(GetPageviewInfoUDF.PROJECT_KEY));
+        assertEquals("Empty project", Webrequest.UNKNOWN_PROJECT_VALUE, result.get(GetPageviewInfoUDF.PROJECT_KEY));
         assertEquals("Empty lanuage_variant", PageviewDefinition.UNKNOWN_LANGUAGE_VARIANT_VALUE, result.get(GetPageviewInfoUDF.LANGUAGE_VARIANT_KEY));
         assertEquals("Empty page_title", PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE, result.get(GetPageviewInfoUDF.PAGE_TITLE_KEY));
     }
