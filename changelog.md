@@ -1,3 +1,7 @@
+## v0.0.95
+* Making RefineMonitor error message more clear
+* Adding UDF to get wiki project from referrer string, not used
+* Add new mediatypes to media classification refinery code - T225911
 ## v0.0.94
 * Pageview Definition. Most special pages should not be counted - T226730
 * EventSchemaLoader uses JsonParser for event data rather than YAMLParser - T227484
