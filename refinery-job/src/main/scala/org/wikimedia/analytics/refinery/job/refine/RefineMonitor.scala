@@ -219,12 +219,11 @@ object RefineMonitor extends LogHelper with ConfigHelper {
         }
 
         else {
+            val doneFlag = targets.head.doneFlag
             val report = s" The following dataset targets in $input_path between " +
-                s"$since and $until have not yet " +
-                s"been refined. The output path is $output_path:\n\n\t  If data is present " +
-              s"in $output_path it will be worth checking if there is a discrepancy " +
-              s"with the data in $input_path, " +
-              s"since there might be a backfill procedure in progress. " +
+                s"$since and $until need refinement into the output path $output_path\n\n" +
+                s"If data is present in the output path, then either $doneFlag flag has been " +
+                s"removed or it contains a timestamp older than the input data's modification time." +
                 targets.map(_.partition).mkString("\n\t")
             log.warn(report)
 
