@@ -102,8 +102,7 @@ object WebrequestSubsetPartitioner extends ConfigHelper {
         webrequest_table: String = "wmf.webrequest",
         webrequest_subset_table: String = "wmf.webrequest_subset",
         webrequest_subset_tags_table: String = "wmf.webrequest_subset_tags",
-        webrequest_subset_base_path: String = "/wmf/data/wmf/webrequest_subset",
-        hive_server_url: String = "an-coord1001.eqiad.wmnet:10000"
+        webrequest_subset_base_path: String = "/wmf/data/wmf/webrequest_subset"
     )
 
     object Params {
@@ -220,7 +219,6 @@ object WebrequestSubsetPartitioner extends ConfigHelper {
         // Actually split the data and update the hive table
         DataFrameToHive(
             spark,
-            params.hive_server_url,
             webrequestToSplit,
             () => log.info(s"Done splitting webrequest into subsets for $webrequestSubsetPartition"),
             transformFunctions

@@ -38,7 +38,6 @@ object Refine extends LogHelper with ConfigHelper {
         input_path_regex_capture_groups: Seq[String],
         output_path: String,
         database: String,
-        hive_server_url: String                         = "an-coord1001.eqiad.wmnet:10000",
         since: DateTime                                 = DateTime.now - 24.hours, // 1 day ago
         until: DateTime                                 = DateTime.now,
         input_path_datetime_format: DateTimeFormatter   = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
@@ -120,7 +119,7 @@ object Refine extends LogHelper with ConfigHelper {
                    |(re)refined. Default: ${default.ignore_failure_flag}""",
             "ignore_done_flag" ->
                 s"""Set this if you also want all discovered partitions with _REFINED files to be
-                   |(re)refined. Defeault: ${default.ignore_done_flag}""",
+                   |(re)refined. Default: ${default.ignore_done_flag}""",
             "parallelism" ->
                 """Refine into up to this many tables in parallel.  Individual partitions
                   |destined for the same Hive table will be refined serially.
@@ -138,8 +137,6 @@ object Refine extends LogHelper with ConfigHelper {
                    |actually set this to a value, e.g. --dry_run=true.  A valueless flag
                    |will not work.
                    |Default: ${default.dry_run}""",
-            "hive_server_url" ->
-                s"URL of HiveServer. Default: ${default.hive_server_url}",
             "should_email_report" ->
                 s"""Set this flag if you want an email report of any missing refine targets.
                    |Default: ${default.should_email_report}""",
@@ -255,7 +252,6 @@ object Refine extends LogHelper with ConfigHelper {
         input_path_regex_capture_groups: Seq[String],
         output_path: String,
         database: String,
-        hive_server_url: String                         = Config.default.hive_server_url,
         since: DateTime                                 = Config.default.since,
         until: DateTime                                 = Config.default.until,
         input_path_datetime_format: DateTimeFormatter   = Config.default.input_path_datetime_format,
@@ -373,7 +369,7 @@ object Refine extends LogHelper with ConfigHelper {
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!dry_run)
-                table -> refineTargets(spark, hive_server_url, tableTargets.seq, transform_functions)
+                table -> refineTargets(spark, tableTargets.seq, transform_functions)
             // If dry_run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -453,7 +449,6 @@ object Refine extends LogHelper with ConfigHelper {
             config.input_path_regex_capture_groups,
             config.output_path,
             config.database,
-            config.hive_server_url,
             config.since,
             config.until,
             config.input_path_datetime_format,
@@ -479,14 +474,12 @@ object Refine extends LogHelper with ConfigHelper {
       * Given a Seq of RefineTargets, this runs DataFrameToHive on each one.
       *
       * @param spark               SparkSession
-      * @param hiveServerUrl       The URL of the hive server to use
       * @param targets             Seq of RefineTargets to refine
       * @param transformFunctions  The list of transform functions to apply
       * @return
       */
     def refineTargets(
         spark: SparkSession,
-        hiveServerUrl: String,
         targets: Seq[RefineTarget],
         transformFunctions: Seq[TransformFunction]
     ): Seq[Try[RefineTarget]] = {
@@ -497,7 +490,6 @@ object Refine extends LogHelper with ConfigHelper {
                 val partDf = new PartitionedDataFrame(target.inputDataFrame(), target.partition)
                 val insertedDf = DataFrameToHive(
                     spark,
-                    hiveServerUrl,
                     partDf,
                     () => target.writeDoneFlag(),
                     transformFunctions

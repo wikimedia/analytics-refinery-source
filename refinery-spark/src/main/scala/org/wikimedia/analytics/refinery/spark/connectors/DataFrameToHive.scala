@@ -1,5 +1,6 @@
 package org.wikimedia.analytics.refinery.spark.connectors
 
+import java.net.URI
 import java.sql.Connection
 import java.util.Properties
 
@@ -65,9 +66,6 @@ object DataFrameToHive extends LogHelper {
       *
       * @param spark              SparkSession
       *
-      * @param hiveServerUrl      URL of the hive server to request to alter tables
-      *                           See https://issues.apache.org/jira/browse/SPARK-14130
-      *
       * @param inputPartDf        Input Partitioned DataFrame
       *
       * @param doneCallback       Function to call after a successful run
@@ -81,7 +79,6 @@ object DataFrameToHive extends LogHelper {
       */
     def apply(
         spark: SparkSession,
-        hiveServerUrl: String,
         inputPartDf: PartitionedDataFrame,
         doneCallback: () => Unit,
         transformFunctions: Seq[TransformFunction] = Seq()
@@ -130,7 +127,6 @@ object DataFrameToHive extends LogHelper {
             // made nullable.
             prepareHiveTable(
                 spark,
-                hiveServerUrl,
                 partDf.df.schema,
                 partDf.partition.tableName,
                 partDf.partition.location,
@@ -196,9 +192,6 @@ object DataFrameToHive extends LogHelper {
       *
       * @param spark            SparkSession
       *
-      * @param hiveServerUrl      URL of the hive server to request to alter tables
-      *                           See https://issues.apache.org/jira/browse/SPARK-14130
-      *
       * @param newSchema        Spark schema representing the schema of the
       *                         table to be created or altered.
       *
@@ -213,7 +206,6 @@ object DataFrameToHive extends LogHelper {
       */
     def prepareHiveTable(
         spark: SparkSession,
-        hiveServerUrl: String,
         newSchema: StructType,
         tableName: String,
         locationPath: String = "",
@@ -225,15 +217,13 @@ object DataFrameToHive extends LogHelper {
 
         // CREATE or ALTER the Hive table if we have a change to make.
         if (ddlStatements.nonEmpty) {
-
             // Use a hive JDBC connection since Spark doesn't accept column change in SPARK-2
             // https://issues.apache.org/jira/browse/SPARK-14130
             // The connection must use the current user for HDFS file permissions
             try {
+                val jdbcUrl = s"jdbc:${hiveServerUrl(spark)}"
+                log.info(s"Connecting to Hive over JDBC at ${jdbcUrl}")
                 val hiveDriver = new HiveDriver()
-                val jdbcUser = spark.sparkContext.sparkUser
-                val jdbcUrl = s"jdbc:hive2://$hiveServerUrl/default;user=$jdbcUser;password="
-                log.info(s"Connecting to hive with url ${jdbcUrl}")
                 val connection: Connection = hiveDriver.connect(jdbcUrl, new Properties())
                 val statement = connection.createStatement()
                 ddlStatements.foreach { (s) =>
@@ -319,6 +309,29 @@ object DataFrameToHive extends LogHelper {
             case Some(_) => true
             case _       => false
         }
+    }
+
+    /**
+      * Returns a hive2:// (thrift) server url to the hiveserver2 that SparkSession uses.
+      * This defaults to hive2://localhost:10000/default;user=$sparkUser;password=
+      * if no options are set.  This will consider kerberos principal authentication
+      * by looking at the configured hive.server2.authentication.kerberos.principal.
+      * @param spark    SparkSession
+      * @return
+      */
+    def hiveServerUrl(spark: SparkSession): String = {
+        val hadoopConf = spark.sparkContext.hadoopConfiguration
+
+        val hiveServerPort = hadoopConf.get("hive.server2.thrift.port", "10000")
+        // assume that the hive server is on the same host as the (first) configured metastore
+        val hiveMetastoreUris = hadoopConf.get("hive.metastore.uris", "thrift://localhost:9083")
+        val hiveServerHost = new URI(hiveMetastoreUris.split(",").head).getHost
+
+        val authParams = hadoopConf.get("hive.server2.authentication.kerberos.principal") match {
+            case principal: String  => s"principal=${principal}"
+            case null               => s"user=${spark.sparkContext.sparkUser};password="
+        }
+        s"hive2://${hiveServerHost}:${hiveServerPort}/default;${authParams}"
     }
 
 }
