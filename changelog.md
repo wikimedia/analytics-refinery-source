@@ -1,7 +1,14 @@
-## v0.0.95
+## v0.0.97
+* Now refine infers hiveServerUrl from config, no --hive_server_url necessary.
+
+## v0.0.96
 * Making RefineMonitor error message more clear
 * Adding UDF to get wiki project from referrer string, not used
 * Add new mediatypes to media classification refinery code - T225911
+
+## v0.0.95
+Version skipped due to deployment problems
+
 ## v0.0.94
 * Pageview Definition. Most special pages should not be counted - T226730
 * EventSchemaLoader uses JsonParser for event data rather than YAMLParser - T227484
