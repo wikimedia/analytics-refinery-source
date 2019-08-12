@@ -84,6 +84,28 @@ public class MediaFileUrlInfo {
         return height;
     }
 
+    public String getTranscoding() {
+        if (transcodingClassification == TranscodingClassification.TRANSCODED_TO_IMAGE) {
+            if (width == null) return "image";
+            else if (width <= 199) return "image_0_199";
+            else if (width >= 200 && width <= 399 ) return "image_200_399";
+            else if (width >= 400 && width <= 599 ) return "image_400_599";
+            else if (width >= 600 && width <= 799 ) return "image_600_799";
+            else if (width >= 800 && width <= 999 ) return "image_800_999";
+            else if (width >= 1000) return "image_1000";
+        } else if (transcodingClassification == TranscodingClassification.TRANSCODED_TO_MOVIE) {
+            if (height == null) return "movie";
+            else if (height <= 239) return "movie_0_239";
+            else if (height >= 240 || height <= 479 ) return "movie_240_479";
+            else if (height >= 480 ) return "movie_480";
+        } else if (transcodingClassification == TranscodingClassification.ORIGINAL) {
+            return "original";
+        } else if (transcodingClassification == TranscodingClassification.TRANSCODED_TO_AUDIO) {
+            return "audio";
+        }
+        return null;
+    }
+
     @Override
     public boolean equals(final Object obj) {
         boolean ret = false;

@@ -70,6 +70,7 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
     private int IDX_HEIGHT;
     private int IDX_MEDIA_CLASSIFICATION;
     private int IDX_FILE_EXTENSION;
+    private int IDX_TRANSCODING;
 
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
@@ -128,6 +129,10 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
         fieldOIs.add(PrimitiveObjectInspectorFactory.javaIntObjectInspector);
         IDX_HEIGHT=idx++;
 
+        fieldNames.add("transcoding");
+        fieldOIs.add(PrimitiveObjectInspectorFactory.javaStringObjectInspector);
+        IDX_TRANSCODING =idx++;
+
         result = new Object[idx];
 
         return ObjectInspectorFactory.getStandardStructObjectInspector(fieldNames, fieldOIs);
@@ -179,6 +184,8 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
 
             result[IDX_WIDTH] = info.getWidth();
             result[IDX_HEIGHT] = info.getHeight();
+
+            result[IDX_TRANSCODING] = info.getTranscoding();
         }
 
         return result;

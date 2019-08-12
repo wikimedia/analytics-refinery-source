@@ -49,7 +49,7 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
             throws HiveException, IOException {
         Object[] res = (Object[]) callUDF(url);
 
-        assertEquals("Result array has wrong length", 9, res.length);
+        assertEquals("Result array has wrong length", 10, res.length);
 
         assertEquals("baseName does not match", baseName, res[0]);
 
@@ -78,6 +78,13 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
         String receivedExtension = (String) res[2];
         assertEquals(mediaParentType, receivedMediaParentTypeClassification);
         assertEquals(extension, receivedExtension);
+    }
+
+    public void assertLiteralTranscoding(String baseName, String transcoding)
+            throws HiveException, IOException {
+        Object[] res = (Object[]) callUDF(baseName);
+        String receivedTranscoding = (String) res[9];
+        assertEquals(transcoding, receivedTranscoding);
     }
 
     public void testInitialize() throws HiveException, IOException {
@@ -120,42 +127,51 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
         assertOutput(baseName, baseName,
                 TranscodingClassification.ORIGINAL, null, null);
         assertMediaClassification(baseName, "image", "png");
+        assertLiteralTranscoding(baseName, "original");
     }
 
     public void testEvaluateAudio() throws HiveException, IOException {
         String baseName = "/wikipedia/commons/b/bd/Xylophone_jingle.wav";
+        String requestName = "/wikipedia/commons/transcoded/b/bd/Xylophone_jingle.wav/Xylophone_jingle.wav.ogg";
         assertOutput(
-                "/wikipedia/commons/transcoded/b/bd/Xylophone_jingle.wav/Xylophone_jingle.wav.ogg",
+                requestName,
                 baseName,
                 TranscodingClassification.TRANSCODED_TO_AUDIO, null, null);
         assertMediaClassification(baseName, "audio", "wav");
+        assertLiteralTranscoding(requestName, "audio");
     }
 
     public void testEvaluateImageWithWidth() throws HiveException, IOException {
         String baseName = "/wikipedia/commons/a/ae/Flag_of_the_United_Kingdom.svg";
+        String requestName = "/wikipedia/commons/thumb/a/ae/Flag_of_the_United_Kingdom.svg/1024px-Flag_of_the_United_Kingdom.svg.png";
         assertOutput(
-                "/wikipedia/commons/thumb/a/ae/Flag_of_the_United_Kingdom.svg/1024px-Flag_of_the_United_Kingdom.svg.png",
+                requestName,
                 baseName,
                 TranscodingClassification.TRANSCODED_TO_IMAGE, 1024, null);
         assertMediaClassification(baseName, "image", "svg");
+        assertLiteralTranscoding(requestName, "image_1000");
     }
 
     public void testEvaluateImageWithoutWidth() throws HiveException, IOException {
         String baseName = "/wikipedia/commons/a/ae/Flag_of_the_United_Kingdom.svg";
+        String requestName = "/wikipedia/commons/thumb/a/ae/Flag_of_the_United_Kingdom.svg/mid-Flag_of_the_United_Kingdom.svg.png";
         assertOutput(
-                "/wikipedia/commons/thumb/a/ae/Flag_of_the_United_Kingdom.svg/mid-Flag_of_the_United_Kingdom.svg.png",
+                requestName,
                 baseName,
                 MediaFileUrlInfo.TranscodingClassification.TRANSCODED_TO_IMAGE, null, null);
         assertMediaClassification(baseName, "image", "svg");
+        assertLiteralTranscoding(requestName, "image");
     }
 
     public void testEvaluateMovie() throws HiveException, IOException {
         String baseName = "/wikipedia/commons/3/31/Lheure_du_foo.ogv";
-        assertOutput(
-                "/wikipedia/commons/transcoded/3/31/Lheure_du_foo.ogv/Lheure_du_foo.ogv.360p.webm",
+        String requestName = "/wikipedia/commons/transcoded/3/31/Lheure_du_foo.ogv/Lheure_du_foo.ogv.360p.webm";
+                assertOutput(
+                requestName,
                 baseName,
                 TranscodingClassification.TRANSCODED_TO_MOVIE, null, 360);
         assertMediaClassification(baseName, "video", "ogv");
+        assertLiteralTranscoding(requestName, "movie_240_479");
     }
 
     public void testEncodedInput() throws HiveException, IOException {
@@ -165,6 +181,7 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
                 baseName,
                 TranscodingClassification.ORIGINAL, null, null);
         assertMediaClassification(baseName, "image", "svg");
+        assertLiteralTranscoding(baseName, "original");
     }
 
     public void testEncodedOutput() throws HiveException, IOException {
@@ -174,6 +191,7 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
                 baseName,
                 TranscodingClassification.ORIGINAL, null, null);
         assertMediaClassification(baseName, "image", "svg");
+        assertLiteralTranscoding(baseName, "original");
     }
 
     public void testUnknownMedia() throws HiveException, IOException {
@@ -183,6 +201,7 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
                 baseName,
                 TranscodingClassification.ORIGINAL, null, null);
         assertMediaClassification(baseName, "other", "wololo");
+        assertLiteralTranscoding(baseName, "original");
     }
 
     public void testExtensionsConsolidatedToLongformName() throws HiveException, IOException {
@@ -193,5 +212,6 @@ public class TestGetMediaFilePropertiesUDF extends TestCase {
             baseName,
             TranscodingClassification.ORIGINAL, null, null);
         assertMediaClassification(baseName, "image", "jpeg");
+        assertLiteralTranscoding(baseName, "original");
     }
 }
