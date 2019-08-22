@@ -1,3 +1,6 @@
+## v0.0.98
+* media info UDF now provide literal transcoding field 
+
 ## v0.0.97
 * Now refine infers hiveServerUrl from config, no --hive_server_url necessary.
 
