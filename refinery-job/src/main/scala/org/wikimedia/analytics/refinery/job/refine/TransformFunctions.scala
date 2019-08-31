@@ -124,7 +124,8 @@ object geocode_ip extends LogHelper {
 object eventlogging_filter_is_allowed_hostname extends LogHelper {
 
     import org.apache.spark.sql.functions.udf;
-    val hostnameColumnName = "webhost"
+    //Columns are not case sensitive in hive but they are in spark
+    val hostnameColumnName = "webHost"
 
     // TODO
     // if this changes frequently data for whitelist should

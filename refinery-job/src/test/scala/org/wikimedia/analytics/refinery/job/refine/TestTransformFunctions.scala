@@ -23,7 +23,7 @@ case class TestData(
     //IPv4 addresses taken from MaxMind's test suite
     ip: String = "81.2.69.160",
     tags: Array[String] = Array("tag1", "tag2"),
-    webhost: String = "en.wikipedia.org"
+    webHost: String = "en.wikipedia.org"
 )
 
 class TestTransformFunctions extends FlatSpec
@@ -34,9 +34,9 @@ class TestTransformFunctions extends FlatSpec
     val data1 = TestData()
     val data2 = TestData(uuid="b0f7848f973f5e90ac531055b45bfeba")
     val data3 = TestData(meta=subObject1)
-    val data4 = TestData(webhost="invalid.hostname.org")
-    val data5 = TestData(webhost=null)
-    val data6 = TestData(webhost="translate.google.com")
+    val data4 = TestData(webHost="invalid.hostname.org")
+    val data5 = TestData(webHost=null)
+    val data6 = TestData(webHost="translate.google.com")
 
 
     val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location", ListMap("year" -> Some("2018")))
@@ -80,7 +80,7 @@ class TestTransformFunctions extends FlatSpec
         transformedDf.df.count should equal(1)
     }
 
-    it should "not fail hostname filtering if webhost column is in whitelist" in {
+    it should "not fail hostname filtering if webHost column is in whitelist" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(data6))
@@ -89,7 +89,7 @@ class TestTransformFunctions extends FlatSpec
         transformedDf.df.count should equal(1)
     }
 
-    it should "not fail hostname filtering if webhost column doesn't exist" in {
+    it should "not fail hostname filtering if webHost column doesn't exist" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(subObject1))
