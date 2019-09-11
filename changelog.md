@@ -1,3 +1,6 @@
+## v0.0.99
+Third party data should not get refined, fixing typo
+
 ## v0.0.98
 * media info UDF now provide literal transcoding field 
 
