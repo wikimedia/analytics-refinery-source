@@ -72,7 +72,10 @@ public class UAParser {
 
     public UAParser() {
         try {
-            cachingParser = new CachingParser();
+            // CachingParser default cache size is 1000.
+            // Expanding it to 10000 divides computation
+            // by ~2.5, and expanding it more has less impact
+            cachingParser = new CachingParser(10000);
         } catch (IOException e) {
             // no recovery should be possible, log and rethrow
             // runtime exception will be logged to stdout by default
