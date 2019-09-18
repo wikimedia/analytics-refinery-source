@@ -230,6 +230,82 @@ case class MediawikiEvent(
     revisionDetails.revIsFromBeforePageCreation.orNull,
     revisionDetails.revTags.orNull
   )
+  def toTSVLine: String = {
+    val columns: Seq[Any] = Seq(
+      wikiDb,
+      eventEntity,
+      eventType,
+      eventTimestamp.map(_.toString).orNull,
+      MediawikiEvent.escape(eventComment.orNull),
+      eventUserDetails.userId.orNull,
+      MediawikiEvent.escape(eventUserDetails.userTextHistorical.orNull),
+      MediawikiEvent.escape(eventUserDetails.userText.orNull),
+      MediawikiEvent.formatArray(eventUserDetails.userBlocksHistorical.orNull),
+      MediawikiEvent.formatArray(eventUserDetails.userBlocks.orNull),
+      MediawikiEvent.formatArray(eventUserDetails.userGroupsHistorical.orNull),
+      MediawikiEvent.formatArray(eventUserDetails.userGroups.orNull),
+      MediawikiEvent.formatArray(eventUserDetails.userIsBotByHistorical.orNull),
+      MediawikiEvent.formatArray(eventUserDetails.userIsBotBy.orNull),
+      eventUserDetails.userIsCreatedBySelf.orNull,
+      eventUserDetails.userIsCreatedBySystem.orNull,
+      eventUserDetails.userIsCreatedByPeer.orNull,
+      eventUserDetails.userIsAnonymous.orNull,
+      eventUserDetails.userRegistrationTimestamp.map(_.toString).orNull,
+      eventUserDetails.userCreationTimestamp.map(_.toString).orNull,
+      eventUserDetails.userFirstEditTimestamp.map(_.toString).orNull,
+      eventUserDetails.userRevisionCount.orNull,
+      eventUserDetails.userSecondsSincePreviousRevision.orNull,
+      pageDetails.pageId.orNull,
+      // Note pageArtificialId is not printed.
+      MediawikiEvent.escape(pageDetails.pageTitleHistorical.orNull),
+      MediawikiEvent.escape(pageDetails.pageTitle.orNull),
+      pageDetails.pageNamespaceHistorical.orNull,
+      pageDetails.pageNamespaceIsContentHistorical.orNull,
+      pageDetails.pageNamespace.orNull,
+      pageDetails.pageNamespaceIsContent.orNull,
+      pageDetails.pageIsRedirect.orNull,
+      pageDetails.pageIsDeleted.orNull,
+      pageDetails.pageCreationTimestamp.map(_.toString).orNull,
+      pageDetails.pageFirstEditTimestamp.map(_.toString).orNull,
+      pageDetails.pageRevisionCount.orNull,
+      pageDetails.pageSecondsSincePreviousRevision.orNull,
+      userDetails.userId.orNull,
+      MediawikiEvent.escape(userDetails.userTextHistorical.orNull),
+      MediawikiEvent.escape(userDetails.userText.orNull),
+      MediawikiEvent.formatArray(userDetails.userBlocksHistorical.orNull),
+      MediawikiEvent.formatArray(userDetails.userBlocks.orNull),
+      MediawikiEvent.formatArray(userDetails.userGroupsHistorical.orNull),
+      MediawikiEvent.formatArray(userDetails.userGroups.orNull),
+      MediawikiEvent.formatArray(userDetails.userIsBotByHistorical.orNull),
+      MediawikiEvent.formatArray(userDetails.userIsBotBy.orNull),
+      userDetails.userIsCreatedBySelf.orNull,
+      userDetails.userIsCreatedBySystem.orNull,
+      userDetails.userIsCreatedByPeer.orNull,
+      userDetails.userIsAnonymous.orNull,
+      userDetails.userRegistrationTimestamp.map(_.toString).orNull,
+      userDetails.userCreationTimestamp.map(_.toString).orNull,
+      userDetails.userFirstEditTimestamp.map(_.toString).orNull,
+      revisionDetails.revId.orNull,
+      revisionDetails.revParentId.orNull,
+      revisionDetails.revMinorEdit.orNull,
+      MediawikiEvent.formatArray(revisionDetails.revDeletedParts.orNull),
+      revisionDetails.revDeletedPartsAreSuppressed.orNull,
+      revisionDetails.revTextBytes.orNull,
+      revisionDetails.revTextBytesDiff.orNull,
+      revisionDetails.revTextSha1.orNull,
+      revisionDetails.revContentModel.orNull,
+      revisionDetails.revContentFormat.orNull,
+      revisionDetails.revIsDeletedByPageDeletion.orNull,
+      revisionDetails.revDeletedByPageDeletionTimestamp.map(_.toString).orNull,
+      revisionDetails.revIsIdentityReverted.orNull,
+      revisionDetails.revFirstIdentityRevertingRevisionId.orNull,
+      revisionDetails.revSecondsToIdentityRevert.orNull,
+      revisionDetails.revIsIdentityRevert.orNull,
+      revisionDetails.revIsFromBeforePageCreation.orNull,
+      MediawikiEvent.formatArray(revisionDetails.revTags.orNull)
+    )
+    columns.mkString("\t")
+  }
   def textBytesDiff(value: Option[Long]) = this.copy(revisionDetails = this.revisionDetails.copy(revTextBytesDiff = value))
   def IsRevisionDeletedByPageDeletion(deleteTimestamp: Option[Timestamp]) = this.copy(
     revisionDetails = this.revisionDetails.copy(
@@ -833,4 +909,21 @@ object MediawikiEvent {
     updateWithOptionalPrevious(updateWithOptionalPagePreviousRevision, statsAccumulator, "byPage") _
 
 
+  /**
+    * Methods for TSV line formatting.
+    */
+  private def escape(s: String): String = {
+    if (s == null) null
+    else s.replace("\t", "\\t").replace("\n", "\\n")
+  }
+  private def quote(s: String): String = {
+    if (s == null) null
+    else "\"" + s.replace("\"", "\\\"") + "\""
+  }
+  private def formatArray(s: Seq[String]): String = {
+    if (s == null) null
+    else MediawikiEvent.escape(
+      "array(" + s.map(item => MediawikiEvent.quote(item)).mkString(",") + ")"
+    )
+  }
 }
