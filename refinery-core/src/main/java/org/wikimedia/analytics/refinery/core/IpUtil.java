@@ -30,14 +30,14 @@ public class IpUtil {
      * https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml
      * For now, any updates to this source must be manually brought over here.
      *
-     * Last update: 2018-01-12
+     * Last update: 2019-09-23
      */
     final String[] trustedProxies = new String[] {
             "91.198.174.0/24",
             "208.80.152.0/22",
             "2620:0:860::/46",
             "198.35.26.0/23",
-            "185.15.56.0/22",
+            "185.15.56.0/24",
             "2a02:ec80::/32",
             "2001:df2:e500::/48",
             "103.102.166.0/24",
@@ -55,9 +55,9 @@ public class IpUtil {
      * <p>
      * The following list is sourced from ops/puppet.git's data.yaml file (see above)
      * Specifically these were taken from the labs portion
-     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L238
+     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L261
      *
-     * Last updated: 2018-12-21
+     * Last updated: 2019-09-23
      */
     final String[] labsSubnets = new String[] {
             // labs-instances-eqiad
