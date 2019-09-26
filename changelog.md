@@ -1,3 +1,6 @@
+## v0.0.101
+* Update subnet lists for IpUtil
+
 ## v0.0.100
 * Update ua-parser dependency and related functions and tests
 * Add mediawiki-history-dumper spark job
