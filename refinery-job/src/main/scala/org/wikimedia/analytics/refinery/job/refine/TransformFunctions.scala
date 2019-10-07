@@ -131,7 +131,7 @@ object eventlogging_filter_is_allowed_hostname extends LogHelper {
     // if this changes frequently data for whitelist should
     // probably come from hive
     //using scala 'r' regex builder
-    var whitelist  = List("translate.google").mkString("|").r;
+    var whitelist  = List("translate.google", "www.wikipedia.org").mkString("|").r;
 
 
     val isAllowedHostname = udf((hostname:String) => {
