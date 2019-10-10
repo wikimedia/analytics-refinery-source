@@ -1,3 +1,6 @@
+## v0.0.105
+* Upgrade Spark to 2.4.4
+
 ## v0.0.104
 * Add HDFSCleaner to aid in cleaning HDFS tmp directories
 
@@ -18,7 +21,7 @@
 * Third party data should not get refined, fixing typo
 
 ## v0.0.98
-* media info UDF now provide literal transcoding field 
+* media info UDF now provide literal transcoding field
 
 ## v0.0.97
 * Now refine infers hiveServerUrl from config, no --hive_server_url necessary.

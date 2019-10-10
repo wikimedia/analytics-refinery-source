@@ -314,7 +314,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
         output_base_path: String,
         projects_restriction: Option[Set[String]] = None,
         max_parallel_jobs: Int = 128,
-        output_format: String = "parquet"
+        output_format: String = "avro"
     )
 
     object Params {
@@ -340,7 +340,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
                    |can be run in parallel, and should match the number of executors of your spark job.
                    |Default: ${default.max_parallel_jobs}""",
             "output_format" ->
-                s"""Output format the xml-dumps will be converted to. Can be json or parquet.
+                s"""Output format the xml-dumps will be converted to. Should be one of json, parquet or avro.
                    |Default: ${default.output_format}"""
         )
 

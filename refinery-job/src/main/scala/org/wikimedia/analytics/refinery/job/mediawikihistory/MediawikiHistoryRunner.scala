@@ -69,7 +69,7 @@ object MediawikiHistoryRunner {
                     snapshot: Option[String] = None,
                     tmpPath: String = "hdfs://analytics-hadoop/tmp/mediawiki/history/checkpoints",
                     baseNumPartitions: Int = 64,
-                    readerFormat: String = "com.databricks.spark.avro",
+                    readerFormat: String = "avro",
                     debug: Boolean = false,
                     noStats: Boolean = false,
                     writeErrors: Boolean = false,
@@ -131,7 +131,7 @@ object MediawikiHistoryRunner {
     opt[String]('f', "table-format") optional() valueName "<format>" action { (x, p) =>
       // Use external avro reader as not yet defined by default in spark
       // Should be removed with spark 2.4 and up
-      p.copy(readerFormat = x.replaceAll("avro", "com.databricks.spark.avro"))
+      p.copy(readerFormat = "avro")
     } validate { x =>
       if (!Seq("avro", "parquet").contains(x))
         failure(s"Invalid format $x - Should be avro or parquet.")

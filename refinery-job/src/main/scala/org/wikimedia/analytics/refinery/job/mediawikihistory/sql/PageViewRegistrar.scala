@@ -12,7 +12,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param wikiClause the SQL wiki restriction clause. Should be a valid SQL
  *                   boolean clause based on wiki_db field
  * @param readerFormat The spark reader format to use. Should be one of
- *                     com.databricks.spark.avro, parquet, json, csv
+ *                     avro, parquet, json, csv
  */
 class PageViewRegistrar(
   val spark: SparkSession,
