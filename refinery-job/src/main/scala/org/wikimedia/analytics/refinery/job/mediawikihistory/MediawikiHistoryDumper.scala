@@ -1,6 +1,8 @@
 
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
+import java.util.{TimeZone, Calendar}
+
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.col
@@ -189,14 +191,20 @@ object MediawikiHistoryDumper {
     def eventTimeBucket(event: MediawikiEvent): String = {
         event.eventTimestamp match {
             case Some(timestamp) =>
-                val year = timestamp.getYear + 1900
-                if (year < 2001) {
+                val nowCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                val eventCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+                eventCalendar.setTime(timestamp)
+                val year = eventCalendar.get(Calendar.YEAR)
+                if (year < 2001 || eventCalendar.after(nowCalendar)) {
                     // Mark events with timestamps older than 2001 as unknown.
                     // Those are rare mediawiki history reconstruction errors.
                     // See: https://phabricator.wikimedia.org/T218824
+                    // Also mark events with timestamp after current date as unknown.
+                    // Those are rare archived-revisions with incorrect dates and null page.
+                    // See: https://phabricator.wikimedia.org/T235269
                     "unknown"
                 } else if (MediawikiHistoryDumper.WikisInMonthlyBuckets.contains(event.wikiDb)) {
-                    year.toString + "-%02d".format(timestamp.getMonth + 1)
+                    year.toString + "-%02d".format(eventCalendar.get(Calendar.MONTH) + 1)
                 } else if (MediawikiHistoryDumper.WikisInYearlyBuckets.contains(event.wikiDb)) {
                     year.toString
                 } else {
@@ -229,6 +237,11 @@ object MediawikiHistoryDumper {
             if (wikiDirectory.getPath.getName != "_SUCCESS") {
                 val timeDirectories = fs.listStatus(wikiDirectory.getPath)
                 timeDirectories.foreach { timeDirectory =>
+                    // The substring removes Hive partition prefix (wiki=).
+                    val wiki = wikiDirectory.getPath.getName.substring(5)
+                    // The substring removes Hive partition prefix (time_bucket=).
+                    val timeBucket = timeDirectory.getPath.getName.substring(12)
+
                     val dataFiles = fs.listStatus(timeDirectory.getPath)
                     if (dataFiles.length > 1) {
                         // This should not happen.
@@ -236,17 +249,16 @@ object MediawikiHistoryDumper {
                         throw new RuntimeException("More than one file per folder generated.")
                     }
                     val sourcePath = dataFiles(0).getPath
+
                     val destinationDirectory = Seq(
                         outputBasePath,
                         snapshot,
-                        // The substring removes Hive partition prefix (wiki=).
-                        wikiDirectory.getPath.getName.substring(5)
+                        wiki
                     ).mkString("/")
                     fs.mkdirs(new Path(destinationDirectory))
                     val destinationPath = new Path(Seq(
                         destinationDirectory,
-                        // The substring removes Hive partition prefix (time_bucket=).
-                        timeDirectory.getPath.getName.substring(12) + ".tsv.bz2"
+                        wiki + "." +timeBucket + ".tsv.bz2"
                     ).mkString("/"))
                     fs.rename(sourcePath, destinationPath)
                 }
