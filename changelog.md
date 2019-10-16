@@ -1,3 +1,6 @@
+## v0.0.103
+* Update mediawiki-history-dumper (file names and future date events)
+
 ## v0.0.102
 * Fix refine wikipedia.org eventlogging data
 
