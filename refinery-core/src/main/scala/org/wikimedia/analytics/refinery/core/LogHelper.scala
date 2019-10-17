@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.core
 
-import org.apache.log4j.{Level, LogManager, Logger}
+import org.apache.log4j.{Level, LogManager, Logger, ConsoleAppender, PatternLayout}
 
 
 /**
@@ -26,5 +26,23 @@ trait LogHelper {
         val l = LogManager.getLogger(this.getClass.getName.split('.').last.split('$').last)
         l.setLevel(Level.toLevel(System.getProperty(logLevelConfigName, "INFO"), Level.INFO))
         l
+    }
+
+    /**
+      * Adds a console appender to the Logger.
+      * This is useful if you are using LogHelper without a pre-loaded
+      * log4j.properties file (e.g. outside of Spark) and want to see logs
+      * on the console.
+      *
+      * @param pattern PatternLayout pattern string
+      * @param target ConsoleAppender target, either System.out or System.err
+      */
+    def addConsoleLogAppender(
+        pattern: String = "%d{yyyy-MM-dd'T'HH:mm:ss.SSS} %p %c{1} %m%n",
+        target: String = ConsoleAppender.SYSTEM_OUT
+    ): Unit = {
+        log.addAppender(
+            new ConsoleAppender(new PatternLayout(pattern), ConsoleAppender.SYSTEM_OUT)
+        );
     }
 }
