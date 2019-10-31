@@ -1,3 +1,6 @@
+## v0.0.104
+* Add HDFSCleaner to aid in cleaning HDFS tmp directories
+
 ## v0.0.103
 * Update mediawiki-history-dumper (file names and future date events)
 
