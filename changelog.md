@@ -1,5 +1,6 @@
 ## v0.0.105
 * Upgrade Spark to 2.4.4
+* Update HDFSCleaner logging
 
 ## v0.0.104
 * Add HDFSCleaner to aid in cleaning HDFS tmp directories
