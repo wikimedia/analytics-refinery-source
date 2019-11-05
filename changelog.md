@@ -1,3 +1,6 @@
+## v0.0.106
+* HDFSCleaner improvements
+
 ## v0.0.105
 * Upgrade Spark to 2.4.4
 * Update HDFSCleaner logging

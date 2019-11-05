@@ -80,6 +80,17 @@ trait ConfigHelper {
         )
     }
 
+    implicit val decodeLong: Decoder[Long] = Decoder.decodeString.emap { s =>
+        Either.catchNonFatal(s.toLong).leftMap(t =>
+            throw new RuntimeException(s"Failed parsing '$s' into a long.", t)
+        )
+    }
+
+    implicit val decodeOptionLong: Decoder[Option[Long]] = Decoder.decodeString.emap { s =>
+        Either.catchNonFatal(Some(s.toLong)).leftMap(t =>
+            throw new RuntimeException(s"Failed parsing '$s' into a long.", t)
+        )
+    }
 
     implicit val decodeDouble: Decoder[Double] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(s.toDouble).leftMap(t =>

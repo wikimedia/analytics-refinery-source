@@ -6,14 +6,81 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.Trash
 import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.core.config._
 
+import scala.collection.immutable.ListMap
 
 /**
   * Aids in deleting files older than a given mtime.
   * Useful for cleaning the HDFS tmp directory in HDFS.
   */
-object HDFSCleaner extends LogHelper {
+object HDFSCleaner extends LogHelper with ConfigHelper {
+
+    /**
+      * Abort if a path to clean is ever given a path that exactly
+      * matches one of these.  This just a paranoid
+      * safety check to make sure we don't accidentally
+      * delete things we don't want to.
+      * @type {[type]}
+      */
+    val disallowedPaths = Seq(
+        "/", "/wmf", "/wmf/data", "/wmf/camus", "/wmf/discovery", "/user"
+    )
+
+    /**
+      * Config class for use config files and args.
+      */
+    case class Config(
+        path: String,
+        older_than_seconds: Long,
+        skip_trash: Boolean = false,
+        dry_run: Boolean    = false
+    )
+
+    def loadConfig(args: Array[String]): Config = {
+        val config = try {
+            configureArgs[Config](args)
+        } catch {
+            case e: ConfigHelperException =>
+                log.fatal(e.getMessage + ". Aborting.")
+                sys.exit(1)
+        }
+        log.info("Loaded configuration:\n" + prettyPrint(config))
+        config
+    }
+
+    object Config {
+        // This is just used to ease generating help message with default values.
+        // Required configs are set to dummy values.
+        val default = Config("", 0L)
+
+        val propertiesDoc: ListMap[String, String] = ListMap(
+            "path" -> "Path in which to clean up old files.",
+            "older_than_seconds" -> "Clean up files with mtimes older than this.",
+            "skip_trash" ->
+                s"""If true, files will be deleted directly, else they will be moved
+                   |to a .Trash dir.  Default: ${default.skip_trash}""",
+            "dry_run" ->
+                s"""Don't actually clean up any files, just count them.
+                   |Default: ${default.dry_run}"""
+        )
+
+        val usage: String =
+            """
+            |Recursively cleans up files with old mtimes in a directory.
+            |
+            |This is useful for cleaning out temp directories.
+            |
+            |Example:
+            |  # Move files older than 31 days in /tmp to trash
+            |  java -cp refinery-job.jar:$(/usr/bin/hadoop classpath) org.wikimedia.analytics.refinery.job.HDFSCleaner /tmp 2678400
+            |"""
+    }
+
+
+
     /**
       * Iterates over files and directories depth first calling
       * callback first on leaf files then on containing directories.
@@ -32,21 +99,36 @@ object HDFSCleaner extends LogHelper {
         callback: (FileSystem, FileStatus) => Long,
         recursive: Boolean = true
     ): Long = {
-        val iterator = fs.listLocatedStatus(path)
-
         var appliedCount = 0L
-        while (iterator.hasNext) {
-            val nextFile = iterator.next
 
-            // If recursing and we've got a directory, recurse into it and apply callback
-            // to all enclosed files and directories before moving on.
-            if (recursive && nextFile.isDirectory) {
-                appliedCount = appliedCount + apply(fs, nextFile.getPath, callback)
+        if (isAllowedPath(path)) {
+            val iterator = fs.listLocatedStatus(path)
+
+            while (iterator.hasNext) {
+                val nextFile = iterator.next
+
+                // If recursing and we've got a directory, recurse into it and apply callback
+                // to all enclosed files and directories before moving on.
+                if (recursive && nextFile.isDirectory) {
+                    appliedCount = appliedCount + apply(fs, nextFile.getPath, callback)
+                }
+                // Apply callback to current file or directory
+                appliedCount = appliedCount + callback(fs, nextFile)
             }
-            // Apply callback to current file or directory
-            appliedCount = appliedCount + callback(fs, nextFile)
+        } else {
+            log.warn(s"HDFSCleaner is not allowed to be applied to $path")
         }
         appliedCount
+    }
+
+    /**
+      * Returns true if path is not one of the disallowedPathsForDeletion
+      * @param path
+      * @return
+      */
+    def isAllowedPath(path: Path): Boolean = {
+        val pathString = Path.getPathWithoutSchemeAndAuthority(path).toString
+        !disallowedPaths.contains(pathString)
     }
 
     /**
@@ -61,20 +143,41 @@ object HDFSCleaner extends LogHelper {
     }
 
     /**
+      * Either deletes or trashes path.
+      * If path is a directory, it will be recursively deleted.
+      *
+      * @param fs
+      * @param path
+      * @param skipTrash
+      * @return
+      */
+    def deleteOrTrash(fs: FileSystem, path: Path, skipTrash: Boolean = false): Boolean = {
+        if (skipTrash)
+            fs.delete(path, fs.isDirectory(path))
+        else {
+            Trash.moveToAppropriateTrash(fs, path, fs.getConf)
+        }
+    }
+
+    /**
       * If the file at fileStatus is older than cutoffTimestampMs
       * and is empty, it will be deleted.
       *
       * @param cutoffTimestampMs  timestamp
+      * @param skipTrash
       * @param fs                 FileSystem
       * @param fileStatus         FileStatus of file to check
       * @return                   1L if file is deleted, else 0L
       */
-    def deleteIfOlderThanAndEmpty(cutoffTimestampMs: Long)(
+    def deleteIfOlderThanAndEmpty(
+        cutoffTimestampMs: Long, skipTrash: Boolean = false
+    )(
         fs: FileSystem, fileStatus: FileStatus
     ): Long = {
         val path = fileStatus.getPath
+
         if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, path)) {
-            fs.delete(path, fs.isDirectory(path)) match {
+            deleteOrTrash(fs, path, skipTrash) match {
                 case true =>
                     log.debug(s"Deleted $path")
                     1L
@@ -110,10 +213,16 @@ object HDFSCleaner extends LogHelper {
       * @param fs
       * @param path
       * @param cutoffTimestampMs
+      * @param skipTrash
       * @return number of files and directories deleted.
       */
-    def deleteOlderThan(fs: FileSystem, path: Path, cutoffTimestampMs: Long): Long = {
-        apply(fs, path, deleteIfOlderThanAndEmpty(cutoffTimestampMs))
+    def deleteOlderThan(
+        fs: FileSystem,
+        path: Path,
+        cutoffTimestampMs: Long,
+        skipTrash: Boolean = false
+    ): Long = {
+        apply(fs, path, deleteIfOlderThanAndEmpty(cutoffTimestampMs, skipTrash))
     }
 
     /**
@@ -132,13 +241,12 @@ object HDFSCleaner extends LogHelper {
 
 
     def main(args: Array[String]): Unit = {
-        if (args == null || (args.length != 2 && args.length != 3)) {
-            System.err.println(
-                "Usage: HDFSCleaner <path> <older_than_seconds> [--dry-run]\n\n" +
-                "Finds files in <path> with mtimes <older_than_seconds> and deletes them."
-            )
-            System.exit(1)
+        if (args.contains("--help")) {
+            println(help(Config.usage, Config.propertiesDoc))
+            sys.exit(0)
         }
+
+        val config = loadConfig(args)
 
         // If log4j is not configured with any appenders,
         // add a ConsoleAppender so logs are printed to the console.
@@ -146,9 +254,10 @@ object HDFSCleaner extends LogHelper {
             addConsoleLogAppender()
         }
 
-        val path: Path = new Path(args(0))
-        val olderThanSeconds: Long = args(1).toLong
-        val dryRun: Boolean = args.length == 3 && (args(2) == "--dry-run" || args(2) == "-n")
+        val path: Path = new Path(config.path)
+        val olderThanSeconds: Long = config.older_than_seconds
+        val skipTrash: Boolean = config.skip_trash
+        val dryRun: Boolean = config.dry_run
         val conf: Configuration = new Configuration
 
         try {
@@ -163,8 +272,8 @@ object HDFSCleaner extends LogHelper {
                 log.info(
                     s"Deleting files older than $olderThanSeconds seconds in $path"
                 )
-                val deletedCount = deleteOlderThan(fs, path, cutoffTimestampMs)
-                log.info(s"Deleted $deletedCount files and directories in $path")
+                val deletedCount = deleteOlderThan(fs, path, cutoffTimestampMs, skipTrash)
+                log.info(s"Deleted $deletedCount files and directories in $path (skipTrash=${skipTrash})")
             }
             else {
                 log.info(
@@ -174,7 +283,7 @@ object HDFSCleaner extends LogHelper {
                 val olderThanCount = countOlderThan(fs, path, cutoffTimestampMs)
                 log.info(
                     s"dry-run enabled: Would have deleted $olderThanCount files and " +
-                    s"directories older than $olderThanSeconds in $path"
+                    s"directories older than $olderThanSeconds seconds in $path"
                 )
             }
         }
