@@ -161,28 +161,28 @@ object HDFSCleaner extends LogHelper {
             }
             if (!dryRun) {
                 log.info(
-                    s"Deleting files older than ${olderThanSeconds} seconds in ${path.getName}"
+                    s"Deleting files older than $olderThanSeconds seconds in $path"
                 )
                 val deletedCount = deleteOlderThan(fs, path, cutoffTimestampMs)
-                log.info(s"Deleted ${deletedCount} files and directories in ${path.getName}")
+                log.info(s"Deleted $deletedCount files and directories in $path")
             }
             else {
                 log.info(
-                    s"dry-run enabled: counting files older than ${olderThanSeconds} " +
-                    s"seconds in ${path.getName}"
+                    s"dry-run enabled: counting files older than $olderThanSeconds " +
+                    s"seconds in $path"
                 )
                 val olderThanCount = countOlderThan(fs, path, cutoffTimestampMs)
                 log.info(
-                    s"dry-run enabled: Would have deleted ${olderThanCount} files and " +
-                    s"directories older than ${olderThanSeconds} in ${path.getName}"
+                    s"dry-run enabled: Would have deleted $olderThanCount files and " +
+                    s"directories older than $olderThanSeconds in $path"
                 )
             }
         }
         catch {
             case e: IOException =>
                 log.error(
-                    s"Failed deleting files older than ${olderThanSeconds} seconds in "  +
-                    s"${path.getName}: ${e.getMessage}"
+                    s"Failed deleting files older than $olderThanSeconds seconds in "  +
+                    s"$path: ${e.getMessage}"
                 )
                 System.exit(1)
         }
