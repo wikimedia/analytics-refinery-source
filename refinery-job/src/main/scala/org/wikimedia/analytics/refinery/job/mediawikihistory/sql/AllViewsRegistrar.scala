@@ -19,7 +19,7 @@ import org.wikimedia.analytics.refinery.spark.utils.{MapAccumulator, StatsHelper
  * @param wikiConstraint the wikis to build the restriction clause. Should be a list
  *                       of wiki-project strings, empty for all.
  * @param readerFormat The spark reader format to use. Should be one of
- *                     com.databricks.spark.avro, parquet, json, csv
+ *                     avro, parquet, json, csv
  *                     NOTE: the reader used for NamespaceViewRegistrar is hard-coded
  *                           as CSV.
  */

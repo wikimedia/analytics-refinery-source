@@ -10,7 +10,7 @@ import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructT
  * @param wikiClause the SQL wiki restriction clause. Should be a valid SQL
  *                   boolean clause based on wiki_db field
  * @param readerFormat The spark reader format to use. Should be one of
- *                     com.databricks.spark.avro, parquet, json, csv
+ *                     avro, parquet, json, csv
  */
 class NamespaceViewRegistrar(
   val spark: SparkSession,
