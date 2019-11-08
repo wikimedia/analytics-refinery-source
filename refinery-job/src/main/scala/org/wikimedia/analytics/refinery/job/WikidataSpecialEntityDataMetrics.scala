@@ -85,7 +85,7 @@ object WikidataSpecialEntityDataMetrics {
     AND day = ${params.day}
     AND http_status = 200
     AND normalized_host.project_class = 'wikidata'
-    AND uri_path rlike '^/wiki/Special:EntityData/.*$$'
+    AND uri_path like '/wiki/Special:EntityData/%'
     GROUP BY
       agent_type,
       content_type"""
@@ -112,6 +112,41 @@ object WikidataSpecialEntityDataMetrics {
           graphite.sendOnce(metric, count, time.getMillis / 1000)
         }
 
+      val wdqsSql = s"""
+  SELECT
+    COUNT(1) AS count,
+    agent_type,
+    content_type
+  FROM ${params.webrequestTable}
+  WHERE webrequest_source = 'text'
+    AND year = ${params.year}
+    AND month = ${params.month}
+    AND day = ${params.day}
+    AND http_status = 200
+    AND normalized_host.project_class = 'wikidata'
+    AND uri_path like '/wiki/Special:EntityData/%'
+    AND user_agent = 'Wikidata Query Service Updater'
+    GROUP BY
+      agent_type,
+      content_type"""
+
+        val wdqsData = spark.sql(wdqsSql).collect().map(r => (r.getLong(0), r.getString(1), r.getString(2)))
+
+        val wdqsMetrics = wdqsData.foldLeft(Map.empty[String, Long])((acc, v) => {
+          v match {
+            case (0L, _, _) => acc
+            case (count, agentType, contentType) =>
+              val formatKey = "format." + normalizeFormat( contentType )
+              val agentTypeKey = "agent_types." + agentType
+              acc +
+                (formatKey -> (acc.withDefaultValue(0L)(formatKey) + count)) +
+                (agentTypeKey -> (acc.withDefaultValue(0L)(agentTypeKey) + count))
+          }
+        })
+        wdqsMetrics.foreach { case (metricName, count) =>
+          val metric = "%s.wdqs_updater.%s".format(params.graphiteNamespace, metricName)
+          graphite.sendOnce(metric, count, time.getMillis / 1000)
+        }
       }
       case None => sys.exit(1)
     }
