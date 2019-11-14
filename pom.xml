@@ -140,7 +140,7 @@
       <dependency>
           <groupId>com.github.ua-parser</groupId>
           <artifactId>uap-java</artifactId>
-          <version>1.4.4-core0.6.9~1-wmf</version>
+          <version>1.4.4-core0.6.10~1-wmf</version>
       </dependency>
 
       <dependency>
@@ -194,7 +194,7 @@
       </dependency>
 
 
-    <!-- 
+    <!--
              adding explicit dep for snappy, otherwise
              spark assumes is on the java.library.path
              see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
@@ -206,7 +206,7 @@
         <version>1.1.2.5</version>
         <scope>test</scope>
     </dependency>
-        
+
     <dependency>
         <groupId>com.github.nscala-time</groupId>
         <artifactId>nscala-time_2.11</artifactId>
