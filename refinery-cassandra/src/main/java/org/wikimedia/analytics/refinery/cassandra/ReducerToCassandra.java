@@ -169,8 +169,10 @@ public class ReducerToCassandra extends Reducer<LongWritable, Text, Map<String, 
 
             }
 
-            // Write output
-            logger.debug("Writing new result for line '" + line + "'");
+            // Write output, in case of cassandra woes uncomment debug line
+            // logging setup of cassandra-all package is such that debug is the
+            // default login level
+            //logger.debug("Writing new result for line '" + line + "'");
             context.write(keys, variables);
         }
     }
