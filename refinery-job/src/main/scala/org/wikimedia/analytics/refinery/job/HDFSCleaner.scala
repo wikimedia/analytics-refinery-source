@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job
 
 import java.io.IOException
+import java.io.FileNotFoundException
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileStatus
@@ -75,7 +76,9 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
             |
             |Example:
             |  # Move files older than 31 days in /tmp to trash
-            |  java -cp refinery-job.jar:$(/usr/bin/hadoop classpath) org.wikimedia.analytics.refinery.job.HDFSCleaner /tmp 2678400
+            |  java -cp refinery-job.jar:$(/usr/bin/hadoop classpath) org.wikimedia.analytics.refinery.job.HDFSCleaner \
+            |      --path=/tmp \
+            |      --older_than_seconds=2678400
             |"""
     }
 
@@ -102,18 +105,41 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
         var appliedCount = 0L
 
         if (isAllowedPath(path)) {
-            val iterator = fs.listLocatedStatus(path)
+            val iterator = try {
+                Some(fs.listLocatedStatus(path))
+            } catch {
+                case tolerated: FileNotFoundException =>
+                    log.warn(s"Trying to ls $path, but it no longer exists, skipping...")
+                    None
+                case unexpected: Exception => throw unexpected
+            }
 
-            while (iterator.hasNext) {
-                val nextFile = iterator.next
+            if (iterator.isDefined) {
+                // These two lines were used to test the exception catching
+                // in case of external file deletion while the program runs.
+                //   println(s"Content of folder $path is in memory")
+                //   scala.io.StdIn.readLine()
 
-                // If recursing and we've got a directory, recurse into it and apply callback
-                // to all enclosed files and directories before moving on.
-                if (recursive && nextFile.isDirectory) {
-                    appliedCount = appliedCount + apply(fs, nextFile.getPath, callback)
+                while (iterator.get.hasNext) {
+                    val nextFile = iterator.get.next
+                    val nextPath = nextFile.getPath
+
+                    // If recursing and we've got a directory, recurse into it and apply callback
+                    // to all enclosed files and directories before moving on.
+                    if (recursive && nextFile.isDirectory) {
+                        appliedCount = appliedCount + apply(fs, nextPath, callback)
+                    }
+                    // Apply callback to current file or directory
+                    val callbackCount = try {
+                        callback(fs, nextFile)
+                    } catch {
+                        case tolerated: FileNotFoundException =>
+                            log.warn(s"Trying to apply callback to $nextPath, but it no longer exists, skipping...")
+                            0L
+                        case unexpected: Exception => throw unexpected
+                    }
+                    appliedCount = appliedCount + callbackCount
                 }
-                // Apply callback to current file or directory
-                appliedCount = appliedCount + callback(fs, nextFile)
             }
         } else {
             log.warn(s"HDFSCleaner is not allowed to be applied to $path")
@@ -138,8 +164,8 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
       * @param path
       * @return
       */
-    def isEmpty(fs: FileSystem, path: Path): Boolean = {
-        fs.isFile(path) || !fs.listFiles(path, false).hasNext
+    def isEmpty(fs: FileSystem, fileStatus: FileStatus): Boolean = {
+        fileStatus.isFile() || !fs.listFiles(fileStatus.getPath, false).hasNext
     }
 
     /**
@@ -176,7 +202,7 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
     ): Long = {
         val path = fileStatus.getPath
 
-        if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, path)) {
+        if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, fileStatus)) {
             deleteOrTrash(fs, path, skipTrash) match {
                 case true =>
                     log.debug(s"Deleted $path")
@@ -202,7 +228,7 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
     def isOlderThanAndEmpty(cutoffTimestampMs: Long)(
         fs: FileSystem, fileStatus: FileStatus
     ): Long = {
-        if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, fileStatus.getPath))
+        if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, fileStatus))
             1L
         else
             0L
