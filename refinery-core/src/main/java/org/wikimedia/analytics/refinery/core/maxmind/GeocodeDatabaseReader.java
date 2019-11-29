@@ -52,88 +52,91 @@ public class GeocodeDatabaseReader {
 
         InetAddress ipAddress;
 
-        CityResponse cityResponse = null;
+        CityResponse maxMindResponse = null;
 
-        RefineryGeocodeDatabaseResponse response = new RefineryGeocodeDatabaseResponse();
+        RefineryGeocodeDatabaseResponse refineryResponse = new RefineryGeocodeDatabaseResponse();
+        
+        // Return empty response if null/empty IP
+        if (ip == null || ip.isEmpty()) {
+            return refineryResponse;
+        }
 
         // Only get geo-code data for non-internal IPs
         if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-                 return response;
+                 return refineryResponse;
         }
 
         try {
             ipAddress = InetAddress.getByName(ip);
-            cityResponse = reader.city(ipAddress);
+            maxMindResponse = reader.city(ipAddress);
 
-        } catch (UnknownHostException ex) {
-            LOG.warn(ex);
         } catch (IOException |GeoIp2Exception ex ) {
             LOG.warn(ex);
         }
 
-        if (cityResponse == null)     {
-            return response;
+        if (maxMindResponse == null)     {
+            return refineryResponse;
 
         }
-        Continent continent = cityResponse.getContinent();
+        Continent continent = maxMindResponse.getContinent();
 
         if (continent != null) {
             String name = continent.getName();
             if (name != null) {
-                response.setContinent(name);
+                refineryResponse.setContinent(name);
             }
         }
 
-        Country country = cityResponse.getCountry();
+        Country country = maxMindResponse.getCountry();
         if (country != null) {
             String name = country.getName();
             String isoCode = country.getIsoCode();
             if (name != null && isoCode != null) {
-                response.setCountry(name);
-                response.setIsoCode(isoCode);
+                refineryResponse.setCountry(name);
+                refineryResponse.setIsoCode(isoCode);
             }
         }
 
-        List<Subdivision> subdivisions = cityResponse.getSubdivisions();
+        List<Subdivision> subdivisions = maxMindResponse.getSubdivisions();
         if (subdivisions != null && subdivisions.size() > 0) {
             Subdivision subdivision = subdivisions.get(0);
             if (subdivision != null) {
                 String name = subdivision.getName();
                 if (name != null) {
-                    response.setSubdivision(name);
+                    refineryResponse.setSubdivision(name);
                 }
             }
         }
 
-        City city = cityResponse.getCity();
+        City city = maxMindResponse.getCity();
         if (city != null) {
             String name = city.getName();
             if (name != null) {
-                response.setCity(name);
+                refineryResponse.setCity(name);
             }
         }
 
-        Postal postal = cityResponse.getPostal();
+        Postal postal = maxMindResponse.getPostal();
         if (postal != null) {
             String code = postal.getCode();
             if (code != null) {
-                response.setPostalCode(code);
+                refineryResponse.setPostalCode(code);
             }
         }
 
-        Location location = cityResponse.getLocation();
+        Location location = maxMindResponse.getLocation();
         if (location != null) {
             Double lat = location.getLatitude();
             Double lon = location.getLongitude();
             if (lat != null && lon != null) {
-                response.setLatitude(lat);
-                response.setLongitude(lon);
+                refineryResponse.setLatitude(lat);
+                refineryResponse.setLongitude(lon);
             }
             if (location.getTimeZone() != null)
-                response.setTimezone( location.getTimeZone());
+                refineryResponse.setTimezone( location.getTimeZone());
         }
 
-        return response;
+        return refineryResponse;
 
     }
 

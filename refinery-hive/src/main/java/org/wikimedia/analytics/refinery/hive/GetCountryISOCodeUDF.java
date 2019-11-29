@@ -18,6 +18,7 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -61,7 +62,7 @@ public class GetCountryISOCodeUDF extends GenericUDF {
     static final Logger LOG = Logger.getLogger(GetCountryISOCodeUDF.class.getName());
 
     @Override
-    public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
+    synchronized public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
 
         if (arguments.length != 1) {
             throw new UDFArgumentLengthException("The GetCountryISOCodeUDF takes an array with only 1 element as argument");
@@ -86,11 +87,20 @@ public class GetCountryISOCodeUDF extends GenericUDF {
         //Cache the argument to be used in evaluate
         argumentOI = arg1;
 
+        if (maxMindCountryCode == null) {
+            try {
+                maxMindCountryCode = MaxmindDatabaseReaderFactory.getInstance().getCountryDatabaseReader();
+            } catch (IOException ex) {
+                LOG.error(ex);
+                throw new RuntimeException(ex);
+            }
+        }
+
         return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
     }
 
     @Override
-    public void configure(MapredContext context) {
+    synchronized public void configure(MapredContext context) {
         if (maxMindCountryCode == null) {
             try {
                 JobConf jobConf = context.getJobConf();
@@ -109,8 +119,6 @@ public class GetCountryISOCodeUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert maxMindCountryCode != null : "Evaluate called without initializing 'maxMindCountryCode'";
-
         result.clear();
 
         if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
