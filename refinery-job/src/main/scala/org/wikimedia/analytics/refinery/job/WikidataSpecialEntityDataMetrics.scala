@@ -125,7 +125,7 @@ object WikidataSpecialEntityDataMetrics {
     AND http_status = 200
     AND normalized_host.project_class = 'wikidata'
     AND uri_path like '/wiki/Special:EntityData/%'
-    AND user_agent = 'Wikidata Query Service Updater Bot'
+    AND user_agent LIKE 'Wikidata Query Service Updater%'
     GROUP BY
       agent_type,
       content_type"""
