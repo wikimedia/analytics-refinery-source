@@ -1,7 +1,13 @@
-## v0.0.106
+## v0.0.108
+* Fix user agent for WDQS updater counter
+
+## v0.0.107
 * Update UA parser to add kaiOS
 * Add query to track WDQS updater hitting Special:EntityData
 * MAke HDFSCleaner robust to external file deletions
+
+## v0.0.106
+* HDFSCleaner Improvements
 
 ## v0.0.105
 * Upgrade Spark to 2.4.4
