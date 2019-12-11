@@ -1,15 +1,43 @@
 test_description,refererClass,referer_class,is_external_search,search_engine
-Random internal link,https://zh.wikipedia.org/zh-tw/%E6%96%B9%E6%9D%B1%E6%98%87,internal,false,none
-Nada,-,none,false,none
-Google 1,https://www.google.co.id/,external (search engine),true,Google
-Google 2,http://google.com/,external (search engine),true,Google
-Yahoo,http://search.yahoo.co.jp/search?fr=slv1-necpc9&p=%E4%B8%89%E5%8F%88&ei=UTF-8,external (search engine),true,Yahoo
-Random external link,http://www.cowboom.com/product/1617241,external,false,none
-Bing,http://www.bing.com/search?q=Svengali+movie+1931&filters=ufn,external (search engine),true,Bing
-Baidu,https://www.baidu.com/link?url=,external (search engine),true,Baidu
-Yandex,http://yandex.ru/clck/jsredir?from=yandex.ru%3Bsearch%2F%3Bweb%3B%3B,external (search engine),true,Yandex
-Duck Duck Go 1,https://duckduckgo.com,external (search engine),true,DuckDuckGo
-Duck Duck Go 2,https://duckduckgo.com/?t=palemoon&q=Atmosphere+of+Earth&ia=about,external (search engine),true,DuckDuckGo
-Ecosia,https://www.ecosia.org/search?q=foo,external (search engine),true,Ecosia
-Startpage,https://www.startpage.com/do/asearch,external (search engine),true,Startpage
-Startpage ixquick,https://www.ixquick.de/do/asearch,external (search engine),true,Startpage
+Random internal link,https://zh.wikipedia.org/zh-tw/%E6%96%B9%E6%9D%B1%E6%98%87,internal,FALSE,none
+Nada,-,none,FALSE,none
+Google 1,https://www.google.co.id/,external (search engine),TRUE,Google
+Google 2,http://google.com/,external (search engine),TRUE,Google
+Google 3 (Android Search),android-app://com.google.android.googlequicksearchbox/,external (search engine),TRUE,Google
+Random Android Referer,android-app://m.facebook.com,external,FALSE,none
+Google Translate Search,https://translate.googleusercontent.com/translate_c?depth=1&hl=fi&prev=search&rurl=translate.google.fi&sl=en&sp=nmt4&u=https://en.m.wikipedia.org/wiki/The_Eagle_(novel),external (search engine),TRUE,Google Translate
+Google Translate Non-Search,https://translate.googleusercontent.com/,external,FALSE,none
+Yahoo,http://search.yahoo.co.jp/search?fr=slv1-necpc9&p=%E4%B8%89%E5%8F%88&ei=UTF-8,external (search engine),TRUE,Yahoo
+Random External Link,http://www.cowboom.com/product/1617241,external,FALSE,none
+Bing,http://www.bing.com/search?q=Svengali+movie+1931&filters=ufn,external (search engine),TRUE,Bing
+Internal Search Engine Path,https://en.wikipedia.org/wiki/google.com,internal,FALSE,none
+Non-Search Engine Path,http://www.abcxyz.com/google.html?lang=en,external,FALSE,none
+Non-Search Engine Parameter,http://www.abcxyz.com?q=google.com,external,FALSE,none
+Bing Search Engine Path,https://www.bing.com/google.com?toWww=1,external (search engine),TRUE,Bing
+Bing Search Engine Parameter,https://www.bing.com/search?q=google.com,external (search engine),TRUE,Bing
+Baidu,https://www.baidu.com/link?url=,external (search engine),TRUE,Baidu
+Yandex,http://yandex.ru/clck/jsredir?from=yandex.ru%3Bsearch%2F%3Bweb%3B%3B,external (search engine),TRUE,Yandex
+Duck Duck Go 1,https://duckduckgo.com,external (search engine),TRUE,DuckDuckGo
+Duck Duck Go 2,https://duckduckgo.com/?t=palemoon&q=Atmosphere+of+Earth&ia=about,external (search engine),TRUE,DuckDuckGo
+Ecosia,https://www.ecosia.org/search?q=foo,external (search engine),TRUE,Ecosia
+Startpage,https://www.startpage.com/do/asearch,external (search engine),TRUE,Startpage
+Startpage ixquick,https://www.ixquick.de/do/asearch,external (search engine),TRUE,Startpage
+Naver,https://m.search.naver.com/search.naver?where=m&query=facebook&sm=mtb_she&qdt=0,external (search engine),TRUE,Naver
+Docomo,https://search.smt.docomo.ne.jp/result?search_box=apple&MT=apple&SID=s04&URANK=1&SPAGE=1&TPLID=01&UNIT=02&IND=000&PAGE=1,external (search engine),TRUE,Docomo
+Qwant,https://www.qwant.com/?q=airplane&t=web,external (search engine),TRUE,Qwant
+Daum,https://m.search.daum.net/search?nil_profile=btn&w=tot&DA=SBC&f=androidapp&q=engine,external (search engine),TRUE,Daum
+MyWay,http://search.myway.com/search/GGmain.jhtml?n=&qs=&ss=sub&st=hp&tpr=sbt&enc=2&searchfor=AegX99TXJ4TYhJ6HutQCNr0eD34afyB7AT-7fs26k1xPkCi56LxAIZXAd4vHauczEyo-knC0cBaZyBjU-W-usSfSrrVkaJRZDhj3jmcDiOPz7rIVifkSdY23efj5CzCdY5eNshaiPwqF6Jhst4rx6tJ1gLLqsj7_RJmoBNGZ_A911sSg2N33hbqU1jhcXupPb5rplQ6w8XABbYIwB10uVw9hlA2mo-AMD_3q7n_ITh3wEBDeiIEq4wYgolkswSFOY50Syv2kSJO6111nyICjpTpYMSBMwYUCHK5C3qs312sDzCvqmJw-RljTOydbTtEX8Ao3R201bCJuhuSo1UsRwA&ts=1576088298014,external (search engine),TRUE,MyWay
+Seznam,https://search.seznam.cz/?aq=2&ctx=QFD18YnkBxbrinK4BpLG87w6NuqtKhNwuHU4QMAeK8o6PFcxU5o4lGB5OfZ1uoEgFVg7Ts60KYgD_TH0H4Kk82OyTCEDJRhhBjWCIWrn0qY&q=Seri%C3%A1l+Ulice&sourceid=szn-HP&thru=search-promo,external (search engine),TRUE,Seznam
+AU,https://search.auone.jp/?q=newspaper&client=kddi-auone&sr=0101&ie=UTF-8,external (search engine),TRUE,AU
+Ask,https://nortonsafe.search.ask.com/web?q=google.ca&prt=ns&chn=1000&geo=ca&ver=22.9.0.71&locale=en_ca&guid=43b9a777-4373-44b5-b4b2-9b1b1cb067d8&doi=2017-03-11&o=APN11915&ctype=&tpr=121,external (search engine),TRUE,Ask
+Lilo,https://search.lilo.org/searchweb.php?q=Histoire,external (search engine),TRUE,Lilo
+Coc Coc,https://coccoc.com/search?query=youtube,external (search engine),TRUE,Coc Coc
+AOL,https://search.aol.com/aol/search;_ylt=Awr9DtLPNPFdX.oARVVoCWVH;_ylc=X1MDMTE5NzgwMzg4MARfcgMyBGZyAwRncHJpZANQeTBFdWMzdVRtV0lYZ0lMRTg4ZnFBBG5fcnNsdAMwBG5fc3VnZwMxMARvcmlnaW4Dc2VhcmNoLmFvbC5jb20EcG9zAzAEcHFzdHIDBHBxc3RybAMEcXN0cmwDOARxdWVyeQNpbnRlcm5ldAR0X3N0bXADMTU3NjA4ODc5Mg--?fr2=sb-top-&q=internet&v_t=na&s_it=sb-home&iscqry=,external (search engine),TRUE,AOL
+Rakuten,https://websearch.rakuten.co.jp/Web?qt=napoleon&col=OW,external (search engine),TRUE,Rakuten
+Random Unclassified Search Engine 1,https://search.pch.com/pysearch?q=dog,external (search engine),TRUE,Predicted Other
+Random Unclassified Search Engine 2,https://www.searchencrypt.com/,external (search engine),TRUE,Predicted Other
+Random Unclassified Search Engine 3,https://lavasoft.gosearchresults.com/?q=dog&tt=vmn__webcompa__1_0__go__lvs__webcompa__1_0__go__ch_WCYID10427_180930__yrff__yrff&pid=5ac784309091147a162b4431,external (search engine),TRUE,Predicted Other
+Random Unclassified Search Engine 4,https://engine.presearch.org/search?q=ebay,external (search engine),TRUE,Predicted Other
+Random Unclassified Search Engine 5,https://www.securesearch.co/search/?q=california,external (search engine),TRUE,Predicted Other
+Random Non-Search Engine 1,https://www.researchgate.net/topic/WLAN,external,FALSE,none
+Random Non-Search Engine 2,https://cmt3.research.microsoft.com/User/Register,external,FALSE,none

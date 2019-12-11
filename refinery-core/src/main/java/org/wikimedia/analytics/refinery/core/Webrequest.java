@@ -273,7 +273,7 @@ public class Webrequest {
             return RefererClass.UNKNOWN;
         }
 
-        if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:")) {
+        if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:") && !urlParts[0].equals("android-app:")) {
             return RefererClass.UNKNOWN;
         }
 

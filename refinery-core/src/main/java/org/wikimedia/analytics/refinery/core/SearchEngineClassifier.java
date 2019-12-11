@@ -24,7 +24,6 @@ import java.util.regex.Pattern;
  */
 public class SearchEngineClassifier {
 
-
     private static final SearchEngineClassifier instance = new SearchEngineClassifier();
 
     private static Pattern searchEnginePattern;
@@ -48,32 +47,6 @@ public class SearchEngineClassifier {
 
 
     /**
-     * Crudely subsets a referer to just contain the domain,
-     * without the path
-     *
-     *  Input : https://duckduckgo.com/?t=palemoon&q=Atmosphere+of+Earth&ia=about
-     *  Output: https://duckduckgo.com
-     *
-     * @param rawReferer the value in the referer field.
-     * @return String
-     */
-    private String extractRefererSubstring(String rawReferer) {
-        int methodLocation = rawReferer.indexOf("://");
-        int pathLocation;
-        if (methodLocation == -1) {
-            pathLocation = rawReferer.indexOf("/");
-        } else {
-            pathLocation = rawReferer.indexOf("/", methodLocation + 3);
-        }
-        if (pathLocation > -1) {
-            rawReferer = rawReferer.substring(0, pathLocation);
-        }
-        return rawReferer;
-
-    }
-
-
-    /**
      * Provides a simple classification of requests based
      * on their referer.
      *
@@ -87,13 +60,14 @@ public class SearchEngineClassifier {
         RefererClass refererClass = Webrequest.getInstance().classifyReferer(rawReferer);
 
         if (refererClass.equals(RefererClass.EXTERNAL)) {
-            if (SearchEngineClassifier.searchEnginePattern.matcher(extractRefererSubstring(rawReferer)).find()) {
+            if (SearchEngineClassifier.searchEnginePattern.matcher(rawReferer).find()) {
                refererClass = RefererClass.SEARCH_ENGINE;
             }
         }
-        return refererClass;
 
+        return refererClass;
     }
+
 
     /**
      * Determines the search engine that served as a referer
@@ -106,16 +80,13 @@ public class SearchEngineClassifier {
      */
     public String identifySearchEngine(String rawReferer) {
 
-        String referer = extractRefererSubstring(rawReferer);
-
-        if (searchEnginePattern.matcher(extractRefererSubstring(referer)).find()) {
+        if (searchEnginePattern.matcher(rawReferer).find()) {
             for (SearchEngine se : SearchEngine.values()) {
                 Pattern pattern = Pattern.compile(se.getPattern());
-                if (pattern.matcher(referer).find()) {
+                if (pattern.matcher(rawReferer).find()) {
                     return se.getSearchEngineName();
                 }
             }
-
         }
 
         // for backwards compatibility

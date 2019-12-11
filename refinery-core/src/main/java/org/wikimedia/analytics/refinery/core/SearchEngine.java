@@ -23,30 +23,60 @@ package org.wikimedia.analytics.refinery.core;
  * to specify a string with spaces and symbols if needed.
  */
 public enum SearchEngine {
-    GOOGLE("Google", "\\.?google\\."),
-    YAHOO("Yahoo", "search\\.yahoo\\."),
-    BING("Bing", "\\.bing\\."),
-    YANDEX("Yandex", "yandex\\."),
-    BAIDU("Baidu", "\\.baidu\\."),
-    DDG("DuckDuckGo", "\\.?duckduckgo\\."),
-    ECOSIA("Ecosia", "\\.ecosia\\."),
-    STARTPAGE("Startpage", "\\.(startpage|ixquick)\\.");
+    GOOGLE("Google", "google\\.", ""),
+    GOOGLE_TRANSLATE("Google Translate", "translate\\.googleusercontent\\.", "prev=search|client=srp"),
+    YAHOO("Yahoo", "search\\.yahoo\\.", ""),
+    BING("Bing", "\\.bing\\.", ""),
+    YANDEX("Yandex", "yandex\\.", ""),
+    BAIDU("Baidu", "\\.baidu\\.", ""),
+    DDG("DuckDuckGo", "duckduckgo\\.", ""),
+    ECOSIA("Ecosia", "\\.ecosia\\.", ""),
+    STARTPAGE("Startpage", "\\.(startpage|ixquick)\\.", ""),
+    NAVER("Naver", "search\\.naver\\.", ""),
+    DOCOMO("Docomo", "\\.docomo\\.", ""),
+    QWANT("Qwant", "qwant\\.", ""),
+    DAUM("Daum", "search\\.daum\\.", ""),
+    MYWAY("MyWay", "search\\.myway\\.", ""),
+    SEZNAM("Seznam", "\\.seznam\\.", ""),
+    AU("AU", "search\\.auone\\.", ""),
+    ASK("Ask", "\\.ask\\.", ""),
+    LILO("Lilo", "\\.lilo\\.", ""),
+    COC_COC("Coc Coc", "coccoc\\.", ""),
+    AOL("AOL", "search\\.aol\\.", ""),
+    RAKUTEN("Rakuten", "\\.rakuten\\.", ""),
+
+    // Maintain PREDICTED_OTHER in last position for `SearchEngineClassifier.identifySearchEngine()`
+    PREDICTED_OTHER("Predicted Other", "(^.?|(?<!re)|(^|\\.)(pre|secure))search", "");
 
     private final String searchEngineName;
-    private final String pattern;
+    private final String hostPattern;
+    private final String paramPattern;
 
-    SearchEngine(String name, String regex) {
+    SearchEngine(String name, String hostRegex, String paramRegex) {
         this.searchEngineName = name;
-        this.pattern = regex;
+        this.hostPattern = hostRegex;
+        this.paramPattern = paramRegex;
     }
 
     public String getSearchEngineName() {
         return this.searchEngineName;
     }
 
-    public String getPattern() {
-        return this.pattern;
-    }
 
+    /**
+     * Constructs regex pattern to apply to entire referer URI.
+     *
+     * @return String
+     */
+    public String getPattern() {
+
+        String extendedHostPattern = String.format("(^[^:]*?:\\/\\/[^\\?\\/]*?(%s))", this.hostPattern);
+
+        if (this.paramPattern.isEmpty()) {
+            return extendedHostPattern;
+        }
+
+        return String.format("(%s.*?\\?.*?(%s))", extendedHostPattern, this.paramPattern);
+    }
 
 }
