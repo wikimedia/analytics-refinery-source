@@ -22,6 +22,10 @@ at https://wikitech.wikimedia.org/wiki/Archiva#Uploading_Dependency_Artifacts to
 upload dependencies to Archiva.  If you don't have login access to Archiva, ask a
 WMF Archiva admin to do this for you.
 
+# Development
+When working on this repository, building, running tests, or using an IDE, make sure you're using
+Java 8 (aka Java 1.8).  For example, on Ubuntu, you have to use update-alternatives to configure java and javac
+
 # Releases and Deployment
 Follow the instructions at https://wikitech.wikimedia.org/wiki/Archiva#Deploying_to_Archiva
 to set up your ```~/.m2/settings.xml``` with proper deployment credentials.  Ask a WMF Archiva
