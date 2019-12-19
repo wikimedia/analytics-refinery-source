@@ -1,3 +1,7 @@
+## v0.0.109
+* Document JDK version requirement
+* Add Spark job to update data quality table with incoming data
+
 ## v0.0.108
 * Fix user agent for WDQS updater counter
 
