@@ -312,7 +312,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     case class Params(
         xml_dumps_base_path: String,
         output_base_path: String,
-        projects_restriction: Option[Set[String]] = None,
+        projects_restriction: Option[Seq[String]] = None,
         max_parallel_jobs: Int = 128,
         output_format: String = "avro"
     )
@@ -404,7 +404,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             spark.sparkContext.hadoopConfiguration,
             params.xml_dumps_base_path,
             params.output_base_path,
-            params.projects_restriction,
+            params.projects_restriction.map(_.toSet),
             params.output_format
         )
         val jobConfigBundles = optimizeParallelJobConfigs(configs, params.max_parallel_jobs)
