@@ -1,5 +1,5 @@
 
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.job.dataquality
 
 import java.util.UUID.randomUUID
 import org.apache.hadoop.fs.{FileSystem, Path}

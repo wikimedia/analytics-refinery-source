@@ -228,6 +228,20 @@
             <version>0.3-wmf1</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-mllib -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-mllib_2.11</artifactId>
+            <version>${spark.version}</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.criteo/rsvd -->
+        <dependency>
+            <groupId>com.criteo</groupId>
+            <artifactId>rsvd</artifactId>
+            <version>1.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>
