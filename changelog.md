@@ -1,3 +1,7 @@
+## v0.0.110
+* Correct MW XML dumps converter parameter parsing
+* Fix WikidataArticlePlaceholderMetrics query
+
 ## v0.0.109
 * Document JDK version requirement
 * Add Spark job to update data quality table with incoming data
