@@ -1,3 +1,6 @@
+## v0.0.111
+* Modify external webrequest search engine classification
+
 ## v0.0.110
 * Correct MW XML dumps converter parameter parsing
 * Fix WikidataArticlePlaceholderMetrics query
