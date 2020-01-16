@@ -1,3 +1,6 @@
+## v0.0.112
+* Add Spark/Scala module for time series anomaly detection
+
 ## v0.0.111
 * Modify external webrequest search engine classification
 
