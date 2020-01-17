@@ -272,8 +272,11 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             }
 
             // Make a dataframe using defined schema, repartition and write
+            // Enforces every revision to be distinct, as cases of duplicated
+            // revisions have been experienced
             spark.
                 createDataFrame(wikitextRows, wikiTextStructure).
+                distinct.
                 repartition(config.numberOutputPartitions).
                 write.
                 mode(SaveMode.Overwrite).
