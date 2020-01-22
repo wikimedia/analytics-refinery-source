@@ -5,7 +5,9 @@ import java.util.{TimeZone, Calendar}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.SparkConf
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.{
@@ -58,7 +60,8 @@ object MediawikiHistoryDumper {
         inputBasePath: String = "",
         tempDirectory: String = "",
         tempPartitions: Int = 256,
-        outputBasePath: String = ""
+        outputBasePath: String = "",
+        projectRestriction: Seq[String] = Seq.empty[String]
     )
 
     val argsParser = new OptionParser[Params]("Mediawiki history dumper") {
@@ -72,7 +75,7 @@ object MediawikiHistoryDumper {
             p.copy(inputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
         } text ("HDFS base path where to read data from.")
 
-        opt[String]('i', "temp-directory") required() valueName ("<path>") action { (x, p) =>
+        opt[String]('t', "temp-directory") required() valueName ("<path>") action { (x, p) =>
             p.copy(tempDirectory = if (x.endsWith("/")) x.dropRight(1) else x)
         } text ("HDFS temporary directory for intermediate files.")
 
@@ -83,6 +86,10 @@ object MediawikiHistoryDumper {
         opt[String]('o', "output-base-path") required() valueName ("<path>") action { (x, p) =>
             p.copy(outputBasePath = if (x.endsWith("/")) x.dropRight(1) else x)
         } text ("HDFS base path where to write the dump.")
+
+        opt[Seq[String]]('w', "project-restriction") optional() valueName ("wiki_db1,wiki_db2...") action { (x, p) =>
+            p.copy(projectRestriction = x)
+        } text ("List of projects to dump (defaults: all)")
     }
 
     val WikisInMonthlyBuckets = Seq(
@@ -128,7 +135,8 @@ object MediawikiHistoryDumper {
             params.inputBasePath,
             params.snapshot,
             params.tempPartitions,
-            params.tempDirectory
+            params.tempDirectory,
+            params.projectRestriction
         )
 
         archiveData(
@@ -152,20 +160,38 @@ object MediawikiHistoryDumper {
         inputBasePath: String,
         snapshot: String,
         tempPartitions: Int,
-        tempDirectory: String
+        tempDirectory: String,
+        projectRestriction: Seq[String]
     ): Unit = {
         import spark.implicits._
-        val snapshotPath = s"${inputBasePath}/snapshot=${snapshot}"
-        spark.read.parquet(snapshotPath).
-            rdd.
-            map(r => MediawikiEvent.fromRow(r)).
-            // Add desired partition fields: wiki and time bucket.
-            map(e => (e.wikiDb, eventTimeBucket(e), e.toTSVLine)).
-            // Filter out records with unknown time_bucket. See eventTimeBucket().
-            filter(e => e._2 != "unknown").
-            toDF.
-            withColumnRenamed("_1", "wiki").
-            withColumnRenamed("_2", "time_bucket").
+
+        val snapshotPath = s"$inputBasePath/snapshot=$snapshot"
+        val projectRestrictionClause = {
+            if (projectRestriction.nonEmpty) {
+                s"wiki_db IN (${projectRestriction.map(p => s"'$p'").mkString(",")})"
+            } else {
+                "TRUE"
+            }
+        }
+        val partitionedDatasetSchema = StructType(Seq(
+            StructField("wiki", StringType, nullable = false),
+            StructField("time_bucket", StringType, nullable = false),
+            StructField("tsv_line", StringType, nullable = false)
+        ))
+        val partitionedDatasetRowEncoder = RowEncoder(partitionedDatasetSchema)
+        spark.read.parquet(snapshotPath).where(projectRestrictionClause).
+            // Parse row into MediawikiEvent
+            // Add wiki and time-bucket partition-fields.
+            // Filter out records with unknown time_bucket (See [[eventTimeBucket]]).
+            flatMap(r => {
+                val event = MediawikiEvent.fromRow(r)
+                val timeBucket = eventTimeBucket(event)
+                if (timeBucket != "unknown") {
+                    Seq(Row.fromTuple((event.wikiDb, timeBucket, event.toTSVLine)))
+                } else {
+                    Seq.empty[Row]
+                }
+            })(partitionedDatasetRowEncoder).
             // The following line applies the repartitioning. It redistributes
             // the data among tempPartitions partitions. And makes sure that
             // all records for a given pair (wiki, time_bucket) go to the same
@@ -250,16 +276,10 @@ object MediawikiHistoryDumper {
                     }
                     val sourcePath = dataFiles(0).getPath
 
-                    val destinationDirectory = Seq(
-                        outputBasePath,
-                        snapshot,
-                        wiki
-                    ).mkString("/")
+                    val destinationDirectory = s"$outputBasePath/$snapshot/$wiki"
                     fs.mkdirs(new Path(destinationDirectory))
-                    val destinationPath = new Path(Seq(
-                        destinationDirectory,
-                        wiki + "." +timeBucket + ".tsv.bz2"
-                    ).mkString("/"))
+                    val destinationFile = s"$snapshot.$wiki.$timeBucket.tsv.bz2"
+                    val destinationPath = new Path(s"$destinationDirectory/$destinationFile")
                     fs.rename(sourcePath, destinationPath)
                 }
             }
