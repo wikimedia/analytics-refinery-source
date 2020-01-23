@@ -4,7 +4,7 @@ package org.wikimedia.analytics.refinery.job.dataquality
 import java.util.UUID.randomUUID
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import scopt.OptionParser
 
 /**
@@ -156,10 +156,8 @@ object DataQualityStatsUpdater {
             randomUUID.toString
         ).mkString("/")
         df.repartition(1).write.
-            format("csv").
-            option("sep", "\t").
-            option("compression", "none").
-            save(tempSubdirectory)
+            mode(SaveMode.Overwrite).
+            parquet(tempSubdirectory)
 
         // Prepare final location.
         val outputSubdirectory = Seq(
