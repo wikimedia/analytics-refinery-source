@@ -1,3 +1,8 @@
+## v0.0.113
+* Change format of data_quality_stats to parquet
+* Update mediawiki-history dumper
+* Enforce distinct revision in xml-dumps converter
+
 ## v0.0.112
 * Add Spark/Scala module for time series anomaly detection
 
