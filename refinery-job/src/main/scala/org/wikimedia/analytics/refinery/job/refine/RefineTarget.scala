@@ -5,7 +5,7 @@ import java.io.{BufferedReader, InputStreamReader}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.{DataFrame, DataFrameReader, Row, SparkSession}
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
@@ -401,26 +401,34 @@ case class RefineTarget(
       * will result in an AssertionError when reading the DataFrame, as the data will
       * not match the schema.
       *
+      * @param dfReaderOptions Map[String, String] Extra Spark DataFrameReader options to use
       * @return
       */
-    def inputDataFrame(): DataFrame = {
+    def inputDataFrame(dfReaderOptions: Map[String, String] = Map()): DataFrame = {
         // If this RefineTarget was given a SchemaLoader, then
         // use it to get the schema now.  If schemaLoader fails to load schema, this will error.
         // If schemaLoader returns None, we will not use an explicit schema when reading data, but
         // instead rely on Spark schema data inference.
         val schema = schemaLoader.loadSchema(this)
 
-        val dfReader = schema match {
+        val dfReader: DataFrameReader = { schema match {
             case None    => spark.read
             // If we're loading from textual data, then assume that we will want all fields
             // in the schema to be nullable (AKA not required).
             case Some(s) => inputFormat match {
-                case "text" | "json" | "sequence_json" => spark.read.schema(s.makeNullable())
-                case _ => spark.read.schema(s)
+                case "text" =>
+                    spark.read.schema(s.makeNullable())
+                case "json" | "sequence_json" =>
+                    // By default read JSON data with a schema in FAILFAST mode.
+                    // This makes the read fail if the input data is not cast-able to the schema.
+                    // This can be overidden by user provided options.
+                    spark.read.schema(s.makeNullable()).option("mode", "FAILFAST")
+                case _ =>
+                    spark.read.schema(s)
             }
-        }
+        }}.options(dfReaderOptions) // Apply any user supplied DataFrameReader options
 
-        // import spark implicits for dataset/dataframe conversion
+        // import spark implicits for Dataset/DataFrame conversion
         import spark.implicits._
 
         // Read inputPath either as text, Parquet, JSON, or SequenceFile JSON, based on input format
@@ -501,7 +509,7 @@ object RefineTarget {
       * to underscores) and partitions datacenter="eqiad",year=2017,month=07,day=26,hour=01
       *
       *
-      * @param fs                           Hadoop FileSystem
+      * @param spark                        SparkSession
       *
       * @param baseInputPath                Path to base input datasets.  Each subdirectory
       *                                     is assumed to be a unique dataset with individual

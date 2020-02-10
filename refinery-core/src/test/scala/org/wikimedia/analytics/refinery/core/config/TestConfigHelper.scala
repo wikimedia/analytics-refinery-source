@@ -23,7 +23,8 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         dt: DateTime = new DateTime(2018, 1, 1, 0, 0),
         dtFormatter: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
         pattern: Regex = "(.*)".r,
-        patternOpt: Option[Regex] = None
+        patternOpt: Option[Regex] = None,
+        map: Map[String, String] = Map()
     )
 
     implicit val regexEquality: Equality[Regex] = new Equality[Regex] {
@@ -43,7 +44,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
     }
 
     def assertParamsEqual(given: Params, expected: Params): Unit = {
-        inside(given) { case Params(str, strOpt, int, intOpt, double, doubleOpt, bool, groups, dt, dtFormatter, pattern, patternOpt) => {
+        inside(given) { case Params(str, strOpt, int, intOpt, double, doubleOpt, bool, groups, dt, dtFormatter, pattern, patternOpt, map) => {
             str should be(expected.str)
             assertOptionsEqual(strOpt, expected.strOpt)
             int should be(expected.int)
@@ -55,6 +56,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             dt should be(expected.dt)
             dtFormatter should be (expected.dtFormatter)
             pattern should equal(expected.pattern)
+            map should equal(expected.map)
 
             // can't use assertOptionsEqual, need to compare against Regex .toString
             if (patternOpt.isDefined && expected.patternOpt.isDefined)
@@ -84,7 +86,8 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             new DateTime(2018, 2, 1, 0, 0),
             DateTimeFormat.forPattern("yyyy-MM-dd'T'HH"),
             "(\\w+) (\\w+)".r,
-            Some("\\d+".r)
+            Some("\\d+".r),
+            Map("k1" -> "v1", "k2" -> "v2")
         )
 
         val args = Array(
@@ -94,7 +97,8 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             "--dtFormatter",    "yyyy-MM-dd'T'HH",
             "--pattern",        "(\\w+) (\\w+)",
             "--bool",           "true",
-            "--patternOpt",     "\\d+"
+            "--patternOpt",     "\\d+",
+            "--map",            "k1:v1,k2:v2"
         )
         assertParamsEqual(configure[Params](Array.empty, args), expected)
     }

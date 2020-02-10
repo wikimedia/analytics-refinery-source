@@ -5,6 +5,7 @@ import scala.util.matching.Regex
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
+import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.types._
 import org.wikimedia.analytics.refinery.core.LogHelper
 import scala.util.Try
@@ -156,33 +157,63 @@ object HiveExtensions extends LogHelper {
 
         /**
           * Find the tightest common DataType of a Seq of StructFields by continuously applying
-          * `HiveTypeCoercion.findTightestCommonTypeOfTwo` on these types, or choosing the
+          * `HiveTypeCoercion.findTightestCommonType` on these types, or choosing the
           * left most type (original) if we have a value caster defined from candidate -> original type.
           * If not tightest is found, return original type.
           * See: https://github.com/apache/spark/blob/v1.6.0/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/HiveTypeCoercion.scala#L65-L87
-          *
           *
           * @param fields
           * @return
           */
         def chooseCompatiblePrimitiveType(fields: Seq[StructField]): DataType = {
-            fields.map(_.dataType).foldLeft[DataType](field.dataType)((original, candidate) => {
-                // If the types of the two current fields are the same, just use original.
-                if (original == candidate) {
-                    return original
-                }
+            fields.foldLeft[StructField](field)((original, candidate) => {
+                val originalType = original.dataType
+                val candidateType = candidate.dataType
 
-
-                // If Spark can handle type coercion from candidate -> original, then
-                // return the type it will use.
-                val tightest = TypeCoercion.findTightestCommonType(original, candidate)
-                if (tightest.isDefined) {
-                    log.debug(s"HiveTypeCoercion is possible, choosing type ${tightest.get} for ($original, $candidate)")
-                    tightest.get
-                } else {
+                // If the types of the two current fields are the same, choose original.
+                if (originalType == candidateType) {
                     original
                 }
-            })
+                else {
+                    // Check if Spark has common type for later type coercion.
+                    // If it does, use it, else choose the originalType.
+                    val tightestType = TypeCoercion.findTightestCommonType(
+                        originalType, candidateType
+                    )
+
+                    val chosenType = if (tightestType.isDefined) {
+                        log.debug(
+                            s"Type coercion is possible, choosing type ${tightestType.get} " +
+                                s"for ($original, $candidate)"
+                            )
+                        tightestType.get
+                    }
+                    else {
+                        log.warn(
+                            s"Type coercion is not possible, choosing original type " +
+                                s"$originalType for ($original, $candidate)"
+                            )
+                        originalType
+                    }
+
+                    // If any field won't later be cast-able to our chosen type, log a warning now.
+                    // If you later do something like attempt to read a JSON dataset
+                    // with this incompatible field schema, make sure you read it with
+                    // .option("mode", "FAILFAST") to make spark fail if its implicit cast fails.
+                    // Otherwise you might end up in a weird state, like where all fields of the
+                    // offending record are null.
+                    if (!Cast.canCast(candidateType, chosenType)) {
+                        log.warn(
+                            s"Spark cannot cast from candidate field ${candidate} to chosen type " +
+                                s"${chosenType}. If you later attempt to read candidate data using " +
+                                "the chosen type, you will likely encounter errors."
+                            )
+                    }
+
+                    // Collect a dummy StructField with the chosen type (but original's name)
+                    StructField(original.name, chosenType)
+                }
+            }).dataType
         }
     }
 

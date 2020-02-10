@@ -55,7 +55,8 @@ object Refine extends LogHelper with ConfigHelper {
         to_emails: Seq[String]                          = Seq(),
         ignore_done_flag: Boolean                       = false,
         schema_base_uri: Option[String]                 = None,
-        schema_field: String                            = "/$schema"
+        schema_field: String                            = "/$schema",
+        dataframereader_options: Map[String, String]   = Map()
     )
 
     object Config {
@@ -153,9 +154,10 @@ object Refine extends LogHelper with ConfigHelper {
                   |will be used, and the value of schema_field will be ignored.  Default: None""",
             "schema_field" ->
                 s"""Will be used to extract the schema URI from event data.  This is a JsonPath pointer.
-                   |Default: ${default.schema_field}"""
-
-
+                   |Default: ${default.schema_field}""",
+            "dataframereader_options" ->
+                s"""Comma separated list of key:value pairs to use as options to DataFrameReader
+                   |when reading the input DataFrame."""
         )
 
         val usage: String =
@@ -269,7 +271,8 @@ object Refine extends LogHelper with ConfigHelper {
         to_emails: Seq[String]                          = Config.default.to_emails,
         ignore_done_flag: Boolean                       = Config.default.ignore_done_flag,
         schema_base_uri: Option[String]                 = Config.default.schema_base_uri,
-        schema_field: String                            = Config.default.schema_field
+        schema_field: String                            = Config.default.schema_field,
+        dataframereader_options: Map[String, String]    = Config.default.dataframereader_options
     ): Boolean = {
         // Initial setup - Spark Conf and Hadoop FileSystem
         spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
@@ -369,7 +372,7 @@ object Refine extends LogHelper with ConfigHelper {
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!dry_run)
-                table -> refineTargets(spark, tableTargets.seq, transform_functions)
+                table -> refineTargets(spark, tableTargets.seq, transform_functions, dataframereader_options)
             // If dry_run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -466,7 +469,8 @@ object Refine extends LogHelper with ConfigHelper {
             config.to_emails,
             config.ignore_done_flag,
             config.schema_base_uri,
-            config.schema_field
+            config.schema_field,
+            config.dataframereader_options
         )
     }
 
@@ -476,18 +480,23 @@ object Refine extends LogHelper with ConfigHelper {
       * @param spark               SparkSession
       * @param targets             Seq of RefineTargets to refine
       * @param transformFunctions  The list of transform functions to apply
+      * @param dataFrameReaderOptions Map of options to provide to DataFrameReader.
       * @return
       */
     def refineTargets(
         spark: SparkSession,
         targets: Seq[RefineTarget],
-        transformFunctions: Seq[TransformFunction]
+        transformFunctions: Seq[TransformFunction],
+        dataFrameReaderOptions: Map[String, String] = Map()
     ): Seq[Try[RefineTarget]] = {
         targets.map(target => {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val partDf = new PartitionedDataFrame(target.inputDataFrame(), target.partition)
+                val partDf = new PartitionedDataFrame(
+                    target.inputDataFrame(dataFrameReaderOptions),
+                    target.partition
+                )
                 val insertedDf = DataFrameToHive(
                     spark,
                     partDf,

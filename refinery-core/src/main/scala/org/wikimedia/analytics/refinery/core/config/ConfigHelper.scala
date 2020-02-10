@@ -14,7 +14,7 @@ import scala.reflect.macros.blackbox
 /**
   * Extend this trait to get automatic mapping from properties config file and args
   * properties to a case class.  It includes handy implicits for automatically mapping
-  * from Strings to higher types, like Regexes, DateTimes, etc.
+  * from Strings to higher types, like Regexes, DateTimes, Maps, etc.
   *
   * If you need an implicit mapping to a type not defined here, you can define
   * one in scope of your caller.
@@ -104,12 +104,36 @@ trait ConfigHelper {
         )
     }
 
-    // implicit conversion from comma seperated string to Seq[String]
+    // implicit conversion from comma separated string to Seq[String]
     implicit val decodeSeqString: Decoder[Seq[String]] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(s.split(",").toSeq).leftMap(t =>
             throw new RuntimeException(
                 s"Failed parsing '$s' into a list. Must provide a comma separated list.", t
             )
+        )
+    }
+
+    // implicit conversion from k1:v1,k2:v2 string to a Map
+    implicit val decodeMapString: Decoder[Map[String, String]] = Decoder.decodeString.emap { s =>
+        /**
+          * Converts a string of the form k1:v1,k2:v2 to a Map(k1 -> v1, k2 -> v2).
+          */
+        def stringToMap(str: String): Map[String, String] = {
+            val kvPairs = str.split(",")
+            kvPairs.toSeq.foldLeft[Map[String, String]](Map()) { (map, kvString) =>
+                kvString.split(":") match {
+                    case Array(key, value) => map ++ Map(key -> value)
+                    case _ => throw new RuntimeException(
+                        s"Failed parsing '$kvString' into a Map entry. Should be of the form key:value."
+                    )
+                }
+            }
+        }
+
+        Either.catchNonFatal(stringToMap(s)).leftMap(t =>
+             throw new RuntimeException(
+                 s"Failed parsing '$s' into a Map. Must provide a comma separated list of key:value pairs.", t
+             )
         )
     }
 
@@ -369,8 +393,6 @@ object ConfigHelperMacros {
             case _ => None
         }
     }
-
-
 
 
     /**
