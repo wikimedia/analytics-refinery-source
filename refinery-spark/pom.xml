@@ -174,23 +174,6 @@
             <version>4.5.3</version>
         </dependency>
 
-        <dependency>
-            <groupId>io.druid</groupId>
-            <artifactId>tranquility-spark_2.11</artifactId>
-            <version>0.8.2</version>
-            <exclusions>
-                <!-- Excluded for dependency conflict with spark -->
-                <exclusion>
-                    <groupId>org.apache.derby</groupId>
-                    <artifactId>derby</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>net.jpountz.lz4</groupId>
-                    <artifactId>lz4</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
         <!--
         Force commons-lang3 version to prevent a bug in JSON date parsing in Spark
         -->
