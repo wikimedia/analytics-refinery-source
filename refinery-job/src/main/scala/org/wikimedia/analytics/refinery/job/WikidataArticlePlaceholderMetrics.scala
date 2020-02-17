@@ -76,11 +76,9 @@ object WikidataArticlePlaceholderMetrics {
         val spark = SparkSession.builder().appName(appName).enableHiveSupport().getOrCreate()
 
         // Currently limited to wikipedia as ArticlePlaceholder is only deployed to wikipedias
-        spark.sql(s"ADD JAR /srv/deployment/analytics/refinery/artifacts/refinery-hive.jar");
-        spark.sql(s"CREATE TEMPORARY FUNCTION get_pageview_info AS 'org.wikimedia.analytics.refinery.hive.GetPageviewInfoUDF'");
         val sql = s"""
   SELECT
-    get_pageview_info(uri_host, uri_path, uri_query)['project'] AS project,
+    CONCAT(normalized_host.project, '.', normalized_host.project_family) AS project,
     agent_type,
     (referer rlike '^.*search=.*$$' AND referer rlike '^.*\\.wikipedia\\.org.*$$') as from_search,
     COUNT(1)
@@ -93,7 +91,7 @@ object WikidataArticlePlaceholderMetrics {
     AND x_analytics_map["special"] = 'AboutTopic'
     AND normalized_host.project_family = 'wikipedia'
   GROUP BY
-    get_pageview_info(uri_host, uri_path, uri_query)['project'],
+    CONCAT(normalized_host.project, '_', normalized_host.project_family) AS project,
     agent_type,
     (referer rlike '^.*search=.*$$' AND referer rlike '^.*\\.wikipedia\\.org.*$$')"""
 
