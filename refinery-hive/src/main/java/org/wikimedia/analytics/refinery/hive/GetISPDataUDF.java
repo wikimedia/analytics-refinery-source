@@ -16,8 +16,12 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
-import org.apache.hadoop.hive.ql.exec.*;
+import org.apache.hadoop.hive.ql.exec.Description;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -27,7 +31,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.maxmind.ISPDatabaseReader;
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
@@ -55,9 +58,8 @@ import java.util.Map;
         + "keys and the appropriate values for each of them")
 public class GetISPDataUDF extends GenericUDF {
 
-    Map<String, String> result;
     private ObjectInspector argumentOI;
-    private ISPDatabaseReader MaxMindISP;
+    private ISPDatabaseReader maxMindISP;
 
     static final Logger LOG = Logger.getLogger(GetISPDataUDF.class.getName());
 
@@ -100,28 +102,26 @@ public class GetISPDataUDF extends GenericUDF {
 
         argumentOI = arg1;
 
-        result = new HashMap<>();
+        // Initialise MaxMind reader using hive SessionState to be able to get
+        // configuration values in both MapReduce context and local context.
+        SessionState ss = SessionState.get();
+        if (ss != null) {
+            if (maxMindISP == null) {
+                try {
+                    maxMindISP = MaxmindDatabaseReaderFactory.getInstance().getISPDatabaseReader(
+                            ss.getConf().getTrimmed("maxmind.database.isp")
+                    );
+                } catch (IOException ex) {
+                    LOG.error(ex);
+                }
+            }
+        } else {
+            throw new RuntimeException("Couldn't access Hive SessionState configuration parameters");
+        }
 
         return ObjectInspectorFactory.getStandardMapObjectInspector(
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector,
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector);
-    }
-
-    @Override
-    public void configure(MapredContext context) {
-        if (MaxMindISP == null) {
-            try {
-                JobConf jobConf = context.getJobConf();
-                MaxMindISP = MaxmindDatabaseReaderFactory.getInstance().getISPDatabaseReader(
-                    jobConf.getTrimmed("maxmind.database.isp")
-                );
-            } catch (IOException ex) {
-                LOG.error(ex);
-                throw new RuntimeException(ex);
-            }
-        }
-
-        super.configure(context);
     }
 
     /**
@@ -144,23 +144,8 @@ public class GetISPDataUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert MaxMindISP != null : "Evaluate called without initializing 'geocodeISP'";
-
-        result.clear();
-
-        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
-            String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            Map<String, String> ispDataResult = MaxMindISP.getResponse(ip).getMap();
-            if (ispDataResult != null) {
-                for (String field : ispDataResult.keySet()) {
-                    Object value = ispDataResult.get(field);
-                    if (value != null) {
-                        result.put(field, value.toString());
-                    }
-                }
-            }
-        }
-        return result;
+        String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
+        return maxMindISP.getResponse(ip).getMap();
     }
 
     @Override
