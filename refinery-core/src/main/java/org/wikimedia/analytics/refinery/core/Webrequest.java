@@ -27,14 +27,18 @@ import java.util.regex.Pattern;
  */
 public class Webrequest {
 
-    public static final Set<String> URI_PORTIONS_TO_REMOVE = new HashSet<String>(Arrays.asList(
-        "m",
-        "mobile",
-        "wap",
-        "zero",
-        "www",
-        "download"
+    /**
+     * Static values used as qualifiers in uri_host (meaning not TLD, not project_family nor project)
+     */
+    public static final Set<String> URI_QUALIFIERS = new HashSet<String>(Arrays.asList(
+            "m",
+            "mobile",
+            "wap",
+            "zero",
+            "www",
+            "download"
     ));
+
     /**
      * Static values for project, dialect and article
      */
@@ -181,19 +185,19 @@ public class Webrequest {
                 return uri_parts[0];
             //case xx.wikixxx.org - Remove unwanted parts
             case 3:
-                if (URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
+                if (URI_QUALIFIERS.contains(uri_parts[0]))
                     return uri_parts[1];
                 else
                     return uri_parts[0] + "." + uri_parts[1];
             //xx.[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
             case 4:
-                if (URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
+                if (URI_QUALIFIERS.contains(uri_parts[0]))
                     return uri_parts[2];
                 else
                     return uri_parts[0] + "." + uri_parts[2];
             //xx.[m|mobile|wap|zero].[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
             case 5:
-                if (URI_PORTIONS_TO_REMOVE.contains(uri_parts[0]))
+                if (URI_QUALIFIERS.contains(uri_parts[0]))
                     return uri_parts[3];
                 else
                     return uri_parts[0] + "." + uri_parts[3];
@@ -329,13 +333,14 @@ public class Webrequest {
         // use LRU cache to not repeat computations
         NormalizedHostInfo result = new NormalizedHostInfo();
 
-        if ((uriHost == null) || (uriHost.isEmpty())) return result;
+        if ((uriHost == null) || (uriHost.trim().isEmpty())) return result;
 
         if (normalizedHostCache.containsKey(uriHost.toLowerCase())){
 
             result = (NormalizedHostInfo)normalizedHostCache.get(uriHost.toLowerCase());
 
         }  else {
+            // TODO fix, the host is split in two different ways on line 185 and this one
             // Remove port if any
             int portIdx = uriHost.indexOf(":");
             uriHost = uriHost.substring(0, ((portIdx < 0) ? uriHost.length() : portIdx));
@@ -347,20 +352,25 @@ public class Webrequest {
             String[] uriParts = uriHost.toLowerCase().split("\\.");
 
             // If no splitted part, return empty
-            if (uriParts.length == 0) return result;
+            if (uriParts.length == 1) return result;
 
             // Handle special case where TLD is numeric --> assume IP address, don't normalize
             // Length is > 0 because of previous check, so no error case
             if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
 
-            if (uriParts.length > 1) {
-                // project_family and TLD normalization
-                result.setProjectFamily(uriParts[uriParts.length - 2]);
-                result.setTld(uriParts[uriParts.length - 1]);
+            // project_family and TLD normalization
+            // Line 355 enforces uriParts.length greater than 2
+            result.setProjectFamily(uriParts[uriParts.length - 2]);
+            result.setTld(uriParts[uriParts.length - 1]);
+
+            // project/qualifier normalization
+            if ((uriParts.length > 2) && (!uriParts[0].equals("www"))) {
+                if (URI_QUALIFIERS.contains(uriParts[0])) {
+                    result.addQualifier(uriParts[0]);
+                } else {
+                    result.setProject(uriParts[0]);
+                }
             }
-            // project normalization
-            if ((uriParts.length > 2) && (!uriParts[0].equals("www")))
-                result.setProject(uriParts[0]);
             // qualifiers normalization: xx.[q1.q2.q3].wikixxx.xx
             if (uriParts.length > 3) {
                 for (int i = 1; i < uriParts.length - 2; i++) {

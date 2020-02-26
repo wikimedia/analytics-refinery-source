@@ -6,6 +6,7 @@ One dot capital and port,wikipedia,-,,org,Wikipedia.org:80
 two dots,wikipedia,en,,org,en.wikipedia.org
 two dots capital,wikipedia,en,,org,EN..wikipedia.org
 two dots www,wikipedia,-,,org,www.wikipedia.org
+mobile wikidata,wikidata,-,m,org,m.wikidata.org
 three dots,wikipedia,en,m,org,en.m.wikipedia.org
 three dots www,wikipedia,-,m,org,www.m.wikipedia.org
 three dots capital,wikipedia,en,zero,org,en.ZERO.wikipedia.org
