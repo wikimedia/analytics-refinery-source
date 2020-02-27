@@ -1,3 +1,7 @@
+## v0.0.115
+* Fix webrequest host normalization
+* Refine - Warn when merging incompatible types; FAILFAST when reading JSON data with a schema
+
 ## v0.0.114
 * Fix GetGeoDataUDF and underlying function
 * Remove BannerImpressions streaming job and deps
