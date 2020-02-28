@@ -1,3 +1,6 @@
+## v0.0.116
+* Revert GetGeoDataUDF Fix from 114, hotfix
+
 ## v0.0.115
 * Fix webrequest host normalization
 * Refine - Warn when merging incompatible types; FAILFAST when reading JSON data with a schema
