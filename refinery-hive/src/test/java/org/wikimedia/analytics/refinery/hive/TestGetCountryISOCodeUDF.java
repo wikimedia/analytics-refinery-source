@@ -15,11 +15,9 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
-import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -28,7 +26,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.JobConf;
 import java.io.IOException;
-import java.util.Map;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -56,52 +53,73 @@ public class TestGetCountryISOCodeUDF {
 
     @Test
     public void testEvaluateWithValidIPv4() throws HiveException, IOException {
+        ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        ObjectInspector[] initArguments = new ObjectInspector[]{value1};
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
+
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
+
         //IPv4 addresses taken from MaxMind's test suite
         String ip = "81.2.69.160";
-        Text result = evaluate(ip);
+        DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "GB", result.toString());
+        getCountryISOCodeUDF.close();
     }
 
     @Test
     public void testEvaluateWithValidIPv6() throws HiveException, IOException {
+        ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        ObjectInspector[] initArguments = new ObjectInspector[]{value1};
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
+
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
+
+        //IPv6 representation of an IPv4 address taken from MaxMind's test suite
         String ip = "::ffff:81.2.69.160";
-        Text result = evaluate(ip);
+        DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "GB", result.toString());
+        getCountryISOCodeUDF.close();
     }
 
     @Test
     public void testEvaluateWithInvalidIP() throws HiveException, IOException {
+        ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        ObjectInspector[] initArguments = new ObjectInspector[]{value1};
+        GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
+
+        getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
+
+        //Invalid IPv4 addresses
         String ip = "-";
-        Text result = evaluate(ip);
+        DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
+        Text result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "--", result.toString());
 
         ip = null;
-        result = evaluate(ip);
+        args = new DeferredObject[] { new DeferredJavaObject(ip) };
+        result = (Text)getCountryISOCodeUDF.evaluate(args);
         assertEquals("ISO country code check", "--", result.toString());
+        getCountryISOCodeUDF.close();
     }
 
     @Test
     public void testIPWithoutIsoCode() throws HiveException, IOException {
-        String ip = "2a02:d500::"; // IP for EU
-        Text result = evaluate(ip);
-        assertEquals("ISO country code check", "--", result.toString());
-    }
-
-    private Text evaluate(String ip) throws HiveException, IOException {
-        // Tested UDF uses global hive SessionState to gather configuration parameters
-        // A fake one needs to be started for testing
-        SessionState.start(new HiveConf());
-
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
-
         GetCountryISOCodeUDF getCountryISOCodeUDF = new GetCountryISOCodeUDF();
 
         getCountryISOCodeUDF.initialize(initArguments);
+        getCountryISOCodeUDF.configure(MapredContext.init(false, new JobConf()));
+
+        String ip = "2a02:d500::"; // IP for EU
         DeferredObject[] args = new DeferredObject[] { new DeferredJavaObject(ip) };
         Text result = (Text)getCountryISOCodeUDF.evaluate(args);
+        assertEquals("ISO country code check", "--", result.toString());
         getCountryISOCodeUDF.close();
-        return result;
     }
-
 }

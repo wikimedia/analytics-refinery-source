@@ -49,57 +49,52 @@ public class ISPDatabaseReader {
     public RefineryISPDatabaseResponse getResponse(final String ip) {
 
         InetAddress ipAddress;
-        IspResponse maxMindResponse = null;
+        IspResponse response = null;
 
-        RefineryISPDatabaseResponse refineryResponse = new RefineryISPDatabaseResponse();
-
-        // Return empty response for null IP
-        if (ip == null) {
-            return refineryResponse;
-        }
+        RefineryISPDatabaseResponse ispResponse = new RefineryISPDatabaseResponse();
 
         try {
             ipAddress = InetAddress.getByName(ip);
         } catch (UnknownHostException hEx) {
             LOG.warn(hEx);
-            return refineryResponse;
+            return ispResponse;
         }
 
         // Only get ISP value for non-internal IPs
         if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-            return refineryResponse;
+            return ispResponse;
         }
 
         try {
-            maxMindResponse = reader.isp(ipAddress);
+            response = reader.isp(ipAddress);
         } catch (IOException|GeoIp2Exception ex ) {
             LOG.warn(ex);
         }
 
-        if (maxMindResponse == null) {
-            return refineryResponse;
+        if (response == null) {
+            return ispResponse;
         }
-        String isp = maxMindResponse.getIsp();
+        String isp = response.getIsp();
         if (isp != null) {
-            refineryResponse.setIsp(isp);
+            ispResponse.setIsp(isp);
         }
 
-        String organization = maxMindResponse.getOrganization();
+        String organization = response.getOrganization();
         if (organization != null) {
-            refineryResponse.setOrganization(organization);
+            ispResponse.setOrganization(organization);
         }
 
-        String autonomousSystemOrganization = maxMindResponse.getAutonomousSystemOrganization();
+        String autonomousSystemOrganization = response.getAutonomousSystemOrganization();
         if (autonomousSystemOrganization != null) {
-            refineryResponse.setAutonomousSystemOrg(autonomousSystemOrganization);
+            ispResponse.setAutonomousSystemOrg(autonomousSystemOrganization);
         }
 
-        Integer autonomousSystemNumber = maxMindResponse.getAutonomousSystemNumber();
+        Integer autonomousSystemNumber = response.getAutonomousSystemNumber();
         if (autonomousSystemNumber != null) {
-            refineryResponse.setAutonomousSystemNumber(autonomousSystemNumber);
+            ispResponse.setAutonomousSystemNumber(autonomousSystemNumber);
         }
 
-        return refineryResponse;
+        return ispResponse;
     }
 
 

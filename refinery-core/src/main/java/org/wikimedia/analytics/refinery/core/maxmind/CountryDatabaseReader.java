@@ -26,14 +26,9 @@ public class CountryDatabaseReader  {
     }
 
     public RefineryCountryDatabaseResponse getResponse(String ip) {
-        CountryResponse maxMindResponse;
+        CountryResponse response  = null;
 
         RefineryCountryDatabaseResponse refineryResponse = new RefineryCountryDatabaseResponse();
-
-        // Return empty response for null IP
-        if (ip == null) {
-            return refineryResponse;
-        }
 
         // Only get country for non-internal IPs
         if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
@@ -41,8 +36,8 @@ public class CountryDatabaseReader  {
         }
         try {
             InetAddress ipAddress = InetAddress.getByName(ip);
-            maxMindResponse = reader.country(ipAddress);
-            Country country = maxMindResponse.getCountry();
+            response = reader.country(ipAddress);
+            Country country = response.getCountry();
 
             String isoCode = country.getIsoCode();
 

@@ -52,91 +52,88 @@ public class GeocodeDatabaseReader {
 
         InetAddress ipAddress;
 
-        CityResponse maxMindResponse = null;
+        CityResponse cityResponse = null;
 
-        RefineryGeocodeDatabaseResponse refineryResponse = new RefineryGeocodeDatabaseResponse();
-        
-        // Return empty response if null/empty IP
-        if (ip == null || ip.isEmpty()) {
-            return refineryResponse;
-        }
+        RefineryGeocodeDatabaseResponse response = new RefineryGeocodeDatabaseResponse();
 
         // Only get geo-code data for non-internal IPs
         if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-                 return refineryResponse;
+                 return response;
         }
 
         try {
             ipAddress = InetAddress.getByName(ip);
-            maxMindResponse = reader.city(ipAddress);
+            cityResponse = reader.city(ipAddress);
 
+        } catch (UnknownHostException ex) {
+            LOG.warn(ex);
         } catch (IOException |GeoIp2Exception ex ) {
             LOG.warn(ex);
         }
 
-        if (maxMindResponse == null)     {
-            return refineryResponse;
+        if (cityResponse == null)     {
+            return response;
 
         }
-        Continent continent = maxMindResponse.getContinent();
+        Continent continent = cityResponse.getContinent();
 
         if (continent != null) {
             String name = continent.getName();
             if (name != null) {
-                refineryResponse.setContinent(name);
+                response.setContinent(name);
             }
         }
 
-        Country country = maxMindResponse.getCountry();
+        Country country = cityResponse.getCountry();
         if (country != null) {
             String name = country.getName();
             String isoCode = country.getIsoCode();
             if (name != null && isoCode != null) {
-                refineryResponse.setCountry(name);
-                refineryResponse.setIsoCode(isoCode);
+                response.setCountry(name);
+                response.setIsoCode(isoCode);
             }
         }
 
-        List<Subdivision> subdivisions = maxMindResponse.getSubdivisions();
+        List<Subdivision> subdivisions = cityResponse.getSubdivisions();
         if (subdivisions != null && subdivisions.size() > 0) {
             Subdivision subdivision = subdivisions.get(0);
             if (subdivision != null) {
                 String name = subdivision.getName();
                 if (name != null) {
-                    refineryResponse.setSubdivision(name);
+                    response.setSubdivision(name);
                 }
             }
         }
 
-        City city = maxMindResponse.getCity();
+        City city = cityResponse.getCity();
         if (city != null) {
             String name = city.getName();
             if (name != null) {
-                refineryResponse.setCity(name);
+                response.setCity(name);
             }
         }
 
-        Postal postal = maxMindResponse.getPostal();
+        Postal postal = cityResponse.getPostal();
         if (postal != null) {
             String code = postal.getCode();
             if (code != null) {
-                refineryResponse.setPostalCode(code);
+                response.setPostalCode(code);
             }
         }
 
-        Location location = maxMindResponse.getLocation();
+        Location location = cityResponse.getLocation();
         if (location != null) {
             Double lat = location.getLatitude();
             Double lon = location.getLongitude();
             if (lat != null && lon != null) {
-                refineryResponse.setLatitude(lat);
-                refineryResponse.setLongitude(lon);
+                response.setLatitude(lat);
+                response.setLongitude(lon);
             }
             if (location.getTimeZone() != null)
-                refineryResponse.setTimezone( location.getTimeZone());
+                response.setTimezone( location.getTimeZone());
         }
 
-        return refineryResponse;
+        return response;
 
     }
 

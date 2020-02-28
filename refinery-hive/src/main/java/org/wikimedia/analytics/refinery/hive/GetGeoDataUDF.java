@@ -33,6 +33,8 @@ import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader;
 import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A Hive UDF to lookup location fields from IP addresses.
@@ -53,35 +55,11 @@ import java.io.IOException;
         + "timezone keys and the appropriate values for each of them")
 public class GetGeoDataUDF extends GenericUDF {
 
+    Map<String, String> result;
     private ObjectInspector argumentOI;
     private GeocodeDatabaseReader maxMindGeocode;
 
     static final Logger LOG = Logger.getLogger(GetGeoDataUDF.class.getName());
-
-    /**
-     * Initialize MaxMind reader.
-     * Reinitialize the reader of a jobConf is provided, otherwise only initialize if reader is null.
-     *
-     * @param jobConf the optional jobConf to get database path from (maxmind.database.city property)
-     */
-    synchronized private void initializeMaxMindReader(JobConf jobConf) {
-        try {
-            if (jobConf != null) {
-                maxMindGeocode = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader(
-                        jobConf.getTrimmed("maxmind.database.city")
-                );
-            } else if (maxMindGeocode == null) {
-                maxMindGeocode = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader();
-            }
-        } catch (IOException ex) {
-            LOG.error(ex);
-            throw new RuntimeException(ex);
-        }
-    }
-
-    private void initializeMaxMindReader() {
-        initializeMaxMindReader(null);
-    }
 
     /**
      * The initialize method is called only once during the lifetime of the UDF.
@@ -122,29 +100,27 @@ public class GetGeoDataUDF extends GenericUDF {
 
         argumentOI = arg1;
 
-        // Initialise MaxMind reader with default settings
-        // In case the UDF is called in a MapReduce context, the configure method
-        // is called first, and this call does nothing.
-        // In case of a local execution, configure has not been called and without
-        // the present default initialization, execution fails.
-        initializeMaxMindReader();
+        result = new HashMap<>();
 
         return ObjectInspectorFactory.getStandardMapObjectInspector(
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector,
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector);
-
-
     }
 
-    /**
-     * This function is called only in MapReduce context, not when the query is
-     * processed using a local task. If it is executed, this method is called
-     * BEFORE the initialize one.
-     * @param context the MapReduce context the query is run on
-     */
     @Override
     public void configure(MapredContext context) {
-        initializeMaxMindReader(context.getJobConf());
+        if (maxMindGeocode == null) {
+            try {
+                JobConf jobConf = context.getJobConf();
+                maxMindGeocode = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader(
+                    jobConf.getTrimmed("maxmind.database.city")
+                );
+            } catch (IOException ex) {
+                LOG.error(ex);
+                throw new RuntimeException(ex);
+            }
+        }
+
         super.configure(context);
     }
 
@@ -168,9 +144,23 @@ public class GetGeoDataUDF extends GenericUDF {
     @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
+        assert maxMindGeocode != null : "Evaluate called without initializing 'geocodeCity'";
 
-        String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-        return maxMindGeocode.getResponse(ip).getMap();
+        result.clear();
+
+        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
+            String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
+            Map<String, String > geoDataResult = maxMindGeocode.getResponse(ip).getMap();
+            if (geoDataResult != null) {
+                for (String field : geoDataResult.keySet()) {
+                    Object value = geoDataResult.get(field);
+                    if (value != null) {
+                        result.put(field, value.toString());
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     @Override

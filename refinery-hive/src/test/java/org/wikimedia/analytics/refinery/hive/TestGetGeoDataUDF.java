@@ -15,12 +15,10 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -117,10 +115,6 @@ public class TestGetGeoDataUDF {
     }
 
     private Map<String, String> evaluate(String ip) throws HiveException, IOException {
-        // Tested UDF uses global hive SessionState to gather configuration parameters
-        // A fake one needs to be started for testing
-        SessionState.start(new HiveConf());
-
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector[] initArguments = new ObjectInspector[]{value1};
         GetGeoDataUDF getGeoDataUDF = new GetGeoDataUDF();
