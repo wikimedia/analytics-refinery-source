@@ -78,7 +78,7 @@ object WikidataArticlePlaceholderMetrics {
         // Currently limited to wikipedia as ArticlePlaceholder is only deployed to wikipedias
         val sql = s"""
   SELECT
-    CONCAT(normalized_host.project, '.', normalized_host.project_family) AS project,
+    CONCAT(normalized_host.project, '_', normalized_host.project_family) AS project,
     agent_type,
     (referer rlike '^.*search=.*$$' AND referer rlike '^.*\\.wikipedia\\.org.*$$') as from_search,
     COUNT(1)
@@ -91,7 +91,7 @@ object WikidataArticlePlaceholderMetrics {
     AND x_analytics_map["special"] = 'AboutTopic'
     AND normalized_host.project_family = 'wikipedia'
   GROUP BY
-    CONCAT(normalized_host.project, '_', normalized_host.project_family) AS project,
+    CONCAT(normalized_host.project, '_', normalized_host.project_family),
     agent_type,
     (referer rlike '^.*search=.*$$' AND referer rlike '^.*\\.wikipedia\\.org.*$$')"""
 
@@ -101,10 +101,10 @@ object WikidataArticlePlaceholderMetrics {
         val data = Map[String, Long]()
 
         queryData.foreach{ case (project, agentType, fromSearch, count) =>
-          val metric = "%s.varnish_requests.abouttopic.%s.%s".format(params.graphiteNamespace, agentType, project.replace('.','_'))
+          val metric = "%s.varnish_requests.abouttopic.%s.%s".format(params.graphiteNamespace, agentType, project)
           data += data.get(metric).map(x => metric -> (x + count)).getOrElse(metric -> count)
           if(fromSearch) {
-            val searchMetric = "%s.varnish_requests.abouttopic.search_referral.%s".format(params.graphiteNamespace, project.replace('.','_'))
+            val searchMetric = "%s.varnish_requests.abouttopic.search_referral.%s".format(params.graphiteNamespace, project)
             data += data.get(searchMetric).map(x => searchMetric -> (x + count)).getOrElse(searchMetric -> count)
           }
         }
