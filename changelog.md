@@ -1,3 +1,8 @@
+## v0.0.117
+* Move wikidata jobs in the wikidata package
+* Fix WikidataArticlePlaceholderMetrics
+* Add wikidata item_page_link spark job
+
 ## v0.0.116
 * Revert GetGeoDataUDF Fix from 114, hotfix
 
