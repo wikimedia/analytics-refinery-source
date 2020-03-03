@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.job
+package org.wikimedia.analytics.refinery.job.wikidata
 
 import org.apache.spark.sql.SparkSession
 import org.joda.time.DateTime
