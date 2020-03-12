@@ -1,3 +1,6 @@
+## v0.0.118
+* Fix wikidata article-placeholder job
+
 ## v0.0.117
 * Move wikidata jobs in the wikidata package
 * Fix WikidataArticlePlaceholderMetrics
