@@ -28,6 +28,8 @@ Is not pageview – non-wikidata raw domain,wikipedia,-,-,false,false,174.62.175
 Is Not Pageview – App – Android – Refresh,en.wikipedia,-,-,false, false,174.62.175.82,-,en.wikipedia.org, /w/api.php,action=mobileview&format=json&page=Hachiko_–_Eine_wunderbare_Freundschaft&prop=text&sections=all,200, application/json,WikipediaApp/2.0-r-2015-01-15 (Android 4.4.2 Phone) Google Play,
 Is Pageview - mobile - wikimediafoundation,wikimediafoundation,default,Horseshoe_crab,true,true,174.62.175.82,-,m.wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip,
 Is Pageview - Desktop - wikimediafoundation,wikimediafoundation,default,Horseshoe_crab,true,false,174.62.175.82,-,wikimediafoundation.org,/wiki/Horseshoe_crab,-,200,text/html,turnip,
+Is Pageview - Desktop - wikimania,wikimania.wikimedia,default,Blah,true,false,174.62.175.82,-,wikimania.wikimedia.org, /wiki/Blah,-,200,text/html, turnip,
+Is Not Pageview - Desktop - wikimania2015,wikimania2015.wikimedia,default,Wikimania,false,false,174.62.175.82,-,wikimania2015.wikimedia.org, /wiki/Wikimania,-,200,text/html, turnip,
 Is Pageview - Desktop,test2.wikipedia,default,Horseshoe_crab,true,true,174.62.175.82,-,test2.wikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip,
 Is Not Pageview - Desktop,test.wikimediafoundation,default,Horseshoe_crab,false,true,174.62.175.82,-,test.wikimediafoundation.org, /wiki/Horseshoe_crab,-,200,text/html, turnip,
 Is Not Pageview - Desktop - wrong host,wrongwikipedia,default,Horseshoe_crab,false,false,174.62.175.82,-,wrongwikipedia.org, /wiki/Horseshoe_crab,-,200,text/html, turnip,

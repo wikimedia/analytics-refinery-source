@@ -82,8 +82,8 @@ public class Webrequest {
 
     public final static Pattern URI_HOST_WIKIMEDIA_DOMAIN_PATTERN = Pattern.compile(
             // any of these domain names
-            "^(?!doc)" // wikimedia domain sites to exclude because they're not wikis
-                    + "(commons|foundation|meta|incubator|species|outreach|usability|strategy|advisory|wikitech|[a-zA-Z]{2,3})\\."
+            "^(?!doc)" // subdomains of wikimedia.org included in pageview datasets
+                    + "(advisory|commons|foundation|incubator|meta|outreach|species|strategy|usability|wikimania|wikitech|[a-zA-Z]{2,3})\\."
                     + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
                     + "wikimedia\\.org$"    // ending with wikimedia.org
     );
