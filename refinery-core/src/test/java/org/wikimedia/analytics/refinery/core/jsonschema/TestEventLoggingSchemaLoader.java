@@ -10,14 +10,13 @@ import org.junit.BeforeClass;
 
 import java.io.File;
 import java.net.URI;
-import java.net.URISyntaxException;
 
 
 public class TestEventLoggingSchemaLoader extends TestCase {
 
     private EventLoggingSchemaLoader schemaLoader;
 
-    private static String resourcesPath = new File("src/test/resources").getAbsolutePath();
+    private static String schemaBaseUri = new File("src/test/resources/event-schemas/repo1").getAbsolutePath();
 
     private static final JsonNodeFactory jf = JsonNodeFactory.instance;
 
@@ -30,8 +29,6 @@ public class TestEventLoggingSchemaLoader extends TestCase {
 
     // testEvent is not used unless you uncomment the remote schema tests.
     private static final ObjectNode testEvent = jf.objectNode();
-
-
 
     static {
         // Build the expected encapsulated EventLogging event schema
@@ -72,12 +69,14 @@ public class TestEventLoggingSchemaLoader extends TestCase {
         otherMessage.put("required", true);
         ObjectNode eventLoggingTestSchemaProperties = jf.objectNode();
         eventLoggingTestSchemaProperties.set("OtherMessage", otherMessage);
+        expectedEventLoggingTestSchema.put("type", "object");
         expectedEventLoggingTestSchema.put("title", "Test");
         expectedEventLoggingTestSchema.put("description", "Test schema for checking that EventLogging works");
         expectedEventLoggingTestSchema.set("properties", eventLoggingTestSchemaProperties);
 
         expectedEncapsulatedEventLoggingTestSchema = (ObjectNode)EventLoggingSchemaLoader.buildEventLoggingCapsule();
-        expectedEncapsulatedEventLoggingTestSchema.set("event", expectedEventLoggingTestSchema);
+        ObjectNode capsuleProperties = (ObjectNode)expectedEncapsulatedEventLoggingTestSchema.get("properties");
+        capsuleProperties.set("event", (JsonNode)expectedEventLoggingTestSchema);
 
         // build the test event with a remote schema.
         // This is only used if you uncomment remote tests.
@@ -90,11 +89,11 @@ public class TestEventLoggingSchemaLoader extends TestCase {
 
     @BeforeClass
     public void setUp() throws RuntimeException {
-        schemaLoader = new EventLoggingSchemaLoader("file://" + resourcesPath + "/");
+        schemaLoader = new EventLoggingSchemaLoader("file://" + schemaBaseUri + "/");
     }
 
     public void testLoad() throws Exception {
-        URI echoSchemaUri = new URI("file://" + resourcesPath + "/Echo_7731316.schema.json");
+        URI echoSchemaUri = new URI("file://" + schemaBaseUri + "/Echo_7731316.schema.json");
         JsonNode echoSchema = schemaLoader.load(echoSchemaUri);
         assertEquals(
             "test event schema should load from json at " + echoSchemaUri,
@@ -111,7 +110,7 @@ public class TestEventLoggingSchemaLoader extends TestCase {
 
         assertEquals(
             "Should return an EventLogging schema URI with revid",
-            "file://" + resourcesPath + "/?action=jsonschema&formatversion=2&format=json&title=Echo&revid=7731316",
+            "file://" + schemaBaseUri + "/?action=jsonschema&formatversion=2&format=json&title=Echo&revid=7731316",
             uri.toString()
         );
     }
@@ -123,13 +122,13 @@ public class TestEventLoggingSchemaLoader extends TestCase {
 
         assertEquals(
             "Should return an EventLogging schema URI without revid",
-            "file://" + resourcesPath + "/?action=jsonschema&formatversion=2&format=json&title=Echo",
+            "file://" + schemaBaseUri + "/?action=jsonschema&formatversion=2&format=json&title=Echo",
             uri.toString()
         );
     }
 
     public void testGetSchemaURIFromEvent() throws Exception {
-        URI expectedSchemaUri = new URI("file://" + resourcesPath + "/?action=jsonschema&formatversion=2&format=json&title=Echo");
+        URI expectedSchemaUri = new URI("file://" + schemaBaseUri + "/?action=jsonschema&formatversion=2&format=json&title=Echo");
         URI uri = schemaLoader.getEventSchemaUri(testEchoEvent);
         assertEquals(
             "Should load schema URI from event schema field",
@@ -138,31 +137,31 @@ public class TestEventLoggingSchemaLoader extends TestCase {
         );
     }
 
-//    /**
-//     * NOTE: This test will actually perform a remote HTTP lookup to the Test EventLogging schema
-//     * hosted at https://meta.wikimedia.org/w/api.php.
-//     * @throws Exception
-//     */
-//    public void testGetRemoteSchema() throws Exception {
-//        EventLoggingSchemaLoader remoteSchemaLoader = new EventLoggingSchemaLoader();
-//        JsonNode eventLoggingTestSchema = remoteSchemaLoader.getEventLoggingSchema("Test", 15047841);
-//        assertEquals(expectedEncapsulatedEventLoggingTestSchema, eventLoggingTestSchema);
-//    }
-//
-//    /**
-//     * NOTE: This test will actually perform a remote HTTP lookup to the Test EventLogging schema
-//     * hosted at https://meta.wikimedia.org/w/api.php.
-//     * @throws Exception
-//     */
-//    public void testGetRemoteSchemaFromEvent() throws Exception {
-//        EventLoggingSchemaLoader remoteSchemaLoader = new EventLoggingSchemaLoader();
-//
-//        JsonNode schema = remoteSchemaLoader.getEventSchema(testEvent);
-//        assertEquals(
-//            "Should load schema from event schema field",
-//            expectedEncapsulatedEventLoggingTestSchema,
-//            schema
-//        );
-//    }
+    // /**
+    //  * NOTE: This test will actually perform a remote HTTP lookup to the Test EventLogging schema
+    //  * hosted at https://meta.wikimedia.org/w/api.php.
+    //  * @throws Exception
+    //  */
+    // public void testGetRemoteSchema() throws Exception {
+    //     EventLoggingSchemaLoader remoteSchemaLoader = new EventLoggingSchemaLoader();
+    //     JsonNode eventLoggingTestSchema = remoteSchemaLoader.getEventLoggingSchema("Test", 15047841);
+    //     assertEquals(expectedEncapsulatedEventLoggingTestSchema, eventLoggingTestSchema);
+    // }
+
+    // /**
+    //  * NOTE: This test will actually perform a remote HTTP lookup to the Test EventLogging schema
+    //  * hosted at https://meta.wikimedia.org/w/api.php.
+    //  * @throws Exception
+    //  */
+    // public void testGetRemoteSchemaFromEvent() throws Exception {
+    //     EventLoggingSchemaLoader remoteSchemaLoader = new EventLoggingSchemaLoader();
+
+    //     JsonNode schema = remoteSchemaLoader.getEventSchema(testEvent);
+    //     assertEquals(
+    //         "Should load schema from event schema field",
+    //         expectedEncapsulatedEventLoggingTestSchema,
+    //         schema
+    //     );
+    // }
 
 }

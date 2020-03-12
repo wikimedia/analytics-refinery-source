@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.refine
 
+import java.util
+
 import com.github.nscala_time.time.Imports._
 import io.circe.Decoder
 import cats.syntax.either._
@@ -12,6 +14,7 @@ import org.wikimedia.analytics.refinery.core.jsonschema.{EventLoggingSchemaLoade
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
+import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -54,9 +57,9 @@ object Refine extends LogHelper with ConfigHelper {
         from_email: String                              = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
         to_emails: Seq[String]                          = Seq(),
         ignore_done_flag: Boolean                       = false,
-        schema_base_uri: Option[String]                 = None,
+        schema_base_uris: Seq[String]                   = Seq.empty,
         schema_field: String                            = "/$schema",
-        dataframereader_options: Map[String, String]   = Map()
+        dataframereader_options: Map[String, String]    = Map()
     )
 
     object Config {
@@ -147,9 +150,9 @@ object Refine extends LogHelper with ConfigHelper {
                 s"Email report from sender email address.  Default: ${default.from_email}",
             "to_emails" ->
                 s"Email report recipient email addresses (comma separated):  Default: ${default.to_emails.mkString(",")}.",
-            "schema_base_uri" ->
+            "schema_base_uris" ->
                 s"""If given, the input data is assumed to be JSONSchemaed event data.  An EventSparkSchemaLoader will
-                  |be instantiated with an EventSchemaLoader that uses this URI prefix to load schemas URIs found at
+                  |be instantiated with an EventSchemaLoader that uses these URI prefixes to load schemas URIs found at
                   |schema_field.  If this is given as 'eventlogging', the special case EventLoggingSchemaLoader
                   |will be used, and the value of schema_field will be ignored.  Default: None""",
             "schema_field" ->
@@ -270,7 +273,7 @@ object Refine extends LogHelper with ConfigHelper {
         from_email: String                              = Config.default.from_email,
         to_emails: Seq[String]                          = Config.default.to_emails,
         ignore_done_flag: Boolean                       = Config.default.ignore_done_flag,
-        schema_base_uri: Option[String]                 = Config.default.schema_base_uri,
+        schema_base_uris: Seq[String]                   = Config.default.schema_base_uris,
         schema_field: String                            = Config.default.schema_field,
         dataframereader_options: Map[String, String]    = Config.default.dataframereader_options
     ): Boolean = {
@@ -301,11 +304,16 @@ object Refine extends LogHelper with ConfigHelper {
 
         // If given a schema_base_uri, assume that this is a schema uri to use for
         // looking up schemas from events. Create an appropriate EventSparkSchemaLoader.
-        val schemaLoader = schema_base_uri match {
-            case None => ExplicitSchemaLoader(None)
+        val schemaLoader = schema_base_uris match {
+            case Seq() => ExplicitSchemaLoader(None)
             // eventlogging is a special case.
-            case Some("eventlogging") => new EventSparkSchemaLoader(new EventLoggingSchemaLoader())
-            case Some(baseUri)        => new EventSparkSchemaLoader(new EventSchemaLoader(baseUri, schema_field))
+            case Seq("eventlogging") => new EventSparkSchemaLoader(new EventLoggingSchemaLoader())
+            case baseUris: Seq[String] => {
+                new EventSparkSchemaLoader(new EventSchemaLoader(
+                    baseUris.asJava,
+                    schema_field
+                ))
+            }
         }
 
         // Need RefineTargets for every existent input partition since pastCutoffDateTime
@@ -468,7 +476,7 @@ object Refine extends LogHelper with ConfigHelper {
             config.from_email,
             config.to_emails,
             config.ignore_done_flag,
-            config.schema_base_uri,
+            config.schema_base_uris,
             config.schema_field,
             config.dataframereader_options
         )

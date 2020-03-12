@@ -5,7 +5,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import com.github.fge.jsonschema.core.load.SchemaLoader;
 
 import org.apache.commons.io.IOUtils;
@@ -54,7 +53,7 @@ public class JsonSchemaLoader {
      * @param schemaUri
      * @return the jsonschema at schemaURI.
      */
-    public JsonNode load(URI schemaUri) {
+    public JsonNode load(URI schemaUri) throws JsonSchemaLoadingException {
         if (this.cache.containsKey(schemaUri)) {
             return this.cache.get(schemaUri);
         }
@@ -64,7 +63,7 @@ public class JsonSchemaLoader {
             parser = this.getParser(schemaUri);
         }
         catch (IOException e) {
-            throw new RuntimeException("Failed reading JSON/YAML data from " + schemaUri, e);
+            throw new JsonSchemaLoadingException("Failed reading JSON/YAML data from " + schemaUri, e);
         }
 
         try {
@@ -75,7 +74,7 @@ public class JsonSchemaLoader {
             return schema;
         }
         catch (IOException e) {
-            throw new RuntimeException("Failed loading JSON/YAML data from " + schemaUri, e);
+            throw new JsonSchemaLoadingException("Failed loading JSON/YAML data from " + schemaUri, e);
         }
     }
 
@@ -86,12 +85,12 @@ public class JsonSchemaLoader {
      * @param data JSON or YAML string to parse into a JsonNode.
      * @return
      */
-    public JsonNode parse(String data) {
+    public JsonNode parse(String data) throws JsonSchemaLoadingException {
         try {
             return this.parse(this.getParser(data));
         }
         catch (IOException e) {
-            throw new RuntimeException(
+            throw new JsonSchemaLoadingException(
                 "Failed parsing JSON/YAML data from string '" + data + '"', e
             );
         }
@@ -120,7 +119,7 @@ public class JsonSchemaLoader {
 
     /**
      * Gets either a YAMLParser or a JsonParser for the data at uri
-     * @param data
+     * @param uri
      * @return
      */
     private JsonParser getParser(URI uri) throws IOException {

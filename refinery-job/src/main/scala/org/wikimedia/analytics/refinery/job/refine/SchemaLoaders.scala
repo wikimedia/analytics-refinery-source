@@ -5,27 +5,34 @@ import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.core.LogHelper
-
 import org.apache.hadoop.fs.FsUrlStreamHandlerFactory
-import java.net.URL
+import java.net.{URI, URL}
+
+import com.fasterxml.jackson.databind.JsonNode
+
+import scala.util.{Failure, Success, Try}
 
 /**
   * Implementations of SparkSchemaLoader
   */
 
-
 /**
-  * A SparkSchemaLoader that uses refinery.core.jsonschema.EventSchemaLoaders to load
+  * A SparkSchemaLoader that uses refinery.core.jsonschema.EventSchemaLoader to load
   * schemas from example event data.  This class will get the first line out of a RefineTarget
   * and expect it to be a JSON event.  That event will be passed to the eventSchemaLoader
   * to get a JsonSchema for it.  Then JsonSchemaConverter.toSparkSchema will convert that JSONSchema
   * to a Spark (StructType) schema.
   *
   * This class should be instantiated and provided as RefineTarget's schemaLoader parameter.
-  * @param eventSchemaLoader EventSchemaLoader implementation
+  * @param eventSchemaLoader
+  *     EventSchemaLoader implementation
+  * @param loadLatest
+  *     If true, will call eventSchemaLoader getLatestEventSchema instead of getEventSchema.
   */
-class EventSparkSchemaLoader(eventSchemaLoader: EventSchemaLoader)
-    extends SparkSchemaLoader with LogHelper {
+class EventSparkSchemaLoader(
+    eventSchemaLoader: EventSchemaLoader,
+    loadLatest: Boolean = true
+) extends SparkSchemaLoader with LogHelper {
 
     // Make sure that EventSchemaLoader can handle hdfs:// URIs.
     // NOTE: this can only be called once per JVM.
@@ -42,24 +49,7 @@ class EventSparkSchemaLoader(eventSchemaLoader: EventSchemaLoader)
         )
 
         // Get the first line out of the inputPath
-        val firstLine = target.inputFormat match {
-            case "sequence_json" =>
-                target.spark.sparkContext.sequenceFile[Long, String](target.inputPath.toString)
-                    .map(t => t._2).take(1).headOption
-
-            case "json" =>
-                target.spark.sparkContext.textFile(target.inputPath.toString).take(1).headOption
-
-            // If there is no data, we can't load a schema.
-            case "empty" =>
-                None
-
-            case _ =>
-                throw new RuntimeException(
-                    s"Cannot use ${eventSchemaLoader} to load data with format ${target.inputFormat}. " +
-                    "Must be one either 'sequence_json' or 'json'"
-                )
-        }
+        val firstLine = target.firstLine()
 
         firstLine match {
             // If no firstLine could be read
@@ -70,11 +60,16 @@ class EventSparkSchemaLoader(eventSchemaLoader: EventSchemaLoader)
                 )
                 None
 
-            case Some(line) =>
+            case Some(eventString) =>
                 // Pass it to EventSchemaLoader to parse it into JsonNode event,
                 // and to look up that event's schema.
-                val jsonSchema = eventSchemaLoader.getEventSchema(firstLine.get)
-                log.debug(s"Loaded JSONSchema for event data in ${target.inputPath}:\n${jsonSchema}")
+                val jsonSchema = if (loadLatest) {
+                    eventSchemaLoader.getLatestEventSchema(eventString)
+                } else {
+                    eventSchemaLoader.getEventSchema(eventString)
+                }
+
+                log.debug(s"Loaded ${if (loadLatest) "latest" else "" } JSONSchema for event data in ${target.inputPath}:\n$jsonSchema")
 
                 val sparkSchema = JsonSchemaConverter.toSparkSchema(jsonSchema)
 
@@ -94,7 +89,7 @@ class EventSparkSchemaLoader(eventSchemaLoader: EventSchemaLoader)
                 // See also:
                 // - https://phabricator.wikimedia.org/T227088
                 // - https://phabricator.wikimedia.org/T226219
-                val schema = if (target.tableExists) {
+                val schema = if (target.tableExists()) {
                     val s = target.spark.table(target.tableName).schema.merge(sparkSchema, false)
                     log.debug(
                         s"Converted JSONSchema for event data in ${target.inputPath} " +

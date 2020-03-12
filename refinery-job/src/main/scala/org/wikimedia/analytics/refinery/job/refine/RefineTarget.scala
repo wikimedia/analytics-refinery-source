@@ -449,6 +449,32 @@ case class RefineTarget(
         }
     }
 
+    /**
+      * Gets the first line as a String out of the inputPath without converting to a DataFrame.
+      * This reads only the first line of data, not all the data in the inputPath.
+      * @return
+      */
+    def firstLine(): Option[String] = {
+        // Get the first line out of the inputPath
+        inputFormat match {
+            case "sequence_json" =>
+                spark.sparkContext.sequenceFile[Long, String](inputPath.toString)
+                     .map(t => t._2).take(1).headOption
+
+            case "json" =>
+                spark.sparkContext.textFile(inputPath.toString).take(1).headOption
+
+            case "empty" =>
+                None
+
+            case _ =>
+                throw new RuntimeException(
+                    s"Cannot cannot read first line of target $this with format $inputFormat. " +
+                        "Must be one either 'sequence_json' or 'json'"
+                    )
+        }
+    }
+
 
     /**
       * Returns a Failure with e wrapped in a new more descriptive Exception
