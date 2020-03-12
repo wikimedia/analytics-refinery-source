@@ -58,7 +58,7 @@ public class LegacyPageviewDefinition {
     );
 
     private final Pattern acceptedMetaUriHostsPattern = Pattern.compile(
-		    "(commons|incubator|meta|outreach|quality|species|strategy|usability|advisory)(\\.m)?\\.wikimedia\\.org$"
+        "(commons|incubator|meta|outreach|quality|species|strategy|usability|advisory)(\\.m)?\\.wikimedia\\.org$"
     );
 
     private final Pattern acceptedUriPattern = Pattern.compile(
