@@ -54,6 +54,7 @@ public class PageviewDefinition {
      * All API request uriPaths will contain this
      */
     public static final String URI_PATH_API = "api.php";
+    public static final String URI_PATH_REST_API = "/api/rest_v";
 
 
     /** Most special pages do not denote content consumption **/
@@ -63,8 +64,6 @@ public class PageviewDefinition {
         "version"
     ));
 
-    //
-
     private final static Pattern URI_PATH_PATTERN = Pattern.compile(
         "^(/sr(-(ec|el))?|/w(iki)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
     );
@@ -72,7 +71,6 @@ public class PageviewDefinition {
     private final static Pattern PATTERN = Pattern.compile(
         "\\?((cur|old)id|title|search)="
     );
-
 
 
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
@@ -138,32 +136,41 @@ public class PageviewDefinition {
      */
     private boolean isAppPageview(WebrequestData data) {
 
-        final String appContentType     = "application/json";
-        final String appUserAgent       = "WikipediaApp";
-        final String appPageURIQuery    = "sections=0";
-        final String iosAppPageURIQuery = "sections=all";
-        final Pattern iosUserAgentPattern = Pattern.compile("iPhone|iOS");
-        final String iOsAppUserAgent    = "Wikipedia/5.0.";
+        final String appContentType         = "application/json";
+        final String appUserAgent           = "WikipediaApp";
+        final String appPageURIQuery        = "sections=0";
+        final String restAppPageURIPath     = "/page/mobile-sections/";
+        final String iosAppPageURIQuery     = "sections=all";
+        final Pattern iosUserAgentPattern   = Pattern.compile("iPhone|iOS");
+        final String iosAppUserAgent        = "Wikipedia/5.0.";
 
+        final String rawXAnalyticsHeader = data.getRawXAnalyticsHeader();
+        final String contentType = data.getContentType();
+        final String userAgent = data.getUserAgent();
+        final String uriPath = data.getUriPath();
+        final String uriQuery = data.getUriQuery();
 
+        final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
+        final boolean isIosAgent = Utilities.stringContains(userAgent, iosAppUserAgent);
+        final boolean isLikeIosAgent = Utilities.patternIsFound(iosUserAgentPattern, userAgent);
+        final boolean isAppAgent = Utilities.stringContains(userAgent, appUserAgent);
+        final boolean isApiPath = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_API);
+        final boolean isAppQuery = Utilities.stringContains(uriQuery, appPageURIQuery);
+        final boolean isIosQuery = Utilities.stringContains(uriQuery, iosAppPageURIQuery);
+        final boolean isRestApiPath = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_REST_API);
+        final boolean isRestApiPagePath = Utilities.stringContains(uriPath, restAppPageURIPath);
 
-        boolean isTaggedPageview = (Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "pageview").trim().equalsIgnoreCase("1"));
+        return Utilities.stringContains(contentType, appContentType)
 
-        return (Utilities.stringContains(data.getContentType(), appContentType)
-                && (Utilities.stringContains(data.getUserAgent(),   appUserAgent)
-                    || (Utilities.stringContains(data.getUserAgent(),   iOsAppUserAgent)))
+               && (isIosAgent || isAppAgent)
 
-                && (isTaggedPageview ||
-                (
-                    Utilities.stringContains(data.getUriPath(), PageviewDefinition.URI_PATH_API) &&
-                    (Utilities.stringContains(data.getUriQuery(), appPageURIQuery)
-                     || (Utilities.stringContains(data.getUriQuery(), iosAppPageURIQuery)
-                         && Utilities.patternIsFound(iosUserAgentPattern, data.getUserAgent()))
-                    )
-               )
-            ));
+               && (isTaggedPageview
+
+                   || isApiPath && (isAppQuery || isIosQuery && isLikeIosAgent)
+
+                   || isRestApiPath && isRestApiPagePath && isAppAgent
+               );
     }
-
 
     private boolean isWebPageview(WebrequestData data) {
         return (
@@ -308,7 +315,7 @@ public class PageviewDefinition {
 
         // Default wiki urls, default language variant
         if (normPath.equals("/") || normPath.equals("/wiki")
-                || normPath.equals("/w") || normPath.startsWith("/api/rest_v1")
+                || normPath.equals("/w") || normPath.startsWith(URI_PATH_REST_API)
                 || normPath.startsWith("/wiki/") || normPath.startsWith("/w/"))
             return PageviewDefinition.DEFAULT_LANGUAGE_VARIANT_VALUE;
 
@@ -337,6 +344,25 @@ public class PageviewDefinition {
     }
 
     /**
+     * If path contains /something/, extract title after that, like:
+     * /something/horseshoe_crab -> horseshoe crab
+     *
+     * @param path the whole address to search for `find`
+     * @param find if not found in `path`, return nothing
+     * @return the title, or the empty string if not found
+     */
+    private String getTitleAfter(String path, String find) {
+        int startIdx = path.indexOf(find);
+        int len = find.length();
+
+        if (startIdx >= 0) {
+            return path.substring(startIdx + len);
+        } else {
+            return "";
+        }
+    }
+
+    /**
      * Extracts the page title name from uriPath
      * NOTE: - Assumes that the page is not "index.*".
      *       - Provides correct result only if used with
@@ -348,41 +374,42 @@ public class PageviewDefinition {
      */
     private String getPageTitleFromPath(String path) {
 
-        // If the path contains an anchor
-        // remove it from the result substring
-        int endIdx = path.indexOf("#");
-        endIdx = (endIdx > 0)?endIdx:(path.length());
+        if (path == null || path.isEmpty()) {
+            return PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
+        }
 
-        // If path contains /api/rest_v1/page/, extract substring from there
-        // for instance: /wiki/horseshoe_crab -> horseshoe_crab
-        int startIdx = path.indexOf("/api/rest_v1/page/mobile-sections-lead/") ;
-        startIdx = (startIdx >= 0) ? (startIdx + "/api/rest_v1/page/mobile-sections-lead/".length()) : startIdx;
-        if ((startIdx >= 0) && (startIdx < endIdx))
-            return path.substring(startIdx, endIdx);
+        // If the path contains an anchor we don't care about it here
+        String mainPath = path.substring(0, path.indexOf("#") > 0 ? path.indexOf("#") : (path.length()));
 
-        // If path contains /wiki/, extract substring from there
-        // for instance: /wiki/horseshoe_crab -> horseshoe_crab
-        startIdx = path.indexOf("/wiki/") ;
-        startIdx = (startIdx >= 0) ? (startIdx + "/wiki/".length()) : startIdx;
-        if ((startIdx >= 0) && (startIdx < endIdx))
-            return path.substring(startIdx, endIdx);
+        String found = getTitleAfter(mainPath, "/api/rest_v1/page/mobile-sections-lead/");
+        if(found.length() > 0) {
+            return found;
+        }
 
-        // If path contains /w/, extract substring from there
-        // for instance /w/horseshoe_crab -> horseshoe_crab
-        startIdx = path.indexOf("/w/");
-        startIdx = (startIdx >= 0) ? (startIdx + "/w/".length()) : startIdx;
-        if ((startIdx >= 0) && (startIdx < endIdx))
-            return path.substring(startIdx, endIdx);
+        found = getTitleAfter(mainPath, "/api/rest_v1/page/mobile-sections/");
+        if(found.length() > 0) {
+            return found;
+        }
+
+        found = getTitleAfter(mainPath, "/wiki/");
+        if(found.length() > 0) {
+            return found;
+        }
+
+        found = getTitleAfter(mainPath, "/w/");
+        if(found.length() > 0) {
+            return found;
+        }
 
         // Else assume we are in /language_variant/Page_title case
         // for instance /zh-hant/Wikipedia:首页
         // Find second "/" in path as substring beginning
-        startIdx = path.indexOf("/", path.indexOf("/") + 1);
-        startIdx = (startIdx >= 0) ? (startIdx + 1) : startIdx;
-        if ((startIdx > 0) && (startIdx < endIdx))
-            return path.substring(startIdx, endIdx);
+        int startIdx = mainPath.indexOf("/", mainPath.indexOf("/") + 1);
+        if (startIdx > 0) {
+            return mainPath.substring(startIdx + 1);
+        }
 
-        //Case not covered, return unknown value
+        // Case not covered, return unknown value
         return PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
     }
 
@@ -401,12 +428,13 @@ public class PageviewDefinition {
 
         // General case of page title in path
         boolean pathWiki = ((normPath.contains("/wiki/") && (! normPath.contains("index.")))
-                || normPath.contains("/w/index.php/")|| normPath.startsWith("/api/rest_v1/page/mobile-sections-lead/"));
-
+                || normPath.contains("/w/index.php/")
+                || normPath.startsWith("/api/rest_v1/page/mobile-sections-lead/")
+                || normPath.startsWith("/api/rest_v1/page/mobile-sections/")
+        );
 
         String titleQueryParam = null;
         String pageQueryParam = null;
-
 
         // Extract first instance of title and page query parameters
         // Done manually to decode using our own percent decoder
