@@ -1,3 +1,7 @@
+## v0.0.119
+* Count pageviews to wikimania.wikimedia.org
+* Detect pageviews as requested by KaiOS
+
 ## v0.0.118
 * Fix wikidata article-placeholder job
 
