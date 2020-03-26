@@ -24,7 +24,7 @@
   <scm>
     <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
     <connection>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</connection>
-    <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
+    <developerConnection>${developerConnection}</developerConnection>
     <tag>HEAD</tag>
   </scm>
 
@@ -338,6 +338,7 @@
     </reporting>
 
     <properties>
+      <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
       <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
       <skip.tests>false</skip.tests>
       <java.version>1.8</java.version>
