@@ -44,29 +44,29 @@ object RefineFailuresChecker extends LogHelper with ConfigHelper {
                   |/path/to/raw/data/{myprefix_dataSetOne,myprefix_dataSetTwo}, etc.
                   |Each of these subdirectories will be searched for refine target
                   |partitions.""",
-            "output_path" ->
-                """Base path of output data and of external Hive tables.  Completed refine targets
-                  |are expected to be found here in subdirectories based on extracted table names.""",
-            "database" ->
-                s"Hive database name in which to manage refined Hive tables.  Default: ${default.database}",
-            "since" ->
-                s"""Look for refine targets since this date time.  This may either be given as an integer
-                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.since}""",
-            "until" ->
-                s"""Look for refine targets until this date time.  This may either be given as an integer
-                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.until}""",
             "input_path_regex" ->
                 s"""This should match the input partition directory hierarchy starting from the
                    |dataset base path, and should capture the table name and the partition values.
                    |Along with input-capture, this allows arbitrary extraction of table names and and
                    |partitions from the input path.  You are required to capture at least "table"
                    |using this regex.  The default will match an hourly bucketed Camus import hierarchy,
-                   |using the topic name as the table name.  Default: ${default.input_path_regex}""",
+                   |using the topic name as the table name.""",
             "input_path_regex_capture_groups" ->
                 s"""This should be a comma separated list of named capture groups
                    |corresponding to the groups captured byt input-regex.  These need to be
                    |provided in the order that the groups are captured.  This ordering will
-                   |also be used for partitioning.  Default: ${default.input_path_regex_capture_groups.mkString(",")}""",
+                   |also be used for partitioning.""",
+            "output_path" ->
+                """Base path of output data and of external Hive tables.  Completed refine targets
+                  |are expected to be found here in subdirectories based on extracted table names.""",
+            "database" ->
+                s"Hive database name in which to manage refined Hive tables.",
+            "since" ->
+                s"""Look for refine targets since this date time.  This may either be given as an integer
+                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.since}""",
+            "until" ->
+                s"""Look for refine targets until this date time.  This may either be given as an integer
+                   |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.until}""",
             "input_path_datetime_format" ->
                 s"""This DateTimeFormat will be used to generate all possible partitions since
                    |the given lookback-hours in each dataset directory.  This format will be used
