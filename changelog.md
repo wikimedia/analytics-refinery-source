@@ -1,3 +1,12 @@
+## v0.0.121
+* Add ActorSignatureGenerator and GetActorSignatureUDF
+* Add documentation to maven developerConnection parameter
+* Add RefineFailuresChecker in refinery-spark and fix documentation
+* Support multiple possible schema base URIs in EventSchemaLoader
+
+## v0.0.120
+* Add maven developerConnection parameter to allow CLI override
+
 ## v0.0.119
 * Count pageviews to wikimania.wikimedia.org
 * Detect pageviews as requested by KaiOS
