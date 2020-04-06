@@ -734,6 +734,20 @@ object HiveExtensions extends LogHelper {
         def hasColumn(columnName: String): Boolean = {
             Try(df(columnName)).isSuccess
         }
+
+        def findColumnNames(columnNames: Seq[String]): Seq[String] = {
+            columnNames.flatMap(c => {
+                Try({
+                    df(c)
+                    c
+                }).toOption
+            })
+        }
+
+        def findColumns(columnNames: Seq[String]): Seq[Column] = {
+            columnNames.flatMap(c => Try(df(c)).toOption)
+        }
+
     }
 
 }

@@ -2,9 +2,9 @@ package org.wikimedia.analytics.refinery.spark.sql
 
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-
 import org.wikimedia.analytics.refinery.core.HivePartition
 
+import scala.collection.immutable.ListMap
 import scala.util.control.Exception._
 
 /**
@@ -44,4 +44,32 @@ case class PartitionedDataFrame(df: DataFrame, partition: HivePartition) {
       })
     }
 
+}
+
+object PartitionedDataFrame {
+    /**
+      * Helper constructor to get a PartitionedDataFrame without
+      * manually constructing HivePartition first.
+      *
+      * @param df
+      * @param database
+      * @param table
+      * @param location
+      * @param partitions
+      * @return
+      */
+    def apply(
+        df: DataFrame,
+        database: String,
+        table: String,
+        location: String,
+        partitions: ListMap[String, String]
+    ): PartitionedDataFrame = {
+        new PartitionedDataFrame(
+            df,
+            new HivePartition(
+                database, table, location, partitions.map( { case (k, v) => (k,Some(v)) })
+            )
+        )
+    }
 }

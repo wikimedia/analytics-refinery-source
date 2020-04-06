@@ -169,6 +169,9 @@ object DataFrameToHive extends LogHelper {
             outputDf.df.write.mode("overwrite").parquet(outputDf.partition.path)
         }
 
+        // First drop a previously existing partition in case the
+        // partition's schema in the Hive metastore has changed.
+        spark.sql(outputDf.partition.dropPartitionQL)
         spark.sql(outputDf.partition.addPartitionQL)
 
         if (outputDf.partition.isDynamic) {

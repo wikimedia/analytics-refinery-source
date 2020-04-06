@@ -501,10 +501,7 @@ object Refine extends LogHelper with ConfigHelper {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val partDf = new PartitionedDataFrame(
-                    target.inputDataFrame(dataFrameReaderOptions),
-                    target.partition
-                )
+                val partDf = target.inputPartitionedDataFrame(dataFrameReaderOptions)
                 val insertedDf = DataFrameToHive(
                     spark,
                     partDf,

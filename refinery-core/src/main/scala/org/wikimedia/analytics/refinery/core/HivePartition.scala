@@ -90,6 +90,10 @@ case class HivePartition(
             s"ALTER TABLE $tableName ADD IF NOT EXISTS PARTITION ($hiveQL) LOCATION '$path'"
     }
 
+    val dropPartitionQL: String = {
+        s"ALTER TABLE $tableName DROP IF EXISTS PARTITION ($hiveQL)"
+    }
+
     /**
       * Get a partition value by key
       * @param key partition key

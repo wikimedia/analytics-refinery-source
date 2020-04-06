@@ -10,6 +10,7 @@ import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 import scala.util.control.Exception.allCatch
 import scala.util.matching.Regex
@@ -458,6 +459,21 @@ case class RefineTarget(
             }
         }
     }
+
+    /**
+      * Helper wrapper around inputDataFrame that returns a PartitionedDataFrame
+      * with inputDataFrame and its HivePartition.
+      *
+      * @param dfReaderOptions Map[String, String] Extra Spark DataFrameReader options to use
+      * @return
+      */
+    def inputPartitionedDataFrame(dfReaderOptions: Map[String, String] = Map()): PartitionedDataFrame = {
+        new PartitionedDataFrame(
+            inputDataFrame(dfReaderOptions),
+            partition
+        )
+    }
+
 
     /**
       * Gets the first line as a String out of the inputPath without converting to a DataFrame.

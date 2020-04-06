@@ -24,6 +24,12 @@
             <artifactId>refinery-spark</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.wikimedia.analytics.refinery.hive</groupId>
+            <artifactId>refinery-hive</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!--
              adding explicit dep for snappy and netty otherwise
              spark assumes is on the java.library.path
