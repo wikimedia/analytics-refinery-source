@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports.{DateTime, _}
-import java.io.{BufferedReader, InputStreamReader}
+import java.io.{BufferedReader, EOFException, InputStreamReader}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.types.StructType
@@ -159,13 +159,19 @@ case class RefineTarget(
 
 
     /**
+      * Reads a Long timestamp out of path and returns a new Option[DateTime].
+      * If the file is empty (issue when writing), return None.
       *
-      * @param path reads a Long timestamp out of path and returns a new DateTime
-      * @return DateTime
+      * @param path File path to read the DateTime from
+      * @return Option[DateTime]
       */
-    private def readMTimeFromFile(path: Path): DateTime = {
+    private def readMTimeFromFile(path: Path): Option[DateTime] = {
         val inStream = fs.open(path)
-        val mtime = new DateTime(inStream.readUTF())
+        val mtime = try {
+            Some(new DateTime(inStream.readUTF()))
+        } catch {
+            case e: EOFException => None
+        }
         inStream.close()
         mtime
     }
@@ -219,11 +225,13 @@ case class RefineTarget(
 
     /**
       * Reads the Long timestamp as a DateTime out of the doneFlag
+      * If the done flag does not exist or the timestamp can not be read,
+      * return None.
       * @return
       */
     def doneFlagMTime(): Option[DateTime] = {
         if (doneFlagExists())
-            Some(readMTimeFromFile(doneFlagPath))
+            readMTimeFromFile(doneFlagPath)
         else
             None
     }
@@ -231,11 +239,13 @@ case class RefineTarget(
 
     /**
       * Reads the Long timestamp as a DateTime out of the failureFlag
+      * If the failure flag does not exist or the timestamp can not be read,
+      * return None.
       * @return
       */
     def failureFlagMTime(): Option[DateTime] = {
         if (failureFlagExists())
-            Some(readMTimeFromFile(failureFlagPath))
+            readMTimeFromFile(failureFlagPath)
         else
             None
     }
