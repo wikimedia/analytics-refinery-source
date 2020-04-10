@@ -120,6 +120,13 @@ import scopt.OptionParser
 // and the main method for executing from the command line.
 object RSVDAnomalyDetection {
 
+    // Minimum timeseries length.
+    // For the RSVD anomaly detection algorithm to work, it needs a minimum
+    // amount of data, otherwise it might return inaccurate results or crash.
+    // Timeseries shorter than this length, are going to be ignored.
+    // The length is expressed as a number of seasonality cycles.
+    val MinTimeseriesCycles = 5
+
     // Constants for BlockMatrix partitioning.
     val MatrixBlockSize = 100
     val MatrixPartitionWidth = 10
@@ -226,10 +233,13 @@ class RSVDAnomalyDetection(spark: SparkSession) {
         val metrics = getInputMetrics(params)
         val outputText = metrics.foldLeft("") { case (text, metric) =>
             val inputTimeSeries = readTimeSeries(params, metric)
-            val noiseTimeSeries = decomposeTimeSeries(inputTimeSeries, params).noise
-            val deviation = getLastDataPointDeviation(noiseTimeSeries)
-            if (abs(deviation) > params.deviationThreshold) {
-                text + s"${metric},${deviation}\n"
+            // Compute only timeseries with enough data points.
+            if (inputTimeSeries.size >= params.seasonalityCycle * RSVDAnomalyDetection.MinTimeseriesCycles) {
+                val noiseTimeSeries = decomposeTimeSeries(inputTimeSeries, params).noise
+                val deviation = getLastDataPointDeviation(noiseTimeSeries)
+                if (abs(deviation) > params.deviationThreshold) {
+                    text + s"${metric},${deviation}\n"
+                } else text
             } else text
         }
 
