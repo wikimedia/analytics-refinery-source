@@ -18,6 +18,7 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -27,10 +28,8 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader;
-import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,15 +38,19 @@ import java.util.Map;
 /**
  * A Hive UDF to lookup location fields from IP addresses.
  * <p>
- * Hive Usage:
+ * Hive/Spark SQL Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
  *   CREATE TEMPORARY FUNCTION get_geo_data as 'org.wikimedia.analytics.refinery.hive.GetGeoDataUDF';
  *   SELECT get_geo_data(ip)['country'], get_geo_data(ip)['city'] from webrequest where year = 2014 limit 10;
  *
  * The above steps assume that the required file GeoIP2-City.mmdb is available
- * in its default path /usr/share/GeoIP. If not, then add the following steps:
+ * in its default path /usr/share/GeoIP. If not, then add the following step:
  *
- *   SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
+ * Hive: SET maxmind.database.city=/path/to/GeoIP2-City.mmdb;
+ * Spark: Launch with `--conf "spark.driver.extraJavaOptions=-Dmaxmind.database.city=/path/to/GeoIP2-City.mmdb" \
+ *                     --conf "spark.executor.extraJavaOptions=-Dmaxmind.database.city=/path/to/GeoIP2-City.mmdb"
+ *
+ * Warning: The given file is to be available on all hadoop workers (except in case of local job only)!
  */
 @UDFType(deterministic = true)
 @Description(name = "get_geo_data", value = "_FUNC_(ip) - "
@@ -57,9 +60,34 @@ public class GetGeoDataUDF extends GenericUDF {
 
     Map<String, String> result;
     private ObjectInspector argumentOI;
-    private GeocodeDatabaseReader maxMindGeocode;
+    protected GeocodeDatabaseReader maxMindGeocode;
 
     static final Logger LOG = Logger.getLogger(GetGeoDataUDF.class.getName());
+
+    private void initializeReader(String configPath, String context) {
+        try {
+            maxMindGeocode = new GeocodeDatabaseReader(configPath);
+        } catch (IOException ex) {
+            LOG.error("Error initializing maxmind geocode database reader in " + context + " context", ex);
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private void initializeReader(SessionState hiveSessionState) {
+        String maxmindConfigPath = "";
+        if (hiveSessionState != null) {
+            maxmindConfigPath = hiveSessionState.getConf().get(GeocodeDatabaseReader.DEFAULT_DATABASE_CITY_PROP);
+        }
+        initializeReader(maxmindConfigPath, "global");
+    }
+
+    private void initializeReader(MapredContext context) {
+        String maxmindConfigPath = "";
+        if (context != null) {
+            maxmindConfigPath = context.getJobConf().getTrimmed(GeocodeDatabaseReader.DEFAULT_DATABASE_CITY_PROP);
+        }
+        initializeReader(maxmindConfigPath, "mapreduce");
+    }
 
     /**
      * The initialize method is called only once during the lifetime of the UDF.
@@ -77,6 +105,8 @@ public class GetGeoDataUDF extends GenericUDF {
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
             throws UDFArgumentException {
+
+        initializeReader(SessionState.get());
 
         if (arguments.length != 1) {
             throw new UDFArgumentLengthException("The GetGeoDataUDF takes an array with only 1 element as argument");
@@ -107,20 +137,15 @@ public class GetGeoDataUDF extends GenericUDF {
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector);
     }
 
+    /**
+     * This function initializes the maxmind reader in a mapreduce context and is
+     * necessary to correctly parameterize the maxmind database set in hive (if any).
+     *
+     * @param context the mapreduce context to extract the config property from
+     */
     @Override
     public void configure(MapredContext context) {
-        if (maxMindGeocode == null) {
-            try {
-                JobConf jobConf = context.getJobConf();
-                maxMindGeocode = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader(
-                    jobConf.getTrimmed("maxmind.database.city")
-                );
-            } catch (IOException ex) {
-                LOG.error(ex);
-                throw new RuntimeException(ex);
-            }
-        }
-
+        initializeReader(context);
         super.configure(context);
     }
 

@@ -17,7 +17,6 @@ package org.wikimedia.analytics.refinery.core;
 import junit.framework.TestCase;
 import org.junit.BeforeClass;
 import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader;
-import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,10 +27,8 @@ public class TestMaxMindGeocode extends TestCase {
 
     @BeforeClass
     public void setUp() throws IOException {
-        maxMindGeocode =  MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader();
+        maxMindGeocode = new GeocodeDatabaseReader();
     }
-
-
 
     public void testGeoDataLookupIPv4() {
         //IPv4 addresses taken from MaxMind's test suite

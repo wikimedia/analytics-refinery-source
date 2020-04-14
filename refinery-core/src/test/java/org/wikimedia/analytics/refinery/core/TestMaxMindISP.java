@@ -16,7 +16,6 @@ package org.wikimedia.analytics.refinery.core;
 
 import junit.framework.TestCase;
 import org.junit.BeforeClass;
-import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 import org.wikimedia.analytics.refinery.core.maxmind.ISPDatabaseReader;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ public class TestMaxMindISP extends TestCase {
 
     @BeforeClass
     public void setUp() throws IOException {
-        maxMindISP = MaxmindDatabaseReaderFactory.getInstance().getISPDatabaseReader(null);;
+        maxMindISP = new ISPDatabaseReader();
     }
 
     public void testDoISPDataLookupIPv4() {

@@ -17,7 +17,6 @@ package org.wikimedia.analytics.refinery.core;
 import junit.framework.TestCase;
 import org.junit.BeforeClass;
 import org.wikimedia.analytics.refinery.core.maxmind.CountryDatabaseReader;
-import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 import org.wikimedia.analytics.refinery.core.maxmind.RefineryCountryDatabaseResponse;
 
 import java.io.IOException;
@@ -28,8 +27,7 @@ public class TestMaxMindCountryCode extends TestCase {
 
     @BeforeClass
     public void setUp() throws IOException {
-        maxMindCountryDBReader = MaxmindDatabaseReaderFactory.getInstance().getCountryDatabaseReader();
-
+        maxMindCountryDBReader = new CountryDatabaseReader();
     }
 
     public void testGeoCountryLookup() {

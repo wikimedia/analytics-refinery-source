@@ -21,12 +21,11 @@ package org.wikimedia.analytics.refinery.job.refine
   */
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{MapType, StringType}
-import org.apache.spark.sql.{Column, AnalysisException, Row}
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory
-import org.wikimedia.analytics.refinery.core.Webrequest
-import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.apache.spark.sql.{AnalysisException, Row}
+import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader
+import org.wikimedia.analytics.refinery.core.{LogHelper, Webrequest}
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 import scala.collection.JavaConverters._
 
@@ -93,7 +92,7 @@ object geocode_ip extends LogHelper {
             // Map each of our input df to its Spark partitions
             workingDf.rdd.mapPartitions { iter =>
                 // Instantiate a Maxmind database reader for this Spark partition
-                val geocoder = MaxmindDatabaseReaderFactory.getInstance().getGeocodeDatabaseReader()
+                val geocoder = new GeocodeDatabaseReader()
                 // Map each Row in this partition to a new row that includes the geocoded IP data Map
                 iter.map { row: Row =>
                     Row.fromSeq(row.toSeq :+ geocoder.getResponse(row.getAs[String](ipColumnName)).getMap.asScala.toMap)
