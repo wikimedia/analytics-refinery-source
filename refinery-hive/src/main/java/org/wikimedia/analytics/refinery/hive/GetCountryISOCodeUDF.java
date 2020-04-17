@@ -18,6 +18,7 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -27,25 +28,27 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.JobConf;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.maxmind.CountryDatabaseReader;
-import org.wikimedia.analytics.refinery.core.maxmind.MaxmindDatabaseReaderFactory;
 
 import java.io.IOException;
 
 /**
  * A Hive UDF to lookup country codes from IP addresses.
  * <p>
- * Hive Usage:
+ * Hive/Spark SQL Usage:
  *   ADD JAR /path/to/refinery-hive.jar;
  *   CREATE TEMPORARY FUNCTION get_country_iso as 'org.wikimedia.analytics.refinery.hive.GetCountryISOCodeUDF';
  *   SELECT get_country_iso(ip) from webrequest where year = 2014 limit 10;
  *
  * The above steps assume that the required file GeoIP2-Country.mmdb is available
- * in its default path /usr/share/GeoIP. If not, then add the following steps:
+ * in its default path /usr/share/GeoIP. If not, then add the following step:
  *
- *   SET maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
+ * Hive: SET maxmind.database.country=/path/to/GeoIP2-Country.mmdb;
+ * Spark: Launch with `--conf "spark.driver.extraJavaOptions=-Dmaxmind.database.country=/path/to/GeoIP2-Country.mmdb" \
+ *                     --conf "spark.executor.extraJavaOptions=-Dmaxmind.database.country=/path/to/GeoIP2-Country.mmdb"
+ *
+ * Warning: The given file is to be available on all hadoop workers (except in case of local job only)!
  */
 @UDFType(deterministic = true)
 @Description(
@@ -60,8 +63,37 @@ public class GetCountryISOCodeUDF extends GenericUDF {
 
     static final Logger LOG = Logger.getLogger(GetCountryISOCodeUDF.class.getName());
 
+    private void initializeReader(String configPath, String context) {
+        if (maxMindCountryCode == null) {
+            try {
+                maxMindCountryCode = new CountryDatabaseReader(configPath);
+            } catch (IOException ex) {
+                LOG.error("Error initializing maxmind country database reader in " + context + " context", ex);
+                throw new RuntimeException(ex);
+            }
+        }
+    }
+
+    private void initializeReader(SessionState hiveSessionState) {
+        String maxmindConfigPath = "";
+        if (hiveSessionState != null) {
+            maxmindConfigPath = hiveSessionState.getConf().get(CountryDatabaseReader.DEFAULT_DATABASE_COUNTRY_PROP);
+        }
+        initializeReader(maxmindConfigPath, "global");
+    }
+
+    private void initializeReader(MapredContext context) {
+        String maxmindConfigPath = "";
+        if (context != null) {
+            maxmindConfigPath = context.getJobConf().getTrimmed(CountryDatabaseReader.DEFAULT_DATABASE_COUNTRY_PROP);
+        }
+        initializeReader(maxmindConfigPath, "mapreduce");
+    }
+
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
+
+        initializeReader(SessionState.get());
 
         if (arguments.length != 1) {
             throw new UDFArgumentLengthException("The GetCountryISOCodeUDF takes an array with only 1 element as argument");
@@ -89,20 +121,15 @@ public class GetCountryISOCodeUDF extends GenericUDF {
         return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
     }
 
+    /**
+     * This function initializes the maxmind reader in a mapreduce context and is
+     * necessary to correctly parameterize the maxmind database set in hive (if any).
+     *
+     * @param context the mapreduce context to extract the config property from
+     */
     @Override
     public void configure(MapredContext context) {
-        if (maxMindCountryCode == null) {
-            try {
-                JobConf jobConf = context.getJobConf();
-                maxMindCountryCode = MaxmindDatabaseReaderFactory.getInstance().getCountryDatabaseReader(
-                        jobConf.getTrimmed("maxmind.database.country")
-                );
-            } catch (IOException ex) {
-                LOG.error(ex);
-                throw new RuntimeException(ex);
-            }
-        }
-
+        initializeReader(context);
         super.configure(context);
     }
 

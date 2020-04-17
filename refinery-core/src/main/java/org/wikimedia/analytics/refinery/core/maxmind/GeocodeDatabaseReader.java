@@ -16,7 +16,6 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.record.*;
@@ -25,28 +24,56 @@ import org.wikimedia.analytics.refinery.core.IpUtil;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.List;
 
 /**
  * Contains a function finding geo information of an IP address using MaxMind's GeoIP2-City
  */
-public class GeocodeDatabaseReader {
+public class GeocodeDatabaseReader extends AbstractDatabaseReader {
 
-    static final Logger LOG = Logger.getLogger(GeocodeDatabaseReader.class.getName());
+    public static final String DEFAULT_DATABASE_CITY_PATH = "/usr/share/GeoIP/GeoIP2-City.mmdb";
+    public static final String DEFAULT_DATABASE_CITY_PROP = "maxmind.database.city";
 
-    private DatabaseReader reader;
+    private static final Logger LOG = Logger.getLogger(GeocodeDatabaseReader.class.getName());
 
-    private final IpUtil ipUtil = new IpUtil();
+    private final static IpUtil ipUtil = new IpUtil();
 
-    public GeocodeDatabaseReader(DatabaseReader reader) throws IOException{
-        this.reader = reader;
+    public GeocodeDatabaseReader(String databasePath) throws IOException {
+        this.databasePath = databasePath;
+        initializeReader();
+    }
+
+    public GeocodeDatabaseReader() throws IOException {
+        this(null);
     }
 
     /**
-     * Given an IP return geocoded associated info with sensible defaults
-     * @param ip
-     * @return
+     * Method returning the default CITY database path property name (needed by superclass)
+     * @return the default CITY database path property name
+     */
+    public String getDefaultDatabasePathPropertyName() {
+        return DEFAULT_DATABASE_CITY_PROP;
+    }
+
+    /**
+     * Method returning the default CITY database path (needed by superclass)
+     * @return the default CITY database path
+     */
+    public String getDefaultDatabasePath() {
+        return DEFAULT_DATABASE_CITY_PATH;
+    }
+
+    /**
+     * Mean to provide the superclass access to the logger
+     */
+    protected Logger getLogger() {
+        return LOG;
+    }
+
+    /**
+     * Perform the geocoding
+     * @param ip the IP to geocode
+     * @return the Geocode response object
      */
     public RefineryGeocodeDatabaseResponse getResponse(final String ip) {
 
@@ -65,9 +92,7 @@ public class GeocodeDatabaseReader {
             ipAddress = InetAddress.getByName(ip);
             cityResponse = reader.city(ipAddress);
 
-        } catch (UnknownHostException ex) {
-            LOG.warn(ex);
-        } catch (IOException |GeoIp2Exception ex ) {
+        } catch (IOException | GeoIp2Exception ex) {
             LOG.warn(ex);
         }
 

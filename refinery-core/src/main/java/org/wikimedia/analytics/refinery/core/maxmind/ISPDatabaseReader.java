@@ -16,7 +16,6 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.IspResponse;
 import org.apache.log4j.Logger;
@@ -29,22 +28,51 @@ import java.net.UnknownHostException;
 /**
  * Contains functions to find ISP information of an IP address using MaxMind's GeoIP2-ISP
  */
-public class ISPDatabaseReader {
+public class ISPDatabaseReader extends AbstractDatabaseReader {
 
-    static final Logger LOG = Logger.getLogger(ISPDatabaseReader.class.getName());
+    public static final String DEFAULT_DATABASE_ISP_PATH = "/usr/share/GeoIP/GeoIP2-ISP.mmdb";
+    public static final String DEFAULT_DATABASE_ISP_PROP = "maxmind.database.isp";
 
-    private DatabaseReader reader;
+    private static final Logger LOG = Logger.getLogger(ISPDatabaseReader.class.getName());
 
     private final IpUtil ipUtil = new IpUtil();
 
-    public ISPDatabaseReader(DatabaseReader reader) throws IOException{
-        this.reader = reader;
+    public ISPDatabaseReader(String databasePath) throws IOException {
+        this.databasePath = databasePath;
+        initializeReader();
+    }
+
+    public ISPDatabaseReader() throws IOException {
+        this(null);
     }
 
     /**
-     * Given an IP return ISP associated info with sensible defaults
-     * @param ip
-     * @return
+     * Method returning the default ISP database path property name (needed by superclass)
+     * @return the default ISP database path property name
+     */
+    public String getDefaultDatabasePathPropertyName() {
+        return DEFAULT_DATABASE_ISP_PROP;
+    }
+
+    /**
+     * Method returning the default ISP database path (needed by superclass)
+     * @return the default ISP database path
+     */
+    public String getDefaultDatabasePath() {
+        return DEFAULT_DATABASE_ISP_PATH;
+    }
+
+    /**
+     * Mean to provide the superclass access to the logger
+     */
+    protected Logger getLogger() {
+        return LOG;
+    }
+
+     /**
+     * Perform the geocoding
+     * @param ip the IP to geocode
+     * @return the Geocode response object
      */
     public RefineryISPDatabaseResponse getResponse(final String ip) {
 
