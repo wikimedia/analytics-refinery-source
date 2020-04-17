@@ -93,10 +93,12 @@ public class PageviewDefinition {
     /**
      * Simple regex to reject illegal title characters.
      *
+     * Note that this regex essentially rejects the inverse of $wgLegalTitleChars.
      * Must be kept in sync with $wgLegalTitleChars.
+     * See: https://www.mediawiki.org/wiki/Manual:$wgLegalTitleChars , https://phabricator.wikimedia.org/T245468
      */
     private final Pattern titleValidPattern = Pattern.compile(
-        "^[ %!\"$&'()*,\\-./0-9:;=?@A-Z\\\\^_`a-z~\\x80-\\xFF\\u0080-\\uffff+]+$"
+        "^[^#<>\\[\\]{}\\|\\x00-\\x1F\\x7F]+$"
     );
     /**
      * Maximum possible title length in bytes.
