@@ -1,3 +1,10 @@
+## v0.0.122
+* Update hive geocoded-data udf
+* Allow pageview titles that include Unicode character values above 0xFFFF like emoji
+* Make RSVDAnomalyDetection ignore too short timeseries
+* Add check for corrupted (empty) flag files
+* Add MeetingRoomApp to the bot regex
+
 ## v0.0.121
 * Add ActorSignatureGenerator and GetActorSignatureUDF
 * Add documentation to maven developerConnection parameter
