@@ -1,13 +1,14 @@
 package org.wikimedia.analytics.refinery.job.dataquality
 
-import com.criteo.rsvd._
 import java.lang.Math.{abs, ceil, max, min}
+
+import com.criteo.rsvd._
 import org.apache.commons.math3.stat.descriptive.rank.Percentile
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.mllib.linalg.distributed.MatrixEntry
-import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.SparkConf
-import org.joda.time.DateTime
+import org.apache.spark.mllib.linalg.distributed.MatrixEntry
+import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.core.LogHelper
 import scopt.OptionParser
 
 /**
@@ -120,13 +121,6 @@ import scopt.OptionParser
 // and the main method for executing from the command line.
 object RSVDAnomalyDetection {
 
-    // Minimum timeseries length.
-    // For the RSVD anomaly detection algorithm to work, it needs a minimum
-    // amount of data, otherwise it might return inaccurate results or crash.
-    // Timeseries shorter than this length, are going to be ignored.
-    // The length is expressed as a number of seasonality cycles.
-    val MinTimeseriesCycles = 5
-
     // Constants for BlockMatrix partitioning.
     val MatrixBlockSize = 100
     val MatrixPartitionWidth = 10
@@ -223,7 +217,7 @@ object RSVDAnomalyDetection {
 
 // The class contains the functionality of the job and holds the state of the
 // spark session that can be reused across functions.
-class RSVDAnomalyDetection(spark: SparkSession) {
+class RSVDAnomalyDetection(spark: SparkSession) extends LogHelper {
 
     import spark.implicits._
 
@@ -231,14 +225,21 @@ class RSVDAnomalyDetection(spark: SparkSession) {
     def run(params: RSVDAnomalyDetection.Params): Unit = {
 
         val metrics = getInputMetrics(params)
+        log.info(s"Read ${metrics.length} metrics to analyze")
         val outputText = metrics.foldLeft("") { case (text, metric) =>
             val inputTimeSeries = readTimeSeries(params, metric)
+            log.info(s"Read timeseries of length ${inputTimeSeries.length} for metric = $metric")
+
             // Compute only timeseries with enough data points.
-            if (inputTimeSeries.size >= params.seasonalityCycle * RSVDAnomalyDetection.MinTimeseriesCycles) {
+            // For the RSVD anomaly detection algorithm to work, it needs a minimum
+            // amount of data for matrices multiplication.
+            if (inputTimeSeries.length >= params.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)) {
                 val noiseTimeSeries = decomposeTimeSeries(inputTimeSeries, params).noise
+                log.info(s"Extracted noise-timeseries of length ${noiseTimeSeries.length} for metric = $metric")
                 val deviation = getLastDataPointDeviation(noiseTimeSeries)
+                log.info(s"Computed Last-datapoint-deviation of $deviation for metric = $metric")
                 if (abs(deviation) > params.deviationThreshold) {
-                    text + s"${metric},${deviation}\n"
+                    text + s"$metric,$deviation\n"
                 } else text
             } else text
         }
@@ -264,7 +265,8 @@ class RSVDAnomalyDetection(spark: SparkSession) {
                 granularity = '${params.granularity}'
         """)
 
-        df.map(_.getString(0)).collect.toArray
+        df.map(_.getString(0)).collect
+
     }
 
     /**
@@ -283,19 +285,20 @@ class RSVDAnomalyDetection(spark: SparkSession) {
                 source_table = '${params.sourceTable}' AND
                 query_name = '${params.queryName}' AND
                 granularity = '${params.granularity}' AND
-                metric = '${metric}' AND
+                metric = '$metric' AND
                 dt <= '${params.lastDataPointDt}'
             ORDER BY dt
             LIMIT 1000000
         """)
 
-        val timeSeries = df.map(_.getDouble(0)).collect.toArray
+        val timeSeries = df.map(_.getDouble(0)).collect
 
         // The input for the BlockMatrix needs to be rectangular, so the
         // time series length needs to be a multiple of the matrixHeight,
         // which is indicated by the seasonality cycle. The following lines
         // crop the oldest values of the time series to fit the matrix.
-        val adjustedSize = timeSeries.size - (timeSeries.size % params.seasonalityCycle)
+        val adjustedSize = timeSeries.length - (timeSeries.length % params.seasonalityCycle)
+
         timeSeries.takeRight(adjustedSize)
     }
 
@@ -323,13 +326,14 @@ class RSVDAnomalyDetection(spark: SparkSession) {
 
         // The time series needs to be transformed into a matrix for RSVD to work.
         val matrix = timeSeriesToBlockMatrix(timeSeries, params.seasonalityCycle, config)
+
         val rsvdResults = RSVD.run(matrix, config, spark.sparkContext)
         // RSVD results need to be transformed into signal and noise time series.
         val signalTimeSeries = getSignalFromRsvdResults(rsvdResults, config)
         val noiseTimeSeries = timeSeries.zip(signalTimeSeries).map{
             // TODO: Consider using a corrected noise for negative values:
             //   -(signal / value - 1) * signal
-            case (value, signal) => (value - signal)
+            case (value, signal) => value - signal
         }
 
         RSVDAnomalyDetection.TimeSeriesDecomposition(
@@ -376,7 +380,7 @@ class RSVDAnomalyDetection(spark: SparkSession) {
         BlockMatrix.fromMatrixEntries(
             spark.sparkContext.parallelize(matrixEntries),
             matHeight = matrixHeight,
-            matWidth = ceil(timeSeries.size.toDouble / matrixHeight).toInt,
+            matWidth = ceil(timeSeries.length.toDouble / matrixHeight).toInt,
             config.blockSize,
             config.partitionHeightInBlocks,
             config.partitionWidthInBlocks
