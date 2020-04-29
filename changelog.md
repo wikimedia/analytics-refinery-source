@@ -1,5 +1,6 @@
 ## v0.0.123
 * Unify Refine transform functions and add user agent parser transform
+* RefineTarget.shouldRefine now condiders both table whitelist and blacklist
 
 ## v0.0.122
 * Update hive geocoded-data udf

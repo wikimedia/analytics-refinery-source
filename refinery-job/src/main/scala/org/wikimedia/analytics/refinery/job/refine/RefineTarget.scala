@@ -300,6 +300,9 @@ case class RefineTarget(
       * this returns true if the RefineTarget should be refined, based on regex matching and
       * on output existence and doneFlag content.
       *
+      * Both tableWhitelistRegex and tableBlacklistRegex are applied if given.
+      * If a table matches both regexes, it will blacklisted.
+      *
       * @param tableWhitelistRegex Option[Regex]
       * @param tableBlacklistRegex Option[Regex]
       * @param ignoreFailureFlag
@@ -322,8 +325,9 @@ case class RefineTarget(
             )
             return false
         }
+
         // Filter out targets that will refine to tables that match the blacklist
-        else if (tableBlacklistRegex.isDefined &&
+        if (tableBlacklistRegex.isDefined &&
             RefineTarget.regexMatches(partition.table, tableBlacklistRegex.get)
         ) {
             log.debug(
