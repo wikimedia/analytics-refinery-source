@@ -1,6 +1,7 @@
 ## v0.0.123
+* Fix RSVDAnomalyDetection using parameters for data-length validation 
 * Unify Refine transform functions and add user agent parser transform
-* RefineTarget.shouldRefine now condiders both table whitelist and blacklist
+* RefineTarget.shouldRefine now considers both table whitelist and blacklist
 
 ## v0.0.122
 * Update hive geocoded-data udf
