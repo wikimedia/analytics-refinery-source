@@ -123,7 +123,7 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
 
         // Read whitelist from yaml file.
         val whitelistStream = fs.open(new Path(whitelist_path))
-        val javaObject = new Yaml().load(whitelistStream)
+        val javaObject = new Yaml().load[Object](whitelistStream)
         val whitelist = EventLoggingSanitization.validateWhitelist(javaObject)
 
         // Get a Regex with all tables that are whitelisted.
