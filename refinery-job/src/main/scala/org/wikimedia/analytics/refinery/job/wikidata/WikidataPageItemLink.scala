@@ -37,6 +37,7 @@ object WikidataPageItemLink {
         wikidataEntityTable: String = "wmf.wikidata_entity",
         mwProjectNamespaceMapTable: String = "wmf_raw.mediawiki_project_namespace_map",
         mwPageHistoryTable: String = "wmf.mediawiki_page_history",
+        eventPageMoveTable: String = "event.mediawiki_page_move",
         numWorkPartitions: Int = 512,
         numOutputPartitions: Int = 64,
         wikidataSnapshot: String = "",
@@ -59,6 +60,10 @@ object WikidataPageItemLink {
         opt[String]('p', "page-history-table") optional() valueName ("<page_history_table>") action { (x, p) =>
             p.copy(mwPageHistoryTable = x)
         } text ("The page-history table to query. Defaults to wmf.mediawiki_page_history")
+
+        opt[String]('m', "page-move-table") optional() valueName ("<page_move_table>") action { (x, p) =>
+            p.copy(eventPageMoveTable = x)
+        } text ("Table containing page move events. Defaults to event.mediawiki_page_move")
 
         opt[Int]('k', "num-work-partitions") optional() action { (x, p) =>
             p.copy(numWorkPartitions = x)
@@ -94,7 +99,7 @@ object WikidataPageItemLink {
                 val sql = s"""
 WITH
 
-current_page_titles AS (
+snapshot_page_titles AS (
 
   SELECT DISTINCT
     wiki_db,
@@ -114,6 +119,45 @@ current_page_titles AS (
       source_log_id DESC,   -- Use biggest source_log_id. If same source_log_id
       caused_by_event_type  -- then use create instead of delete.
   )
+),
+
+event_page_titles AS (
+  SELECT DISTINCT
+    `database` AS wiki_db,
+    page_id,
+    first_value(page_title) OVER w AS page_title,
+    first_value(page_namespace) OVER w AS page_namespace
+  FROM ${params.eventPageMoveTable}
+  WHERE page_id IS NOT NULL AND page_id > 0
+    AND page_title IS NOT NULL and LENGTH(page_title) > 0
+    AND concat(year, '-', LPAD(month, 2, '0'), '-', LPAD(day, 2, '0'))
+        between
+            -- Since history snapshot includes that month we start looking 1 month later
+            TO_DATE(concat('${params.historySnapshot}', '-01')) + INTERVAL 1 MONTH
+            and
+            -- wikidata snapshot includes that week, so look 1 week later
+            TO_DATE('${params.wikidataSnapshot}') + INTERVAL 7 DAYS
+
+  WINDOW w AS (
+    PARTITION BY
+      `database`,
+      page_id
+    ORDER BY
+      meta.dt DESC
+  )
+),
+
+current_page_titles AS (
+  SELECT s.wiki_db,
+    s.page_id,
+    coalesce(u.page_title, s.page_title) as page_title,
+    coalesce(u.page_namespace, s.page_namespace) as page_namespace
+  FROM snapshot_page_titles s
+    LEFT JOIN event_page_titles u
+      ON (
+        s.wiki_db = u.wiki_db
+        AND s.page_id = u.page_id
+      )
 ),
 
 localized_namespace_titles AS (
