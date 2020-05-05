@@ -1,5 +1,8 @@
+## v0.0.124
+* Fix snakeyaml upgrade issue in EL sanitization
+
 ## v0.0.123
-* Fix RSVDAnomalyDetection using parameters for data-length validation 
+* Fix RSVDAnomalyDetection using parameters for data-length validation
 * Unify Refine transform functions and add user agent parser transform
 * RefineTarget.shouldRefine now considers both table whitelist and blacklist
 
