@@ -8,6 +8,8 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkConf
 import org.apache.spark.mllib.linalg.distributed.MatrixEntry
 import org.apache.spark.sql.SparkSession
+import org.joda.time.{DateTime, Days, Hours, Months}
+import org.joda.time.format.DateTimeFormat
 import org.wikimedia.analytics.refinery.core.LogHelper
 import scopt.OptionParser
 
@@ -31,6 +33,19 @@ import scopt.OptionParser
  * subject to anomaly detection analysis. All data being older than that
  * will be used as reference data. All data being more recent than that
  * will be ignored.
+ *
+ * == Default filler parameter ==
+ * Some time series might contain gaps (missing data points). But the RSVD
+ * algorithm depends highly on the seasonality of the data, and therefore it is
+ * preferrable to fill in all gaps before analyzing the time series. The
+ * parameter default-filler is the value that will be used to fill in those
+ * missing data points.
+ *
+ * == Max sparsity parameter ==
+ * Sparse time series (time series containing lots of default values) are
+ * difficult to analyze and are more prone to false positives. The parameter
+ * max-sparsity indicates the sparsity threshold above which time series will
+ * be ignored.
  *
  * == Seasonality parameter ==
  * The parameter seasonality-cycle should indicate the strongest seasonality
@@ -132,6 +147,9 @@ object RSVDAnomalyDetection {
     // (division by zero). This constant defines a cap for this value.
     val MaxNormalizedDeviation = 100.0
 
+    // For timestamp formatting.
+    val DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+
     // Helper types.
     case class TimeSeriesDecomposition(
         signal: Array[Double],
@@ -147,6 +165,8 @@ object RSVDAnomalyDetection {
         lastDataPointDt: String = "",
         seasonalityCycle: Int = 1,
         outputPath: String = "",
+        defaultFiller: Double = 0.0,
+        maxSparsity: Double = 0.2,
         rsvdDimensions: Int = 1,
         rsvdOversample: Int = 5,
         rsvdIterations: Int = 3,
@@ -185,6 +205,14 @@ object RSVDAnomalyDetection {
             p.copy(outputPath = x)
         } text ("HDFS path where to write the output in case there are anomalies.")
 
+        opt[Double]("default-filler") optional() valueName ("<double>") action { (x, p) =>
+            p.copy(defaultFiller = x)
+        } text ("Value that will be used to fill in gaps in time series. Default: 0.0.")
+
+        opt[Double]("max-sparsity") optional() valueName ("<double>") action { (x, p) =>
+            p.copy(maxSparsity = x)
+        } text ("Time series with higher sparsity than this threshold will be ignored. Default: 0.2.")
+
         opt[Int]("rsvd-dimensions") optional() valueName ("<integer>") action { (x, p) =>
             p.copy(rsvdDimensions = x)
         } text ("Number of dimensions (singular values) to use for the RSVD algorithm. Default: 1.")
@@ -211,30 +239,31 @@ object RSVDAnomalyDetection {
         val conf = new SparkConf().setAppName(s"RSVDAnomalyDetection")
         val spark = SparkSession.builder().config(conf).enableHiveSupport().getOrCreate()
         val params = argsParser.parse(args, Params()).getOrElse(sys.exit(1))
-        new RSVDAnomalyDetection(spark).run(params)
+        new RSVDAnomalyDetection(spark, params).run()
     }
 }
 
 // The class contains the functionality of the job and holds the state of the
 // spark session that can be reused across functions.
-class RSVDAnomalyDetection(spark: SparkSession) extends LogHelper {
+class RSVDAnomalyDetection(
+    spark: SparkSession,
+    params: RSVDAnomalyDetection.Params
+) extends LogHelper {
 
     import spark.implicits._
 
     // Main method: Analyze metrics and output anomalous ones.
-    def run(params: RSVDAnomalyDetection.Params): Unit = {
+    def run(): Unit = {
 
-        val metrics = getInputMetrics(params)
+        val metrics = getInputMetrics()
         log.info(s"Read ${metrics.length} metrics to analyze")
+
         val outputText = metrics.foldLeft("") { case (text, metric) =>
-            val inputTimeSeries = readTimeSeries(params, metric)
+            val inputTimeSeries = readTimeSeries(metric)
             log.info(s"Read timeseries of length ${inputTimeSeries.length} for metric = $metric")
 
-            // Compute only timeseries with enough data points.
-            // For the RSVD anomaly detection algorithm to work, it needs a minimum
-            // amount of data for matrices multiplication.
-            if (inputTimeSeries.length >= params.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)) {
-                val noiseTimeSeries = decomposeTimeSeries(inputTimeSeries, params).noise
+            if (timeSeriesCanBeAnalyzed(inputTimeSeries)) {
+                val noiseTimeSeries = decomposeTimeSeries(inputTimeSeries).noise
                 log.info(s"Extracted noise-timeseries of length ${noiseTimeSeries.length} for metric = $metric")
                 val deviation = getLastDataPointDeviation(noiseTimeSeries)
                 log.info(s"Computed Last-datapoint-deviation of $deviation for metric = $metric")
@@ -254,7 +283,7 @@ class RSVDAnomalyDetection(spark: SparkSession) extends LogHelper {
      * Queries the given data quality table and gets the name of all metrics
      * that belong to the metric group corresponding to the specified partition.
      */
-    def getInputMetrics(params: RSVDAnomalyDetection.Params): Array[String] = {
+    def getInputMetrics(): Array[String] = {
 
         val df = spark.sql(s"""
             SELECT DISTINCT metric
@@ -266,20 +295,18 @@ class RSVDAnomalyDetection(spark: SparkSession) extends LogHelper {
         """)
 
         df.map(_.getString(0)).collect
-
     }
 
     /**
      * Queries the given data quality table and gets the time series
      * corresponding to the indicated metric and last data point datetime.
      */
-    def readTimeSeries(
-        params: RSVDAnomalyDetection.Params,
-        metric: String
-    ): Array[Double] = {
+    def readTimeSeries(metric: String): Array[Double] = {
 
         val df = spark.sql(s"""
-            SELECT value
+            SELECT
+                dt,
+                value
             FROM ${params.qualityTable}
             WHERE
                 source_table = '${params.sourceTable}' AND
@@ -291,7 +318,8 @@ class RSVDAnomalyDetection(spark: SparkSession) extends LogHelper {
             LIMIT 1000000
         """)
 
-        val timeSeries = df.map(_.getDouble(0)).collect
+        val rawTimeSeries = df.map(r => (r.getString(0), r.getDouble(1))).collect
+        val timeSeries = fillInGaps(rawTimeSeries).map(_._2)
 
         // The input for the BlockMatrix needs to be rectangular, so the
         // time series length needs to be a multiple of the matrixHeight,
@@ -303,13 +331,72 @@ class RSVDAnomalyDetection(spark: SparkSession) extends LogHelper {
     }
 
     /**
+     * Given a time series with both timestamp and value, return a new analog
+     * time series with all potential gaps (missing data points) filled in with
+     * the given default value.
+     */
+    def fillInGaps(
+        rawTimeSeries: Array[(String, Double)]
+    ): Array[(String, Double)] = {
+
+        if (rawTimeSeries.length == 0) {
+            // If the raw time series is empty we do not fill it in, because
+            // it would be all default values, and never generate an anomaly.
+            // We return the empty array, which will be ignored.
+            rawTimeSeries
+        } else {
+            val minDt = DateTime.parse(rawTimeSeries(0)._1)
+            val maxDt = DateTime.parse(params.lastDataPointDt)
+
+            val fullDtRange = params.granularity match {
+                case "hourly" =>
+                    val rangeHours = Hours.hoursBetween(minDt, maxDt).getHours
+                    (0 to rangeHours).map(minDt.plusHours(_))
+                case "daily" =>
+                    val rangeDays = Days.daysBetween(minDt, maxDt).getDays
+                    (0 to rangeDays).map(minDt.plusDays(_))
+                case "monthly" =>
+                    val rangeMonths = Months.monthsBetween(minDt, maxDt).getMonths
+                    (0 to rangeMonths).map(minDt.plusMonths(_))
+            }
+
+            val defaultFullTimeSeries = fullDtRange.map(
+                dt => (RSVDAnomalyDetection.DateTimeFormatter.print(dt), params.defaultFiller)
+            )
+
+            // Merge the original time series on top of the default full
+            // time series, to override default values with actual values
+            // whenever available, returning a time series with no gaps.
+            (defaultFullTimeSeries.toMap ++ rawTimeSeries.toMap).toArray.sortBy(_._1)
+        }
+    }
+
+    /**
+     * Returns true if the given time series is fit to be analyzed with
+     * RSVD to detect anomalies (minimum-length and maximum-sparsity checks).
+     * Returns false otherwise.
+     */
+    def timeSeriesCanBeAnalyzed(timeSeries: Array[Double]): Boolean = {
+        // The anomaly detection algorithm needs a time series with enough
+        // data points, for the RSVD algorithm to be effective. The miminum
+        // length is defined by the height and width of the RSVD matrices.
+        val minLength = params.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)
+        if (timeSeries.length >= minLength) {
+            // Time series that are too sparse are filtered out, because they
+            // are more difficult to extract signal from, and are more prone
+            // to inaccuracies and false alarms.
+            val sparsity = timeSeries.count(_ == params.defaultFiller) / timeSeries.length.toDouble
+            sparsity <= params.maxSparsity
+        } else false
+    }
+
+    /**
      * Decomposes the given time series into two: a signal time series and
      * a noise time series. For that, it uses the randomized singular value
      * decomposition algorithm (RSVD).
      */
     def decomposeTimeSeries(
-        timeSeries: Array[Double],
-        params: RSVDAnomalyDetection.Params
+        timeSeries: Array[Double]
     ): RSVDAnomalyDetection.TimeSeriesDecomposition = {
 
         val config = RSVDConfig(
