@@ -1,3 +1,6 @@
+## v0.0.125
+* Use page move events to improve joining to wikidata entity
+
 ## v0.0.124
 * Fix snakeyaml upgrade issue in EL sanitization
 
