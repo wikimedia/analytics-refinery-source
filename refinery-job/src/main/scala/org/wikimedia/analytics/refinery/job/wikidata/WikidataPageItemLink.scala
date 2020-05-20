@@ -96,6 +96,15 @@ object WikidataPageItemLink {
 
                 spark.sql(s"SET spark.sql.shuffle.partitions=${params.numWorkPartitions}")
 
+                // Below, we join to the eventPageMoveTable to get page titles since
+                // the last history snapshot, because these change quite rapidly.  This
+                // improves the ability to link to wikidata items, but it does not make it
+                // perfect.  One problem that remains is pages that have been deleted since
+                // the history snapshot will remain and effectively duplicate links to wikidata
+                // items.  This could be remedied by joining to mediawiki_page_delete but then
+                // we'd have to also join to page_restore and it gets complicated.  Instead,
+                // we propose to wait until we have a more comprehensive incremental update
+                // of mediawiki history.
                 val sql = s"""
 WITH
 
