@@ -274,6 +274,27 @@ object HiveExtensions extends LogHelper {
         }
 
         /**
+          * Like StructType.find, but compares by name instead of StructField
+          * @param fieldNames Find fields in this struct that have these field names.
+          * @param caseInsensitive If true, field name comparison will be done case insensitive
+          * @return
+          */
+        def find(fieldNames: Seq[String], caseInsensitive: Boolean = false): Seq[StructField] = {
+            val targetNames = caseInsensitive match {
+                case true => fieldNames.map(_.toLowerCase)
+                case false => fieldNames
+            }
+
+            struct.filter(field => {
+                val fieldName = caseInsensitive match {
+                    case true => field.name.toLowerCase
+                    case false => field.name
+                }
+                targetNames.contains(fieldName)
+            })
+        }
+
+        /**
           * Recursively applies fn to each StructField in this schema and
           * replaces the field with the result of fn.
           *
@@ -747,7 +768,6 @@ object HiveExtensions extends LogHelper {
         def findColumns(columnNames: Seq[String]): Seq[Column] = {
             columnNames.flatMap(c => Try(df(c)).toOption)
         }
-
     }
 
 }

@@ -98,8 +98,6 @@ object DataFrameToHive extends LogHelper {
 
         // Add the Hive partition columns and apply any other configured transform functions,
         // and then normalize (lowercase top level fields names, widen certain types, etc.).
-        // (Note to non scala-ites: dataFrameWithHivePartitions _ instructs the compiler
-        // to implicitly convert  dataFrameWithHivePartitions from a method to a function.)
         val transformedPartDf = transformFunctions
           .foldLeft(inputPartDf.applyPartitions)((currPartDf, fn) => fn(currPartDf))
 

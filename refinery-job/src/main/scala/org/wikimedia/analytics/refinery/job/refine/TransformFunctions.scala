@@ -20,18 +20,16 @@ package org.wikimedia.analytics.refinery.job.refine
   * See the Refine --transform-functions CLI option documentation.
   */
 
-import scala.util.Random
 import scala.util.matching.Regex
-
-import org.apache.spark.sql.functions.udf
-import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.Column
+import org.apache.spark.sql.functions.{expr, udf}
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.UserDefinedFunction
-
 import org.wikimedia.analytics.refinery.core.{LogHelper, Webrequest}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive.TransformFunction
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+
+import scala.collection.immutable.ListMap
 // These aren't directly used, but are referenced in SQL UDFs.
 // Import them to get compile time errors if they aren't available.
 import org.wikimedia.analytics.refinery.hive.{GetUAPropertiesUDF, IsSpiderUDF, GetGeoDataUDF}
@@ -62,40 +60,54 @@ object event_transforms {
 
 
 /**
-  * Drop duplicate data based on either meta.id or uuid.
+  * Drop duplicate data based on meta.id and/or uuid.
   * - meta.id: Newer (Modern Event Platform) id field.
   * - uuid: Legacy EventLogging Capsule id field.
   *
+  * The combination of these columns will be the unique id used for dropping duplicates.
   * If none of these columns exist, this is a no-op.
   */
 object deduplicate extends LogHelper {
     val possibleSourceColumnNames = Seq("meta.id", "uuid")
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
-        val sourceColumns = partDf.df.findColumns(possibleSourceColumnNames)
+        val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
 
         // No-op
-        if (sourceColumns.isEmpty) {
+        if (sourceColumnNames.isEmpty) {
             log.debug(
                 s"${partDf.partition} does not contain any id columns named " +
                 s"${possibleSourceColumnNames.mkString(" or ")}, cannot deduplicate. Skipping."
             )
             partDf
         } else {
-            // Use the first column name found
-            val sourceColumn: Column = sourceColumns.head
+            log.info(s"Dropping duplicates based on ${sourceColumnNames.mkString(",")} columns in ${partDf.partition}")
 
-            // Temporarily add a top level column to the DataFrame
+            // Temporarily add top level columns to the DataFrame
             // with the same values as the sourceColumn.  This allows
             // it to be used as with functions that don't work with
-            // nested (struct or map) columns.
-            val tempColumnName = "__temp_column_for_deduplicate_" +
-                Random.alphanumeric.take(10).mkString
+            // nested (struct or map) columns (e.g. dropDuplicates).
+            // Fold over sourceColumnNames and accumulate a DataFrame with temporary
+            // column names and a Seq of the temp column names that were added.
+            var colIndex = 0
+            val (tempDf: DataFrame, tempColumnNames: Seq[String]) = sourceColumnNames.foldLeft((partDf.df, Seq.empty[String]))(
+                { case ((accDf: DataFrame, accTempNames: Seq[String]), sourceColumnName: String) =>
+                    // add a temp column for sourceColumnName
+                    val flattenedSourceColumnName = sourceColumnName.replaceAll("\\.", "_")
+                    val tempName = s"__temp__${flattenedSourceColumnName}__for_deduplicate_${colIndex}"
+                    colIndex += 1
+                    // Accumulate the df with temp column and a list of temp columns names added
+                    (
+                        accDf.withColumn(tempName, accDf(sourceColumnName)),
+                        accTempNames :+ tempName
+                    )
+            })
 
-            log.info(s"Dropping duplicates based on `$sourceColumn` column in ${partDf.partition}")
-            partDf.copy(df = partDf.df.withColumn(tempColumnName, sourceColumn)
-                .dropDuplicates(Seq(tempColumnName))
-                .drop(tempColumnName)
+            partDf.copy(df=tempDf
+                // Drop duplicate records based on tempColumnNames we added to the df.
+                .dropDuplicates(tempColumnNames)
+                // And drop the tempColumnNames from the result.
+                .drop(tempColumnNames:_*)
             )
         }
     }
@@ -121,7 +133,6 @@ object deduplicate_eventbus extends LogHelper {
     }
 }
 
-
 /**
   * Geocodes an ip address column into a new  `geocoded_data` Map[String, String] column
   * using MaxmindDatabaseReaderFactory.
@@ -131,8 +142,9 @@ object deduplicate_eventbus extends LogHelper {
   * - ip: legacy eventlogging capsule has this
   * - client_ip: client_ip: used in webrequest table, here just in case something else uses it too.
   *
-  * The first column found in the input df will be used.
-  * If none of these columns exist, this is a no-oop.
+  * In the order listed above, the first non null column value in the input DataFrame
+  * records will be used for geocoding.
+  * If none of these fields are present in the DataFrame schema, this is a no-op.
   */
 object geocode_ip extends LogHelper {
     val possibleSourceColumnNames = Seq("http.client_ip", "ip", "client_ip")
@@ -150,34 +162,33 @@ object geocode_ip extends LogHelper {
             )
             partDf
         } else {
-            // Use the first column name found
-            val sourceColumnName = sourceColumnNames.head
-
-            // If the input DataFrame already has a geocodedDataColumnName column, drop it now.
-            // We'll re-add it with newly geocoded data as the same name.
-            val workingDf = if (partDf.df.hasColumn(geocodedDataColumnName)) {
-                log.debug(
-                    s"Input DataFrame already has ${geocodedDataColumnName} column;" +
-                    s"dropping it before geocoding"
-                )
-                partDf.df.drop(geocodedDataColumnName)
-            }
-            else {
-                partDf.df
+            // If there is only one possible source column, just
+            // use it when geocoding.  Else, we need to COALESCE and use the
+            // first non null value chosen from possible source columns in each record.
+            val sourceColumnSql = sourceColumnNames match {
+                case Seq(singleColumnName) => singleColumnName
+                case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
             }
 
             log.info(
-                s"Geocoding `$sourceColumnName` into `$geocodedDataColumnName` in ${partDf.partition}"
+                s"Geocoding $sourceColumnSql into `$geocodedDataColumnName` in ${partDf.partition}"
             )
             spark.sql(
                 "CREATE OR REPLACE TEMPORARY FUNCTION get_geo_data AS " +
                 "'org.wikimedia.analytics.refinery.hive.GetGeoDataUDF'"
             )
 
-            // Return a new df with all the original fields plus geocodedDataColumnName.
-            partDf.copy(df = workingDf.selectExpr(
-                "*", s"get_geo_data($sourceColumnName) AS $geocodedDataColumnName"
-            ))
+            // Don't try to geocode records where sourceColumnSql is NULL.
+            val geocodedDataSql = s"(CASE WHEN $sourceColumnSql IS NULL THEN NULL ELSE get_geo_data($sourceColumnSql) END) AS $geocodedDataColumnName"
+
+            // Select all columns (except for any pre-existing geocodedDataColumnName) with
+            // the result of as geocodedDataSql as geocodedDataColumnName.
+            val workingDf = partDf.df
+            val columnExpressions = workingDf.columns.filter(
+                _.toLowerCase != geocodedDataColumnName.toLowerCase
+            ) :+ geocodedDataSql
+            val parsedDf = workingDf.selectExpr(columnExpressions:_*)
+            partDf.copy(df = parsedDf)
         }
     }
 }
@@ -192,13 +203,19 @@ object geocode_ip extends LogHelper {
   * The user agent string will be extracted from one of the following columns:
   * - http.request_headers['user-agent']
   *
-  * The first column found in the input df will be used.
-  * If none of these fields are present, this is a no-op.
+  * In the order listed above, the first non null column value in the input DataFrame
+  * records will be used for user agent parsing.
+  * If none of these fields are present in the DataFrame schema, this is a no-op.
   */
+
+
 object parse_user_agent extends LogHelper {
     // Only one possible source column currently, but we could add more.
     val possibleSourceColumnNames = Seq("http.request_headers.`user-agent`")
     val userAgentMapColumnName    = "user_agent_map"
+    // This camelCase userAgent case sensitive name is really a pain.
+    // df.hasColumn is case-insenstive, but accessing StructType schema fields
+    // by name is not.
     val userAgentStructLegacyColumnName = "useragent"
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
@@ -214,40 +231,38 @@ object parse_user_agent extends LogHelper {
             )
             partDf
         } else {
-            // Use the first column name found
-            val sourceColumnName = sourceColumnNames.head
-
-            // If the input DataFrame already has a userAgentMapColumnName column, drop it now.
-            // We'll re-add it with newly parsed user agent data as the same name.
-            val workingDf = if (partDf.df.hasColumn(userAgentMapColumnName)) {
-                log.debug(
-                    s"Input DataFrame in ${partDf.partition} already has `$userAgentMapColumnName` " +
-                    "column. Dropping it before parsing user agent."
-                )
-                partDf.df.drop(userAgentMapColumnName)
+            // If there is only one possible source column, just
+            // use it when parsing.  Else, we need to COALESCE and use the
+            // first non null value chosen from possible source columns in each record.
+            val sourceColumnSql = sourceColumnNames match {
+                case Seq(singleColumnName) => singleColumnName
+                case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
             }
-            else {
-                partDf.df
-            }
-
             log.info(
-                s"Parsing `$sourceColumnName` into `$userAgentMapColumnName` in ${partDf.partition}"
+                s"Parsing $sourceColumnSql into `$userAgentMapColumnName` in ${partDf.partition}"
             )
             spark.sql(
                 "CREATE OR REPLACE TEMPORARY FUNCTION get_ua_properties AS " +
                 "'org.wikimedia.analytics.refinery.hive.GetUAPropertiesUDF'"
             )
-            val parsedDf = workingDf.selectExpr(
-                "*", s"get_ua_properties($sourceColumnName) AS $userAgentMapColumnName"
-            )
+            val userAgentMapSql = s"(CASE WHEN $sourceColumnSql IS NULL THEN NULL ELSE get_ua_properties($sourceColumnSql) END) AS $userAgentMapColumnName"
 
-            // If the original DataFrame as a legacy useragent struct field, copy the map field
+            // Select all columns except for any pre-existing userAgentMapColumnName with
+            // the result of as userAgentMapSql as userAgentMapColumnName.
+            val workingDf = partDf.df
+            val columnExpressions = workingDf.columns.filter(
+                _.toLowerCase != userAgentMapColumnName.toLowerCase
+            ) :+ userAgentMapSql
+            val parsedDf = workingDf.selectExpr(columnExpressions:_*)
+
+            // If the original DataFrame has a legacy useragent struct field, copy the map field
             // entries to it for backwards compatibility.
             if (
-                partDf.df.hasColumn(userAgentStructLegacyColumnName) &&
-                partDf.df.schema(userAgentStructLegacyColumnName).dataType.isInstanceOf[StructType]
+                parsedDf.hasColumn(userAgentStructLegacyColumnName) &&
+                // (We need to find the field in the schema case insensitive)
+                parsedDf.schema.find(Seq(userAgentStructLegacyColumnName), true).head.isStructType
             ) {
-                add_legacy_eventlogging_struct(partDf.copy(df = parsedDf), sourceColumnName)
+                add_legacy_eventlogging_struct(partDf.copy(df = parsedDf), sourceColumnSql)
             }
             else {
                 partDf.copy(df = parsedDf)
@@ -263,24 +278,19 @@ object parse_user_agent extends LogHelper {
       * the useragent struct field in Hive, so we need to keep ensuring
       * that a useragent struct exists.  This function generates it from
       * the user_agent_map entries and also adds is_mediawiki and is_bot fields.
+      *
+      * If a record already has a non NULL useragent struct, it is left intact,
+      * otherwise it will be created from the values of user_agent_map.
+      *
+      * @param partDf input PartitionedDataFrame
+      * @param sourceColumnSql SQL string (or just column name) in partDf.df to get user agent string.
+      *                     This is passed to the IsSpiderUDF.
       */
     private def add_legacy_eventlogging_struct(
         partDf: PartitionedDataFrame,
-        userAgentStringColumnName: String
+        sourceColumnSql: String
     ): PartitionedDataFrame = {
         val spark = partDf.df.sparkSession
-
-        val workingDf = if (partDf.df.hasColumn(userAgentStructLegacyColumnName)) {
-            log.debug(
-                s"Input DataFrame in ${partDf.partition} already has " +
-                s"`${userAgentStructLegacyColumnName}` column. Dropping it before adding " +
-                s"legacy eventlogging struct."
-            )
-            partDf.df.drop(userAgentStructLegacyColumnName)
-        }
-        else {
-            partDf.df
-        }
 
         // IsSpiderUDF is used to calculate is_bot value.
         spark.sql(
@@ -293,41 +303,62 @@ object parse_user_agent extends LogHelper {
         // See legacy eventlogging parser code at
         // https://github.com/wikimedia/eventlogging/blob/master/eventlogging/utils.py#L436-L454
         // This is a map from struct column name to SQL that gets the value for that column.
-        val userAgentLegacyNamedStructFieldSql = Map(
+        val userAgentLegacyNamedStructFieldSql = ListMap(
             "browser_family" -> s"$userAgentMapColumnName.`browser_family`",
             "browser_major" -> s"$userAgentMapColumnName.`browser_major`",
             "browser_minor" -> s"$userAgentMapColumnName.`browser_minor`",
             "device_family" -> s"$userAgentMapColumnName.`device_family`",
-            "os_family" -> s"$userAgentMapColumnName.`os_family`",
-            "os_major" -> s"$userAgentMapColumnName.`os_major`",
-            "os_minor" -> s"$userAgentMapColumnName.`os_minor`",
-            "wmf_app_version" -> s"$userAgentMapColumnName.`wmf_app_version`",
-            // is_mediawiki is true if the user agent string contains 'mediawiki'
-            "is_mediawiki" -> s"boolean(lower($userAgentStringColumnName) LIKE '%mediawiki%')",
             // is_bot is true if device_family is Spider, or if device_family is Other and
             // the user agent string matches the spider regex defined in refinery Webrequest.java.
             "is_bot" -> s"""boolean(
-                           |$userAgentMapColumnName.`device_family` = 'Spider' OR (
-                           |    $userAgentMapColumnName.`device_family` = 'Other' AND
-                           |    is_spider($userAgentStringColumnName)
-                           |))""".stripMargin
+                           |            $userAgentMapColumnName.`device_family` = 'Spider' OR (
+                           |                $userAgentMapColumnName.`device_family` = 'Other' AND
+                           |                is_spider($sourceColumnSql)
+                           |            )
+                           |        )""".stripMargin,
+            // is_mediawiki is true if the user agent string contains 'mediawiki'
+            "is_mediawiki" -> s"boolean(lower($sourceColumnSql) LIKE '%mediawiki%')",
+            "os_family" -> s"$userAgentMapColumnName.`os_family`",
+            "os_major" -> s"$userAgentMapColumnName.`os_major`",
+            "os_minor" -> s"$userAgentMapColumnName.`os_minor`",
+            "wmf_app_version" -> s"$userAgentMapColumnName.`wmf_app_version`"
         )
+        // Convert userAgentLegacyNamedStructFieldSql to a named_struct SQL string.
+        val namedStructSql = "named_struct(\n        " + userAgentLegacyNamedStructFieldSql.map({
+            case (fieldName, sql) =>
+                s"'$fieldName', $sql"
+            }).mkString(",\n        ") + "\n    )"
 
         // Build a SQL statement using named_struct that will generate the
         // userAgentStructLegacyColumnName struct.
-        val userAgentStructSql = s"named_struct(" +
-            userAgentLegacyNamedStructFieldSql.map(
-                { case (fieldName, sql) => s"'$fieldName', $sql"}
-            ).mkString(",\n") + s") AS $userAgentStructLegacyColumnName"
+        // If userAgentStructLegacyColumnName exists and is non NULL, keep it.
+        // This handles the case where the value of sourceColumnSql might be null, but
+        // we have an (externally eventlogging-processor) parsed userAgent EventLogging field,
+        // so we don't need to and can't reparse it, since we don't have the original user agent.
+
+        // If useragent struct, keep it,
+        // Else if user_agent_map is NULL, then set useragent to NULL too.
+        // Else create useragent struct from user_agent_map
+        val userAgentStructSql =
+            s"""
+               |COALESCE(
+               |    $userAgentStructLegacyColumnName,
+               |    CASE WHEN $userAgentMapColumnName IS NULL THEN NULL ELSE $namedStructSql END
+               |) AS $userAgentStructLegacyColumnName
+               |""".stripMargin
 
         log.info(
             s"Adding legacy `$userAgentStructLegacyColumnName` struct column in ${partDf.partition} " +
             s"using SQL:\n$userAgentStructSql"
         )
 
-        // Return workingDf with all its original fields plus userAgentStructLegacyColumnName with
-        // struct fields generated from userAgentStructSql.
-        partDf.copy(df = workingDf.selectExpr("*", userAgentStructSql))
+        val workingDf = partDf.df
+        // Select all columns except for any pre-existing userAgentStructLegacyColumnName with
+        // the result of as userAgentStructSql as userAgentStructLegacyColumnName.
+        val columnExpressions = workingDf.columns.filter(
+            _.toLowerCase != userAgentStructLegacyColumnName.toLowerCase
+        ) :+ userAgentStructSql
+        partDf.copy(df = workingDf.selectExpr(columnExpressions:_*))
     }
 }
 
@@ -350,15 +381,14 @@ object parse_user_agent extends LogHelper {
   *
   * Possible domain columns:
   * - meta.domain: newer (Modern Event Platform) events use this
-  * - webHost (and webhost): legacy EventLogging Capsule data.
+  * - webHost: legacy EventLogging Capsule data.
   *
-  * The first column found in the input df will be used.
-  * If none of these columns exist, this is a no-op.
+  * In the order listed above, the first non null column value in the input DataFrame
+  * records will be used for filtering.
+  * If none of these fields exist in the input DataFrame schema, this is a no-op.
   */
 object filter_allowed_domains extends LogHelper {
-
-    //Columns are not case sensitive in hive but they are in spark
-    val possibleSourceColumnNames = Seq("meta.domain", "webHost", "webhost")
+    val possibleSourceColumnNames = Seq("meta.domain", "webHost")
 
     // TODO: If this changes frequently data for whitelist should
     //       probably come from hive.
@@ -368,29 +398,39 @@ object filter_allowed_domains extends LogHelper {
     //       s"^(${List("translate.google", "www.wikipedia.org").mkString("|")})$$".r ?s
     var whitelist: Regex = List("translate.google", "www.wikipedia.org").mkString("|").r;
 
-    val isAllowedDomain: UserDefinedFunction = udf((domain:String) => {
-        if (domain == null || domain.isEmpty) true
-        else if (whitelist.findFirstMatchIn(domain.toLowerCase()).isDefined) true
-        else if (Webrequest.isWikimediaHost(domain)) true
-        else false
-    })
+    val isAllowedDomain: UserDefinedFunction = udf(
+        (domain: String) => {
+            if (domain == null || domain.isEmpty) true
+            else if (whitelist.findFirstMatchIn(domain.toLowerCase()).isDefined) true
+            else if (Webrequest.isWikimediaHost(domain)) true
+            else false
+        }
+    )
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
-        val sourceColumns = partDf.df.findColumns(possibleSourceColumnNames)
+        // We don't need to check case insensitively here because
+        // column access on a DataFrame is case insensitive already.
+        val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
 
         // No-op
-        if (sourceColumns.isEmpty) {
+        if (sourceColumnNames.isEmpty) {
             log.debug(
                 s"${partDf.partition} does not have any column " +
                 s"${possibleSourceColumnNames.mkString(" or ")}, not filtering for allowed domains."
             )
             partDf
         } else {
-            val sourceColumn = sourceColumns.head
+            // If there is only one possible source column, just
+            // use it when filtering.  Else, we need to COALESCE and use the
+            // first non null value chosen from possible source columns in each record.
+            val sourceColumnSql = sourceColumnNames match {
+                case Seq(singleColumnName) => singleColumnName
+                case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
+            }
             log.info(
-                s"Filtering for allowed domains in `$sourceColumn` column in ${partDf.partition}."
+                s"Filtering for allowed domains in $sourceColumnSql in ${partDf.partition}."
             )
-            partDf.copy(df = partDf.df.filter(isAllowedDomain(sourceColumn)))
+            partDf.copy(df = partDf.df.filter(isAllowedDomain(expr(sourceColumnSql))))
         }
     }
 }
