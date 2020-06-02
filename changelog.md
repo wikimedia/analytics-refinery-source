@@ -1,5 +1,7 @@
 ## v0.0.126
 * RefineTarget - fix off by one bug in hoursInBetween used to find RefineTargets
+* Refactor JsonSchemaLoader and add JsonLoader
+* Refactor EventSchemaLoader to be a more useful library for loading schemas
 
 ## v0.0.125
 * Use page move events to improve joining to wikidata entity

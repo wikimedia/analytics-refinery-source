@@ -106,7 +106,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      * @return event schema
      */
     @Override
-    public JsonNode load(URI schemaUri) throws JsonSchemaLoadingException {
+    public JsonNode load(URI schemaUri) throws JsonLoadingException {
         URI encapsulatedSchemaUriCacheKey;
         try {
             // Make make an artificial 'encapsulated' URI we can use as a cache key for the
@@ -143,7 +143,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      * @return
      */
     @Override
-    public JsonNode getEventSchema(JsonNode event) throws JsonSchemaLoadingException {
+    public JsonNode getEventSchema(JsonNode event) throws JsonLoadingException {
         URI schemaUri = this.getEventSchemaUri(event);
         return this.load(schemaUri);
     }
@@ -155,19 +155,19 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      * @return
      */
     @Override
-    public JsonNode getEventSchema(String eventString) throws JsonSchemaLoadingException {
+    public JsonNode getEventSchema(String eventString) throws JsonLoadingException {
         JsonNode event = this.schemaLoader.parse(eventString);
         return this.getEventSchema(event);
     }
 
     // EventLoggingSchemaLoader always returns the latest schema.
     @Override
-    public JsonNode getLatestEventSchema(JsonNode event) throws JsonSchemaLoadingException {
+    public JsonNode getLatestEventSchema(JsonNode event) throws JsonLoadingException {
         return getEventSchema(event);
     }
 
     @Override
-    public JsonNode getLatestEventSchema(String eventString) throws JsonSchemaLoadingException {
+    public JsonNode getLatestEventSchema(String eventString) throws JsonLoadingException {
         return getEventSchema(eventString);
     }
 
@@ -178,7 +178,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      * @param schemaName
      * @return event schema
      */
-    public JsonNode getEventLoggingSchema(String schemaName) throws JsonSchemaLoadingException {
+    public JsonNode getEventLoggingSchema(String schemaName) throws JsonLoadingException {
         URI eventFieldSchemaUri = this.eventLoggingSchemaUriFor(schemaName);
         return this.load(eventFieldSchemaUri);
     }
@@ -192,7 +192,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      *
      * @return event schema
      */
-    public JsonNode getEventLoggingSchema(String schemaName, Integer revision) throws JsonSchemaLoadingException {
+    public JsonNode getEventLoggingSchema(String schemaName, Integer revision) throws JsonLoadingException {
         URI eventFieldSchemaUri = this.eventLoggingSchemaUriFor(schemaName, revision);
         return this.load(eventFieldSchemaUri);
     }
@@ -205,9 +205,9 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      * @return EventLogging schema URI
      */
     protected URI eventLoggingSchemaUriFor(String name){
-        String baseURI = baseURIs.get(0);
+        String baseUri = baseUris.get(0);
         try {
-            URI schemaUri = new URI(baseURI +
+            URI schemaUri = new URI(baseUri +
                 "?action=jsonschema&formatversion=2&format=json" +
                 "&title=" + name
             );
@@ -216,7 +216,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
         } catch (URISyntaxException e) {
             throw new RuntimeException(
                 "Could not build EventLogging schema URI for " + name +
-                " latest revision at " + baseURI, e
+                " latest revision at " + baseUri, e
             );
         }
     }
@@ -230,9 +230,9 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
      * @return EventLogging schema URI
      */
     protected URI eventLoggingSchemaUriFor(String name, Integer revision){
-        String baseURI = baseURIs.get(0);
+        String baseUri = baseUris.get(0);
         try {
-            URI schemaUri = new URI(baseURI +
+            URI schemaUri = new URI(baseUri +
                 "?action=jsonschema&formatversion=2&format=json" +
                 "&title=" + name +
                 "&revid=" + revision
@@ -242,7 +242,7 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
         } catch (URISyntaxException e) {
             throw new RuntimeException(
                 "Could not build EventLogging schema URI for " + name +
-                " revision " + revision + " at " + baseURI, e
+                " revision " + revision + " at " + baseUri, e
             );
         }
     }
@@ -269,6 +269,6 @@ public class EventLoggingSchemaLoader extends EventSchemaLoader {
     }
 
     public String toString() {
-        return "EventLoggingSchemaLoader(" + baseURIs.get(0) + ")";
+        return "EventLoggingSchemaLoader(" + baseUris.get(0) + ")";
     }
 }
