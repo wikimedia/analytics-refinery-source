@@ -7,7 +7,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.SparkConf
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.{
@@ -154,6 +154,7 @@ object MediawikiHistoryDumper {
      * snapshot needs to be partitioned by wiki and time bucket as well.
      * This method rehashes the data so that all records for each pair
      * (wiki, time_bucket) are stored in a separate and single file.
+     * It also sorts the events by timestamp, to allow for faster groupings.
      */
     def repartitionData(
         spark: SparkSession,
@@ -176,6 +177,7 @@ object MediawikiHistoryDumper {
         val partitionedDatasetSchema = StructType(Seq(
             StructField("wiki", StringType, nullable = false),
             StructField("time_bucket", StringType, nullable = false),
+            StructField("timestamp", LongType, nullable = false),
             StructField("tsv_line", StringType, nullable = false)
         ))
         val partitionedDatasetRowEncoder = RowEncoder(partitionedDatasetSchema)
@@ -186,8 +188,13 @@ object MediawikiHistoryDumper {
             flatMap(r => {
                 val event = MediawikiEvent.fromRow(r)
                 val timeBucket = eventTimeBucket(event)
+                val timestamp = if (event.eventTimestamp.isDefined) {
+                    event.eventTimestamp.get.getTime()
+                } else 0l
                 if (timeBucket != "unknown") {
-                    Seq(Row.fromTuple((event.wikiDb, timeBucket, event.toTSVLine)))
+                    // The first 3 dimensions are used for proper partitioning
+                    // and ordering of the data, only the tsv line will be output.
+                    Seq(Row.fromTuple((event.wikiDb, timeBucket, timestamp, event.toTSVLine)))
                 } else {
                     Seq.empty[Row]
                 }
@@ -201,6 +208,8 @@ object MediawikiHistoryDumper {
             // belonging to the same pair (wiki, time_bucket) to be written to
             // the same file.
             repartition(tempPartitions, col("wiki"), col("time_bucket")).
+            sortWithinPartitions(col("timestamp")).
+            drop("timestamp").
             write.
             mode(SaveMode.Overwrite).
             // Then each task will write each pair (wiki, time_bucket) into
