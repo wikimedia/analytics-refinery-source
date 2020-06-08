@@ -608,7 +608,7 @@ object RefineTarget {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
         val inputDatasetPaths = subdirectoryPaths(fs, baseInputPath)
 
-        // Map all partitions in each inputPaths since pastCutoffDateTime to RefineTargets
+        // Map all partitions in each inputPaths since sinceDateTime to RefineTargets
         inputDatasetPaths.flatMap { inputDatasetPath =>
             // Get all possible input partition paths for all directories in inputDatasetPath
             // between sinceDateTime and untilDateTime.
@@ -675,8 +675,8 @@ object RefineTarget {
         val oldestHour = new DateTime(d1, DateTimeZone.UTC).hourOfDay.roundCeilingCopy
         val youngestHour = new DateTime(d2, DateTimeZone.UTC).hourOfDay.roundFloorCopy
 
-        for (h <- 0 to Hours.hoursBetween(oldestHour, youngestHour).getHours) yield {
-            oldestHour + h.hours - 1.hours
+        for (h <- 0 until Hours.hoursBetween(oldestHour, youngestHour).getHours) yield {
+            oldestHour + h.hours
         }
     }
 

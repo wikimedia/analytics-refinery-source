@@ -1,3 +1,6 @@
+## v0.0.126
+* RefineTarget - fix off by one bug in hoursInBetween used to find RefineTargets
+
 ## v0.0.125
 * Use page move events to improve joining to wikidata entity
 
