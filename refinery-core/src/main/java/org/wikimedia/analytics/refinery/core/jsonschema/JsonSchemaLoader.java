@@ -32,11 +32,6 @@ public class JsonSchemaLoader {
 
     final ConcurrentHashMap<URI, com.fasterxml.jackson.databind.JsonNode> cache = new ConcurrentHashMap<>();
 
-    final YAMLFactory  yamlFactory  = new YAMLFactory();
-    final JsonFactory  jsonFactory  = new JsonFactory();
-
-    // make sure to reuse, expensive to create
-    final ObjectMapper objectMapper = new ObjectMapper();
     final SchemaLoader schemaLoader = new SchemaLoader();
 
     public JsonSchemaLoader() { }
@@ -46,85 +41,32 @@ public class JsonSchemaLoader {
     }
 
     /**
-     * Given a schemaURI, this will request the JSON or YAML content at that URI and
+     * Given a schemaUri, this will request the JSON or YAML content at that URI and
      * parse it into a JsonNode.  $refs will be resolved.
      * The compiled schema will be cached by schemaURI, and only looked up once per schemaURI.
      *
      * @param schemaUri
      * @return the jsonschema at schemaURI.
      */
-    public JsonNode load(URI schemaUri) throws JsonSchemaLoadingException {
+    public JsonNode load(URI schemaUri) throws JsonLoadingException {
         if (this.cache.containsKey(schemaUri)) {
             return this.cache.get(schemaUri);
         }
 
-        JsonParser parser;
-        try {
-            parser = this.getParser(schemaUri);
-        }
-        catch (IOException e) {
-            throw new JsonSchemaLoadingException("Failed reading JSON/YAML data from " + schemaUri, e);
-        }
-
-        try {
-            // TODO get fancy and use URITranslator to resolve relative $refs somehow?
-            // Use SchemaLoader so we resolve any JsonRefs in the JSONSchema.
-            JsonNode schema = this.schemaLoader.load(this.parse(parser)).getBaseNode();
-            this.cache.put(schemaUri, schema);
-            return schema;
-        }
-        catch (IOException e) {
-            throw new JsonSchemaLoadingException("Failed loading JSON/YAML data from " + schemaUri, e);
-        }
+        // Use SchemaLoader so we resolve any JsonRefs in the JSONSchema.
+        JsonLoader jsonLoader = JsonLoader.getInstance();
+        JsonNode schema = this.schemaLoader.load(jsonLoader.load(schemaUri)).getBaseNode();
+        this.cache.put(schemaUri, schema);
+        return schema;
     }
 
-
     /**
-     * Parses the JSON or YAML string into a JsonNode.  This data does not
-     * need to be a JSONSchema, but can be any JSON or YAML object.
+     * Parses the JSON or YAML string into a JsonNode.
      * @param data JSON or YAML string to parse into a JsonNode.
      * @return
      */
-    public JsonNode parse(String data) throws JsonSchemaLoadingException {
-        try {
-            return this.parse(this.getParser(data));
-        }
-        catch (IOException e) {
-            throw new JsonSchemaLoadingException(
-                "Failed parsing JSON/YAML data from string '" + data + '"', e
-            );
-        }
-    }
-
-    private JsonNode parse(JsonParser parser) throws IOException {
-        return this.objectMapper.readTree(parser);
-    }
-
-    /**
-     * Gets either a YAMLParser or a JsonParser for String data
-     * @param data
-     * @return
-     */
-    private JsonParser getParser(String data) throws IOException {
-        // If the first character is { or [, assume this is
-        // JSON data and use a JsonParser.  Otherwise assume
-        // YAML and use a YAMLParser.
-        char firstChar = data.charAt(0);
-        if (firstChar == '{' || firstChar == '[') {
-            return this.jsonFactory.createParser(data);
-        } else {
-            return this.yamlFactory.createParser(data);
-        }
-    }
-
-    /**
-     * Gets either a YAMLParser or a JsonParser for the data at uri
-     * @param uri
-     * @return
-     */
-    private JsonParser getParser(URI uri) throws IOException {
-        String content = IOUtils.toString(uri.toURL(), "UTF-8");
-        return this.getParser(content);
+    public JsonNode parse(String data) throws JsonLoadingException {
+        return JsonLoader.getInstance().parse(data);
     }
 
 }
