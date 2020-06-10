@@ -26,11 +26,13 @@ import scala.util.control.Exception.{allCatch, ignoring}
   * Usage:
   *
   *     DataFrameToHive(
-  *         hiveContext,
-  *         hiveContext.read.json("/path/to/json/data/mytable/2017/07/01/00"),
-  *         HivePartition(
-  *             "mydatabase", "mytable", "/path/to/external/mytable",
-  *             ListMap("year" -> 2017, "month" -> "07", "day" -> "30", "hour" -> "00)
+  *         sparkSession,
+  *         new PartitionedDataFrame(
+  *             sparkSession.read.json("/path/to/json/data/mytable/2017/07/01/00"),
+  *             HivePartition(
+  *                 "mydatabase", "mytable", "/path/to/external/mytable",
+  *                 ListMap("year" -> 2017, "month" -> "07", "day" -> "30", "hour" -> "00)
+  *             )
   *         )
   *      )
   *
@@ -39,11 +41,13 @@ import scala.util.control.Exception.{allCatch, ignoring}
   * Later, after more data has been imported, you could run:
   *
   *    DataFrameToHive(
-  *         hiveContext,
-  *         hiveContext.read.json("/path/to/json/data/mytable/2017/07/01/01"),
-  *         HivePartition(
-  *             "mydatabase", "mytable", "/path/to/external/mytable",
-  *             ListMap("year" -> 2017, "month" -> "07", "day" -> "30", "hour" -> "01")
+  *         sparkSession,
+  *         new PartitionedDataFrame(
+  *             sparkSession.read.json("/path/to/json/data/mytable/2017/07/01/01"),
+  *             HivePartition(
+  *                 "mydatabase", "mytable", "/path/to/external/mytable",
+  *                 ListMap("year" -> 2017, "month" -> "07", "day" -> "30", "hour" -> "01")
+  *             )
   *         )
   *    )
   *
@@ -66,7 +70,7 @@ object DataFrameToHive extends LogHelper {
       *
       * @param spark              SparkSession
       *
-      * @param inputPartDf        Input Partitioned DataFrame
+      * @param inputPartDf        Input PartitionedDataFrame
       *
       * @param doneCallback       Function to call after a successful run
       *
@@ -88,7 +92,7 @@ object DataFrameToHive extends LogHelper {
         spark.conf.set("hive.exec.dynamic.partition.mode", "nonstrict")
 
         // Keep number of partitions to reset it after DataFrame API changes it
-        // Since the spark context is used accross multiple jobs, we don't want
+        // Since the spark context is used across multiple jobs, we don't want
         // to use a global setting.
         val originalPartitionNumber = inputPartDf.df.rdd.getNumPartitions
 
@@ -152,6 +156,13 @@ object DataFrameToHive extends LogHelper {
         // Recursively convert the df to match the Hive compatible schema.
         val outputDf = partDf.copy(df = partDf.df.convertToSchema(compatibleSchema))
 
+        // First drop a previously existing partition in case the
+        // partition's schema in the Hive metastore has changed.
+        // NOTE: If the Hive table is managed by Hive, i.e. not EXTERNAL,
+        // this will actually drop the data.  This should be ok,
+        // as we are about to overwrite the partition location anyway.
+        spark.sql(outputDf.partition.dropPartitionQL)
+
         // Avoid using Hive Parquet writer by writing using Spark parquet.
         // This avoids bugs in Hive Parquet like https://issues.apache.org/jira/browse/HIVE-11625
         // If partition is dynamic, write using partitionBy, if not, write directly to
@@ -169,9 +180,7 @@ object DataFrameToHive extends LogHelper {
             outputDf.df.write.mode("overwrite").parquet(outputDf.partition.path)
         }
 
-        // First drop a previously existing partition in case the
-        // partition's schema in the Hive metastore has changed.
-        spark.sql(outputDf.partition.dropPartitionQL)
+        // Now that data has been written to HDFS, add the Hive partition.
         spark.sql(outputDf.partition.addPartitionQL)
 
         if (outputDf.partition.isDynamic) {
