@@ -1,7 +1,10 @@
 ## v0.0.126
+* Sort mediawiki history dumps by timestamp
+* DataFrameToHive - drop partition before writing output data
+* Make event transform functions smarter about choosing which possible column to use
 * RefineTarget - fix off by one bug in hoursInBetween used to find RefineTargets
 * Refactor JsonSchemaLoader and add JsonLoader
-* Refactor EventSchemaLoader to be a more useful library for loading schemas
+* Make anomaly detection correctly handle holes in time-series
 * Add EvolveHiveTable tool
 
 ## v0.0.125
