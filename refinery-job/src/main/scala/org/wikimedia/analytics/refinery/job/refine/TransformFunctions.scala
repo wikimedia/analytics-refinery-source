@@ -150,6 +150,11 @@ object geocode_ip extends LogHelper {
     val possibleSourceColumnNames = Seq("http.client_ip", "ip", "client_ip")
     val geocodedDataColumnName    = "geocoded_data"
 
+    // eventlogging-processor would stick the client IP into a top level 'ip' column.
+    // To be backwards compatible, if this column exists and does not have data, we
+    // should fill it with the first non null value of one of the possibleSourceColumnNames.
+    val ipLegacyColumnName = "ip"
+
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         val spark = partDf.df.sparkSession
         val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
@@ -188,8 +193,59 @@ object geocode_ip extends LogHelper {
                 _.toLowerCase != geocodedDataColumnName.toLowerCase
             ) :+ geocodedDataSql
             val parsedDf = workingDf.selectExpr(columnExpressions:_*)
-            partDf.copy(df = parsedDf)
+
+
+            // If the original DataFrame has a legacy ip, copy the source column value to it
+            // for backwards compatibility.
+            if (parsedDf.hasColumn(ipLegacyColumnName)) {
+                add_legacy_eventlogging_ip(partDf.copy(df = parsedDf), sourceColumnSql)
+            }
+            else {
+                partDf.copy(df = parsedDf)
+            }
         }
+    }
+
+    /**
+      * EventLogging legacy data had an 'ip' column that was set by server side
+      * eventlogging-processor.  This function sets it from sourceColumnSql, unless
+      * the legacy ip column already has a non null value.
+      *
+      * @param partDf
+      * @param sourceColumnSql
+      * @return
+      */
+    private def add_legacy_eventlogging_ip(
+        partDf: PartitionedDataFrame,
+        sourceColumnSql: String
+    ): PartitionedDataFrame = {
+        val spark = partDf.df.sparkSession
+
+        // If ipLegacyColumnName exists and is non NULL, keep it, otherwise set it
+        // to the value of sourceColumnSql.
+        // This handles the case where we have an (externally eventlogging-processor) parsed ip
+        // field, so we shouldn't touch it.
+        val ipSql =
+            s"""
+               |COALESCE(
+               |    $ipLegacyColumnName,
+               |    $sourceColumnSql
+               |) AS $ipLegacyColumnName
+               |""".stripMargin
+
+        log.info(
+            s"Setting `$ipLegacyColumnName` column in ${partDf.partition} " +
+                s"using SQL:\n$ipSql"
+        )
+
+        val workingDf = partDf.df
+
+        // Select all columns except for any pre-existing userAgentStructLegacyColumnName with
+        // the result of as userAgentStructSql as userAgentStructLegacyColumnName.
+        val columnExpressions = workingDf.columns.filter(
+            _.toLowerCase != ipLegacyColumnName.toLowerCase
+        ) :+ ipSql
+        partDf.copy(df = workingDf.selectExpr(columnExpressions:_*))
     }
 }
 

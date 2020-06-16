@@ -4,6 +4,7 @@ import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
 import scala.collection.immutable.ListMap
 
@@ -234,23 +235,40 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     // These tests don't seem to work.  Apparently the test SparkSession doesn't
     // have Hive UDF support? Getting:
     //   No handler for UDAF 'org.wikimedia.analytics.refinery.hive.GetUAPropertiesUDF'. Use sparkSession.udf.register(...) instead
-
+//
+//    // import org.wikimedia.analytics.refinery.job.refine._
 //    it should "geocode_ip `ip`" in {
 //        val events = Seq(legacyEventLoggingEvent1)
 //        val df = spark.createDataFrame(sc.parallelize(events))
 //        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf = geocode_ip2(partDf)
+//        val transformedDf = geocode_ip(partDf)
 //        transformedDf.df.columns.contains("geocoded_data") should equal(true)
 //        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+//        // make sure ip field remains untouched
+//        transformedDf.df.select("ip").take(1).head.getString(0) should equal(legacyEventLoggingEvent1.ip.get)
+//
 //    }
 //
 //    it should "geocode_ip `http.client_ip`" in {
 //        val events = Seq(event1)
 //        val df = spark.createDataFrame(sc.parallelize(events))
 //        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf = geocode_ip2(partDf)
+//        val transformedDf = geocode_ip(partDf)
 //        transformedDf.df.columns.contains("geocoded_data") should equal(true)
 //        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+//        // Make sure legacy ip column was not added as it was not in the source data schema
+//        transformedDf.df.hasColumn("ip") should equal(false);
+//    }
+//
+//    it should "geocode_ip `http.client_ip` and set legacy `ip` column" in {
+//        val events = Seq(migratedLegacyEventLoggingEvent)
+//        val df = spark.createDataFrame(sc.parallelize(events))
+//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+//        val transformedDf = geocode_ip(partDf)
+//        transformedDf.df.columns.contains("geocoded_data") should equal(true)
+//        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+//        // ip field should be set to value of http.client_ip
+//        transformedDf.df.select("ip").take(1).head.getString(0) should equal(migratedLegacyEventLoggingEvent.http.get.client_ip.get)
 //    }
 //
 //    it should "parse_user_agent using `http.request_headers['user-agent']`" in {

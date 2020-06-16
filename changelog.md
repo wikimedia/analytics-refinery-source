@@ -1,3 +1,6 @@
+## v0.0.127
+* Refine geocode_ip transform sets legacy EventLogging IP field
+
 ## v0.0.126
 * Sort mediawiki history dumps by timestamp
 * DataFrameToHive - drop partition before writing output data
