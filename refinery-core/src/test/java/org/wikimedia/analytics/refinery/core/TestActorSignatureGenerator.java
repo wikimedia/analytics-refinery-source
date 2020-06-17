@@ -23,7 +23,7 @@ import java.util.Map;
 
 public class TestActorSignatureGenerator extends TestCase {
 
-    private ActorSignatureGenerator actorSignatureGenerator = ActorSignatureGenerator.getInstance();
+    private ActorSignatureGenerator actorSignatureGenerator = new ActorSignatureGenerator();
 
     public void testGetActorSignatureGeneratorNullIP() {
         String actorSignature = actorSignatureGenerator.execute(

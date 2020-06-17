@@ -47,7 +47,7 @@ import java.util.Map;
         extended = "")
 public class GetActorSignatureUDF extends UDF {
 
-    private final ActorSignatureGenerator actorSignatureGenerator = ActorSignatureGenerator.getInstance();
+    private final ActorSignatureGenerator actorSignatureGenerator = new ActorSignatureGenerator();
 
     public String evaluate(String ip, String userAgent, String acceptLanguage, String uriHost,
                            String uriQuery, Map<String, String> xAnalyticsMap) {
