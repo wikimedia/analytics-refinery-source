@@ -1,3 +1,6 @@
+## v0.0.128
+* Update clickstream to read from pageview_actor_houly instead of webrequest 
+
 ## v0.0.127
 * Refine geocode_ip transform sets legacy EventLogging IP field
 

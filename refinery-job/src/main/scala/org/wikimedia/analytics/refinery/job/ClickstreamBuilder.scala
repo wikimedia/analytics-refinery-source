@@ -52,7 +52,7 @@ object ClickstreamBuilder {
     *      Join with page (from and to) to clean and denormalize
     *      Join with redirect to resolve directs
     *      Take distinct instances
-    *  - Get data from Webrequest:
+    *  - Get data from pageview_actor_hourly:
     *    - (prev[referer/referer_class parsing], curr[page_title], type, count)
     *      - Joint with pages (namespace 0 only)
     *      - Joint with redirect (resolved)
@@ -237,7 +237,7 @@ object ClickstreamBuilder {
     */
   def prepareClickstream(
                           spark: SparkSession,
-                          webrequestTable: String,
+                          pageviewActorHourlyTable: String,
                           year: Int,
                           month: Int,
                           day: Option[Int],
@@ -279,9 +279,8 @@ object ClickstreamBuilder {
          |  END as fromTitle,
          |  pageview_info['page_title'] as toTitle,
          |  COUNT(1) as count
-         |FROM $webrequestTable
-         |WHERE webrequest_source = 'text'
-         |  AND year = $year AND month = $month
+         |FROM $pageviewActorHourlyTable
+         |WHERE year = $year AND month = $month
          |  ${day.map(d => s"AND day = $d").getOrElse("")}
          |  ${hour.map(h => s"AND hour = $h").getOrElse("")}
          |  AND pageview_info['project'] IN (${listToSQLInCondition(projectList)})
@@ -309,7 +308,7 @@ object ClickstreamBuilder {
          |  pageview_info['page_title']
           """.stripMargin)
       .rdd
-      // Raw clickstream ((wiki, fromTitle), (toTitle, count)) out of webrequest
+      // Raw clickstream ((wiki, fromTitle), (toTitle, count)) out of pageview_actor_hourly
       .map(r => {
         val project = r.getString(0)
         val wiki = projectToWikiMap(project)
@@ -361,7 +360,7 @@ object ClickstreamBuilder {
                      pageTable: String = "wmf_raw.mediawiki_page",
                      redirectTable: String = "wmf_raw.mediawiki_redirect",
                      pagelinksTable: String = "wmf_raw.mediawiki_pagelinks",
-                     webrequestTable: String = "wmf.webrequest",
+                     pageviewActorHourlyTable: String = "wmf.pageview_actor_hourly",
                      wikiList: Seq[String] = Seq("enwiki"),
                      outputFilesParts: Int = 1,
                      snapshot: String = "", // Parameter required, never used as is
@@ -390,22 +389,22 @@ object ClickstreamBuilder {
 
     opt[Int]('y', "year") required() valueName ("<year>") action { (x, p) =>
       p.copy(year = x)
-    } text ("The year to use for webrequest data gathering.")
+    } text ("The year to use for pageview data gathering.")
 
     opt[Int]('m', "month") required() valueName ("<month>") action { (x, p) =>
       p.copy(month = x)
     } validate { x => if (x > 0 & x <= 12) success else failure("Invalid month")
-    } text ("The month to use for webrequest data gathering.")
+    } text ("The month to use for pageview data gathering.")
 
     opt[Int]('d', "day") optional() valueName ("<day>") action { (x, p) =>
       p.copy(day = Some(x))
     }  validate { x => if (x > 0 & x <= 31) success else failure("Invalid day")
-    } text ("The day to use for webrequest data gathering (default to empty, for monthly computation).")
+    } text ("The day to use for pageview data gathering (default to empty, for monthly computation).")
 
     opt[Int]('h', "hour") optional() valueName ("<hour>") action { (x, p) =>
       p.copy(hour = Some(x))
     } validate { x => if (x >= 0 & x < 24 ) success else failure("Invalid hour")
-    } text ("The hour to use for webrequest data gathering (default to empty, for daily or monthly computation).")
+    } text ("The hour to use for pageview data gathering (default to empty, for daily or monthly computation).")
 
     opt[Int]('c', "minimum-count") required() valueName ("<min-count>") action { (x, p) =>
       p.copy(minCount = x)
@@ -446,9 +445,9 @@ object ClickstreamBuilder {
       p.copy(pagelinksTable = x)
     } text ("Fully qualified name of the pagelinks table on Hive. Default to wmf_raw.mediawiki_pagelinks")
 
-    opt[String]("webrequest-table") optional() valueName ("<table>") action { (x, p) =>
-      p.copy(webrequestTable = x)
-    } text ("Fully qualified name of the webrequest table on Hive. Default to wmf.webrequest")
+    opt[String]("pageview_actor_hourly-table") optional() valueName ("<table>") action { (x, p) =>
+      p.copy(pageviewActorHourlyTable = x)
+    } text ("Fully qualified name of the pageview_actor table on Hive. Default to wmf.pageview_actor")
 
   }
 
@@ -505,7 +504,7 @@ object ClickstreamBuilder {
       val redirects = prepareRedirects(spark, params.redirectTable, params.snapshot, params.wikiList, pagesPerPageId, pagesPerTitleAndNamespace).cache()
       val pageLinks = preparePagelinks(spark, params.pagelinksTable, params.snapshot, params.wikiList, pagesPerPageId, pagesPerTitleAndNamespace, redirects).cache()
 
-      prepareClickstream(spark, params.webrequestTable, params.year, params.month, params.day, params.hour,
+      prepareClickstream(spark, params.pageviewActorHourlyTable, params.year, params.month, params.day, params.hour,
         domainAndMobileList, projectList, projectToWikiMap, pages, pagesPerTitleAndNamespace, redirects, pageLinks).
         map(c => (c.wikiDb, c.toTSVLine)).
         repartition(params.outputFilesParts).
