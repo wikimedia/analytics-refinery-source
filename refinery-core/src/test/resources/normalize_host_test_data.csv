@@ -11,3 +11,4 @@ three dots,wikipedia,en,m,org,en.m.wikipedia.org
 three dots www,wikipedia,-,m,org,www.m.wikipedia.org
 three dots capital,wikipedia,en,zero,org,en.ZERO.wikipedia.org
 four dots capital,wikipedia,en,mobile;zero,org,en.Mobile.ZERO.wikipedia.org
+empty but .,-,-,,-,.
