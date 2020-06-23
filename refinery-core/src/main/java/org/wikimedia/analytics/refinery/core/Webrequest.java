@@ -352,7 +352,7 @@ public class Webrequest {
             String[] uriParts = uriHost.toLowerCase().split("\\.");
 
             // If no splitted part, return empty
-            if (uriParts.length == 1) return result;
+            if (uriParts.length <= 1) return result;
 
             // Handle special case where TLD is numeric --> assume IP address, don't normalize
             // Length is > 0 because of previous check, so no error case
