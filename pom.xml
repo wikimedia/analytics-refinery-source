@@ -7,7 +7,7 @@
 
   <groupId>org.wikimedia.analytics.refinery</groupId>
   <artifactId>refinery</artifactId>
-  <version>0.0.131-SNAPSHOT</version>
+  <version>0.0.128-SNAPSHOT</version>
   <packaging>pom</packaging>
 
 
