@@ -1,5 +1,10 @@
 ## v0.0.128
-* Update clickstream to read from pageview_actor_houly instead of webrequest 
+* Add UDF that transforms Pagecounts-EZ projects into standard
+* Correct bug in webrequest host normalization
+* Add a corrected bzip2 codec for spark
+* Update clickstream to read from pageview_actor_houly instead of webrequest
+* Make ActorSignatureGenerator non-singleton
+* Add special explode UDTF that turns EZ-style hourly strings into rows
 
 ## v0.0.127
 * Refine geocode_ip transform sets legacy EventLogging IP field
