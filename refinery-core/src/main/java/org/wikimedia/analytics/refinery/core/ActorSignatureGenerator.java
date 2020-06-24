@@ -17,6 +17,7 @@ package org.wikimedia.analytics.refinery.core;
 
 import org.apache.commons.codec.binary.Hex;
 
+import java.io.Serializable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
@@ -33,27 +34,29 @@ import java.util.Map;
  *     )
  *   )
  */
-public class ActorSignatureGenerator {
+public class ActorSignatureGenerator implements Serializable {
 
+    // Serializable objects
     private final String WMFUUID = "wmfuuid";
     private final String APP_ID = "appInstallID";
-
-    private final MessageDigest digest;
     private final StringBuilder message;
 
-    private ActorSignatureGenerator() {
-        try {
-            digest = MessageDigest.getInstance("MD5");
-        } catch(NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+    // Non serializable object - Transient
+    transient private MessageDigest digest;
+
+    private void initializeDigestIfNeeded() {
+        if (digest == null) {
+            try {
+                digest = MessageDigest.getInstance("MD5");
+            } catch(NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
         }
-        message = new StringBuilder();
     }
 
-    private static ActorSignatureGenerator instance = new ActorSignatureGenerator();
-
-    public static ActorSignatureGenerator getInstance() {
-        return instance;
+    public ActorSignatureGenerator() {
+        message = new StringBuilder();
+        initializeDigestIfNeeded();
     }
 
     private String getMessage(String ip, String userAgent, String acceptLanguage, String uriHost,
@@ -89,6 +92,9 @@ public class ActorSignatureGenerator {
         }
 
         String message = getMessage(ip, userAgent, acceptLanguage, uriHost, uriQuery, xAnalyticsMap);
+
+        // Force initialization in case serialization has happened, making message and digest null
+        initializeDigestIfNeeded();
 
         // Copied from https://github.com/apache/hive/blob/master/ql/src/java/org/apache/hadoop/hive/ql/udf/UDFMd5.java
         digest.reset();
