@@ -451,9 +451,8 @@ case class RefineTarget(
             case "text" | "json" | "parquet" => dfReader.format(inputFormat).load(inputPath.toString)
 
             // Expect data to be SequenceFiles with JSON strings as values.
-            case "sequence_json" => dfReader.json(spark.createDataset[String](
-                spark.sparkContext.sequenceFile[Long, String](inputPath.toString).map(t => t._2)
-            ))
+            // (sequenceFileJson is defined in refinery HiveExtensions.)
+            case "sequence_json" => dfReader.sequenceFileJson(inputPath.toString, spark)
 
             // If there is no data at inputPath, then we either want a schema-less emptyDataFrame,
             // or an empty DataFrame with schema
@@ -536,6 +535,36 @@ case class RefineTarget(
 
 
 object RefineTarget {
+
+    /**
+      * Helper constructor to create a RefineTarget inferring the output HivePartition
+      * using a full outputPath to the partition location.
+      *
+      * @param spark
+      * @param inputPath
+      * @param outputPath
+      *     The full path to the Hive style partition.
+      *     This assumes that the Hive database and table name are in the directories
+      *     directly above the first Hive style partition directory.  E.g in
+      *     /wmf/data/event/mediawiki_revision_create/datacenter=eqiad/year=2020/month=6/day=18/hour=0
+      *     database=event, table=mediawiki_revision_create, and the partitions are the following
+      *     directories.
+      * @param schemaLoader
+      * @return
+      */
+    def apply(
+        spark: SparkSession,
+        inputPath: String,
+        outputPath: String,
+        schemaLoader: SparkSchemaLoader
+    ): RefineTarget = {
+        new RefineTarget(
+            spark,
+            new Path(inputPath),
+            HivePartition(outputPath),
+            schemaLoader
+        )
+    }
 
     /**
       * Finds RefineTargets with existent input partition paths between sinceDateTime and untilDateTime.
@@ -643,7 +672,6 @@ object RefineTarget {
             .filter(_.inputExists())
         }
     }
-
 
     /**
       * Retruns a Seq of all directory Paths in a directory.

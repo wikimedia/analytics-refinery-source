@@ -31,7 +31,6 @@ import scala.util.Try
   */
 object HiveExtensions extends LogHelper {
 
-
     /**
      * This regex will be used to replace characters in field names that
      * are likely not compatible in most SQL contexts.
@@ -767,6 +766,25 @@ object HiveExtensions extends LogHelper {
 
         def findColumns(columnNames: Seq[String]): Seq[Column] = {
             columnNames.flatMap(c => Try(df(c)).toOption)
+        }
+    }
+
+    /**
+      * Extensions to DataFrameReader
+      * @param dfReader
+      */
+    implicit class DataFrameReaderExtensions(dfReader: DataFrameReader) {
+        /**
+          * Reads in Hadoop SequenceFiles where the value of each
+          * record is a JSON string.
+          * @param path
+          * @param spark
+          * @return
+          */
+        def sequenceFileJson(path: String, spark: SparkSession): DataFrame = {
+            dfReader.json(spark.createDataset[String](
+                spark.sparkContext.sequenceFile[Long, String](path).map(t => t._2)
+            )(Encoders.STRING))
         }
     }
 

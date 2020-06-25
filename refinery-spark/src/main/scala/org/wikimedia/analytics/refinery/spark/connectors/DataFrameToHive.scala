@@ -85,7 +85,8 @@ object DataFrameToHive extends LogHelper {
         spark: SparkSession,
         inputPartDf: PartitionedDataFrame,
         doneCallback: () => Unit,
-        transformFunctions: Seq[TransformFunction] = Seq()
+        transformFunctions: Seq[TransformFunction] = Seq(),
+        saveMode: String = "overwrite"
     ): PartitionedDataFrame = {
 
         // Set this so we can partition by fields in the DataFrame.
@@ -154,12 +155,15 @@ object DataFrameToHive extends LogHelper {
         // Recursively convert the df to match the Hive compatible schema.
         val outputDf = partDf.copy(df = partDf.df.convertToSchema(compatibleSchema))
 
-        // First drop a previously existing partition in case the
-        // partition's schema in the Hive metastore has changed.
-        // NOTE: If the Hive table is managed by Hive, i.e. not EXTERNAL,
-        // this will actually drop the data.  This should be ok,
-        // as we are about to overwrite the partition location anyway.
-        spark.sql(outputDf.partition.dropPartitionQL)
+
+        if (saveMode == "overwrite") {
+            // First drop a previously existing partition in case the
+            // partition's schema in the Hive metastore has changed.
+            // NOTE: If the Hive table is managed by Hive, i.e. not EXTERNAL,
+            // this will actually drop the data.  This should be ok,
+            // as we are about to overwrite the partition location anyway.
+            spark.sql(outputDf.partition.dropPartitionQL)
+        }
 
         // Avoid using Hive Parquet writer by writing using Spark parquet.
         // This avoids bugs in Hive Parquet like https://issues.apache.org/jira/browse/HIVE-11625
@@ -170,12 +174,12 @@ object DataFrameToHive extends LogHelper {
             log.info(
                 s"Writing dynamically-partitioned DataFrame to ${outputDf.partition.location} with schema:\n${outputDf.df.schema.treeString}"
             )
-            outputDf.df.write.partitionBy(outputDf.partition.keys:_*).mode("overwrite").parquet(outputDf.partition.location)
+            outputDf.df.write.partitionBy(outputDf.partition.keys:_*).mode(saveMode).parquet(outputDf.partition.location)
         } else {
             log.info(
                 s"Writing DataFrame to ${outputDf.partition.path} with schema:\n${outputDf.df.schema.treeString}"
             )
-            outputDf.df.write.mode("overwrite").parquet(outputDf.partition.path)
+            outputDf.df.write.mode(saveMode).parquet(outputDf.partition.path)
         }
 
         // Now that data has been written to HDFS, add the Hive partition.

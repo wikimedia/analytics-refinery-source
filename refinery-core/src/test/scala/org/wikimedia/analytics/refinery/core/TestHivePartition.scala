@@ -71,4 +71,48 @@ class TestHivePartition extends FlatSpec with Matchers {
         p.partitions should equal(partitionShouldBe)
     }
 
+    it should "construct from with partition path in Hive format" in {
+        val baseLocation = "/path/to/database1"
+        val p            = HivePartition(
+            "database1", "my_table", baseLocation, "datacenter=dc2/year=2015/month=5"
+        )
+
+        p.tableName should equal(s"`database1`.`my_table`")
+        p.path should equal(s"$baseLocation/${p.table}/datacenter=dc2/year=2015/month=5")
+
+        val partitionShouldBe = ListMap(
+            "datacenter" -> Some("dc2"), "year" -> Some("2015"), "month" -> Some("5")
+        )
+        p.partitions should equal(partitionShouldBe)
+    }
+
+
+    it should "construct from with partition path in Hive format with extra slashes" in {
+        val baseLocation = "/path/to/database1"
+        val p            = HivePartition(
+            "database1", "my_table", baseLocation, "//datacenter=dc2/year=2015/month=5/"
+        )
+
+        p.tableName should equal(s"`database1`.`my_table`")
+        p.path should equal(s"$baseLocation/${p.table}/datacenter=dc2/year=2015/month=5")
+
+        val partitionShouldBe = ListMap(
+            "datacenter" -> Some("dc2"), "year" -> Some("2015"), "month" -> Some("5")
+        )
+        p.partitions should equal(partitionShouldBe)
+    }
+
+    it should "construct from full partition path" in {
+        val fullPartitionPath = "/path/to/database1/my_table/year=2020/month=7/day=1/hour=0"
+        val p                 = HivePartition(fullPartitionPath)
+
+        p.tableName should equal(s"`database1`.`my_table`")
+        p.path should equal(fullPartitionPath)
+
+        val partitionShouldBe = ListMap(
+            "year" -> Some("2020"), "month" -> Some("7"), "day" -> Some("1"), "hour" -> Some("0")
+        )
+        p.partitions should equal(partitionShouldBe)
+    }
+
 }

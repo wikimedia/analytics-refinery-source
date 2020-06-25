@@ -163,6 +163,89 @@ object HivePartition {
     }
 
     /**
+      * Helper constructor expecting that partitionPath is in the default Hive format,
+      * e.g. key1=val1/key2=val2, etc.
+      * @param database
+      * @param table
+      * @param baseLocation
+      * @param partitionPath
+      * @return
+      */
+    def apply(
+        database: String,
+        table: String,
+        baseLocation: String,
+        partitionPath: String
+    ): HivePartition = {
+        val location = baseLocation + "/" + table
+        new HivePartition(database, table, location, partitionPathToListMap(partitionPath))
+    }
+
+    /**
+      * Helper that assumes that fullPartitonPath contains enough information to
+      * create a Hive partition.  The partition path part will start at the first
+      * directory that contains an '='.  The table name will be that directory's parent dir,
+      * and the database name will be the table name directory's parent dir.
+      * @param fullPartitionPath
+      * @return
+      */
+    def apply(fullPartitionPath: String): HivePartition = {
+        val pathParts = fullPartitionPath.split("/")
+
+        val partitionPartsIndex = pathParts.indexWhere(_.contains("="))
+
+        if (partitionPartsIndex < 0) {
+            throw new RuntimeException(
+                s"Cannot create new HivePartition from $fullPartitionPath. " +
+                "No Hive style partition directories were found."
+            )
+        } else if (partitionPartsIndex < 3) {
+            throw new RuntimeException(
+                s"Cannot create new HivePartition from $fullPartitionPath. " +
+                "Expected at least two directories above the first Hive style partition " +
+                "from which to infer Hive database and table."
+            )
+        }
+
+        val table = pathParts(partitionPartsIndex - 1)
+        val database = pathParts(partitionPartsIndex - 2)
+        val location = pathParts.slice(0, partitionPartsIndex - 1).mkString("/")
+        val partitionPath = pathParts.slice(partitionPartsIndex, pathParts.length).mkString("/")
+
+        apply(database, table, location, partitionPath)
+    }
+
+    /**
+      * Converts a partition path in Hive format to a ListMap.
+      * E.g.
+      *   key1=val1/key2=val2 -> ListMap(key1 -> val1, key2 -> val2)
+      * @param partitionPath
+      * @return
+      */
+    def partitionPathToListMap(partitionPath: String): ListMap[String, Option[String]] = {
+        val partitionParts = trimString(partitionPath, "/").split("/")
+        partitionParts.foldLeft(ListMap[String, Option[String]]())({
+            case (partitionMap, partitionPart) =>
+                val keyVal = partitionPart.split("=")
+                partitionMap + (keyVal(0) -> Some(keyVal(1)))
+        })
+    }
+
+    /**
+      * Trims leading and trailing occurences of toTrim from target string.
+      * trimString("////a/b/c/////", "/") -> "a/b/c"
+      * @param target
+      * @param toTrim
+      */
+    private def trimString(target: String, toTrim: String): String = {
+        val trimRegex = s"^$toTrim*(.*[^$toTrim])$toTrim*$$".r
+        target match {
+            case trimRegex(m) => m
+            case _ => target
+        }
+    }
+
+    /**
       * This will extract the matched regex groupNames and their captured values
       * into a ListMap.  ListMap is used so that order is preserved.
       *

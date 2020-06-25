@@ -6,9 +6,8 @@ import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.core.LogHelper
 import org.apache.hadoop.fs.FsUrlStreamHandlerFactory
-import java.net.{URI, URL}
-
-import com.fasterxml.jackson.databind.JsonNode
+import java.net.URL
+import scala.collection.JavaConverters._
 
 import scala.util.{Failure, Success, Try}
 
@@ -33,10 +32,6 @@ class EventSparkSchemaLoader(
     eventSchemaLoader: EventSchemaLoader,
     loadLatest: Boolean = true
 ) extends SparkSchemaLoader with LogHelper {
-
-    // Make sure that EventSchemaLoader can handle hdfs:// URIs.
-    // NOTE: this can only be called once per JVM.
-    URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory)
 
     /**
       * Reads the first event out of the RefineTarget and converts its JSONSchema to a SparkSchema.
@@ -106,5 +101,51 @@ class EventSparkSchemaLoader(
                 }
                 Some(schema)
         }
+    }
+}
+
+/**
+  * Companion object for class EventSparkSchemaLoader to statically set
+  * URL configuration to be able to load hdfs:// URIs.
+  */
+object EventSparkSchemaLoader {
+    // Make sure that EventSchemaLoader can handle hdfs:// URIs.
+    // NOTE: this can only be called once per JVM.
+    URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory)
+
+    /**
+      * Helper constructor to create a EventSparkSchemaLoader using EventSchemaLoader from a
+      * list of schemaBaseUris.
+      *
+      * @param schemaBaseUris
+      * @param loadLatest
+      * @return
+      */
+    def apply(
+        schemaBaseUris: Seq[String],
+        loadLatest: Boolean = true
+    ): EventSparkSchemaLoader = {
+        new EventSparkSchemaLoader(new EventSchemaLoader(schemaBaseUris.asJava), loadLatest)
+    }
+}
+
+
+object WikimediaEventSparkSchemaLoader {
+    /**
+      * Returns an instance of EventSparkSchemaLoader using WMF's
+      * remote event schema repository URLs by default.
+      *
+      * @param schemaBaseUris
+      * @param loadLatest
+      * @return
+      */
+    def apply(
+        schemaBaseUris: Seq[String] = Seq(
+            "https://schema.wikimedia.org/repositories/primary/jsonschema",
+            "https://schema.wikimedia.org/repositories/secondary/jsonschema"
+        ),
+        loadLatest: Boolean = true
+    ): EventSparkSchemaLoader = {
+        EventSparkSchemaLoader(schemaBaseUris, loadLatest)
     }
 }
