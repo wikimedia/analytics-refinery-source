@@ -138,14 +138,6 @@ public class PageviewDefinition {
      */
     private boolean isAppPageview(WebrequestData data) {
 
-        final String appContentType         = "application/json";
-        final String appUserAgent           = "WikipediaApp";
-        final String appPageURIQuery        = "sections=0";
-        final String restAppPageURIPath     = "/page/mobile-sections/";
-        final String iosAppPageURIQuery     = "sections=all";
-        final Pattern iosUserAgentPattern   = Pattern.compile("iPhone|iOS");
-        final String iosAppUserAgent        = "Wikipedia/5.0.";
-
         final String rawXAnalyticsHeader = data.getRawXAnalyticsHeader();
         final String contentType = data.getContentType();
         final String userAgent = data.getUserAgent();
@@ -153,24 +145,27 @@ public class PageviewDefinition {
         final String uriQuery = data.getUriQuery();
 
         final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
-        final boolean isIosAgent = Utilities.stringContains(userAgent, iosAppUserAgent);
-        final boolean isLikeIosAgent = Utilities.patternIsFound(iosUserAgentPattern, userAgent);
-        final boolean isAppAgent = Utilities.stringContains(userAgent, appUserAgent);
+        final boolean isIosAgent = Utilities.stringContains(userAgent, "Wikipedia/5.0.");
+        final boolean isLikeIosAgent = Utilities.patternIsFound(Pattern.compile("iPhone|iOS"), userAgent);
+        final boolean isAppAgent = Utilities.stringContains(userAgent, "WikipediaApp");
         final boolean isApiPath = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_API);
-        final boolean isAppQuery = Utilities.stringContains(uriQuery, appPageURIQuery);
-        final boolean isIosQuery = Utilities.stringContains(uriQuery, iosAppPageURIQuery);
+        final boolean isAppQuery = Utilities.stringContains(uriQuery, "sections=0");
+        final boolean isIosQuery = Utilities.stringContains(uriQuery, "sections=all");
         final boolean isRestApiPath = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_REST_API);
-        final boolean isRestApiPagePath = Utilities.stringContains(uriPath, restAppPageURIPath);
+        final boolean isRestApiPagePath = Utilities.stringContains(uriPath, "/page/mobile-sections/");
+        final boolean isJSONResponse = Utilities.stringContains(contentType, "application/json");
+        final boolean isMobileHTMLPagePath = Utilities.stringContains(uriPath, "/page/mobile-html/");
+        final boolean isHTMLResponse = Utilities.stringContains(contentType, "text/html");
 
-        return Utilities.stringContains(contentType, appContentType)
-
-               && (isIosAgent || isAppAgent)
+        return (isIosAgent || isAppAgent)
 
                && (isTaggedPageview
 
-                   || isApiPath && (isAppQuery || isIosQuery && isLikeIosAgent)
+                   || (isMobileHTMLPagePath && isHTMLResponse)
 
-                   || isRestApiPath && isRestApiPagePath && isAppAgent
+                   || (isJSONResponse && isApiPath && (isAppQuery || isIosQuery && isLikeIosAgent))
+
+                   || (isJSONResponse && isRestApiPath && isRestApiPagePath && isAppAgent)
                );
     }
 
@@ -393,6 +388,11 @@ public class PageviewDefinition {
             return found;
         }
 
+        found = getTitleAfter(mainPath, "/api/rest_v1/page/mobile-html/");
+        if(found.length() > 0) {
+            return found;
+        }
+
         found = getTitleAfter(mainPath, "/wiki/");
         if(found.length() > 0) {
             return found;
@@ -433,6 +433,7 @@ public class PageviewDefinition {
                 || normPath.contains("/w/index.php/")
                 || normPath.startsWith("/api/rest_v1/page/mobile-sections-lead/")
                 || normPath.startsWith("/api/rest_v1/page/mobile-sections/")
+                || normPath.startsWith("/api/rest_v1/page/mobile-html/")
         );
 
         String titleQueryParam = null;
