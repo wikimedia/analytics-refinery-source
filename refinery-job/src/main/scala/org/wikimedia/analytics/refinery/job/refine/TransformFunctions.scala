@@ -48,7 +48,6 @@ object event_transforms {
       */
     val eventTransformFunctions = Seq[TransformFunction](
         deduplicate.apply,
-        filter_allowed_domains.apply,
         geocode_ip.apply,
         parse_user_agent.apply
     )
