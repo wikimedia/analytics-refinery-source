@@ -31,17 +31,6 @@
             </exclusions>
         </dependency>
 
-        <dependency>
-            <groupId>com.linkedin.camus</groupId>
-            <artifactId>camus-schema-registry</artifactId>
-            <version>${camus.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.linkedin.camus</groupId>
-            <artifactId>camus-kafka-coders</artifactId>
-            <version>${camus.version}</version>
-        </dependency>
 
         <dependency>
             <groupId>com.linkedin.camus</groupId>
@@ -59,12 +48,6 @@
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.avro</groupId>
-            <artifactId>avro</artifactId>
-            <version>1.7.7</version>
         </dependency>
 
         <dependency>
@@ -93,25 +76,6 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.avro</groupId>
-                <artifactId>avro-maven-plugin</artifactId>
-                <version>1.7.7</version>
-                <executions>
-                    <execution>
-                        <id>test</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>schema</goal>
-                        </goals>
-                        <configuration>
-                            <sourceDirectory>${project.basedir}/src/test/resources/schema_repo/avro</sourceDirectory>
-                            <outputDirectory>${project.basedir}/src/generated/java/</outputDirectory>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
             <plugin>
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
@@ -184,55 +148,7 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
-            <plugin>
-                <!-- Update src/main/resources/schema_repo git submodule -->
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>git submodule update</id>
-                        <phase>initialize</phase>
-                        <configuration>
-                            <executable>git</executable>
-                            <arguments>
-                                <argument>submodule</argument>
-                                <argument>update</argument>
-                                <argument>--init</argument>
-                                <argument>--recursive</argument>
-                            </arguments>
-                        </configuration>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <!-- Make sure that src/main/resources/schema_repo
-                     is part of the jar -->
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-enforcer-plugin</artifactId>
-                <version>1.4.1</version>
-                <executions>
-                    <execution>
-                        <id>enforce-schema-repo-submodule</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>enforce</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <requireFilesExist>
-                                    <files>
-                                        <file>${project.build.outputDirectory}/schema_repo</file>
-                                    </files>
-                                </requireFilesExist>
-                            </rules>
-                            <fail>true</fail>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+
         </plugins>
     </build>
 </project>
