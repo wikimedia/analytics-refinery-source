@@ -86,8 +86,6 @@ class ArchiveViewRegistrar(
       // NOTE: ar_sha1 is null on cloud dbs if ar_deleted&1
       s"""
 WITH archive_actor_split AS (
-  -- Needed to compute the randomized ar_actor in the select.
-  -- Random functions are not (yet?) allowed in joining sections.
   SELECT
     wiki_db,
     ar_timestamp,
@@ -101,8 +99,8 @@ WITH archive_actor_split AS (
     ar_len,
     ar_sha1,
     ar_actor,
-    -- assign a random subgroup among the actor splits determined and broadcast above
-    CAST(rand() * getArActorSplits(wiki_db, ar_actor) AS INT) AS ar_actor_split
+    -- assign a subgroup from ar_rev_id among the actor splits
+    CAST(COALESCE(ar_rev_id, 0) % getArActorSplits(wiki_db, ar_actor) AS INT) AS ar_actor_split
   FROM $archiveUnprocessedView
   WHERE TRUE
     $wikiClause

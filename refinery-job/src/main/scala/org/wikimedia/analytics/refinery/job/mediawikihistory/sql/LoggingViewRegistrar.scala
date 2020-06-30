@@ -144,11 +144,11 @@ logging_actor_comment_splits AS (
     log_namespace,
     log_params,
     log_actor,
-    -- assign a random subgroup among the actor splits determined and broadcast above
-    CAST(rand() * getLogActorSplits(wiki_db, log_actor) AS INT) AS log_actor_split,
+    -- assign a subgroup from log_id among the actor splits
+    CAST(COALESCE(log_id, 0) % getLogActorSplits(wiki_db, log_actor) AS INT) AS log_actor_split,
     log_comment_id,
-    -- assign a random subgroup among the comment splits determined and broadcast above
-    CAST(rand() * getLogCommentSplits(wiki_db, log_comment_id) AS INT) AS log_comment_split
+    -- assign a subgroup from log_id among the comment splits
+    CAST(COALESCE(log_id, 0) % getLogCommentSplits(wiki_db, log_comment_id) AS INT) AS log_comment_split
   FROM distinct_filtered_logging
 ),
 
