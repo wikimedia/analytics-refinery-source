@@ -1,3 +1,8 @@
+## v0.0.129
+* Make mediawiki_history skewed join deterministic
+* Remove filter_allowed_domains from common event_transforms
+* Label mobile-html endpoint requests as app pageviews
+
 ## v0.0.128
 * Add UDF that transforms Pagecounts-EZ projects into standard
 * Correct bug in webrequest host normalization
