@@ -55,6 +55,7 @@
   </mailingLists>
 
   <repositories>
+    <!-- Remove maven central to use archiva-mirrored repos only -->
     <repository>
       <id>central</id>
       <url>http://repo1.maven.org/maven2</url>
@@ -65,10 +66,28 @@
         <enabled>false</enabled>
       </snapshots>
     </repository>
+
+    <!-- Needed archiva-mirrored repos -->
     <repository>
-      <id>wmf-mirrored</id>
-      <url>https://archiva.wikimedia.org/repository/mirrored/</url>
+      <id>wmf-mirror-maven-central</id>
+      <url>https://archiva.wikimedia.org/repository/mirror-maven-central/</url>
     </repository>
+    <repository>
+      <id>wmf-mirror-spark</id>
+      <url>https://archiva.wikimedia.org/repository/mirror-spark/</url>
+    </repository>
+    <repository>
+      <id>wmf-mirror-cloudera</id>
+      <url>https://archiva.wikimedia.org/repository/mirror-cloudera/</url>
+    </repository>
+
+    <!-- Manually uploaded artifacts for analytics -->
+    <repository>
+      <id>wmf-analytics-old-uploads</id>
+      <url>https://archiva.wikimedia.org/repository/analytics-old-uploads/</url>
+    </repository>
+
+    <!-- WMF released artifacts -->
     <repository>
       <id>wmf-releases</id>
       <url>https://archiva.wikimedia.org/repository/releases/</url>
@@ -76,6 +95,7 @@
   </repositories>
 
   <pluginRepositories>
+    <!-- Remove maven central to use archiva-mirrored repos only -->
     <pluginRepository>
       <id>central</id>
       <url>http://repo1.maven.org/maven2</url>
@@ -86,9 +106,10 @@
         <enabled>false</enabled>
       </snapshots>
     </pluginRepository>
+    <!-- Needed archiva-mirrored repos -->
     <pluginRepository>
-      <id>wmf-mirrored</id>
-      <url>https://archiva.wikimedia.org/repository/mirrored/</url>
+      <id>wmf-mirror-maven-central</id>
+      <url>https://archiva.wikimedia.org/repository/mirror-maven-central/</url>
     </pluginRepository>
   </pluginRepositories>
 
