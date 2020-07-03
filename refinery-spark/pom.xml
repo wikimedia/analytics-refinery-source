@@ -180,7 +180,6 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.5</version>
         </dependency>
 
         <!-- Needed to query Hive instead of Spark for ALTER TABLE in Refine job -->

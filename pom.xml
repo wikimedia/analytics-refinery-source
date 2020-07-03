@@ -58,7 +58,7 @@
     <!-- Remove maven central to use archiva-mirrored repos only -->
     <repository>
       <id>central</id>
-      <url>http://repo1.maven.org/maven2</url>
+      <url>https://repo1.maven.org/maven2</url>
       <releases>
         <enabled>false</enabled>
       </releases>
@@ -189,7 +189,7 @@
       <dependency>
           <groupId>org.apache.commons</groupId>
           <artifactId>commons-lang3</artifactId>
-          <version>3.3.2</version>
+          <version>3.5</version>
       </dependency>
 
       <dependency>
