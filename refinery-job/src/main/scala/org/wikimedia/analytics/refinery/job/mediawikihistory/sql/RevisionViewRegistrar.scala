@@ -115,10 +115,10 @@ WITH revision_actor_comment_splits AS (
     rev_sha1,
     rev_actor,
     -- assign a subgroup  from rev_id among the actor splits
-    CAST(COALESCE(rev_id, 0) * getRevActorSplits(wiki_db, rev_actor) AS INT) AS rev_actor_split,
+    CAST(COALESCE(rev_id, 0) % getRevActorSplits(wiki_db, rev_actor) AS INT) AS rev_actor_split,
     rev_comment_id,
     -- assign a subgroup from rev_id among the comment splits
-    CAST(COALESCE(rev_id, 0) * getRevCommentSplits(wiki_db, rev_comment_id) AS INT) AS rev_comment_split
+    CAST(COALESCE(rev_id, 0) % getRevCommentSplits(wiki_db, rev_comment_id) AS INT) AS rev_comment_split
   FROM $revisionUnprocessedView
   WHERE TRUE
     $wikiClause
