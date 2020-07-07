@@ -1,3 +1,6 @@
+## v0.0.130
+* Rename pageview_actor_hourly to pageview_actor in clickstream job 
+
 ## v0.0.129
 * Make mediawiki_history skewed join deterministic
 * Remove filter_allowed_domains from common event_transforms
