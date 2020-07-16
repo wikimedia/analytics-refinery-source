@@ -48,14 +48,15 @@ class EventSparkSchemaLoader(
 
         firstLine match {
             // If no firstLine could be read
-            case None =>
+            case None => {
                 log.warn(
                     s"JSONSchema for event data in ${target.inputPath} could not be loaded: " +
-                        "the data path was empty"
+                    "the data path was empty"
                 )
                 None
+            }
 
-            case Some(eventString) =>
+            case Some(eventString) => {
                 // Pass it to EventSchemaLoader to parse it into JsonNode event,
                 // and to look up that event's schema.
                 val jsonSchema = if (loadLatest) {
@@ -63,43 +64,18 @@ class EventSparkSchemaLoader(
                 } else {
                     eventSchemaLoader.getEventSchema(eventString)
                 }
-
-                log.debug(s"Loaded ${if (loadLatest) "latest" else "" } JSONSchema for event data in ${target.inputPath}:\n$jsonSchema")
+                log.debug(
+                    s"Loaded ${if (loadLatest) "latest" else ""} JSONSchema for event data in " +
+                    s"${target.inputPath}:\n$jsonSchema"
+                )
 
                 val sparkSchema = JsonSchemaConverter.toSparkSchema(jsonSchema)
-
-                // If the target Hive table exists, then go ahead and merge the
-                // input JSONSchema into the Hive schema, keeping the casing on top
-                // level field names where possible (since this schema will be used to
-                // load JSON data). Because we only use the $schema for the first
-                // event in the input target data, merging whatever that is with
-                // the Hive schema will ensure that other events in the file
-                // that have fields that Hive has, but that the first event's schema
-                // doesn't have, will still be read.  Ideally this wouldn't matter,
-                // since different schema versions should all be backwards compatible,
-                // but is is very possible that the first event in the input data is
-                // using an older schema.  Without merging, events with newer schemas
-                // and new fields (that have already been evolved into the Hive schema)
-                // would have their new fields nulled.
-                // See also:
-                // - https://phabricator.wikimedia.org/T227088
-                // - https://phabricator.wikimedia.org/T226219
-                val schema = if (target.tableExists()) {
-                    val s = target.spark.table(target.tableName).schema.merge(sparkSchema, false)
-                    log.debug(
-                        s"Converted JSONSchema for event data in ${target.inputPath} " +
-                        s"to Spark schema and merged with table ${target.tableName} schema:\n${s.treeString}"
-                    )
-                    s
-
-                } else {
-                    log.debug(
-                        s"Converted JSONSchema for event data in ${target.inputPath} " +
-                        s"to Spark schema:\n${sparkSchema.treeString}"
-                    )
-                    sparkSchema
-                }
-                Some(schema)
+                log.debug(
+                    s"Converted JSONSchema for event data in ${target.inputPath} " +
+                    s"to Spark schema:\n${sparkSchema.treeString}"
+                )
+                Some(sparkSchema)
+            }
         }
     }
 }

@@ -1,11 +1,9 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import java.util
-
 import com.github.nscala_time.time.Imports._
 import io.circe.Decoder
 import cats.syntax.either._
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
@@ -59,13 +57,14 @@ object Refine extends LogHelper with ConfigHelper {
         ignore_done_flag: Boolean                       = false,
         schema_base_uris: Seq[String]                   = Seq.empty,
         schema_field: String                            = "/$schema",
-        dataframereader_options: Map[String, String]    = Map()
+        dataframereader_options: Map[String, String]    = Map(),
+        merge_with_hive_schema_before_read: Boolean     = false
     )
 
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        val default = Config("", "", Seq(), "", "")
+        val default: Config = Config("", "", Seq(), "", "")
 
         val propertiesDoc: ListMap[String, String] = ListMap(
             "config_file <file1.properties,files2.properties>" ->
@@ -160,7 +159,12 @@ object Refine extends LogHelper with ConfigHelper {
                    |Default: ${default.schema_field}""",
             "dataframereader_options" ->
                 s"""Comma separated list of key:value pairs to use as options to DataFrameReader
-                   |when reading the input DataFrame."""
+                   |when reading the input DataFrame.""",
+            "merge_with_hive_schema_before_read" ->
+                s"""If true, the loaded schema will be merged with the Hive schema and used when
+                   |reading input data.  This might be useful if the Hive schema has
+                   |more information (e.g. extra fields) than the schema loaded for the input
+                   |data. (This is needed for legacy EventLogging metawiki schemas.)""".stripMargin
         )
 
         val usage: String =
@@ -275,7 +279,8 @@ object Refine extends LogHelper with ConfigHelper {
         ignore_done_flag: Boolean                       = Config.default.ignore_done_flag,
         schema_base_uris: Seq[String]                   = Config.default.schema_base_uris,
         schema_field: String                            = Config.default.schema_field,
-        dataframereader_options: Map[String, String]    = Config.default.dataframereader_options
+        dataframereader_options: Map[String, String]    = Config.default.dataframereader_options,
+        merge_with_hive_schema_before_read: Boolean     = Config.default.merge_with_hive_schema_before_read
     ): Boolean = {
         // Initial setup - Spark Conf and Hadoop FileSystem
         spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
@@ -380,7 +385,13 @@ object Refine extends LogHelper with ConfigHelper {
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
             if (!dry_run)
-                table -> refineTargets(spark, tableTargets.seq, transform_functions, dataframereader_options)
+                table -> refineTargets(
+                    spark,
+                    tableTargets.seq,
+                    transform_functions,
+                    dataframereader_options,
+                    merge_with_hive_schema_before_read
+                )
             // If dry_run was given, don't refine, just map to Successes.
             else
                 table -> tableTargets.seq.map(Success(_))
@@ -478,7 +489,8 @@ object Refine extends LogHelper with ConfigHelper {
             config.ignore_done_flag,
             config.schema_base_uris,
             config.schema_field,
-            config.dataframereader_options
+            config.dataframereader_options,
+            config.merge_with_hive_schema_before_read
         )
     }
 
@@ -495,13 +507,17 @@ object Refine extends LogHelper with ConfigHelper {
         spark: SparkSession,
         targets: Seq[RefineTarget],
         transformFunctions: Seq[TransformFunction],
-        dataFrameReaderOptions: Map[String, String] = Map()
+        dataFrameReaderOptions: Map[String, String] = Map(),
+        mergeWithHiveSchemaBeforeRead: Boolean = false
     ): Seq[Try[RefineTarget]] = {
         targets.map(target => {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val partDf = target.inputPartitionedDataFrame(dataFrameReaderOptions)
+                val partDf = target.inputPartitionedDataFrame(
+                    dataFrameReaderOptions,
+                    mergeWithHiveSchemaBeforeRead
+                )
                 val insertedDf = DataFrameToHive(
                     spark,
                     partDf,

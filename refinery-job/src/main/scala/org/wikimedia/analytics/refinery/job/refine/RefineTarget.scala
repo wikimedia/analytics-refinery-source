@@ -74,6 +74,11 @@ case class RefineTarget(
       */
     lazy val inputFormat: String = inputFormatOpt.getOrElse(inferInputFormat)
 
+    /**
+      * The Spark schema for this target.  This is loaded
+      * using the provided SparkSchemaLoader schemaLoader.
+      */
+    lazy val schema: Option[StructType] = schemaLoader.loadSchema(this)
 
     /**
       * Easy access to the fully qualified Hive table name.
@@ -359,7 +364,6 @@ case class RefineTarget(
         shouldRefineThis
     }
 
-
     /**
       * Reads the first bytes in inputPath as chars, and examines them to
       * infer the file format.  This will only work if the first file
@@ -404,7 +408,6 @@ case class RefineTarget(
         }
     }
 
-
     /**
       * Reads input path into a DataFrame.
       *
@@ -416,17 +419,60 @@ case class RefineTarget(
       * will result in an AssertionError when reading the DataFrame, as the data will
       * not match the schema.
       *
-      * @param dfReaderOptions Map[String, String] Extra Spark DataFrameReader options to use
+      * @param dfReaderOptions Map[String, String]
+      *     Extra Spark DataFrameReader options to use
+
+      * @param useMergedSchemaForRead
+      *     If true, the schema loaded by schemaLoader will be merged (and normalized)
+      *     with the target's Hive table before reading the input data.  This might
+      *     be useful if the Hive table has extra fields (from previous schema evolution)
+      *     that are not present in the loaded schema but may be present in some of the
+      *     input data.
+      *     Generally, it is not a good idea to use this option, but it may be necessary
+      *     for input data that has not used good backwards compatibility constraints
+      *     when changing schemas.
+      *
       * @return
       */
-    def inputDataFrame(dfReaderOptions: Map[String, String] = Map()): DataFrame = {
-        // If this RefineTarget was given a SchemaLoader, then
-        // use it to get the schema now.  If schemaLoader fails to load schema, this will error.
-        // If schemaLoader returns None, we will not use an explicit schema when reading data, but
-        // instead rely on Spark schema data inference.
-        val schema = schemaLoader.loadSchema(this)
+    def inputDataFrame(
+        dfReaderOptions: Map[String, String] = Map(),
+        useMergedSchemaForRead: Boolean = false
+    ): DataFrame = {
 
-        val dfReader: DataFrameReader = { schema match {
+        val schemaForRead = if (schema.isDefined && useMergedSchemaForRead && tableExists) {
+            // TODO: This is being deprecated as all new versioned schemas should
+            // be backwards compatible.  Once we can be sure they are, we can remove
+            // this conditional logic.  https://phabricator.wikimedia.org/T255818
+            //
+            // If useMergedSchemaForRead and the target Hive table exists, then
+            // merge the input schema with Hive schema, keeping the casing on top
+            // level field names where possible (since this schema will be used to
+            // load JSON data). This will ensure that other events in the file
+            // that have fields that Hive has, but that the loaded schema
+            // doesn't have, will still be read. Ideally this wouldn't matter,
+            // since different schema versions should all be backwards compatible,
+            // but is is possible that in legacy EventLogging schemas someone has
+            // removed a field from a latest schema. Without merging, data of an older
+            // version that have now removed fields would lose these fields.  Hive's schema
+            // should have been evolved in a way that it has all fields ever seen in any
+            // schema version, so merging these together ensure that those fields still are read.
+            // See also:
+            // - https://phabricator.wikimedia.org/T227088
+            // - https://phabricator.wikimedia.org/T226219
+            val mergedSchema = spark.table(tableName).schema.merge(
+                schema.get,
+                lowerCaseTopLevel=false
+            )
+            log.debug(
+                s"Merged schema for $this with Hive table schema" +
+                s"before reading input data:\n${mergedSchema.treeString}"
+            )
+            Some(mergedSchema)
+        } else {
+            schema
+        }
+
+        val dfReader: DataFrameReader = { schemaForRead match {
             case None    => spark.read
             // If we're loading from textual data, then assume that we will want all fields
             // in the schema to be nullable (AKA not required).
@@ -470,13 +516,15 @@ case class RefineTarget(
       * @param dfReaderOptions Map[String, String] Extra Spark DataFrameReader options to use
       * @return
       */
-    def inputPartitionedDataFrame(dfReaderOptions: Map[String, String] = Map()): PartitionedDataFrame = {
+    def inputPartitionedDataFrame(
+        dfReaderOptions: Map[String, String] = Map(),
+        mergeWithHiveSchema: Boolean = false
+    ): PartitionedDataFrame = {
         new PartitionedDataFrame(
-            inputDataFrame(dfReaderOptions),
+            inputDataFrame(dfReaderOptions, mergeWithHiveSchema),
             partition
         )
     }
-
 
     /**
       * Gets the first line as a String out of the inputPath without converting to a DataFrame.
