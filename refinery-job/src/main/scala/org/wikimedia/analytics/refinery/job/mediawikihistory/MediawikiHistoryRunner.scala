@@ -238,18 +238,20 @@ object MediawikiHistoryRunner {
         log.info(
           s"""
              |Starting MediawikiHistoryRunner with params:
-             |  mediawiki-base-path:    $mediawikiBasePath
-             |  output-base-path:       $outputBasePath
-             |  wikis:                  $wikiConstraint
-             |  snapshot:               $snapshot
-             |  temporary-path:         $tmpPath
-             |  num-partitions:         $baseNumPartitions
-             |  table-format:           $readerFormat
-             |  debug:                  $debug
-             |  write-errors:           $writeErrors
-             |  users-history:          $runUsersHistory
-             |  pages-history:          $runPagesHistory
-             |  revisions-denormalize:  $runDenormalize
+             |  mediawiki-base-path:         $mediawikiBasePath
+             |  mediawiki-private-base-path: $mediawikiPrivateBasePath
+             |  output-base-path:            $outputBasePath
+             |  wikis:                       $wikiConstraint
+             |  snapshot:                    $snapshot
+             |  temporary-path:              $tmpPath
+             |  num-partitions:              $baseNumPartitions
+             |  table-format:                $readerFormat
+             |  debug:                       $debug
+             |  write-errors:                $writeErrors
+             |  no-stats:                    $noStats
+             |  users-history:               $runUsersHistory
+             |  pages-history:               $runPagesHistory
+             |  revisions-denormalize:       $runDenormalize
                """.stripMargin
         )
 
