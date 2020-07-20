@@ -1,5 +1,12 @@
+## v0.0.131
+* Refine - Don't merge Hive schema by default when reading input data
+* Overloaded methods to make working with Refine easier
+* Remove unused custom avro camus classes
+* Fix mediawiki-history skewed join bug
+* Remove sysop domains from accepted pageviews
+
 ## v0.0.130
-* Rename pageview_actor_hourly to pageview_actor in clickstream job 
+* Rename pageview_actor_hourly to pageview_actor in clickstream job
 
 ## v0.0.129
 * Make mediawiki_history skewed join deterministic
