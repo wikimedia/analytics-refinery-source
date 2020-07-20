@@ -89,7 +89,7 @@ public class Webrequest {
     );
     public final static Pattern URI_HOST_PROJECT_DOMAIN_PATTERN = Pattern.compile(
             // starting with a letter but not starting with "www" "test", "donate" or "arbcom"
-            "^((?!www)(?!donate)(?!arbcom)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
+            "^((?!www)(?!donate)(?!arbcom)(?!sysop)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
                     + "(wik(ibooks|"  // match project domains ending in .org
                     + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
     );
