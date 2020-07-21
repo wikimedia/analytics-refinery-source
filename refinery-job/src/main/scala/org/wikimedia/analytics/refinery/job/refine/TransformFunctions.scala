@@ -190,7 +190,7 @@ object geocode_ip extends LogHelper {
             val workingDf = partDf.df
             val columnExpressions = workingDf.columns.filter(
                 _.toLowerCase != geocodedDataColumnName.toLowerCase
-            ) :+ geocodedDataSql
+            ).map(c => s"`$c`") :+ geocodedDataSql
             val parsedDf = workingDf.selectExpr(columnExpressions:_*)
 
 
@@ -243,7 +243,7 @@ object geocode_ip extends LogHelper {
         // the result of as userAgentStructSql as userAgentStructLegacyColumnName.
         val columnExpressions = workingDf.columns.filter(
             _.toLowerCase != ipLegacyColumnName.toLowerCase
-        ) :+ ipSql
+        ).map(c => s"`$c`") :+ ipSql
         partDf.copy(df = workingDf.selectExpr(columnExpressions:_*))
     }
 }
@@ -307,7 +307,7 @@ object parse_user_agent extends LogHelper {
             val workingDf = partDf.df
             val columnExpressions = workingDf.columns.filter(
                 _.toLowerCase != userAgentMapColumnName.toLowerCase
-            ) :+ userAgentMapSql
+            ).map(c => s"`$c`") :+ userAgentMapSql
             val parsedDf = workingDf.selectExpr(columnExpressions:_*)
 
             // If the original DataFrame has a legacy useragent struct field, copy the map field
@@ -412,7 +412,7 @@ object parse_user_agent extends LogHelper {
         // the result of as userAgentStructSql as userAgentStructLegacyColumnName.
         val columnExpressions = workingDf.columns.filter(
             _.toLowerCase != userAgentStructLegacyColumnName.toLowerCase
-        ) :+ userAgentStructSql
+        ).map(c => s"`$c`") :+ userAgentStructSql
         partDf.copy(df = workingDf.selectExpr(columnExpressions:_*))
     }
 }
