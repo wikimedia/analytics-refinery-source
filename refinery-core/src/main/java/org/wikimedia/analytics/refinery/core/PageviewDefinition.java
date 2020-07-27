@@ -145,7 +145,6 @@ public class PageviewDefinition {
         final String uriQuery = data.getUriQuery();
 
         final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
-        final boolean isIosAgent = Utilities.stringContains(userAgent, "Wikipedia/5.0.");
         final boolean isLikeIosAgent = Utilities.patternIsFound(Pattern.compile("iPhone|iOS"), userAgent);
         final boolean isAppAgent = Utilities.stringContains(userAgent, "WikipediaApp");
         final boolean isApiPath = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_API);
@@ -157,7 +156,7 @@ public class PageviewDefinition {
         final boolean isMobileHTMLPagePath = Utilities.stringContains(uriPath, "/page/mobile-html/");
         final boolean isHTMLResponse = Utilities.stringContains(contentType, "text/html");
 
-        return (isIosAgent || isAppAgent)
+        return (isAppAgent)
 
                && (isTaggedPageview
 
