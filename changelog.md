@@ -1,3 +1,8 @@
+## v0.0.132
+* Refine - Quote SQL columns used in selectExpr in TransformFunctions
+* Remove outdated IOS pageview code
+* For Android and iOS we only count pageviews with x-Analytics marker
+
 ## v0.0.131
 * Refine - Don't merge Hive schema by default when reading input data
 * Overloaded methods to make working with Refine easier
