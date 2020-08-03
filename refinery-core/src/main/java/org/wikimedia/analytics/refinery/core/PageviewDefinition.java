@@ -142,14 +142,14 @@ public class PageviewDefinition {
         final String userAgent = data.getUserAgent();
         final String uriPath = data.getUriPath();
         final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
-        final boolean isAppAgent = Utilities.stringContains(userAgent, "WikipediaApp");
+        
         
         // See analytics request for KAiOS pageviews to be turned into events here:
         // https://phabricator.wikimedia.org/T244547
         final boolean isKAiOSPageview = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_REST_API)
             && Utilities.stringContains(uriPath, "/page/mobile-sections/");
        
-        return (isAppAgent) && (isTaggedPageview || isKAiOSPageview);
+        return (data.isAppUserAgent()) && (isTaggedPageview || isKAiOSPageview);
         
     }
     
@@ -213,7 +213,7 @@ public class PageviewDefinition {
 
             if (successRequestForWikimediaProject && pageDenotesContentConsumption(data)) {
                 // Check if it is an app pageview if it was not a web one.
-                return (isWebPageview(data) || isAppPageview(data)) ;
+                return ((!data.isAppUserAgent() && isWebPageview(data)) || isAppPageview(data)) ;
 
             } else {
                 return false;

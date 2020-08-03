@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.core.webrequest;
 
 import org.json.simple.JSONObject;
+import org.wikimedia.analytics.refinery.core.Utilities;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +18,7 @@ public class WebrequestData {
     private final String contentType;
     private final String userAgent;
     private final String rawXAnalyticsHeader;
+    private final boolean isAppUserAgent;
 
     public WebrequestData(String uriHost, String uriPath, String uriQuery,
                           String httpStatus, String contentType, String userAgent,
@@ -41,10 +43,10 @@ public class WebrequestData {
 
         this.rawXAnalyticsHeader = rawXAnalyticsHeader;
 
-
+        this.isAppUserAgent = Utilities.stringContains(userAgent, "WikipediaApp");
+    
     }
-
-
+    
     public String getUriHost(){
         return uriHost;
     }
@@ -72,7 +74,9 @@ public class WebrequestData {
     public String getRawXAnalyticsHeader(){
         return rawXAnalyticsHeader;
     }
-
+    
+    public boolean isAppUserAgent(){ return isAppUserAgent; }
+    
     @Override
     public String toString(){
         Map webrequestMap = new HashMap<String, String>();
