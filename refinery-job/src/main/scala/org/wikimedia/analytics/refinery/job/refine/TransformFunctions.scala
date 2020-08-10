@@ -308,23 +308,49 @@ object parse_user_agent extends LogHelper {
             val columnExpressions = workingDf.columns.filter(
                 _.toLowerCase != userAgentMapColumnName.toLowerCase
             ).map(c => s"`$c`") :+ userAgentMapSql
-            val parsedDf = workingDf.selectExpr(columnExpressions:_*)
+            val partDfWithUAMap = partDf.copy(df = workingDf.selectExpr(columnExpressions:_*))
 
             // If the original DataFrame has a legacy useragent struct field, copy the map field
             // entries to it for backwards compatibility.
-            if (
-                parsedDf.hasColumn(userAgentStructLegacyColumnName) &&
-                // (We need to find the field in the schema case insensitive)
-                parsedDf.schema.find(Seq(userAgentStructLegacyColumnName), true).head.isStructType
-            ) {
-                add_legacy_eventlogging_struct(partDf.copy(df = parsedDf), sourceColumnSql)
+            if (should_add_legacy_eventlogging_struct(partDfWithUAMap)) {
+                add_legacy_eventlogging_struct(partDfWithUAMap, sourceColumnSql)
             }
             else {
-                partDf.copy(df = parsedDf)
+                partDfWithUAMap
             }
         }
     }
 
+    /**
+      * If the incoming data has a legacy useragent struct field, OR if
+      * the destination Hive table has a legacy useragent struct field, then we should
+      * add the struct.  The covers the case where the event schemas do not have
+      * userAgentStructLegacyColumnName (usually the case), but the Hive table
+      * does.  This is going to be true for all 'legacy' EventLogging datasets
+      * that once came through eventlogging-processor.
+      * See: https://phabricator.wikimedia.org/T259944#6372923
+      *s
+      * @param partDf
+      * @return
+      */
+    private def should_add_legacy_eventlogging_struct(partDf: PartitionedDataFrame): Boolean = {
+        val spark = partDf.df.sparkSession
+        val tableName = partDf.partition.tableName
+
+        // Either the incoming df should already have a struct userAgentStructLegacyColumnName, OR
+        // the destination Hive table should.
+        // NOTE: dataframe hasColumn is case insensitive, but StructType schema field by name
+        // access is not, so when checking that the field is a StructType we need to
+        // find the field by name case-insensitively.
+        (
+            partDf.df.hasColumn(userAgentStructLegacyColumnName) &&
+            partDf.df.schema.find(Seq(userAgentStructLegacyColumnName), true).head.isStructType
+        ) || (
+            spark.catalog.tableExists(tableName) &&
+            spark.table(tableName).hasColumn(userAgentStructLegacyColumnName) &&
+            spark.table(tableName).schema.find(Seq(userAgentStructLegacyColumnName), true).head.isStructType
+        )
+    }
 
     /**
       * eventlogging-processor previously handled user agent parsing and
@@ -386,21 +412,27 @@ object parse_user_agent extends LogHelper {
 
         // Build a SQL statement using named_struct that will generate the
         // userAgentStructLegacyColumnName struct.
-        // If userAgentStructLegacyColumnName exists and is non NULL, keep it.
-        // This handles the case where the value of sourceColumnSql might be null, but
-        // we have an (externally eventlogging-processor) parsed userAgent EventLogging field,
-        // so we don't need to and can't reparse it, since we don't have the original user agent.
+        val userAgentMapCaseNonNullSql =
+            s"""CASE WHEN $userAgentMapColumnName IS NULL THEN NULL ELSE $namedStructSql END"""
 
-        // If useragent struct, keep it,
-        // Else if user_agent_map is NULL, then set useragent to NULL too.
-        // Else create useragent struct from user_agent_map
-        val userAgentStructSql =
+        val userAgentStructSql = if (partDf.df.hasColumn(userAgentStructLegacyColumnName)) {
+            // If userAgentStructLegacyColumnName exists and is non NULL, keep it by COALESCEing it.
+            // If it doesn't exist on the DF, then we can't refer to it in the SQL, and we don't
+            // need to COALESCE anyway.
+            // This handles the case where the value of sourceColumnSql might be null, but
+            // we have an (externally eventlogging-processor) parsed userAgent EventLogging field,
+            // so we don't need to and can't reparse it, since we don't have the original user agent.
             s"""
                |COALESCE(
                |    $userAgentStructLegacyColumnName,
-               |    CASE WHEN $userAgentMapColumnName IS NULL THEN NULL ELSE $namedStructSql END
+               |    $userAgentMapCaseNonNullSql
                |) AS $userAgentStructLegacyColumnName
                |""".stripMargin
+        } else {
+            // Else if user_agent_map is NULL, then set useragent to NULL too.
+            // Else create useragent struct from user_agent_map
+            s"$userAgentMapCaseNonNullSql as $userAgentStructLegacyColumnName"
+        }
 
         log.info(
             s"Adding legacy `$userAgentStructLegacyColumnName` struct column in ${partDf.partition} " +
