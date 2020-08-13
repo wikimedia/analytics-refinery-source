@@ -1,3 +1,7 @@
+## v0.0.133
+* Refine - Add legacy useragent column if field exists in event schema or in Hive
+* Pageview definition - Exclude requests with app user agents from web pageviews
+
 ## v0.0.132
 * Refine - Quote SQL columns used in selectExpr in TransformFunctions
 * Remove outdated IOS pageview code
