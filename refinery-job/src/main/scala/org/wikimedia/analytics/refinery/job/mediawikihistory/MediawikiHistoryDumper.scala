@@ -124,9 +124,7 @@ object MediawikiHistoryDumper {
             setAppName(s"MediawikiHistoryDumper").
             set("spark.serializer", "org.apache.spark.serializer.KryoSerializer").
             registerKryoClasses(Array(
-                classOf[MediawikiEvent],
-                classOf[MediawikiEventUserDetails],
-                classOf[MediawikiEventPageDetails]
+                classOf[MediawikiEvent]
             ))
         val spark = SparkSession.builder().config(conf).enableHiveSupport().getOrCreate()
 
@@ -187,17 +185,12 @@ object MediawikiHistoryDumper {
             // Filter out records with unknown time_bucket (See [[eventTimeBucket]]).
             flatMap(r => {
                 val event = MediawikiEvent.fromRow(r)
-                val timeBucket = eventTimeBucket(event)
-                val timestamp = if (event.eventTimestamp.isDefined) {
-                    event.eventTimestamp.get.getTime()
-                } else 0l
-                if (timeBucket != "unknown") {
+                eventTimeBucket(event)
+                  // We can get the value of event_timestamp as None are filtered out in eventTimeBucket function
+                  .map(timeBucket => Seq(Row.fromTuple((event.wikiDb, timeBucket, event.eventTimestamp.get.getTime, event.toTSVLine))))
+                  .getOrElse(Seq.empty[Row])
                     // The first 3 dimensions are used for proper partitioning
                     // and ordering of the data, only the tsv line will be output.
-                    Seq(Row.fromTuple((event.wikiDb, timeBucket, timestamp, event.toTSVLine)))
-                } else {
-                    Seq.empty[Row]
-                }
             })(partitionedDatasetRowEncoder).
             // The following line applies the repartitioning. It redistributes
             // the data among tempPartitions partitions. And makes sure that
@@ -208,7 +201,7 @@ object MediawikiHistoryDumper {
             // belonging to the same pair (wiki, time_bucket) to be written to
             // the same file.
             repartition(tempPartitions, col("wiki"), col("time_bucket")).
-            sortWithinPartitions(col("timestamp")).
+            sortWithinPartitions(col("wiki"), col("time_bucket"), col("timestamp")).
             drop("timestamp").
             write.
             mode(SaveMode.Overwrite).
@@ -223,7 +216,7 @@ object MediawikiHistoryDumper {
     /**
      * Extract the time_bucket from an event depending on the wiki category.
      */
-    def eventTimeBucket(event: MediawikiEvent): String = {
+    def eventTimeBucket(event: MediawikiEvent): Option[String] = {
         event.eventTimestamp match {
             case Some(timestamp) =>
                 val nowCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
@@ -237,18 +230,18 @@ object MediawikiHistoryDumper {
                     // Also mark events with timestamp after current date as unknown.
                     // Those are rare archived-revisions with incorrect dates and null page.
                     // See: https://phabricator.wikimedia.org/T235269
-                    "unknown"
+                    None
                 } else if (MediawikiHistoryDumper.WikisInMonthlyBuckets.contains(event.wikiDb)) {
-                    year.toString + "-%02d".format(eventCalendar.get(Calendar.MONTH) + 1)
+                    Some(year.toString + "-%02d".format(eventCalendar.get(Calendar.MONTH) + 1))
                 } else if (MediawikiHistoryDumper.WikisInYearlyBuckets.contains(event.wikiDb)) {
-                    year.toString
+                    Some(year.toString)
                 } else {
-                    "all-time"
+                    Some("all-time")
                 }
             // Mark events with null timestamp as unknown. Those are page create
             // events that were inferred by the mediawiki history reconstruction
             // and don't give any valuable information to the user.
-            case None => "unknown"
+            case None => None
         }
     }
 
