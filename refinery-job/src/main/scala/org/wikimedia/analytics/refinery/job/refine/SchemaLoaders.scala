@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import org.wikimedia.analytics.refinery.core.jsonschema.EventSchemaLoader
+import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.apache.spark.sql.types.StructType

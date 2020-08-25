@@ -30,6 +30,11 @@
             <version>${project.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.wikimedia</groupId>
+            <artifactId>eventutilities</artifactId>
+        </dependency>
+
         <!--
              adding explicit dep for snappy and netty otherwise
              spark assumes is on the java.library.path

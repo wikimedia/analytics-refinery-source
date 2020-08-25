@@ -8,9 +8,9 @@ import org.apache.spark.sql.SparkSession
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.core.config._
-import org.wikimedia.analytics.refinery.core.jsonschema.{EventLoggingSchemaLoader, EventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.eventutilities.core.event.{EventSchemaLoader, EventLoggingSchemaLoader}
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap

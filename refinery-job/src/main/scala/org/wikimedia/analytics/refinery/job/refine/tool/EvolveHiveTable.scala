@@ -7,9 +7,9 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.core.config._
-import org.wikimedia.analytics.refinery.core.jsonschema.EventSchemaLoader
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
+import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
 import scala.collection.JavaConverters._
 
