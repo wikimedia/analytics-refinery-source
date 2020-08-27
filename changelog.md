@@ -1,3 +1,6 @@
+## v0.0.134
+* Mediawiki History Dumps ordering fix
+
 ## v0.0.133
 * Refine - Add legacy useragent column if field exists in event schema or in Hive
 * Pageview definition - Exclude requests with app user agents from web pageviews
