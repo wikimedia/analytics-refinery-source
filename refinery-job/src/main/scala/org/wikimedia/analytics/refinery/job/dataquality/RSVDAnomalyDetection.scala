@@ -47,13 +47,6 @@ import scopt.OptionParser
  * max-sparsity indicates the sparsity threshold above which time series will
  * be ignored.
  *
- * == Seasonality parameter ==
- * The parameter seasonality-cycle should indicate the strongest seasonality
- * period of the metric group. The seasonality cycle is given in data points.
- * For example: if the data has hourly granularity and daily seasonality
- * (timeseries pattern repeats every day) the seasonality-cycle value should
- * be 24, because it takes 24 data points to complete a seasonality cycle.
- *
  * == Threshold parameter ==
  * The parameter deviation-threshold tells this job what should be considered
  * as an anomaly and reported accordingly. All metrics whose last data point's
@@ -119,8 +112,8 @@ import scopt.OptionParser
  *     --query-name traffic_entropy_by_country \
  *     --granularity daily \
  *     --last-data-point-dt 2020-01-01T00:00:00Z \
- *     --seasonality-cycle 7 \
- *     --deviation-threshold 10
+ *     --deviation-threshold 10 \
+ *     --output-path /tmp/anomalies/testing
  *
  * == Output example ==
  *
@@ -161,7 +154,7 @@ object RSVDAnomalyDetection {
         qualityTable: String = "",
         sourceTable: String = "",
         queryName: String = "",
-        granularity: String = "",
+        granularity: Granularity.Value = Granularity.hourly,
         lastDataPointDt: String = "",
         seasonalityCycle: Int = 1,
         outputPath: String = "",
@@ -190,16 +183,12 @@ object RSVDAnomalyDetection {
         } text ("Name of the query file (without .hql) used to calculate the metrics to be analyzed.")
 
         opt[String]("granularity") required() valueName ("<granularity>") action { (x, p) =>
-            p.copy(granularity = x)
+            p.copy(granularity = Granularity.withName(x))
         } text ("Granularity of the metrics to be analyzed (hourly|daily|monthly).")
 
         opt[String]("last-data-point-dt") required() valueName ("<timestamp>") action { (x, p) =>
             p.copy(lastDataPointDt = x)
         } text ("Datetime of the last data point to analyze in ISO-8601 format (2020-01-01T00:00:00Z).")
-
-        opt[Int]("seasonality-cycle") required() valueName ("<integer>") action { (x, p) =>
-            p.copy(seasonalityCycle = x)
-        } text ("Number of data points that conform a seasonal cycle.")
 
         opt[String]("output-path") required() valueName ("<path>") action { (x, p) =>
             p.copy(outputPath = x)
@@ -259,6 +248,7 @@ class RSVDAnomalyDetection(
         log.info(s"Read ${metrics.length} metrics to analyze")
 
         val outputText = metrics.foldLeft("") { case (text, metric) =>
+
             val inputTimeSeries = readTimeSeries(metric)
             log.info(s"Read timeseries of length ${inputTimeSeries.length} for metric = $metric")
 
@@ -285,17 +275,20 @@ class RSVDAnomalyDetection(
      */
     def getInputMetrics(): Array[String] = {
 
+
         val df = spark.sql(s"""
             SELECT DISTINCT metric
             FROM ${params.qualityTable}
             WHERE
                 source_table = '${params.sourceTable}' AND
                 query_name = '${params.queryName}' AND
-                granularity = '${params.granularity}'
+                granularity = '${params.granularity.name}'
         """)
 
         df.map(_.getString(0)).collect
     }
+
+
 
     /**
      * Queries the given data quality table and gets the time series
@@ -311,7 +304,7 @@ class RSVDAnomalyDetection(
             WHERE
                 source_table = '${params.sourceTable}' AND
                 query_name = '${params.queryName}' AND
-                granularity = '${params.granularity}' AND
+                granularity = '${params.granularity.name}' AND
                 metric = '$metric' AND
                 dt <= '${params.lastDataPointDt}'
             ORDER BY dt
@@ -320,12 +313,16 @@ class RSVDAnomalyDetection(
 
         val rawTimeSeries = df.map(r => (r.getString(0), r.getDouble(1))).collect
         val timeSeries = fillInGaps(rawTimeSeries).map(_._2)
-
         // The input for the BlockMatrix needs to be rectangular, so the
         // time series length needs to be a multiple of the matrixHeight,
         // which is indicated by the seasonality cycle. The following lines
         // crop the oldest values of the time series to fit the matrix.
-        val adjustedSize = timeSeries.length - (timeSeries.length % params.seasonalityCycle)
+
+        val adjustedSize = if (rawTimeSeries.length > params.granularity.maxTimeSeriesLength) {
+            params.granularity.maxTimeSeriesLength
+        } else {
+            timeSeries.length - (timeSeries.length % params.granularity.seasonalityCycle)
+        }
 
         timeSeries.takeRight(adjustedSize)
     }
@@ -348,14 +345,15 @@ class RSVDAnomalyDetection(
             val minDt = DateTime.parse(rawTimeSeries(0)._1)
             val maxDt = DateTime.parse(params.lastDataPointDt)
 
+
             val fullDtRange = params.granularity match {
-                case "hourly" =>
+                case Granularity.hourly =>
                     val rangeHours = Hours.hoursBetween(minDt, maxDt).getHours
                     (0 to rangeHours).map(minDt.plusHours(_))
-                case "daily" =>
+                case Granularity.daily =>
                     val rangeDays = Days.daysBetween(minDt, maxDt).getDays
                     (0 to rangeDays).map(minDt.plusDays(_))
-                case "monthly" =>
+                case Granularity.monthly =>
                     val rangeMonths = Months.monthsBetween(minDt, maxDt).getMonths
                     (0 to rangeMonths).map(minDt.plusMonths(_))
             }
@@ -380,7 +378,7 @@ class RSVDAnomalyDetection(
         // The anomaly detection algorithm needs a time series with enough
         // data points, for the RSVD algorithm to be effective. The miminum
         // length is defined by the height and width of the RSVD matrices.
-        val minLength = params.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)
+        val minLength = params.granularity.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)
         if (timeSeries.length >= minLength) {
             // Time series that are too sparse are filtered out, because they
             // are more difficult to extract signal from, and are more prone
@@ -412,7 +410,7 @@ class RSVDAnomalyDetection(
         )
 
         // The time series needs to be transformed into a matrix for RSVD to work.
-        val matrix = timeSeriesToBlockMatrix(timeSeries, params.seasonalityCycle, config)
+        val matrix = timeSeriesToBlockMatrix(timeSeries, params.granularity.seasonalityCycle, config)
 
         val rsvdResults = RSVD.run(matrix, config, spark.sparkContext)
         // RSVD results need to be transformed into signal and noise time series.

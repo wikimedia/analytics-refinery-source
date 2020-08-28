@@ -50,7 +50,7 @@ class TestRSVDAnomalyDetection extends FlatSpec with Matchers with DataFrameSuit
             ("2020-01-04T00:00:00Z", 3.0)
         )
         val params = RSVDAnomalyDetection.Params(
-            granularity = "daily",
+            granularity = Granularity.withName("daily"),
             lastDataPointDt = "2020-01-05T00:00:00Z",
             defaultFiller = 0.0
         )
@@ -69,7 +69,7 @@ class TestRSVDAnomalyDetection extends FlatSpec with Matchers with DataFrameSuit
     it should "not analyze too short timeseries" in {
         val shortTimeSeries = Array(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)
         val params = RSVDAnomalyDetection.Params(
-            seasonalityCycle = 3,
+            granularity = Granularity.withName("daily"),
             defaultFiller = 0.0,
             maxSparsity = 0.2,
             rsvdDimensions = 1,
@@ -84,7 +84,7 @@ class TestRSVDAnomalyDetection extends FlatSpec with Matchers with DataFrameSuit
     it should "not analyze too sparse timeseries" in {
         val shortTimeSeries = Array(1.0, 0.0, 3.0, 4.0, 5.0, 0.0, 7.0, 8.0, 9.0)
         val params = RSVDAnomalyDetection.Params(
-            seasonalityCycle = 3,
+            granularity = Granularity.withName("hourly"),
             defaultFiller = 0.0,
             maxSparsity = 0.2,
             rsvdDimensions = 1,
