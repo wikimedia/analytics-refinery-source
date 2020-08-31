@@ -1,3 +1,7 @@
+## v0.0.135
+* Add ProduceCanaryEvents job
+* Add dependency on wikimedia event-utilities and use schema loader classes from it
+
 ## v0.0.134
 * Mediawiki History Dumps ordering fix
 

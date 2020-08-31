@@ -61,10 +61,15 @@ import scala.reflect.macros.blackbox
 trait ConfigHelper {
     private final val dateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
 
-    // implicit conversion from string to Option[Regex]
     implicit val decodeOptionString: Decoder[Option[String]] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(Some(s)).leftMap(t =>
             throw new RuntimeException(s"Failed parsing '$s' into a string.", t)
+        )
+    }
+
+    implicit val decodeSeqString: Decoder[Seq[String]] = Decoder.decodeString.emap { s =>
+        Either.catchNonFatal(s.split(",").toSeq).leftMap(t =>
+            throw new RuntimeException(s"Failed parsing '$s' into a seq string.", t)
         )
     }
 
@@ -101,15 +106,6 @@ trait ConfigHelper {
     implicit val decodeOptionDouble: Decoder[Option[Double]] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(Some(s.toDouble)).leftMap(t =>
             throw new RuntimeException(s"Failed parsing '$s' into a double.", t)
-        )
-    }
-
-    // implicit conversion from comma separated string to Seq[String]
-    implicit val decodeSeqString: Decoder[Seq[String]] = Decoder.decodeString.emap { s =>
-        Either.catchNonFatal(s.split(",").toSeq).leftMap(t =>
-            throw new RuntimeException(
-                s"Failed parsing '$s' into a list. Must provide a comma separated list.", t
-            )
         )
     }
 
@@ -151,7 +147,7 @@ trait ConfigHelper {
         )
     }
 
-    // implicit conversionfrom string to DateTimeFormatter
+    // implicit conversion from string to DateTimeFormatter
     implicit val decodeDateTimeFormatter: Decoder[DateTimeFormatter] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(DateTimeFormat.forPattern(s)).leftMap(t =>
             throw new RuntimeException(s"Failed parsing '$s' into a DateTimeFormatter", t)
