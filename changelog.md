@@ -1,3 +1,6 @@
+## v0.0.136
+* Chopping timeseries for noise detection
+
 ## v0.0.135
 * Add ProduceCanaryEvents job
 * Add dependency on wikimedia event-utilities and use schema loader classes from it
