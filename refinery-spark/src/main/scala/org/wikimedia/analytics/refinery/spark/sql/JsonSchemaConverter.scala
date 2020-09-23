@@ -12,7 +12,7 @@ import scala.util.Try
  *
  * Notes:
  * - Only a subset of JSONSchema is supported.
- * - object with additionalProperties only are converted to a Map.
+ * - object with additionalProperties as a schema are converted to a Map.
  */
 object JsonSchemaConverter extends LogHelper {
 
@@ -23,7 +23,6 @@ object JsonSchemaConverter extends LogHelper {
     private val additionalPropertiesField    = "additionalProperties"
     private val requiredField                = "required"
     private val descriptionField             = "description"
-
 
     /*
      * Build an ArrayType from an array JSONSchema node.
@@ -69,7 +68,18 @@ object JsonSchemaConverter extends LogHelper {
      * Build a DataType from a type-describing JsonNode and a field-name for better logging.
      * The JsonNode is expected to contain a valid JSONSchema type TextNode.
      *
-     * Note: A special case of converting object with only additionalProperties to a Map is built-in.
+     * Note: A special case of converting object with an additionalProperties schema to a Map is
+     * included. In JSONSchema, additionalProperties can either be a boolean
+     * or an object.  If it is an object, it expected to specify the schema
+     * of the unknown properties. This is what we need for a MapType.
+     * We want to still allow object schemas to indicate that they have specific
+     * property keys in a MapType though, so an object with additionalProperties
+     * with a schema can still include a defined properties.  In this case, we will
+     * use a MapType here and the defined properties will be ignored in the Spark
+     * schema.  It is up to the schema author to ensure that the types of the defined
+     * properties match the additionalProperties schema; that is, all defined properties
+     * must have the same type as the additionalProperties, as this is what will
+     * be used for the value in the MapType.
      *
      * This function recursively calls itself to get array-items types, and the
      * buildStructType function to get object inner types.
@@ -93,12 +103,39 @@ object JsonSchemaConverter extends LogHelper {
             case "string" => StringType
             case "array" => buildArrayType(jsonSchema, fieldName)
             case "object" =>
+                // An object type must have a schema defined either in properties
+                // or additionalProperties.
                 val properties = jsonSchema.get(propertiesField)
-                // Regular sub-object case: properties subfield is defined
-                if (properties != null && !properties.isNull) buildStructType(jsonSchema, fieldName)
-                // Special map-case: properties undefined, additionalProperties defined with type
-                else buildMapType(jsonSchema, fieldName)
+                val additionalProperties = jsonSchema.get(additionalPropertiesField)
+
+
+                if (additionalProperties != null && additionalProperties.isObject) {
+                    // Special map-case: additionalProperties has a schema, assume this is a MapType.
+                    val mapType = buildMapType(jsonSchema, fieldName)
+                    if (properties != null) {
+                        verifyMapTypeCompatibility(mapType, jsonSchema)
+                    }
+                    mapType
+                } else if (properties != null && properties.isObject) {
+                    // Regular sub-object case: properties subfield is defined with no
+                    // additionalProperties schema, this should be a StructType.
+                    buildStructType(jsonSchema, fieldName)
+                } else {
+                    throw new IllegalArgumentException(
+                        s"`$fieldName` has type $typeText but does not have a schema defined in" +
+                        s"either properties (StructType) or additionalProperties (MapType)"
+                    )
+                }
             case _ => throw new IllegalArgumentException(s"`$fieldName` has invalid type value: $typeText")
+        }
+    }
+
+    private def verifyMapTypeCompatibility(mapProperty: MapType, jsonSchema: JsonNode): Unit = {
+        val propertiesStruct = buildStructType(jsonSchema)
+        val incompatibleProps = propertiesStruct.filterNot(_.dataType.equals(mapProperty.valueType)).toSet
+        if (incompatibleProps.nonEmpty) {
+            throw new IllegalArgumentException(f"Properties ${incompatibleProps.map(_.name).mkString(",")} " +
+              f"are not compatible with the expected additionalProperties type ${mapProperty.valueType}")
         }
     }
 

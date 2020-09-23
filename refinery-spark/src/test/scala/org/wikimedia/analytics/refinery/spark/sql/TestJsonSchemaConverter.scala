@@ -1,6 +1,8 @@
+import scala.util.{Failure, Try}
+
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.spark.sql.types._
-import org.scalatest.{Matchers, FlatSpec}
+import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 
 class TestJsonSchemaConverter extends FlatSpec with Matchers {
@@ -96,6 +98,79 @@ class TestJsonSchemaConverter extends FlatSpec with Matchers {
 
     sparkSchema should not be null
     sparkSchema.fields should equal(expectedFields)
+  }
+
+  it should "convert a properly formatted json schema (object-map with defined properties ignored)" in {
+    val testSchema =
+      """
+        |{
+        |"properties":{
+        |  "test_map":{
+        |     "type":"object",
+        |     "additionalProperties":{"description":"something else", "type":"number"},
+        |     "properties":{
+        |       "map_key": {"description": "main thing", "type":"number"}
+        |     }
+        |  }
+        |}}""".stripMargin
+    val expectedFields = Array(
+      StructField("test_map", MapType(StringType, DoubleType, valueContainsNull = false), nullable = true))
+
+    val node = mapper.readTree(testSchema)
+    val sparkSchema = JsonSchemaConverter.toSparkSchema(node)
+
+    sparkSchema should not be null
+    sparkSchema.fields should equal(expectedFields)
+  }
+
+  it should "fail to convert a properly formatted json schema with an object-map with incompatible properties" in {
+    val testSchema =
+      """
+        |{
+        |"properties":{
+        |  "test_map":{
+        |     "type":"object",
+        |     "additionalProperties":{
+        |       "type":"object",
+        |       "properties": {
+        |         "something": {"type": "number"}
+        |       }
+        |     },
+        |     "properties":{
+        |       "something_incompatible": {
+        |         "type":"object",
+        |         "properties": {
+        |            "something": {
+        |               "description": "something as a string",
+        |               "type": "string"
+        |             }
+        |          }
+        |       },
+        |       "something_compatible": {
+        |         "type": "object",
+        |         "description": "something compatible",
+        |         "properties": {
+        |           "something": {"type":"number"}
+        |         }
+        |       },
+        |       "another_thing_incompatible": {
+        |         "type": "object",
+        |         "description": "another thing incompatible",
+        |         "properties": {
+        |           "not_this_thing":{"type": "number"}
+        |         }
+        |       }
+        |     }
+        |  }
+        |}}""".stripMargin
+
+    val node = mapper.readTree(testSchema)
+    Try[StructType](JsonSchemaConverter.toSparkSchema(node)) match {
+      case Failure(exception: IllegalArgumentException) => exception.getMessage should equal("Properties " +
+        "something_incompatible,another_thing_incompatible are not compatible with the expected " +
+        "additionalProperties type StructType(StructField(something,DoubleType,true))")
+      case _ => fail("Expected a failure")
+    }
   }
 
   it should "convert a properly formatted json schema with comment" in {
