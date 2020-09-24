@@ -269,15 +269,14 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
                         (json \ "model").values.asInstanceOf[String],
                         (json \ "format").values.asInstanceOf[String]
                     )
-            }
+            // The following distinct operation uses the configured number of partitions,
+            // therefore no need to explicitly repartition later (one less shuffle of huge data).
+            // Distinct is needed as cases of duplicated revisions have been experienced.
+            }.distinct(config.numberOutputPartitions)
 
-            // Make a dataframe using defined schema, repartition and write
-            // Enforces every revision to be distinct, as cases of duplicated
-            // revisions have been experienced
+            // Make a dataframe using defined schema and write it
             spark.
                 createDataFrame(wikitextRows, wikiTextStructure).
-                distinct.
-                repartition(config.numberOutputPartitions).
                 write.
                 mode(SaveMode.Overwrite).
                 format(config.outputFormat).
