@@ -360,6 +360,8 @@
             <includes>
               <include>**/Test*.java</include>
             </includes>
+            <!-- Needed to avoid encoding problems when building. -->
+            <argLine>-Dfile.encoding=UTF-8</argLine>
           </configuration>
         </plugin>
 
