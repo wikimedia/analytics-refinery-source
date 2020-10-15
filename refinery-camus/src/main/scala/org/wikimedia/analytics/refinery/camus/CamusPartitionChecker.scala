@@ -4,9 +4,9 @@ package org.wikimedia.analytics.refinery.camus
 
 import java.io.FileInputStream
 import java.util.Properties
+
 import javax.mail.{Message, MessagingException, Session, Transport}
 import javax.mail.internet.{InternetAddress, MimeMessage}
-
 import com.github.nscala_time.time.Imports._
 import com.linkedin.camus.etl.kafka.CamusJob
 import com.linkedin.camus.etl.kafka.common.EtlKey
@@ -17,6 +17,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.log4j.{LogManager, Logger}
 import org.joda.time.{DateTime, Hours}
 import scopt.OptionParser
+
 import scala.collection.JavaConverters._
 
 /**
@@ -32,16 +33,35 @@ import scala.collection.JavaConverters._
   */
 object CamusPartitionChecker {
 
-    val BLACKLIST_TOPICS = EtlInputFormat.KAFKA_BLACKLIST_TOPIC
-    val WHITELIST_TOPICS = EtlInputFormat.KAFKA_WHITELIST_TOPIC
-    val PARTITION_BASE_PATH = EtlMultiOutputFormat.ETL_DESTINATION_PATH
+    val BLACKLIST_TOPICS: String = EtlInputFormat.KAFKA_BLACKLIST_TOPIC
+    val WHITELIST_TOPICS: String = EtlInputFormat.KAFKA_WHITELIST_TOPIC
+    val EVENT_STREAM_CONFIG_URI: String  = EtlInputFormat.EVENT_STREAM_CONFIG_URI
+    val EVENT_STREAM_CONFIG_STREAM_NAMES: String = EtlInputFormat.EVENT_STREAM_CONFIG_STREAM_NAMES
+    val EVENT_STREAM_CONFIG_SETTINGS_FILTERS: String = EtlInputFormat.EVENT_STREAM_CONFIG_SETTINGS_FILTERS
+    val PARTITION_BASE_PATH: String = EtlMultiOutputFormat.ETL_DESTINATION_PATH
 
+    /**
+      * When constructing properties, use keys from provided camus properties file,
+      * as well as any of these passed in Java system properties.
+      */
+    val systemPropertiesForOverride: Seq[String] = Seq(
+        BLACKLIST_TOPICS,
+        WHITELIST_TOPICS,
+        EVENT_STREAM_CONFIG_URI,
+        EVENT_STREAM_CONFIG_STREAM_NAMES,
+        EVENT_STREAM_CONFIG_SETTINGS_FILTERS
+    )
 
     // Dummy values, to be set with configuration in main
     var fs: FileSystem = FileSystem.get(new Configuration)
     var camusReader: CamusStatusReader = new CamusStatusReader(fs)
     val props: Properties = new Properties
     val log: Logger = Logger.getLogger(CamusPartitionChecker.getClass)
+
+
+    // EtlInputFormat has a static Logger, but it isn't initialized unless something instantiates
+    // a new EtlInputFormat.  ¯\_(ツ)_/¯
+    new EtlInputFormat()
 
     /**
       * Computes calendar hours happening between two timestamps. For instance
@@ -82,6 +102,33 @@ object CamusPartitionChecker {
         errors: Seq[String] = Seq.empty
     )
 
+    /**
+      * EtlInputFormat.getKafkaWhitelistTopic will either return the value of
+      * kafka.whitelist.topics or get topics via EventStreamConfig.  CamusPartitionChecker
+      * starts with a list of topics to check from the previously written Camus offset files.
+      * By default we want to check ALL topics that were previously imported by Camus.
+      * The whitelist here is only used if we want to limit our check to a few of the
+      * previously imported topics.  So, if EtlInputFormat.getKafkaWhitelistTopic returns
+      * and empty list, we use .* as the whitelist to make sure we check all previously imported topics.
+      * (If using EventStreamConfig and no topics are found, an InvalidParameterException will be thrown.)
+      */
+    def getTopicWhitelist: String = {
+        val camusTopicsWhitelist: Array[String] = EtlInputFormat.getKafkaWhitelistTopic(props)
+        if (camusTopicsWhitelist.isEmpty) {
+            "(.*)"
+        }
+        else {
+            "(" + camusTopicsWhitelist.mkString(",").replaceAll(" *, *", "|") + ")"
+        }
+    }
+
+    /**
+      * Returns the value of kafka.blacklist.topics as a regex.
+      */
+    def getTopicBlacklist: String = {
+        // Empty Blacklist means no blacklist --> Default to empty string
+        "(" + props.getProperty(BLACKLIST_TOPICS, "").replaceAll(" *, *", "|") + ")"
+    }
 
     /** Compute complete hours imported on a camus run by topic. Log errors if
       * the camus run state is not correct (missing topics or import-time not moving),
@@ -90,10 +137,10 @@ object CamusPartitionChecker {
       * @return CamusPartitionsToFlag containing the partitions to flag and encountered errors
       */
     def getCamusPartitionsToFlag(camusRunPath: Path): CamusPartitionsToFlag = {
-        // Empty Whitelist means all --> default to .* regexp
-        val topicsWhitelist = "(" + props.getProperty(WHITELIST_TOPICS, ".*").replaceAll(" *, *", "|") + ")"
-        // Empty Blacklist means no blacklist --> Default to empty string
-        val topicsBlacklist = "(" + props.getProperty(BLACKLIST_TOPICS, "").replaceAll(" *, *", "|") + ")"
+        val topicsWhitelist: String = getTopicWhitelist
+        val topicsBlacklist: String = getTopicBlacklist
+
+        log.info(s"Checking Camus imported partitions directories with whitelist '${topicsWhitelist}' and blacklist '${topicsBlacklist}')")
 
         val currentOffsets: Seq[EtlKey] = camusReader.readEtlKeys(camusReader.offsetsFiles(camusRunPath))
         val previousOffsets: Seq[EtlKey] = camusReader.readEtlKeys(camusReader.previousOffsetsFiles(camusRunPath))
@@ -132,7 +179,7 @@ object CamusPartitionChecker {
                                 "or not after the previous run's offset time. Either there has been no new data " +
                                 "since the previous run, messages have late arrival times (possibly due to backfilling) " +
                                 "or Camus is failing to import data." + s"""|
-               |- Previous import oldest date time: ${previousDt}
+                                                                            |- Previous import oldest date time: ${previousDt}
                                                                             |- Current import oldest date time: ${currentDt}
                                                                             |- Previous import offsets:
                                                                             |${previousOffsets.filter(_.getTopic() == previousTopic).sortBy(_.getPartition()).mkString("\n")}
@@ -281,8 +328,10 @@ object CamusPartitionChecker {
                     log.info("Loading camus properties file.")
                     props.load(new FileInputStream(params.camusPropertiesFilePath))
                     // Merge any camus property overrides from System properties.
-                    props.putAll(System.getProperties().asScala.filter(p => props.containsKey(p._1)).asJava)
-
+                    props.putAll(System.getProperties().asScala.filter(p => {
+                        props.containsKey(p._1) || systemPropertiesForOverride.contains(p._1)
+                    }).asJava)
+                    log.debug("Running CamusPartitionChecker with properties:\n" + props)
 
                     val camusPathsToCheck: Seq[Path] = {
 
@@ -308,19 +357,25 @@ object CamusPartitionChecker {
                         flagFullyImportedPartitions(params.flag, params.dryRun, camusPartitionsToFlag.topicsAndHours)
                         log.info(s"Done ${p.toString}.")
 
-                        if (params.shouldEmailReport && camusPartitionsToFlag.errors.size > 0) {
-                            val smtpHost = params.smtpURI.split(":")(0)
-                            val smtpPort = params.smtpURI.split(":")(1)
+                        if (camusPartitionsToFlag.errors.nonEmpty) {
+                            val errorMessage = s"Import history at ${p} encountered possible errors:\n\n${camusPartitionsToFlag.errors.mkString("\n---\n")}"
+                            log.error(errorMessage)
 
-                            log.info(s"Sending failure email report to ${params.toEmails.mkString(",")}")
-                            sendEmail(
-                                smtpHost,
-                                smtpPort,
-                                params.fromEmail,
-                                params.toEmails.toArray,
-                                s"Camus failure report for ${params.camusPropertiesFilePath}",
-                                s"Import history at ${p} encountered possible errors:\n\n${camusPartitionsToFlag.errors.mkString("\n---\n")}"
-                            )
+                            if (params.shouldEmailReport) {
+                                val smtpHost = params.smtpURI.split(":")(0)
+                                val smtpPort = params.smtpURI.split(":")(1)
+
+                                log.info(s"Sending failure email report to ${params.toEmails.mkString(",")}")
+                                sendEmail(
+                                    smtpHost,
+                                    smtpPort,
+                                    params.fromEmail,
+                                    params.toEmails.toArray,
+                                    s"Camus failure report for ${params.camusPropertiesFilePath}",
+                                    errorMessage
+                                )
+                            }
+
                         }
                     })
                 } catch {
