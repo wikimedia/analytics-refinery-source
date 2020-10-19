@@ -10,8 +10,6 @@ public class RefineryGeocodeDatabaseResponse {
 
     private static final String UNKNOWN_VALUE = "Unknown";
 
-    private static final Double UNKNOWN_LAT_LONG = -1.0;
-
     private static final String UNKNOWN_COUNTRY_CODE = "--";
 
     protected String continent;
@@ -24,12 +22,6 @@ public class RefineryGeocodeDatabaseResponse {
 
     protected String city;
 
-    protected String postalCode;
-
-    protected Double latitude;
-
-    protected Double longitude;
-
     protected String timezone;
 
     // Constants to hold the keys to use in data map
@@ -38,9 +30,6 @@ public class RefineryGeocodeDatabaseResponse {
     public static final String COUNTRY = "country";
     public static final String SUBDIVISION = "subdivision";
     public static final String CITY = "city";
-    public static final String POSTAL_CODE = "postal_code";
-    public static final String LATITUDE = "latitude";
-    public static final String LONGITUDE = "longitude";
     public static final String TIMEZONE = "timezone";
 
 
@@ -51,9 +40,6 @@ public class RefineryGeocodeDatabaseResponse {
         this.country = UNKNOWN_VALUE;
         this.subdivision = UNKNOWN_VALUE;
         this.city = UNKNOWN_VALUE;
-        this.postalCode = UNKNOWN_VALUE;
-        this.latitude = UNKNOWN_LAT_LONG;
-        this.longitude = UNKNOWN_LAT_LONG;
         this.timezone = UNKNOWN_VALUE;
 
     }
@@ -98,30 +84,6 @@ public class RefineryGeocodeDatabaseResponse {
         this.city = city;
     }
 
-    public String getPostalCode(){
-        return postalCode;
-    }
-
-    public void setPostalCode(String postalCode){
-        this.postalCode = postalCode;
-    }
-
-    public Double getLatitude(){
-        return latitude;
-    }
-
-    public void setLatitude(Double latitute){
-        this.latitude = latitute;
-    }
-
-    public Double getLongitude(){
-        return longitude;
-    }
-
-    public void setLongitude(Double longitude){
-        this.longitude = longitude;
-    }
-
     public String getTimezone(){
         return timezone;
     }
@@ -141,9 +103,6 @@ public class RefineryGeocodeDatabaseResponse {
         defaultGeoData.put(COUNTRY, this.country);
         defaultGeoData.put(SUBDIVISION, this.subdivision);
         defaultGeoData.put(CITY, this.city);
-        defaultGeoData.put(POSTAL_CODE, this.postalCode);
-        defaultGeoData.put(LATITUDE,  this.latitude.toString());
-        defaultGeoData.put(LONGITUDE, this.longitude.toString());
         defaultGeoData.put(TIMEZONE, this.timezone);
 
         return defaultGeoData;

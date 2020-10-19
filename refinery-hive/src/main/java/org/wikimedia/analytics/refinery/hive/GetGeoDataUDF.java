@@ -175,7 +175,8 @@ public class GetGeoDataUDF extends GenericUDF {
 
         if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
             String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            Map<String, String > geoDataResult = maxMindGeocode.getResponse(ip).getMap();
+            Map<String, String> geoDataResult = maxMindGeocode.getResponse(ip).getMap();
+
             if (geoDataResult != null) {
                 for (String field : geoDataResult.keySet()) {
                     Object value = geoDataResult.get(field);

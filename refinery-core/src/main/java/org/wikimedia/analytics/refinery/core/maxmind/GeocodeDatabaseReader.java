@@ -138,24 +138,12 @@ public class GeocodeDatabaseReader extends AbstractDatabaseReader {
             }
         }
 
-        Postal postal = cityResponse.getPostal();
-        if (postal != null) {
-            String code = postal.getCode();
-            if (code != null) {
-                response.setPostalCode(code);
-            }
-        }
-
         Location location = cityResponse.getLocation();
         if (location != null) {
-            Double lat = location.getLatitude();
-            Double lon = location.getLongitude();
-            if (lat != null && lon != null) {
-                response.setLatitude(lat);
-                response.setLongitude(lon);
+            String timezone = location.getTimeZone();
+            if (timezone != null) {
+                response.setTimezone(timezone);
             }
-            if (location.getTimeZone() != null)
-                response.setTimezone( location.getTimeZone());
         }
 
         return response;

@@ -61,9 +61,9 @@ public class TestGetGeoDataUDF {
         assertEquals("Country check", "United Kingdom", result.get("country"));
         assertEquals("Subdivision check", "England", result.get("subdivision"));
         assertEquals("City check", "London", result.get("city"));
-        assertEquals("Postal code check", "Unknown", result.get("postal_code"));
-        assertEquals("Latitude check", "51.5142", result.get("latitude"));
-        assertEquals("Longitude check", "-0.0931", result.get("longitude"));
+        assertEquals("Postal code check", null, result.get("postal_code"));
+        assertEquals("Latitude check", null, result.get("latitude"));
+        assertEquals("Longitude check", null, result.get("longitude"));
         assertEquals("Timezone check", "Europe/London", result.get("timezone"));
     }
 
@@ -78,9 +78,9 @@ public class TestGetGeoDataUDF {
         assertEquals("Country check", "United Kingdom", result.get("country"));
         assertEquals("Subdivision check", "England", result.get("subdivision"));
         assertEquals("City check", "London", result.get("city"));
-        assertEquals("Postal code check", "Unknown", result.get("postal_code"));
-        assertEquals("Latitude check", "51.5142", result.get("latitude"));
-        assertEquals("Longitude check", "-0.0931", result.get("longitude"));
+        assertEquals("Postal code check", null, result.get("postal_code"));
+        assertEquals("Latitude check", null, result.get("latitude"));
+        assertEquals("Longitude check", null, result.get("longitude"));
         assertEquals("Timezone check", "Europe/London", result.get("timezone"));
     }
 
@@ -95,9 +95,9 @@ public class TestGetGeoDataUDF {
         assertEquals("Country check", "Unknown", result.get("country"));
         assertEquals("Subdivision check", "Unknown", result.get("subdivision"));
         assertEquals("City check", "Unknown", result.get("city"));
-        assertEquals("Postal code check", "Unknown", result.get("postal_code"));
-        assertEquals("Latitude check", "-1.0", result.get("latitude"));
-        assertEquals("Longitude check", "-1.0", result.get("longitude"));
+        assertEquals("Postal code check", null, result.get("postal_code"));
+        assertEquals("Latitude check", null, result.get("latitude"));
+        assertEquals("Longitude check", null, result.get("longitude"));
         assertEquals("Timezone check", "Unknown", result.get("timezone"));
 
         ip = null;
@@ -108,9 +108,9 @@ public class TestGetGeoDataUDF {
         assertEquals("Country check", "Unknown", result.get("country"));
         assertEquals("Subdivision check", "Unknown", result.get("subdivision"));
         assertEquals("City check", "Unknown", result.get("city"));
-        assertEquals("Postal code check", "Unknown", result.get("postal_code"));
-        assertEquals("Latitude check", "-1.0", result.get("latitude"));
-        assertEquals("Longitude check", "-1.0", result.get("longitude"));
+        assertEquals("Postal code check", null, result.get("postal_code"));
+        assertEquals("Latitude check", null, result.get("latitude"));
+        assertEquals("Longitude check", null, result.get("longitude"));
         assertEquals("Timezone check", "Unknown", result.get("timezone"));
     }
 

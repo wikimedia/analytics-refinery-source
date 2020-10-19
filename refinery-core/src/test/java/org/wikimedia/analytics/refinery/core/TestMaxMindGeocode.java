@@ -42,9 +42,9 @@ public class TestMaxMindGeocode extends TestCase {
         assertEquals("United Kingdom", geoData.get("country"));
         assertEquals("England", geoData.get("subdivision"));
         assertEquals("London", geoData.get("city"));
-        assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals("51.5142", geoData.get("latitude"));
-        assertEquals("-0.0931", geoData.get("longitude"));
+        assertEquals(null, geoData.get("postal_code"));
+        assertEquals(null, geoData.get("latitude"));
+        assertEquals(null, geoData.get("longitude"));
         assertEquals("Europe/London", geoData.get("timezone"));
     }
 
@@ -59,9 +59,9 @@ public class TestMaxMindGeocode extends TestCase {
         assertEquals("United Kingdom", geoData.get("country"));
         assertEquals("England", geoData.get("subdivision"));
         assertEquals("London", geoData.get("city"));
-        assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals("51.5142", geoData.get("latitude"));
-        assertEquals("-0.0931", geoData.get("longitude"));
+        assertEquals(null, geoData.get("postal_code"));
+        assertEquals(null, geoData.get("latitude"));
+        assertEquals(null, geoData.get("longitude"));
         assertEquals("Europe/London", geoData.get("timezone"));
     }
 
@@ -77,9 +77,9 @@ public class TestMaxMindGeocode extends TestCase {
         assertEquals("Unknown", geoData.get("country"));
         assertEquals("Unknown", geoData.get("subdivision"));
         assertEquals("Unknown", geoData.get("city"));
-        assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals("-1.0", geoData.get("latitude"));
-        assertEquals("-1.0", geoData.get("longitude"));
+        assertEquals(null, geoData.get("postal_code"));
+        assertEquals(null, geoData.get("latitude"));
+        assertEquals(null, geoData.get("longitude"));
         assertEquals("Unknown", geoData.get("timezone"));
     }
 
@@ -94,9 +94,9 @@ public class TestMaxMindGeocode extends TestCase {
         assertEquals("Unknown", geoData.get("country"));
         assertEquals("Unknown", geoData.get("subdivision"));
         assertEquals("Unknown", geoData.get("city"));
-        assertEquals("Unknown", geoData.get("postal_code"));
-        assertEquals("-1.0", geoData.get("latitude"));
-        assertEquals("-1.0", geoData.get("longitude"));
+        assertEquals(null, geoData.get("postal_code"));
+        assertEquals(null, geoData.get("latitude"));
+        assertEquals(null, geoData.get("longitude"));
         assertEquals("Unknown", geoData.get("timezone"));
     }
 
