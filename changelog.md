@@ -1,3 +1,7 @@
+## v0.0.137
+* Use camus + EventStreamConfig integration in CamusPartitionChecker
+* Remove lat/long/postal code from geocoding
+
 ## v0.0.136
 * Chopping timeseries for noise detection
 
