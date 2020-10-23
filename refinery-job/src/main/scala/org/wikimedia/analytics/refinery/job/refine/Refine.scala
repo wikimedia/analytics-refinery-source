@@ -518,6 +518,7 @@ object Refine extends LogHelper with ConfigHelper {
                     dataFrameReaderOptions,
                     mergeWithHiveSchemaBeforeRead
                 )
+                // as a side effect, spark writes a _SUCCESS flag here
                 val insertedDf = DataFrameToHive(
                     spark,
                     partDf,
