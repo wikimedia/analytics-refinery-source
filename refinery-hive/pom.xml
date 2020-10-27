@@ -88,6 +88,15 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.maxmind</pattern>
+                                    <shadedPattern>com.shaded.maxmind</shadedPattern>
+                                    <includes>
+                                         <include>com.maxmind.**</include>
+                                    </includes>
+                                </relocation>
+                            </relocations>
                         </configuration>
                     </execution>
                 </executions>
