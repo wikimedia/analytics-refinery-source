@@ -17,6 +17,8 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
+import com.maxmind.db.CHMCache;
+import com.maxmind.db.NodeCache;
 import com.maxmind.geoip2.DatabaseReader;
 import org.apache.log4j.Logger;
 
@@ -27,6 +29,8 @@ import java.io.Serializable;
 
 public abstract class AbstractDatabaseReader implements Serializable {
 
+    public static final int MAXMIND_LRU_CACHE_SIZE = 10000;
+
     protected abstract Logger getLogger();
 
     public abstract String getDefaultDatabasePathPropertyName();
@@ -34,6 +38,7 @@ public abstract class AbstractDatabaseReader implements Serializable {
 
     protected transient DatabaseReader reader;
     protected String databasePath;
+    protected NodeCache cache;
 
     /**
      * Method initializing the maxmind reader
@@ -45,11 +50,14 @@ public abstract class AbstractDatabaseReader implements Serializable {
 
         if (checkedDatabasePath == null || checkedDatabasePath.isEmpty()) {
             checkedDatabasePath = System.getProperty(getDefaultDatabasePathPropertyName(), getDefaultDatabasePath());
-
         }
         getLogger().info("Geocode using MaxMind database: " + checkedDatabasePath);
 
-        this.reader = new DatabaseReader.Builder(new File(checkedDatabasePath)).build();
+        if (this.cache == null) {
+            cache = new LRUCache(MAXMIND_LRU_CACHE_SIZE);
+        }
+
+        this.reader = new DatabaseReader.Builder(new File(checkedDatabasePath)).withCache(cache).build();
 
     }
 

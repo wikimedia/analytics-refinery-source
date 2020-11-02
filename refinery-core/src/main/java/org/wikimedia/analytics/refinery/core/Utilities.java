@@ -111,13 +111,10 @@ public class Utilities {
             this.cacheSize = cacheSize;
         }
 
-    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-        return size() >= cacheSize;
+        protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+            return size() >= cacheSize;
+        }
     }
-
-
-}
-
 
     public static void sendEmail(
         String smtpHost,
