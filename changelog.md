@@ -1,3 +1,7 @@
+## v0.0.138
+* Fix maxmind UDFs for hive 2.3.3 (bigtop)
+* Update MediawikiXMLDumpsConverter repartitioning
+
 ## v0.0.137
 * Use camus + EventStreamConfig integration in CamusPartitionChecker
 * Remove lat/long/postal code from geocoding
