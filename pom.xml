@@ -269,27 +269,38 @@
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>2.3.2</version>
+        <version>3.8.1</version>
         <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
-          <compilerArgument />
+          <source>${java.version}</source>
+          <target>${java.version}</target>
+          <compilerArgument/>
         </configuration>
       </plugin>
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
-        <version>2.9</version>
+        <version>3.2.0</version>
         <configuration>
           <linksource>true</linksource>
         </configuration>
       </plugin>
 
       <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>findbugs-maven-plugin</artifactId>
+        <version>2.5.2</version>
+        <!--
+          <threshold>Normal</threshold> High|Normal|Low|Exp|Ignore <effort>Default</effort>Min|Default|Max
+          <debug>true</debug>
+          <failOnError>false</failOnError>
+          -->
+      </plugin>
+
+      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-site-plugin</artifactId>
-        <version>3.0</version>
+        <version>3.9.1</version>
         <dependencies>
           <dependency>
             <groupId>org.apache.maven.wagon</groupId>
@@ -297,27 +308,12 @@
             <version>2.2</version>
           </dependency>
         </dependencies>
-
-        <configuration>
-          <reportPlugins>
-            <plugin>
-              <groupId>org.codehaus.mojo</groupId>
-              <artifactId>findbugs-maven-plugin</artifactId>
-              <version>2.5.2</version>
-              <!--
-                <threshold>Normal</threshold> High|Normal|Low|Exp|Ignore <effort>Default</effort>Min|Default|Max
-                <debug>true</debug>
-                <failOnError>false</failOnError>
-                -->
-              </plugin>
-            </reportPlugins>
-          </configuration>
-        </plugin>
+      </plugin>
 
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
-          <version>1.0</version>
+          <version>1.4.1</version>
           <executions>
             <execution>
               <id>enforce-maven</id>
@@ -327,7 +323,7 @@
               <configuration>
                 <rules>
                   <requireMavenVersion>
-                    <version>(,2.1.0),(2.1.0,2.2.0),(2.2.0,)</version>
+                    <version>(,2.1.0),(2.1.0,2.2.0),(2.2.0,)(3.0.0,)</version>
                     <message>
                       Maven 2.1.0 and 2.2.0 produce incorrect GPG signatures and checksums respectively.
                     </message>
@@ -341,7 +337,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-release-plugin</artifactId>
-          <version>2.5.1</version>
+          <version>2.5.3</version>
           <configuration>
             <tagNameFormat>v@{project.version}</tagNameFormat>
             <autoVersionSubmodules>true</autoVersionSubmodules>
@@ -352,7 +348,7 @@
           <!-- Global surefire setup -->
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.18.1</version>
+          <version>2.22.2</version>
           <configuration>
             <!-- Needed to overcome URLClassLoader issue with java update -->
             <useSystemClassLoader>false</useSystemClassLoader>
@@ -364,10 +360,41 @@
             <argLine>-Dfile.encoding=UTF-8</argLine>
           </configuration>
         </plugin>
-
-        </plugins>
-
-
+        <plugin>
+          <groupId>org.scala-tools</groupId>
+          <artifactId>maven-scala-plugin</artifactId>
+          <version>2.15.2</version>
+          <configuration>
+            <args>
+              <arg>-deprecation</arg>
+              <arg>-feature</arg>
+            </args>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>3.2.4</version>
+          <configuration>
+            <shadedArtifactAttached>false</shadedArtifactAttached>
+            <filters>
+              <filter>
+                <artifact>*:*</artifact>
+                <excludes>
+                  <exclude>META-INF/*.SF</exclude>
+                  <exclude>META-INF/*.DSA</exclude>
+                  <exclude>META-INF/*.RSA</exclude>
+                </excludes>
+              </filter>
+            </filters>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.scalatest</groupId>
+          <artifactId>scalatest-maven-plugin</artifactId>
+          <version>1.0</version>
+        </plugin>
+    </plugins>
     </build>
 
     <reporting>
@@ -378,6 +405,16 @@
           <configuration>
             <linksource>true</linksource>
           </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>findbugs-maven-plugin</artifactId>
+          <version>2.5.2</version>
+          <!--
+            <threshold>Normal</threshold> High|Normal|Low|Exp|Ignore <effort>Default</effort>Min|Default|Max
+            <debug>true</debug>
+            <failOnError>false</failOnError>
+            -->
         </plugin>
       </plugins>
     </reporting>
