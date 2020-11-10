@@ -1,3 +1,7 @@
+## v0.0.139
+* Add caching to maxmind readers in core package
+* Add Refine transform function for Netflow data set
+
 ## v0.0.138
 * Fix maxmind UDFs for hive 2.3.3 (bigtop)
 * Update MediawikiXMLDumpsConverter repartitioning
