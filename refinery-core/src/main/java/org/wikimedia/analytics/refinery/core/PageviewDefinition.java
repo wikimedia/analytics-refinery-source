@@ -98,7 +98,7 @@ public class PageviewDefinition {
      * See: https://www.mediawiki.org/wiki/Manual:$wgLegalTitleChars , https://phabricator.wikimedia.org/T245468
      */
     private final Pattern titleValidPattern = Pattern.compile(
-        "^[^#<>\\[\\]{}\\|\\x00-\\x1F\\x7F]+$"
+        "\\A[^#<>\\[\\]{}\\|\\x00-\\x1F\\x7F]+\\z"
     );
     /**
      * Maximum possible title length in bytes.
@@ -277,7 +277,6 @@ public class PageviewDefinition {
 
         // Clean uriPath of double backslashes
         normPath = normPath.replaceAll("//+", "/");
-        normPath = normPath.trim();
 
         return normPath;
     }
@@ -513,6 +512,10 @@ public class PageviewDefinition {
             return false;
         }
 
+    }
+
+    public boolean isValidPageTitle(String pageTitle) {
+        return Utilities.patternIsFound(titleValidPattern, pageTitle);
     }
 
 }
