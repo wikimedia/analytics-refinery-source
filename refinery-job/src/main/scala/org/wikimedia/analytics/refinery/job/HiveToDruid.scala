@@ -20,25 +20,26 @@ import scala.collection.JavaConversions._
 object HiveToDruid extends LogHelper with ConfigHelper {
 
     case class Config(
-        config_file         : String      = "",
-        since               : DateTime    = new DateTime(0),
-        until               : DateTime    = new DateTime(0),
-        database            : String      = "",
-        table               : String      = "",
-        timestamp_column    : String      = "dt",
-        timestamp_format    : String      = "auto",
-        dimensions          : Seq[String] = Seq.empty,
-        metrics             : Seq[String] = Seq.empty,
-        time_measures       : Seq[String] = Seq.empty,
-        transforms          : String      = "",
-        segment_granularity : String      = "day",
-        query_granularity   : String      = "hour",
-        num_shards          : Int         = 2,
-        reduce_memory       : String      = "8192",
-        hadoop_queue        : String      = "default",
-        druid_host          : String      = "druid1001.eqiad.wmnet",
-        druid_port          : String      = "8090",
-        dry_run             : Boolean     = false
+        config_file         : String         = "",
+        since               : DateTime       = new DateTime(0),
+        until               : DateTime       = new DateTime(0),
+        database            : String         = "",
+        table               : String         = "",
+        druid_datasource    : Option[String] = None,
+        timestamp_column    : String         = "dt",
+        timestamp_format    : String         = "auto",
+        dimensions          : Seq[String]    = Seq.empty,
+        metrics             : Seq[String]    = Seq.empty,
+        time_measures       : Seq[String]    = Seq.empty,
+        transforms          : String         = "",
+        segment_granularity : String         = "day",
+        query_granularity   : String         = "hour",
+        num_shards          : Int            = 2,
+        reduce_memory       : String         = "8192",
+        hadoop_queue        : String         = "default",
+        druid_host          : String         = "druid1001.eqiad.wmnet",
+        druid_port          : String         = "8090",
+        dry_run             : Boolean        = false
     )
 
     object Config {
@@ -76,6 +77,8 @@ object HiveToDruid extends LogHelper with ConfigHelper {
                 "Input Hive database name. Mandatory.",
             "table" ->
                 "Input Hive table name. Mandatory.",
+            "druid_datasource" ->
+                "Output Druid datasource name. Default: <database>_<table>.",
             "timestamp_column" ->
                 s"""Name of the column that indicates timestamp.
                    |Default: ${defaults.timestamp_column}.""",
@@ -185,7 +188,7 @@ object HiveToDruid extends LogHelper with ConfigHelper {
             log.info("Launching DataFrameToDruid process.")
             val dftd = new DataFrameToDruid(
                 spark = spark,
-                dataSource = s"${config.database}_${config.table}",
+                dataSource = config.druid_datasource.getOrElse(s"${config.database}_${config.table}"),
                 inputDf = df,
                 dimensions = config.dimensions,
                 timeMeasures = config.time_measures,
@@ -297,7 +300,7 @@ object HiveToDruid extends LogHelper with ConfigHelper {
             if (sinceMap.size == 1) throw new IllegalArgumentException(
                 s"Since equal to until ($since) for last partition key '$key'."
             )
-            
+
             // If since equals until for a given partition key, specify that
             // in the condition and AND it with the recursive call to generate
             // the between condition for further partitions.
