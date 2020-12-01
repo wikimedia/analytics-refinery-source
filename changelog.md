@@ -1,3 +1,6 @@
+## v0.0.140
+* Add datasource argument to HiveToDruid
+
 ## v0.0.139
 * Add caching to maxmind readers in core package
 * Add Refine transform function for Netflow data set
