@@ -18,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -80,24 +81,39 @@ public class Webrequest {
         "text/html; charset=UTF-8"
     ));
 
-    public final static Pattern URI_HOST_WIKIMEDIA_DOMAIN_PATTERN = Pattern.compile(
-            // any of these domain names
-            "^(?!doc)" // subdomains of wikimedia.org included in pageview datasets
-                    + "(advisory|commons|foundation|incubator|meta|outreach|species|strategy|usability|wikimania|wikitech|[a-zA-Z]{2,3})\\."
-                    + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
-                    + "wikimedia\\.org$"    // ending with wikimedia.org
+    /**
+     * List of domains owned and operated by The Wikimedia Foundation
+     * and/or affiliates (e.g. wikidata).  This is used
+     * by the isWMFHostname method.
+     * Best known official source of this as of 2020-12 is
+     * this varnish regex:
+     * https://gerrit.wikimedia.org/r/plugins/gitiles/operations/puppet/+/refs/heads/production/modules/varnish/templates/wikimedia-frontend.vcl.erb#313
+     */
+    private static final List<String> WMF_DOMAINS = Arrays.asList(
+        "wikimedia.org",
+        "wikibooks.org",
+        "wikinews.org",
+        "wikipedia.org",
+        "wikiquote.org",
+        "wikisource.org",
+        "wiktionary.org",
+        "wikiversity.org",
+        "wikivoyage.org",
+        "wikidata.org",
+        "mediawiki.org",
+        "wikimediafoundation.org",
+        "wikiworkshop.org",
+        "wmfusercontent.org"
     );
-    public final static Pattern URI_HOST_PROJECT_DOMAIN_PATTERN = Pattern.compile(
-            // starting with a letter but not starting with "www" "test", "donate" or "arbcom"
-            "^((?!www)(?!donate)(?!arbcom)(?!sysop)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
-                    + "(wik(ibooks|"  // match project domains ending in .org
-                    + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
-    );
-    public final static Pattern URI_HOST_OTHER_PROJECTS_PATTERN = Pattern.compile(
-            "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
-                    + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
-    );
-
+    /**
+     * In an analysis of a days worth of webrequest data,
+     * there were under 5000 distinct HTTP hostnames.
+     * The isWMFHostname method of this class searches the above list of names
+     * for matching hostnames.
+     * Caching the result of a given hostname check in this LRUCache
+     * speeds the search.
+     */
+    private static final Utilities.LRUCache<String, Boolean> wmfHostnameCache = new Utilities.LRUCache<>(10000);
 
     /* Regex to coarsely match email addresses in the user-agent as part of spider identification,
        as the User-Agent policy - https://meta.wikimedia.org/wiki/User-Agent_policy,
@@ -156,17 +172,38 @@ public class Webrequest {
     private static final int MAX_ADDRESS_LENGTH = 800;
 
     /**
-     * Returns true when the host belongs to either a wikimedia.org domain,
-     * or a 'project' domain, e.g. en.wikipedia.org. Returns false otherwise.
+     * Returns true when the hostname is owned and managed by the Wikimedia Foundation
+     * or an affiliate.
+     * E.g. en.wikipedia.org, wikimediafoundation.org, wikidata.org
+     *
+     * @param hostname HTTP hostname to check
+     * @return boolean
      */
-    public static boolean isWikimediaHost(String host) {
-        host = host.toLowerCase();
-        if (host.length() > MAX_ADDRESS_LENGTH) return false;
-        return (
-            Utilities.patternIsFound(URI_HOST_WIKIMEDIA_DOMAIN_PATTERN, host) ||
-            Utilities.patternIsFound(URI_HOST_OTHER_PROJECTS_PATTERN, host) ||
-            Utilities.patternIsFound(URI_HOST_PROJECT_DOMAIN_PATTERN, host)
-        );
+    public static boolean isWMFHostname(String hostname) {
+        if (hostname.length() > MAX_ADDRESS_LENGTH) {
+            return false;
+        }
+
+        // Convert to lower case and remove any trailing . characters
+        hostname = StringUtils.stripEnd(hostname.toLowerCase(), ".");
+
+        if (wmfHostnameCache.containsKey(hostname))
+            return wmfHostnameCache.get(hostname);
+        else {
+            // Split the hostname by .
+            String[] parts = hostname.split("\\.");
+
+            boolean matched = false;
+            // We need at least the TLD and the domain at the end of the hostname.
+            if (parts.length >= 2) {
+                // Final domain should be the last 2 elements of hostname parts
+                String domain = parts[parts.length - 2] + "." + parts[parts.length - 1];
+                matched = WMF_DOMAINS.contains(domain);
+            }
+
+            wmfHostnameCache.put(hostname, matched);
+            return matched;
+        }
     }
 
     /**

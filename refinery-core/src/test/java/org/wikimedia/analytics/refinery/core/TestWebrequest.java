@@ -9,7 +9,7 @@ import org.junit.runner.RunWith;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestWebrequest {
@@ -195,6 +195,21 @@ public class TestWebrequest {
                 "Empty - TLD",
                 NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
                 webrequest_inst.normalizeHost(testUriHost).getTld()
+        );
+    }
+
+    @Test
+    public void testIsWMFHostname() {
+        Webrequest webrequest_inst = Webrequest.getInstance();
+
+        assertTrue(
+            "Should be WMF hostname",
+            webrequest_inst.isWMFHostname("en.wikipedia.org")
+        );
+
+        assertFalse(
+            "Should not be WMF hostname",
+            webrequest_inst.isWMFHostname("boogers.com")
         );
     }
 }

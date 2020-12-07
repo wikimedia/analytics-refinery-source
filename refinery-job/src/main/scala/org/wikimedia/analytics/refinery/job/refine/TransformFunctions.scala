@@ -477,19 +477,14 @@ object parse_user_agent extends LogHelper {
 object filter_allowed_domains extends LogHelper {
     val possibleSourceColumnNames = Seq("meta.domain", "webHost")
 
-    // TODO: If this changes frequently data for whitelist should
-    //       probably come from hive.
-    //
-    // TODO: These match things like 'fake.translate.google.test.com' or
-    //       'fake.www.wikipedia.org.test.com'. Do we want to do this?
-    //       s"^(${List("translate.google", "www.wikipedia.org").mkString("|")})$$".r ?s
-    var whitelist: Regex = List("translate.google", "www.wikipedia.org").mkString("|").r;
+    // translate.google ends up sending events we want, so add an exception to keep it.
+    var includeList: Regex = List("translate.google").mkString("|").r;
 
     val isAllowedDomain: UserDefinedFunction = udf(
         (domain: String) => {
             if (domain == null || domain.isEmpty) true
-            else if (whitelist.findFirstMatchIn(domain.toLowerCase()).isDefined) true
-            else if (Webrequest.isWikimediaHost(domain)) true
+            else if (includeList.findFirstMatchIn(domain.toLowerCase()).isDefined) true
+            else if (Webrequest.isWMFHostname(domain)) true
             else false
         }
     )

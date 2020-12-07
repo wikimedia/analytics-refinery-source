@@ -73,6 +73,33 @@ public class PageviewDefinition {
     );
 
 
+    private final static Pattern URI_HOST_WIKIMEDIA_DOMAIN_PATTERN = Pattern.compile(
+        // any of these domain names
+        "^(?!doc)" // subdomains of wikimedia.org included in pageview datasets
+            + "(advisory|commons|foundation|incubator|meta|outreach|species|strategy|usability|wikimania|wikitech|[a-zA-Z]{2,3})\\."
+            + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
+            + "wikimedia\\.org$"    // ending with wikimedia.org
+    );
+    private final static Pattern URI_HOST_PROJECT_DOMAIN_PATTERN = Pattern.compile(
+        // starting with a letter but not starting with "www" "test", "donate" or "arbcom"
+        "^((?!www)(?!donate)(?!arbcom)(?!sysop)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
+            + "(wik(ibooks|"  // match project domains ending in .org
+            + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
+    );
+    private final static Pattern URI_HOST_OTHER_PROJECTS_PATTERN = Pattern.compile(
+        "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
+            + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
+    );
+
+    /**
+     * In an analysis of a days worth of webrequest data,
+     * there were under 5000 distinct HTTP hostnames.
+     * The isPageviewHostname method of this class uses the above regexes.
+     * Caching the result of a given hostname check in this LRUCache
+     * speeds up webrequest -> pageview processing.
+     */
+    private Utilities.LRUCache<String, Boolean> pageviewHostnameCache = new Utilities.LRUCache<>(10000);
+
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
         /**
          * This action-pattern is used with [[Utilities.patternIsFound]] function,
@@ -154,8 +181,6 @@ public class PageviewDefinition {
     }
     
     
-  
-
     private boolean isWebPageview(WebrequestData data) {
         return (
                 // check for a regular pageview contentType, or a an API contentType
@@ -178,6 +203,29 @@ public class PageviewDefinition {
     }
 
 
+    /**
+     * Webrequest has an isWMFDomain method that can be used to filter HTTP hostnames
+     * for those controlled by WMF, but this is not enough for pageviews.
+     * There are many WMF HTTP hostnames that will never have any pageviews.
+     * This function returns true if the hostname is one that might have pageviews.
+     * @param hostname
+     * @return
+     */
+    private boolean isPageviewHostname(String hostname) {
+        hostname = hostname.toLowerCase();
+
+        if (pageviewHostnameCache.containsKey(hostname))
+            return pageviewHostnameCache.get(hostname);
+        else {
+            boolean matched = (
+                Utilities.patternIsFound(URI_HOST_WIKIMEDIA_DOMAIN_PATTERN, hostname) ||
+                Utilities.patternIsFound(URI_HOST_OTHER_PROJECTS_PATTERN, hostname) ||
+                Utilities.patternIsFound(URI_HOST_PROJECT_DOMAIN_PATTERN, hostname)
+            );
+            pageviewHostnameCache.put(hostname, matched);
+            return matched;
+        }
+    }
 
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
@@ -206,18 +254,18 @@ public class PageviewDefinition {
      * @return  boolean
      */
     public boolean isPageview(WebrequestData data) {
+        if (
+            Webrequest.isSuccess(data.getHttpStatus()) &&
+            Webrequest.isWMFHostname(data.getUriHost()) &&
+            isPageviewHostname(data.getUriHost()) &&
+            pageDenotesContentConsumption(data)
+        ) {
+            // Check if it is an app pageview if it was not a web one.
+            return ((!data.isAppUserAgent() && isWebPageview(data)) || isAppPageview(data)) ;
 
-            boolean successRequestForWikimediaProject = (
-                Webrequest.isSuccess(data.getHttpStatus()) && Webrequest.isWikimediaHost(data.getUriHost())
-            );
-
-            if (successRequestForWikimediaProject && pageDenotesContentConsumption(data)) {
-                // Check if it is an app pageview if it was not a web one.
-                return ((!data.isAppUserAgent() && isWebPageview(data)) || isAppPageview(data)) ;
-
-            } else {
-                return false;
-            }
+        } else {
+            return false;
+        }
     }
 
     /**

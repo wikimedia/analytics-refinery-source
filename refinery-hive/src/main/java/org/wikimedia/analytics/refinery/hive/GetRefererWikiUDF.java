@@ -16,7 +16,6 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.Webrequest;
 
 @Description(name = "get_referer_wiki",
@@ -30,7 +29,7 @@ public class GetRefererWikiUDF extends UDF {
         referer = referer.replaceFirst("http[s]?://", "");
 
         String project = Webrequest.getProjectFromHost(referer);
-        if (Webrequest.isWikimediaHost(project + ".org")) {
+        if (Webrequest.isWMFHostname(project + ".org")) {
             return project;
         } else {
             return null;
