@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import org.apache.spark.sql.types.{BooleanType, StructField}
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
@@ -229,6 +230,47 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
         val transformedDf = filter_allowed_domains(partDf)
         transformedDf.df.count should equal(6)
+    }
+
+    it should "add_is_wmf_domain using `meta.domain` or `webHost`" in {
+        val events = Seq(
+            // internalDomain in meta.domain, true
+            migratedLegacyEventLoggingEvent,
+            // internalDomain in webHost, true
+            unmigratedLegacyEventLoggingEvent,
+            // Null domain in meta.domain, false
+            TestLegacyEventLoggingMigrationEvent(
+                Some(MetaSubObject(id1, dt1, None)),
+                Some(HttpSubObject(ip1))
+            ),
+            // Null domain in webHost, false
+            TestLegacyEventLoggingMigrationEvent(None, None, id1, None, ip1),
+            // external meta.domain, false
+            TestLegacyEventLoggingMigrationEvent(
+                Some(MetaSubObject(id1, dt1, unallowedExternalDomain)),
+                Some(HttpSubObject(ip1))
+            ),
+            // external webHost, false
+            TestLegacyEventLoggingMigrationEvent(None, None, id1, unallowedExternalDomain, ip1)
+        )
+
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = add_is_wmf_domain(partDf)
+        transformedDf.df.schema("is_wmf_domain") should equal(StructField("is_wmf_domain", BooleanType, false))
+        val isWMFDomainResults = transformedDf.df.select("is_wmf_domain").collect
+        // internalDomain in meta.domain, true
+        isWMFDomainResults(0)(0) should equal(true)
+        // internalDomain in webHost, true
+        isWMFDomainResults(1)(0) should equal(true)
+        // Null domain in meta.domain, false
+        isWMFDomainResults(2)(0) should equal(false)
+        // Null domain in webHost, false
+        isWMFDomainResults(3)(0) should equal(false)
+        // external meta.domain, false
+        isWMFDomainResults(4)(0) should equal(false)
+        // external webHost, false
+        isWMFDomainResults(5)(0) should equal(false)
     }
 
 

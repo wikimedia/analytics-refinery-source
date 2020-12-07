@@ -49,7 +49,8 @@ object event_transforms {
     val eventTransformFunctions = Seq[TransformFunction](
         deduplicate.apply,
         geocode_ip.apply,
-        parse_user_agent.apply
+        parse_user_agent.apply,
+        add_is_wmf_domain.apply
     )
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
@@ -446,6 +447,37 @@ object parse_user_agent extends LogHelper {
             _.toLowerCase != userAgentStructLegacyColumnName.toLowerCase
         ).map(c => s"`$c`") :+ userAgentStructSql
         partDf.copy(df = workingDf.selectExpr(columnExpressions:_*))
+    }
+}
+
+
+/**
+  * Adds an is_wmf_domain column based on the return value of Webrequest.isWMFDomain.
+  */
+object add_is_wmf_domain extends LogHelper {
+    val possibleSourceColumnNames = Seq("meta.domain", "webHost")
+    val isWMFDomainColumnName = "is_wmf_domain"
+
+    val isWMFDomain: UserDefinedFunction = udf(
+        (hostname: String) => {
+            if (hostname == null) {
+                false;
+            } else {
+                Webrequest.isWMFHostname(hostname)
+            }
+        }
+    )
+
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+        val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
+        val sourceColumnSql = sourceColumnNames match {
+            case Seq(singleColumnName) => singleColumnName
+            case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
+        }
+
+        partDf.copy(df = partDf.df.withColumn(
+            isWMFDomainColumnName, isWMFDomain(expr(sourceColumnSql))
+        ))
     }
 }
 
