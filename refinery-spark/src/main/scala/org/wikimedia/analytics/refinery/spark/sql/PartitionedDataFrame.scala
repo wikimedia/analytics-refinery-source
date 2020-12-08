@@ -10,7 +10,7 @@ import scala.util.control.Exception._
 /**
   * Class wrapping together a dataframe and a HivePartition.
   * Choice has been made to keep that class minimal, and use the
-  * sub-objects and copy patterns explcitely instead of trying to
+  * sub-objects and copy patterns explicitly instead of trying to
   * wrap any dataframe existing function.
   *
   * @param df            The dataframe handling data
@@ -23,7 +23,7 @@ case class PartitionedDataFrame(df: DataFrame, partition: HivePartition) {
 
     /**
       * Returns a new PartitionedDataFrame with constant Hive partitions added as columns.  If any
-      * column values are convertable to Ints, they will be added as an Int, otherwise String.
+      * column values are convertible to Ints, they will be added as an Int, otherwise String.
       *
       * @return
       */

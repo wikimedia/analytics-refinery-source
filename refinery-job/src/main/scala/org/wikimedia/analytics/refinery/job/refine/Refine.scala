@@ -5,12 +5,14 @@ import io.circe.Decoder
 import cats.syntax.either._
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.util.PermissiveMode
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.core.config._
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
-import org.wikimedia.eventutilities.core.event.{EventSchemaLoader, EventLoggingSchemaLoader}
+import org.wikimedia.eventutilities.core.event.{EventLoggingSchemaLoader, EventSchemaLoader}
 
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
@@ -19,7 +21,6 @@ import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.matching.Regex
 import scala.util.{Success, Try}
 
-// TODO: support append vs overwrite?
 // TODO: Hive Table Locking?
 
 
@@ -58,7 +59,8 @@ object Refine extends LogHelper with ConfigHelper {
         schema_base_uris: Seq[String]                   = Seq.empty,
         schema_field: String                            = "/$schema",
         dataframereader_options: Map[String, String]    = Map(),
-        merge_with_hive_schema_before_read: Boolean     = false
+        merge_with_hive_schema_before_read: Boolean     = false,
+        corrupt_record_failure_threshold: Integer       = 1
     )
 
     object Config {
@@ -164,7 +166,12 @@ object Refine extends LogHelper with ConfigHelper {
                 s"""If true, the loaded schema will be merged with the Hive schema and used when
                    |reading input data.  This might be useful if the Hive schema has
                    |more information (e.g. extra fields) than the schema loaded for the input
-                   |data. (This is needed for legacy EventLogging metawiki schemas.)""".stripMargin
+                   |data. (This is needed for legacy EventLogging metawiki schemas.)""".stripMargin,
+            "corrupt_record_failure_threshold" ->
+                s"""In DataFrameReader ${PermissiveMode.name} mode, if the number of corrupt records
+                   |on the input DataFrame is greater than or equal to this, the Refine of a target
+                   |will fail. If corrupt_record_failure_threshold is <= 0, any number of corrupt
+                   |records will succeed. Default: ${default.corrupt_record_failure_threshold}"""
         )
 
         val usage: String =
@@ -280,7 +287,9 @@ object Refine extends LogHelper with ConfigHelper {
         schema_base_uris: Seq[String]                   = Config.default.schema_base_uris,
         schema_field: String                            = Config.default.schema_field,
         dataframereader_options: Map[String, String]    = Config.default.dataframereader_options,
-        merge_with_hive_schema_before_read: Boolean     = Config.default.merge_with_hive_schema_before_read
+        merge_with_hive_schema_before_read: Boolean     = Config.default.merge_with_hive_schema_before_read,
+        corrupt_record_failure_threshold: Integer       = Config.default.corrupt_record_failure_threshold
+
     ): Boolean = {
         // Initial setup - Spark Conf and Hadoop FileSystem
         spark.conf.set("spark.sql.parquet.compression.codec", compression_codec)
@@ -331,7 +340,9 @@ object Refine extends LogHelper with ConfigHelper {
             inputPathRegex,
             since,
             until,
-            schemaLoader
+            schemaLoader,
+            dfReaderOptions=dataframereader_options,
+            useMergedSchemaForRead=merge_with_hive_schema_before_read
         )
         // Filter for tables in whitelist, filter out tables in blacklist,
         // and filter the remaining for targets that need refinement.
@@ -389,8 +400,7 @@ object Refine extends LogHelper with ConfigHelper {
                     spark,
                     tableTargets.seq,
                     transform_functions,
-                    dataframereader_options,
-                    merge_with_hive_schema_before_read
+                    corrupt_record_failure_threshold
                 )
             // If dry_run was given, don't refine, just map to Successes.
             else
@@ -490,34 +500,46 @@ object Refine extends LogHelper with ConfigHelper {
             config.schema_base_uris,
             config.schema_field,
             config.dataframereader_options,
-            config.merge_with_hive_schema_before_read
+            config.merge_with_hive_schema_before_read,
+            config.corrupt_record_failure_threshold
         )
     }
 
     /**
       * Given a Seq of RefineTargets, this runs DataFrameToHive on each one.
       *
-      * @param spark               SparkSession
-      * @param targets             Seq of RefineTargets to refine
-      * @param transformFunctions  The list of transform functions to apply
-      * @param dataFrameReaderOptions Map of options to provide to DataFrameReader.
+      * @param spark
+      *     SparkSession
+      * @param targets
+      *     Seq of RefineTargets to refine
+      * @param transformFunctions
+      *     The list of transform functions to apply
+      * @param corruptRecordFailureThreshold
+      *     If a target's DataFrameReader mode == PERMISSIVE and the
+      *     target.addCorruptRecordColumnIfReaderModePermissive, corrupt records
+      *     encountered during reading the input data will be stored
+      *     in the resulting input DataFrame as columnNameOfCorruptRecord.
+      *     If the number of these corrupt records is greater or equal to
+      *     corruptRecordFailureThreshold, the Refine for the target will fail
+      *     and an exception will be thrown.  Otherwise, an error will be logged.
+      *     If this is negative, any number of corrupt records will pass.
+      *     NOTE: Corrupt records will be filtered out of the final DataFrame to refine,
+      *     and it will not have the columnNameOfCorruptRecord column.
+      *     Default: 1
       * @return
       */
     def refineTargets(
         spark: SparkSession,
         targets: Seq[RefineTarget],
         transformFunctions: Seq[TransformFunction],
-        dataFrameReaderOptions: Map[String, String] = Map(),
-        mergeWithHiveSchemaBeforeRead: Boolean = false
+        corruptRecordFailureThreshold: Int = 1
     ): Seq[Try[RefineTarget]] = {
         targets.map(target => {
             log.info(s"Beginning refinement of $target...")
 
             try {
-                val partDf = target.inputPartitionedDataFrame(
-                    dataFrameReaderOptions,
-                    mergeWithHiveSchemaBeforeRead
-                )
+                val partDf = getInputPartitionedDataFrame(target, corruptRecordFailureThreshold)
+
                 // as a side effect, spark writes a _SUCCESS flag here
                 val insertedDf = DataFrameToHive(
                     spark,
@@ -533,8 +555,7 @@ object Refine extends LogHelper with ConfigHelper {
                 )
 
                 target.success(recordCount)
-            }
-            catch {
+            } catch {
                 case e: Exception =>
                     log.error(s"Failed refinement of dataset $target.", e)
                     target.writeFailureFlag()
@@ -542,4 +563,110 @@ object Refine extends LogHelper with ConfigHelper {
             }
         })
     }
+
+    /**
+      * Gets the RefineTarget's input PartitionedDataFrame.
+      *
+      * If the input DataFrameReader used PERMISSIVE mode
+      * and stored corrupt records in columnNameOfCorruptRecord,
+      * this function will deal with those corrupt records.
+      * If the number of corrupt records is >= corruptRecordFailureThreshold,
+      * (and corruptRecordFailureThreshold > 0) an exception will be thrown.
+      * If corruptRecordFailureThreshold is <= 0 any number of corrupt records will pass.
+      *
+      * Once corrupt records pass the corruptRecordFailureThreshold check,
+      * the records with a non-NULL columnNameOfCorruptRecord will be removed and
+      * the columnNameOfCorruptRecord column will be dropped.  The
+      * returned PartitionedDataFrame will not have columnNameOfCorruptRecord.
+      * @param target
+      * @param corruptRecordFailureThreshold
+      * @return
+      */
+    def getInputPartitionedDataFrame(
+        target: RefineTarget,
+        corruptRecordFailureThreshold: Int = 1
+    ): PartitionedDataFrame = {
+        // Read the input data
+        val workingPartDf = target.inputPartitionedDataFrame
+        // Caching workingPartDf.df is a slight performance enhancement, but it is mostly
+        // here as a workaround to a safeguard added in Spark 2.3 that won't allow
+        // this type of query.  File based DataFrames with corruptRecordColumnName added
+        // apparently don't work as expected, since the values of corruptRecordColumnName
+        // are added dynamically by spark.  Caching the DataFrame causes it to no
+        // longer be file based.  Without this, we get
+        // org.apache.spark.sql.AnalysisException: Since Spark 2.3, the queries from
+        // raw JSON/CSV files are disallowed when the
+        // referenced columns only include the internal corrupt record column
+        // See also:
+        // https://issues.apache.org/jira/browse/SPARK-21610
+        // https://github.com/apache/spark/pull/18865
+        // https://github.com/apache/spark/blob/master/sql/core/src/main/scala/org/apache/spark/sql/execution/datasources/json/JsonFileFormat.scala#L110-L122
+        workingPartDf.df.cache()
+
+        val corruptRecordColumnName = target.dfReaderOptions("columnNameOfCorruptRecord")
+
+        // If the input DataFrame has corruptRecordColumnName and
+        // mode == PERMISSIVE, handle the corrupt records.
+        // NOTE: we don't use the RefineTarget's addCorruptRecordColumnIfReaderModePermissive
+        // boolean property for this check, as it is possible for an input DataFrame schema
+        // to have the corrupt record column without it being added by RefineTarget
+        // before reading.
+        if (
+            target.dfReaderOptions("mode") == PermissiveMode.name &&
+            workingPartDf.df.hasColumn(corruptRecordColumnName)
+        ) {
+            val corruptRecordDf = workingPartDf.df
+                .where(s"`$corruptRecordColumnName` IS NOT NULL")
+
+            if (!corruptRecordDf.isEmpty) {
+                // TODO:
+                //  Do something useful with the corrupt record data,
+                //  like save it to a side output, and/or write to a refine statistics
+                //  table about Refine successes and failures.
+
+                val inputRecordCount = workingPartDf.df.count()
+                val corruptRecordCount = corruptRecordDf.count()
+                // Get the value of the first corrupt record for logging purposes.
+                val firstCorruptRecord: String = corruptRecordDf
+                    .select(s"$corruptRecordColumnName").head().getString(0)
+
+                val corruptRecordPercentage = (
+                    corruptRecordCount.toFloat /
+                    inputRecordCount.toFloat
+                ) * 100.0f
+
+                val corruptRecordMessage =
+                    s"Encountered $corruptRecordCount corrupt records " +
+                    s"out of $inputRecordCount total input records " +
+                    s"($corruptRecordPercentage%) when reading $target input data"
+
+                if (corruptRecordFailureThreshold > 0 &&
+                    corruptRecordCount >= corruptRecordFailureThreshold
+                ) {
+                    throw new Exception(
+                        s"$corruptRecordMessage, which is greater than " +
+                        s"corruptRecordFailureThreshold $corruptRecordFailureThreshold. " +
+                        s"First corrupt record:\n$firstCorruptRecord"
+                    )
+                }
+                else {
+                   log.warn(
+                       s"$corruptRecordMessage. First corrupt record:\n" + firstCorruptRecord
+                    )
+                }
+            }
+
+            // If we get here, there were fewer than corruptRecordFailureThreshold
+            // corrupt records. Drop the corrupt records from the DataFrame
+            // and remove the corrupt record column so that the data we insert
+            // is all non-corrupt data.
+            workingPartDf.copy(df=workingPartDf.df
+                .where(s"$corruptRecordColumnName IS NULL")
+                .drop(corruptRecordColumnName)
+            )
+        } else {
+            workingPartDf
+        }
+    }
+
 }

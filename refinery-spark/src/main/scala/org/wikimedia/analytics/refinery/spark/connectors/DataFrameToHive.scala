@@ -84,7 +84,7 @@ object DataFrameToHive extends LogHelper {
     def apply(
         spark: SparkSession,
         inputPartDf: PartitionedDataFrame,
-        doneCallback: () => Unit,
+        doneCallback: () => Unit = () => Unit,
         transformFunctions: Seq[TransformFunction] = Seq(),
         saveMode: String = "overwrite"
     ): PartitionedDataFrame = {

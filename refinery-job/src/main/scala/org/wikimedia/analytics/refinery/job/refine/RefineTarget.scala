@@ -4,8 +4,9 @@ import com.github.nscala_time.time.Imports.{DateTime, _}
 import java.io.{BufferedReader, EOFException, InputStreamReader}
 
 import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, Row, SparkSession}
+import org.apache.spark.sql.catalyst.util.PermissiveMode
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
@@ -32,28 +33,63 @@ import scala.util.{Failure, Success, Try}
   * has an output path.  As such, this probably shouldn't be used for aggregation
   * type jobs, where multiple inputs are mapped to one output.
   *
-  * @param spark                SparkSession
-  * @param inputPath            Full input partition path
-  * @param partition            HivePartition
-  * @param schemaLoader         A SparkSchemaLoader that knows what the schema of this RefineTarget
-  *                             is.  The default is to not provide an explicit schema, which
-  *                             will rely on the spark DataFrameReader to infer the schema
-  *                             from the inputPath data.  This works well if the data is
-  *                             e.g. Parquet, but only semi-well if the data is JSON.
-  *                             You should provide an implemented SparkSchemaLoader
-  *                             for JSON data whenever you can.  The schemaLoader
-  *                             is only used when you call inputDataFrame, so if you
-  *                             only use this class to find targets (but not read them),
-  *                             you can omit providing this.
-  * @param inputFormatOpt       If given, this will be used as the input format when reading data.
-  *                             Should be one of "text", "json" "json_sequence" or "parquet".
-  *                             If not given, the input format will be inferred from the data.
-  * @param doneFlag             Name of file that should be written upon success of
-  *                             the refine job.  This can be created by calling
-  *                             the writeDoneFlag method.
-  * @param failureFlag          Name of file that should be written upon failure of
-  *                             the refine job run.  This can be created by calling
+  * @param spark
+  *     SparkSession
   *
+  * @param inputPath
+  *     Full input partition path
+  *
+  * @param partition
+  *     HivePartition
+  *
+  * @param schemaLoader
+  *     A SparkSchemaLoader that knows what the schema of this RefineTarget
+  *     is.  The default is to not provide an explicit schema, which
+  *     will rely on the spark DataFrameReader to infer the schema
+  *     from the inputPath data.  This works well if the data is
+  *     e.g. Parquet, but only semi-well if the data is JSON.
+  *     You should provide an implemented SparkSchemaLoader
+  *     for JSON data whenever you can.  The schemaLoader
+  *     is only used when you call inputDataFrame, so if you
+  *     only use this class to find targets (but not read them),
+  *     you can omit providing this.
+  *
+  * @param inputFormatOpt
+  *     If given, this will be used as the input format when reading data.
+  *     Should be one of "text", "json" "json_sequence" or "parquet".
+  *     If not given, the input format will be inferred from the data.
+  *
+  * @param doneFlag
+  *     Name of file that should be written upon success of
+  *     the refine job.  This can be created by calling
+  *     the writeDoneFlag method.
+  *
+  * @param failureFlag
+  *     Name of file that should be written upon failure of
+  *     the refine job run. This can be created by calling
+  *     the writeFailureFlag method.
+  *
+  * @param providedDfReaderOptions Map[String, String]
+  *     Extra Spark DataFrameReader options to use
+  *
+  * @param useMergedSchemaForRead
+  *     If true, the schema loaded by schemaLoader will be merged (and normalized)
+  *     with the target's Hive table before reading the input data.  This might
+  *     be useful if the Hive table has extra fields (from previous schema evolution)
+  *     that are not present in the loaded schema but may be present in some of the
+  *     input data.
+  *     Generally, it is not a good idea to use this option, but it may be necessary
+  *     for input data that has not used good backwards compatibility constraints
+  *     when changing schemas.
+  *
+  * @param addCorruptRecordColumnIfReaderModePermissive
+  *     If true and the DataFrameReader 'mode' option is set to PERMISSIVE,
+  *     A String column of the name columnNameOfCorruptRecord will be
+  *     added to the schema used to read the input DataFrame.
+  *     This will enable Spark to store any raw corrupt/malformed input records
+  *     in this extra column.
+  *     Before writing the DataFrame to the output HivePartition, you
+  *     will likely want to drop this column.
   */
 case class RefineTarget(
     spark: SparkSession,
@@ -62,23 +98,15 @@ case class RefineTarget(
     schemaLoader: SparkSchemaLoader = ExplicitSchemaLoader(None),
     inputFormatOpt: Option[String] = None,
     doneFlag: String    = "_REFINED",
-    failureFlag: String = "_REFINE_FAILED"
+    failureFlag: String = "_REFINE_FAILED",
+    providedDfReaderOptions: Map[String, String] = Map(),
+    useMergedSchemaForRead: Boolean = false,
+    addCorruptRecordColumnIfReaderModePermissive: Boolean = true
 ) extends LogHelper {
     /**
       * The FileSystem that Spark is operating in
       */
     val fs: FileSystem = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-
-    /**
-      * The value of inputFormatOpt if provided, else the value returned by inferInputFormat
-      */
-    lazy val inputFormat: String = inputFormatOpt.getOrElse(inferInputFormat)
-
-    /**
-      * The Spark schema for this target.  This is loaded
-      * using the provided SparkSchemaLoader schemaLoader.
-      */
-    lazy val schema: Option[StructType] = schemaLoader.loadSchema(this)
 
     /**
       * Easy access to the fully qualified Hive table name.
@@ -105,6 +133,124 @@ case class RefineTarget(
       * This should be set using the success method.
       */
     var recordCount: Long = -1
+
+    /**
+      * The value of inputFormatOpt if provided, else the value returned by inferInputFormat
+      */
+    lazy val inputFormat: String = inputFormatOpt.getOrElse(inferInputFormat)
+
+    /**
+      * Default DataFrameReader options that will be used when reading the input DataFrame.
+      * These defaults are actually the defaults that DataFrameReader and Spark use
+      * if they are not specified.  We declare them explicitly so that in case
+      * the user doesn't override them, we still have a reference to what they are.
+      * If DataFrameReader had a method for inspecting its options, we wouldn't need this.
+      */
+    val defaultDfReaderOptions: Map[String, String] = Map(
+        "mode" -> PermissiveMode.name,
+        "columnNameOfCorruptRecord" -> spark.conf.get("spark.sql.columnNameOfCorruptRecord")
+    )
+
+    /**
+      * Actual DataFrameReader options that will be used when reading the inputDataFrame.
+      * This is the user provided dfReaderOptions merged with defaultDfReaderOptions.
+      */
+    val dfReaderOptions: Map[String, String] = defaultDfReaderOptions ++ providedDfReaderOptions
+
+    /**
+      * The Spark schema for this target.  This is loaded
+      * using the provided SparkSchemaLoader schemaLoader.
+      */
+    lazy val schema: Option[StructType] = {
+        schemaLoader.loadSchema(this)
+    }
+
+    /**
+      * The Spark schema that will actually be used when reading the input DataFrame.
+      * schemaForRead is the same as schema, except that it depending on this RefineTarget's
+      * parameters, it might be merged with an existent Hive table schema, and might
+      * have columnNameOfCorruptRecord added to it.
+      */
+    lazy val schemaForRead: Option[StructType] = {
+        schema match {
+            case None => None
+            case Some(s) => {
+                var workingSchema = s
+                if (useMergedSchemaForRead && tableExists) {
+                    // TODO: This is being deprecated as all new versioned schemas should
+                    // be backwards compatible.  Once we can be sure they are, we can remove
+                    // this conditional logic.  https://phabricator.wikimedia.org/T255818
+                    //
+                    // If useMergedSchemaForRead and the target Hive table exists, then
+                    // merge the input schema with Hive schema, keeping the casing on top
+                    // level field names where possible (since this schema will be used to
+                    // load JSON data). This will ensure that other events in the file
+                    // that have fields that Hive has, but that the loaded schema
+                    // doesn't have, will still be read. Ideally this wouldn't matter,
+                    // since different schema versions should all be backwards compatible,
+                    // but is is possible that in legacy EventLogging schemas someone has
+                    // removed a field from a latest schema. Without merging, data of an older
+                    // version that have now removed fields would lose these fields.  Hive's schema
+                    // should have been evolved in a way that it has all fields ever seen in any
+                    // schema version, so merging these together ensure that those fields still
+                    // are read.
+                    // See also:
+                    // - https://phabricator.wikimedia.org/T227088
+                    // - https://phabricator.wikimedia.org/T226219
+                    workingSchema = spark.table(tableName).schema.merge(
+                        workingSchema,
+                        lowerCaseTopLevel = false
+                    )
+                    log.debug(
+                        s"Merged schema for $this with Hive table schema " +
+                        s"for schema for read:\n${workingSchema.treeString}"
+                    )
+                }
+
+                // Add the columnNameOfCorruptRecord column to the schemaForRead in PERMISSIVE mode
+                // so that any malformed records will show up there after reading.
+                if (
+                    dfReaderOptions("mode") == PermissiveMode.name &&
+                    addCorruptRecordColumnIfReaderModePermissive &&
+                    !workingSchema.fieldNames.contains(
+                        dfReaderOptions("columnNameOfCorruptRecord")
+                    )
+                ) {
+                    val corruptRecordField = StructField(
+                        dfReaderOptions("columnNameOfCorruptRecord"), StringType, nullable=true
+                    )
+                    workingSchema = workingSchema.add(corruptRecordField)
+                    log.debug(
+                        s"Added $corruptRecordField to schema for read for $this " +
+                        s"in ${dfReaderOptions("mode")} mode."
+                    )
+                }
+
+                Some(workingSchema)
+            }
+        }
+    }
+
+    /**
+      * The DataFrameReader that will be used to read the input DataFrarme.
+      * This DataFrameReader is configured with finalDfreaderOptions and will
+      * use the schemaForRead.  Text-like input data (JSON, etc.) will have
+      * its schema field's made nullable before read.
+      */
+    lazy val inputDataFrameReader: DataFrameReader = {
+        { schemaForRead match {
+            case None => spark.read
+            case Some(s) => {
+                // If we'll be loading from textual data, then assume that we will want all fields
+                inputFormat match {
+                    case "json" | "sequence_json" | "text" =>
+                        spark.read.schema(s.makeNullable())
+                    case _ =>
+                        spark.read.schema(s)
+                }
+            }
+        }}.options(dfReaderOptions) // Apply any DataFrameReader options
+    }
 
     /**
       * The mtime of the inputPath at the time this RefineTarget is instantiated.
@@ -148,7 +294,6 @@ case class RefineTarget(
       */
     def failureFlagExists(): Boolean = fs.exists(failureFlagPath)
 
-
     /**
       * Returns the mtime Long timestamp of inputPath.  inputPath's
       * mtime will change if it or any of its direct files change.
@@ -162,7 +307,6 @@ case class RefineTarget(
         else
             None
     }
-
 
     /**
       * Reads a Long timestamp out of path and returns a new Option[DateTime].
@@ -182,7 +326,6 @@ case class RefineTarget(
         mtime
     }
 
-
     /**
       * Writes this RefineTarget's mtime to path
       * @param path
@@ -200,7 +343,6 @@ case class RefineTarget(
         outStream.close()
     }
 
-
     /**
       * Write out doneFlag file for this output target partition
       *
@@ -216,7 +358,6 @@ case class RefineTarget(
         writeMTimeToFile(doneFlagPath)
     }
 
-
     /**
       * Write out failureFlag file for this output target partition
       *
@@ -227,7 +368,6 @@ case class RefineTarget(
     def writeFailureFlag(): Unit = {
         writeMTimeToFile(failureFlagPath)
     }
-
 
     /**
       * Reads the Long timestamp as a DateTime out of the doneFlag
@@ -242,7 +382,6 @@ case class RefineTarget(
             None
     }
 
-
     /**
       * Reads the Long timestamp as a DateTime out of the failureFlag
       * If the failure flag does not exist or the timestamp can not be read,
@@ -255,7 +394,6 @@ case class RefineTarget(
         else
             None
     }
-
 
     /**
       * This target needs refined if:
@@ -298,7 +436,6 @@ case class RefineTarget(
         // If none of the above conditions return, we will refine.
         true
     }
-
 
     /**
       * Given a RefineTarget, and option whitelist regex and blacklist regex,
@@ -347,13 +484,13 @@ case class RefineTarget(
 
         // If this shouldn't be refined, output some debug statements about why.
         if (!shouldRefineThis) {
-            if (failureFlagExists) {
+            if (failureFlagExists()) {
                 log.warn(
                     s"$this previously failed refinement and does not have new data since the " +
                         s"last refine at ${failureFlagMTime().getOrElse("_unknown_")}, skipping."
                 )
             }
-            else if (doneFlagExists) {
+            else if (doneFlagExists()) {
                 log.debug(
                     s"$this does not have new data since the last successful refine at " +
                         s"${doneFlagMTime().getOrElse("_unknown_")}, skipping."
@@ -419,90 +556,28 @@ case class RefineTarget(
       * will result in an AssertionError when reading the DataFrame, as the data will
       * not match the schema.
       *
-      * @param dfReaderOptions Map[String, String]
-      *     Extra Spark DataFrameReader options to use
 
-      * @param useMergedSchemaForRead
-      *     If true, the schema loaded by schemaLoader will be merged (and normalized)
-      *     with the target's Hive table before reading the input data.  This might
-      *     be useful if the Hive table has extra fields (from previous schema evolution)
-      *     that are not present in the loaded schema but may be present in some of the
-      *     input data.
-      *     Generally, it is not a good idea to use this option, but it may be necessary
-      *     for input data that has not used good backwards compatibility constraints
-      *     when changing schemas.
-      *
       * @return
       */
-    def inputDataFrame(
-        dfReaderOptions: Map[String, String] = Map(),
-        useMergedSchemaForRead: Boolean = false
-    ): DataFrame = {
-
-        val schemaForRead = if (schema.isDefined && useMergedSchemaForRead && tableExists) {
-            // TODO: This is being deprecated as all new versioned schemas should
-            // be backwards compatible.  Once we can be sure they are, we can remove
-            // this conditional logic.  https://phabricator.wikimedia.org/T255818
-            //
-            // If useMergedSchemaForRead and the target Hive table exists, then
-            // merge the input schema with Hive schema, keeping the casing on top
-            // level field names where possible (since this schema will be used to
-            // load JSON data). This will ensure that other events in the file
-            // that have fields that Hive has, but that the loaded schema
-            // doesn't have, will still be read. Ideally this wouldn't matter,
-            // since different schema versions should all be backwards compatible,
-            // but is is possible that in legacy EventLogging schemas someone has
-            // removed a field from a latest schema. Without merging, data of an older
-            // version that have now removed fields would lose these fields.  Hive's schema
-            // should have been evolved in a way that it has all fields ever seen in any
-            // schema version, so merging these together ensure that those fields still are read.
-            // See also:
-            // - https://phabricator.wikimedia.org/T227088
-            // - https://phabricator.wikimedia.org/T226219
-            val mergedSchema = spark.table(tableName).schema.merge(
-                schema.get,
-                lowerCaseTopLevel=false
-            )
-            log.debug(
-                s"Merged schema for $this with Hive table schema" +
-                s"before reading input data:\n${mergedSchema.treeString}"
-            )
-            Some(mergedSchema)
-        } else {
-            schema
-        }
-
-        val dfReader: DataFrameReader = { schemaForRead match {
-            case None    => spark.read
-            // If we're loading from textual data, then assume that we will want all fields
-            // in the schema to be nullable (AKA not required).
-            case Some(s) => inputFormat match {
-                case "text" =>
-                    spark.read.schema(s.makeNullable())
-                case "json" | "sequence_json" =>
-                    // By default read JSON data with a schema in FAILFAST mode.
-                    // This makes the read fail if the input data is not cast-able to the schema.
-                    // This can be overidden by user provided options.
-                    spark.read.schema(s.makeNullable()).option("mode", "FAILFAST")
-                case _ =>
-                    spark.read.schema(s)
-            }
-        }}.options(dfReaderOptions) // Apply any user supplied DataFrameReader options
-
+    def inputDataFrame: DataFrame = {
         // import spark implicits for Dataset/DataFrame conversion
         import spark.implicits._
 
         // Read inputPath either as text, Parquet, JSON, or SequenceFile JSON, based on input format
         inputFormat match {
-            case "text" | "json" | "parquet" => dfReader.format(inputFormat).load(inputPath.toString)
+            case "text" | "json" | "parquet" => inputDataFrameReader
+                .format(inputFormat)
+                .load(inputPath.toString)
 
             // Expect data to be SequenceFiles with JSON strings as values.
             // (sequenceFileJson is defined in refinery HiveExtensions.)
-            case "sequence_json" => dfReader.sequenceFileJson(inputPath.toString, spark)
+            case "sequence_json" => inputDataFrameReader.sequenceFileJson(
+                inputPath.toString, spark
+            )
 
             // If there is no data at inputPath, then we either want a schema-less emptyDataFrame,
             // or an empty DataFrame with schema
-            case "empty"         => schema match {
+            case "empty" => schemaForRead match {
                 case None    => spark.emptyDataFrame
                 case Some(s) => spark.createDataFrame(spark.sparkContext.emptyRDD[Row], s)
             }
@@ -513,17 +588,10 @@ case class RefineTarget(
       * Helper wrapper around inputDataFrame that returns a PartitionedDataFrame
       * with inputDataFrame and its HivePartition.
       *
-      * @param dfReaderOptions Map[String, String] Extra Spark DataFrameReader options to use
       * @return
       */
-    def inputPartitionedDataFrame(
-        dfReaderOptions: Map[String, String] = Map(),
-        mergeWithHiveSchema: Boolean = false
-    ): PartitionedDataFrame = {
-        new PartitionedDataFrame(
-            inputDataFrame(dfReaderOptions, mergeWithHiveSchema),
-            partition
-        )
+    def inputPartitionedDataFrame: PartitionedDataFrame = {
+        new PartitionedDataFrame(inputDataFrame, partition)
     }
 
     /**
@@ -552,7 +620,6 @@ case class RefineTarget(
         }
     }
 
-
     /**
       * Returns a Failure with e wrapped in a new more descriptive Exception
       * @param e Original exception that caused this failure
@@ -564,7 +631,6 @@ case class RefineTarget(
         ))
     }
 
-
     /**
       * Returns Success(this) of this RefineTarget
       * @return
@@ -573,7 +639,6 @@ case class RefineTarget(
         this.recordCount = recordCount
         Success(this)
     }
-
 
     override def toString: String = {
         s"$inputPath -> $partition"
@@ -641,33 +706,47 @@ object RefineTarget {
       * Will construct a RefineTarget with table "mediawiki_revision_create" (hyphens are converted
       * to underscores) and partitions datacenter="eqiad",year=2017,month=07,day=26,hour=01
       *
+      * @param spark
+      *     SparkSession
       *
-      * @param spark                        SparkSession
+      * @param baseInputPath
+      *     Path to base input datasets.  Each subdirectory
+      *     is assumed to be a unique dataset with individual
+      *     partitions.  Every subdirectory's partition
+      *     paths here must be compatible with the provided
+      *     values of inputPathDateTimeFormatter and inputPathRegex.
       *
-      * @param baseInputPath                Path to base input datasets.  Each subdirectory
-      *                                     is assumed to be a unique dataset with individual
-      *                                     partitions.  Every subdirectory's partition
-      *                                     paths here must be compatible with the provided
-      *                                     values of inputPathDateTimeFormatter and inputPathRegex.
+      * @param baseTableLocationPath
+      *     Path to directory where Hive table data will be stored.
+      *     $baseTableLocationPath/$table will be the value of the
+      *     external Hive table's LOCATION.
       *
-      * @param baseTableLocationPath        Path to directory where Hive table data will be stored.
-      *                                     $baseTableLocationPath/$table will be the value of the
-      *                                     external Hive table's LOCATION.
+      * @param databaseName
+      *     Hive database name
       *
-      * @param databaseName                 Hive database name
+      * @param inputPathDateTimeFormatter
+      *     Formatter used to construct input partition paths
+      *     in the given time range.
       *
-      * @param inputPathDateTimeFormatter   Formatter used to construct input partition paths
-      *                                     in the given time range.
+      * @param inputPathRegex
+      *     Regex used to extract table name and partition
+      *     information.
       *
-      * @param inputPathRegex               Regex used to extract table name and partition
-      *                                     information.
+      * @param sinceDateTime
+      *     Start date time to look for input partitions.
       *
-      * @param sinceDateTime                Start date time to look for input partitions.
+      * @param untilDateTime
+      *     End date time to look for input partitions.
+      *     Defaults to DateTime.now
       *
-      * @param untilDateTime                End date time to look for input partitions.
-      *                                     Defaults to DateTime.now
+      * @param schemaLoader
+      *     Will be used to get the DataFrame with a specific schema.
       *
-      * @param schemaLoader                 Will be used to get the DataFrame with a specific schema.
+      * @param dfReaderOptions
+      *     See RefineTarget dfReaderOptions
+      *s
+      * @param useMergedSchemaForRead
+      *     See RefineTarget useMergedSchemaForRead
       *
       * @return
       */
@@ -680,7 +759,9 @@ object RefineTarget {
         inputPathRegex: Regex,
         sinceDateTime: DateTime,
         untilDateTime: DateTime = DateTime.now,
-        schemaLoader: SparkSchemaLoader = ExplicitSchemaLoader(None)
+        schemaLoader: SparkSchemaLoader = ExplicitSchemaLoader(None),
+        dfReaderOptions: Map[String, String] = Map(),
+        useMergedSchemaForRead: Boolean = false
     ): Seq[RefineTarget] = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
         val inputDatasetPaths = subdirectoryPaths(fs, baseInputPath)
@@ -712,7 +793,9 @@ object RefineTarget {
                     spark,
                     partitionPath,
                     partition,
-                    schemaLoader
+                    schemaLoader,
+                    providedDfReaderOptions=dfReaderOptions,
+                    useMergedSchemaForRead=useMergedSchemaForRead
                 )
             })
             // We only care about input partition paths that actually exist,
@@ -730,7 +813,6 @@ object RefineTarget {
     def subdirectoryPaths(fs: FileSystem, inDirectory: Path): Seq[Path] = {
         fs.listStatus(inDirectory).filter(_.isDirectory).map(_.getPath)
     }
-
 
     /**
       * Given 2 DateTimes, this generates a Seq of DateTimes representing all hours
@@ -755,7 +837,6 @@ object RefineTarget {
             oldestHour + h.hours
         }
     }
-
 
     /**
       * Given a DateTimeFormatter and 2 DateTimes, this will generate
