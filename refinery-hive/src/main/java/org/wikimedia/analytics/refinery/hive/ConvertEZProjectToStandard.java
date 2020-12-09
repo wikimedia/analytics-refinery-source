@@ -52,9 +52,6 @@ public class ConvertEZProjectToStandard extends GenericUDF {
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         result.clear();
         String ezName = argumentOI.getPrimitiveJavaObject(arguments[0].get());
-        if(!ezName.contains(".")) {
-            throw new UDFArgumentException("EZ-formatted project string must contain a period (.)");
-        }
         String standardName = EZProjectConverter.ezProjectToStandard(ezName);
         result.set(new Text(standardName));
         return result;

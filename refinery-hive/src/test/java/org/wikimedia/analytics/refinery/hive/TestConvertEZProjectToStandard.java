@@ -23,13 +23,24 @@ public class TestConvertEZProjectToStandard {
         Object result = udf.evaluate(args);
         assertEquals(result.toString(), "en.wikipedia");
     }
-    @Test(expected = UDFArgumentException.class)
+    @Test
+    public void testNoDotProject() throws HiveException {
+        ObjectInspector arg1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        ConvertEZProjectToStandard udf =  new ConvertEZProjectToStandard();
+        ObjectInspector[] initArguments = new ObjectInspector[]{arg1};
+        udf.initialize(initArguments);
+        String ezName = "es";
+        GenericUDF.DeferredObject[] args = new GenericUDF.DeferredObject[] { new GenericUDF.DeferredJavaObject(ezName) };
+        Object result = udf.evaluate(args);
+        assertEquals(result.toString(), "es.wikipedia");
+    }
+    @Test(expected = IllegalArgumentException.class)
     public void testInvalidProject() throws HiveException {
         ObjectInspector arg1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ConvertEZProjectToStandard udf =  new ConvertEZProjectToStandard();
         ObjectInspector[] initArguments = new ObjectInspector[]{arg1};
         udf.initialize(initArguments);
-        String invalidEZName = "enz";
+        String invalidEZName = "en.z.ads";
         GenericUDF.DeferredObject[] args = new GenericUDF.DeferredObject[] { new GenericUDF.DeferredJavaObject(invalidEZName) };
 
         Object result = udf.evaluate(args);
