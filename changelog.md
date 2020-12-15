@@ -1,3 +1,7 @@
+## v0.0.141
+* Update pageview title extraction for trailing EOL
+* Expand EZ project conversion to adapt to raw format
+
 ## v0.0.140
 * Add datasource argument to HiveToDruid
 
