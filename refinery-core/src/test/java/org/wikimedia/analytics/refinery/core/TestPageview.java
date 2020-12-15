@@ -21,7 +21,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestPageview {
@@ -278,6 +278,12 @@ public class TestPageview {
         );
 
         assertEquals(
+                "Page title with trailing \\n end-of-line in uri_path",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong-title\n", "")
+        );
+
+        assertEquals(
                 "Page title with \\r end-of-line in uri_path",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
                 PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\rtitle", "")
@@ -296,6 +302,12 @@ public class TestPageview {
         );
 
         assertEquals(
+                "Page title with trailing \\n end-of-line in uri_query",
+                PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
+                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong-title\n")
+        );
+
+        assertEquals(
                 "Page title with \\r end-of-line in uri_query",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
                 PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\rtitle")
@@ -305,6 +317,32 @@ public class TestPageview {
                 "Page title with tabulation in uri_query",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
                 PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\ttitle")
+        );
+
+    }
+
+    @Test
+    public void testPageTitleValidation() {
+        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
+
+        assertTrue(
+                "Regular Page title",
+                PageviewDefinitionInstance.isValidPageTitle("A_Valid_page_title")
+        );
+
+        assertFalse(
+                "Page title with \\n end-of-line in the middle",
+                PageviewDefinitionInstance.isValidPageTitle("wrong\ntitle")
+        );
+
+        assertFalse(
+                "Page title with \\n end-of-line at the end",
+                PageviewDefinitionInstance.isValidPageTitle("wrong-title\n")
+        );
+
+        assertFalse(
+                "Page title with \\n end-of-line in the front",
+                PageviewDefinitionInstance.isValidPageTitle("\nwrong-title")
         );
 
     }
