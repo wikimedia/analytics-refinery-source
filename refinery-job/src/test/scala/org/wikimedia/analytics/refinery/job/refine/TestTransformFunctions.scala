@@ -80,7 +80,8 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     val internalDomain = Some("test.wikipedia.org")
     val allowedExternalDomain = Some("translate.google.com")
     val unallowedExternalDomain = Some("invalid.hostname.org")
-    
+    val canaryDomain = Some("canary")
+
     //IPv4 addresses taken from MaxMind's test suite
     val ip1 = Some("81.2.69.160")
 
@@ -93,6 +94,10 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     )
     val event2 = TestEvent(
         Some(MetaSubObject(id2, dt2, internalDomain)),
+        Some(HttpSubObject(ip1))
+    )
+    val canaryEvent1 = TestEvent(
+        Some(MetaSubObject(id1, dt1, canaryDomain)),
         Some(HttpSubObject(ip1))
     )
 
@@ -119,6 +124,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
               Some("PreParsedUserAgent Browser")
         ))
     )
+
 
     val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location", ListMap("year" -> Some("2018")))
 
@@ -256,6 +262,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
 
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+
         val transformedDf = add_is_wmf_domain(partDf)
         transformedDf.df.schema("is_wmf_domain") should equal(StructField("is_wmf_domain", BooleanType, false))
         val isWMFDomainResults = transformedDf.df.select("is_wmf_domain").collect
@@ -273,6 +280,25 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         isWMFDomainResults(5)(0) should equal(false)
     }
 
+
+    it should "remove_canary_events using `meta.domain`" in {
+        val events = Seq(
+            event1,
+            event2,
+            // Null domain in meta.domain, keep
+            TestEvent(
+                Some(MetaSubObject(id1, dt1, None)),
+                Some(HttpSubObject(ip1))
+            ),
+            // This event will be removed
+            canaryEvent1
+        )
+
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = remove_canary_events(partDf)
+        transformedDf.df.count should equal(3)
+    }
 
     // These tests don't seem to work.  Apparently the test SparkSession doesn't
     // have Hive UDF support? Getting:

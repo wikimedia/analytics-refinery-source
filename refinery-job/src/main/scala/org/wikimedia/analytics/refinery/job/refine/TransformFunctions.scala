@@ -47,6 +47,7 @@ object event_transforms {
       * in order to a PartitionedDataFrame.
       */
     val eventTransformFunctions = Seq[TransformFunction](
+        remove_canary_events.apply,
         deduplicate.apply,
         geocode_ip.apply,
         parse_user_agent.apply,
@@ -556,5 +557,40 @@ object filter_allowed_domains extends LogHelper {
 object eventlogging_filter_is_allowed_hostname extends LogHelper {
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         filter_allowed_domains.apply(partDf)
+    }
+}
+
+/**
+  * Removes all records where meta.domain == 'canary'.
+  * Canary events are fake monitoring events injected
+  * into the real event streams by
+  * org.wikimedia.analytics.refinery.job.ProduceCanaryEvents.
+  */
+object remove_canary_events extends LogHelper {
+    // We only create canary events with meta.domain == 'canary'
+    val sourceColumnName: String = "meta.domain"
+    val canaryDomain: String = "canary"
+
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+        // No-op
+        if (!partDf.df.hasColumn(sourceColumnName)) {
+            log.debug(
+                s"${partDf.partition} does not have column " +
+                s"$sourceColumnName, not removing canary events."
+            )
+            partDf
+        } else {
+            log.info(
+                s"Filtering for events where $sourceColumnName != '$canaryDomain' in ${partDf.partition}."
+            )
+            partDf.copy(
+                df=partDf.df.where(
+                    // I am not sure why we need this IS NULL check here.
+                    // In my manual REPL tests, this is not needed (as expected),
+                    // but the unit test fails (and removes a NULL meta.domain) if I don't add this.
+                    s"$sourceColumnName IS NULL OR $sourceColumnName != '$canaryDomain'"
+                )
+            )
+        }
     }
 }

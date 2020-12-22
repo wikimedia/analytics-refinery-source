@@ -102,17 +102,6 @@ object DataFrameToHive extends LogHelper {
         val transformedPartDf = transformFunctions
           .foldLeft(inputPartDf.applyPartitions)((currPartDf, fn) => fn(currPartDf))
 
-        // If the resulting DataFrame is empty, just return.
-        // Do this check before anything else to minimize computation if not needed
-        if (transformedPartDf.df.take(1).isEmpty) {
-            log.info(
-                s"DataFrame for ${transformedPartDf.partition} is empty after transformations. " +
-                    "No data will be written for this partition."
-            )
-            doneCallback()
-            return transformedPartDf
-        }
-
         val partDf = transformedPartDf.copy(df = transformedPartDf.df
             // Normalize field names (toLower, etc.)
             // and widen types that we can (e.g. Integer -> Long)
