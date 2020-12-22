@@ -1,3 +1,7 @@
+## v0.0.142
+* Upgrade maven configuration and plugins
+* Move pageview filters to PageviewDefinition; add Webrequest.isWMFHostname
+
 ## v0.0.141
 * Update pageview title extraction for trailing EOL
 * Expand EZ project conversion to adapt to raw format
