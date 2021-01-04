@@ -1,3 +1,9 @@
+## v0.0.143
+* Update junit and netty versions for github security alert
+* Refine - Add TransformFunction is_wmf_domain
+* Refine - Add TransformFunction to remove canary events
+* Refine - use PERMISSIVE mode and log more info about corrupt records
+
 ## v0.0.142
 * Upgrade maven configuration and plugins
 * Move pageview filters to PageviewDefinition; add Webrequest.isWMFHostname
