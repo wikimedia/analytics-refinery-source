@@ -4,13 +4,14 @@ import java.beans.Transient
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.io.{Text, LongWritable}
-import org.apache.log4j.{Level, Logger}
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.{SaveMode, Row, SparkSession}
+import org.apache.hadoop.io.{LongWritable, Text}
+import org.apache.log4j.Logger
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{Row, SaveMode, SparkSession}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.wikimedia.analytics.refinery.core.config._
 import org.wikimedia.wikihadoop.newapi.MediawikiXMLRevisionToJSONInputFormat
+
 import scala.collection.immutable.ListMap
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
@@ -243,10 +244,12 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
                 new Configuration(sc.hadoopConfiguration))
 
             // Extract a Spark-Row out of the parsed JSON
-            val wikitextRows = wikiDumpJson.map {
+            // then remove collocated duplicate revisions
+            val wikitextRows = wikiDumpJson.map{
                 case (_, text) =>
                     val json = parse(text.toString)
-                    Row(
+                    val revId = (json \ "id").values.asInstanceOf[BigInt].toLong
+                    (revId, Row(
                         (json \ "page" \ "wiki").values.asInstanceOf[String],
 
                         (json \ "page" \ "id").values.asInstanceOf[BigInt].toLong,
@@ -258,7 +261,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
                         (json \ "user" \ "id").values.asInstanceOf[BigInt].toLong,
                         (json \ "user" \ "text").values.asInstanceOf[String],
 
-                        (json \ "id").values.asInstanceOf[BigInt].toLong,
+                        revId,
                         (json \ "parent_id").values.asInstanceOf[BigInt].toLong,
                         (json \ "timestamp").values.asInstanceOf[String],
                         (json \ "minor").values.asInstanceOf[Boolean],
@@ -268,15 +271,26 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
                         (json \ "text").values.asInstanceOf[String],
                         (json \ "model").values.asInstanceOf[String],
                         (json \ "format").values.asInstanceOf[String]
-                    )
-            // The following distinct operation uses the configured number of partitions,
-            // therefore no need to explicitly repartition later (one less shuffle of huge data).
-            // Distinct is needed as cases of duplicated revisions have been experienced.
-            }.distinct(config.numberOutputPartitions)
+                    ))
+            }.mapPartitions(it => {
+                new Iterator[Row] {
+                    var previousRevId: Option[Long] = None
+                    override def hasNext: Boolean = {
+                        it.dropWhile(t => previousRevId.contains(t._1))
+                        it.hasNext
+                    }
+                    override def next(): Row = {
+                        val (revId, row) = it.next
+                        previousRevId = Some(revId)
+                        row
+                    }
+                }
+            })
 
             // Make a dataframe using defined schema and write it
             spark.
                 createDataFrame(wikitextRows, wikiTextStructure).
+                repartition(config.numberOutputPartitions).
                 write.
                 mode(SaveMode.Overwrite).
                 format(config.outputFormat).
@@ -414,6 +428,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
 
         // jobConfigBundles are worked sequentially, with every JobConfig
         // of a bundle being worked in parallel
+
         val results = jobConfigBundles.flatMap(bundle => {
             val parBundle = bundle.par
             parBundle.tasksupport = new ForkJoinTaskSupport(
