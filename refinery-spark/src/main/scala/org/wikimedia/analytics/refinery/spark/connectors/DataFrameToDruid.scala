@@ -164,7 +164,7 @@ class DataFrameToDruid(
     private val tempFilePath: String = if (tempFilePathOver != null) tempFilePathOver else {
         val randomId = Random.alphanumeric.take(5).mkString("")
         val timestamp = DateTime.now.toString("yyyyMMddHHmmss")
-        s"/tmp/DataFrameToDruid/$dataSource/$timestamp/$randomId"
+        s"/wmf/tmp/druid/DataFrameToDruid/$dataSource/$timestamp/$randomId"
     }
 
     // Add the count metric to the DataFrame.
