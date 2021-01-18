@@ -9,6 +9,7 @@ import io.circe.CursorOp.DownField
 import io.circe.{Decoder, DecodingFailure}
 import org.apache.hadoop.fs.Path
 
+import scala.annotation.tailrec
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
@@ -154,7 +155,11 @@ trait ConfigHelper {
     }
 
     // implicit conversion from string to hadoop.fs.Path
-    implicit def stringToHadoopFsPath(s: String): Path = new Path(s)
+    implicit def decodeHadoopFsPath: Decoder[Path] = Decoder.decodeString.emap {s =>
+        Either.catchNonFatal(new Path(s)).leftMap(p =>
+            throw new RuntimeException(s"Failed parsing '$s' into a hadoop Path", p)
+        )
+    }
 
     // Support implicit DateTime conversion from string to DateTime
     // The opt can either be given in integer hours ago, or
@@ -441,11 +446,11 @@ object ConfigHelperMacros {
       *
       * @param optName Name of the CLI opt to extract
       * @param args    CLI args
-      *
       * @param matchedValues
       * @param unmatchedArgs
       * @return
       */
+    @tailrec
     def extractOpts(optName: String)(
         args         : Array[String],
         matchedValues: Array[String] = Array.empty,

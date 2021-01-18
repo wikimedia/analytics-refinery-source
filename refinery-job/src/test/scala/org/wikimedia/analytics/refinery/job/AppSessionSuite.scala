@@ -1,5 +1,6 @@
 import org.scalatest.FunSuite
 import org.wikimedia.analytics.refinery.job.AppSessionMetrics
+
 import scala.collection.immutable.HashMap
 
 

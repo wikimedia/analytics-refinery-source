@@ -1,7 +1,8 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.scalatest.{BeforeAndAfterEach, Matchers, FlatSpec}
+import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterEach
 import org.wikimedia.analytics.refinery.core.TimestampHelpers
 
 

@@ -4,7 +4,8 @@ import com.holdenkarau.spark.testing.{RDDComparisons, SharedSparkContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SparkSession}
-import org.scalatest.{Matchers, BeforeAndAfterEach, FlatSpec}
+import org.scalatest.BeforeAndAfterEach
+import org.scalatest.{FlatSpec, Matchers}
 
 
 // Left out of test class to prevent NotSerializable exception
@@ -69,7 +70,6 @@ class TestSubgraphPartitioner
     val expectedResult = sc.emptyRDD[(Set[EventTest], Set[StateTest])]
 
     assertRDDEquals(expectedResult, result) // succeed
-
   }
 
   it should "return only states if given only states inputs" in {
@@ -305,6 +305,4 @@ class TestSubgraphPartitioner
     acc.value.get("fake") should equal(2)
 
   }
-
-
 }

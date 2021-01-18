@@ -2,6 +2,7 @@ package org.wikimedia.analytics.refinery.job.structureddata.jsonparse
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.json4s.DefaultFormats
+import org.json4s.jackson.JsonMethods._
 import org.scalatest.{FlatSpec, Matchers}
 
 class TestJsonDumpConverter extends FlatSpec with Matchers with DataFrameSuiteBase {

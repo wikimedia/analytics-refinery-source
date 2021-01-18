@@ -92,4 +92,5 @@ class TestRSVDAnomalyDetection extends FlatSpec with Matchers with DataFrameSuit
         val canBeAnalyzed = rsvd.timeSeriesCanBeAnalyzed(shortTimeSeries)
         assert(canBeAnalyzed == false)
     }
+
 }

@@ -1,9 +1,10 @@
 package org.wikimedia.analytics.refinery.job
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.scalatest.{FlatSpec, Matchers}
+
 import scala.collection.immutable.ListMap
 import org.joda.time.DateTime
+import org.scalatest.{FlatSpec, Matchers}
 
 
 class TestHiveToDruid extends FlatSpec with Matchers {

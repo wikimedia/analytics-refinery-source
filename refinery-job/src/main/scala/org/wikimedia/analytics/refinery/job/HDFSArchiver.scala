@@ -21,13 +21,13 @@ object HDFSArchiver extends LogHelper with ConfigHelper {
      * Config class for use config files and args.
      */
     case class Config(
-        source_directory: String,
-        archive_file: String,
+        source_directory: Path,
+        archive_file: Path,
         archive_parent_umask: String = "022",
         archive_perms: String = "644",
         expected_filename_ending: String = ".gz",
         check_done: Boolean = false,
-        done_file: String = "_SUCCESS"
+        done_file: Path = new Path("_SUCCESS")
     )
 
     def loadConfig(args: Array[String]): Config = {
@@ -45,7 +45,8 @@ object HDFSArchiver extends LogHelper with ConfigHelper {
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        val default = Config("", "")
+        val dummyPath = new Path("dummy")
+        val default: Config = Config(dummyPath, dummyPath)
 
         val propertiesDoc: ListMap[String, String] = ListMap(
             "source_directory" -> "Path of the directory where the source is located.",

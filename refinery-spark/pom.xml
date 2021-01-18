@@ -75,12 +75,11 @@
             -->
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.6.5</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.11</artifactId>
+            <artifactId>spark-core_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
@@ -101,21 +100,21 @@
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.11</artifactId>
+            <artifactId>spark-hive_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-hive_2.11</artifactId>
+            <artifactId>spark-sql_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.netaporter</groupId>
-            <artifactId>scala-uri_2.11</artifactId>
+            <artifactId>scala-uri_2.12</artifactId>
             <version>0.4.16</version>
         </dependency>
 
@@ -133,24 +132,24 @@
 
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.11</artifactId>
+            <artifactId>scalatest_2.12</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>com.github.nscala-time</groupId>
-            <artifactId>nscala-time_2.11</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.databricks</groupId>
-            <artifactId>spark-avro_2.11</artifactId>
-            <version>3.2.0</version>
+            <artifactId>nscala-time_2.12</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-graphx_2.11</artifactId>
+            <artifactId>spark-avro_2.12</artifactId>
+            <version>${spark.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-graphx_2.12</artifactId>
             <version>${spark.version}</version>
         </dependency>
 
@@ -158,13 +157,13 @@
         <dependency>
             <groupId>graphframes</groupId>
             <artifactId>graphframes</artifactId>
-            <version>0.7.0-spark2.3-s_2.11</version>
+            <version>0.8.1-spark3.0-s_2.12</version>
         </dependency>
 
         <dependency>
             <groupId>com.holdenkarau</groupId>
-            <artifactId>spark-testing-base_2.11</artifactId>
-            <version>2.3.0_0.9.0</version>
+            <artifactId>spark-testing-base_2.12</artifactId>
+            <version>3.1.1_1.1.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -176,8 +175,8 @@
 
         <dependency>
             <groupId>org.scalamock</groupId>
-            <artifactId>scalamock-scalatest-support_2.11</artifactId>
-            <version>3.4.2</version>
+            <artifactId>scalamock-scalatest-support_2.12</artifactId>
+            <version>3.6.0</version>
             <scope>test</scope>
         </dependency>
 

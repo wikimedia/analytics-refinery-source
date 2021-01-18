@@ -3,7 +3,8 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 import java.sql.Timestamp
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterEach
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 import org.wikimedia.analytics.refinery.spark.utils.MapAccumulator

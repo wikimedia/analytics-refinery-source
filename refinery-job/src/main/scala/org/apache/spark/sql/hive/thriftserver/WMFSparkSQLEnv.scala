@@ -15,11 +15,18 @@ private[hive] object WMFSparkSQLEnv extends Logging {
     var sqlContext: SQLContext = _
     var sparkContext: SparkContext = _
 
-    def init(sparkConf: SparkConf) {
+    def init(): Unit = {
         if (sqlContext == null) {
+            val sparkConf = new SparkConf(loadDefaults = true)
+            
             val sparkSession = SparkSession.builder.config(sparkConf).enableHiveSupport().getOrCreate()
             sparkContext = sparkSession.sparkContext
             sqlContext = sparkSession.sqlContext
+
+            // SPARK-29604: force initialization of the session state with the Spark class loader,
+            // instead of having it happen during the initialization of the Hive client (which may use a
+            // different class loader).
+            sparkSession.sessionState
         }
     }
 

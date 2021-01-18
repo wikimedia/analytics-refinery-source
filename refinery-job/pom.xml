@@ -97,55 +97,42 @@
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.11</artifactId>
+            <artifactId>spark-core_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-hive_2.11</artifactId>
+            <artifactId>spark-hive_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.11</artifactId>
+            <artifactId>spark-sql_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming-kafka-0-8_2.11</artifactId>
-            <version>${spark.version}</version>
-            <exclusions>
-                <!-- Excluded for dependency conflict with spark -->
-                <exclusion>
-                    <groupId>net.jpountz.lz4</groupId>
-                    <artifactId>lz4</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming_2.11</artifactId>
+            <artifactId>spark-streaming_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.netaporter</groupId>
-            <artifactId>scala-uri_2.11</artifactId>
+            <artifactId>scala-uri_2.12</artifactId>
             <version>0.4.16</version>
         </dependency>
 
         <dependency>
             <groupId>com.twitter</groupId>
-            <artifactId>algebird-core_2.11</artifactId>
-            <version>0.10.2</version>
+            <artifactId>algebird-core_2.12</artifactId>
+            <version>0.13.7</version>
         </dependency>
 
         <dependency>
@@ -156,8 +143,7 @@
 
         <dependency>
             <groupId>com.github.scopt</groupId>
-            <artifactId>scopt_2.11</artifactId>
-            <version>3.3.0</version>
+            <artifactId>scopt_2.12</artifactId>
         </dependency>
 
         <dependency>
@@ -168,24 +154,24 @@
 
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.11</artifactId>
+            <artifactId>scalatest_2.12</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>com.github.nscala-time</groupId>
-            <artifactId>nscala-time_2.11</artifactId>
+            <artifactId>nscala-time_2.12</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-avro_2.11</artifactId>
+            <artifactId>spark-avro_2.12</artifactId>
             <version>${spark.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-graphx_2.11</artifactId>
+            <artifactId>spark-graphx_2.12</artifactId>
             <version>${spark.version}</version>
         </dependency>
 
@@ -193,13 +179,13 @@
         <dependency>
             <groupId>graphframes</groupId>
             <artifactId>graphframes</artifactId>
-            <version>0.5.0-spark2.1-s_2.11</version>
+            <version>0.8.1-spark3.0-s_2.12</version>
         </dependency>
 
         <dependency>
             <groupId>com.holdenkarau</groupId>
-            <artifactId>spark-testing-base_2.11</artifactId>
-            <version>2.3.0_0.9.0</version>
+            <artifactId>spark-testing-base_2.12</artifactId>
+            <version>3.1.1_1.1.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -211,8 +197,8 @@
 
         <dependency>
             <groupId>org.scalamock</groupId>
-            <artifactId>scalamock-scalatest-support_2.11</artifactId>
-            <version>3.4.2</version>
+            <artifactId>scalamock-scalatest-support_2.12</artifactId>
+            <version>3.6.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -242,7 +228,7 @@
         <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-mllib -->
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-mllib_2.11</artifactId>
+            <artifactId>spark-mllib_2.12</artifactId>
             <version>${spark.version}</version>
         </dependency>
 
@@ -250,7 +236,7 @@
         <dependency>
             <groupId>com.criteo</groupId>
             <artifactId>rsvd</artifactId>
-            <version>1.0</version>
+            <version>1.0-spark3</version>
             <exclusions>
                 <!--
                   Excluded from here as this dependency is a snapshot
@@ -270,15 +256,16 @@
             <version>1.15</version>
         </dependency>
 
+        <!-- Getting this dependency in here for our cassandra loading jobs -->
         <dependency>
             <groupId>com.datastax.spark</groupId>
-            <artifactId>spark-cassandra-connector_2.11</artifactId>
-            <version>2.5.2</version>
+            <artifactId>spark-cassandra-connector_2.12</artifactId>
+            <version>3.1.0</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-hive-thriftserver_2.11</artifactId>
+            <artifactId>spark-hive-thriftserver_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>

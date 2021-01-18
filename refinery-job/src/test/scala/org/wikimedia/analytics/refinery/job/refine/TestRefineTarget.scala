@@ -4,7 +4,8 @@ import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat}
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.joda.time.DateTimeZone
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.matching.Regex
 

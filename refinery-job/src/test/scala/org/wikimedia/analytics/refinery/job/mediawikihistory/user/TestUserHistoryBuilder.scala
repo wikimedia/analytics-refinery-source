@@ -1,7 +1,8 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterEach
 
 
 class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterEach with DataFrameSuiteBase {

@@ -1,11 +1,9 @@
 package org.wikimedia.analytics.refinery.spark.bzip2
 
-import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{FlatSpec, Matchers}
 
-class TestCorrectedBZip2Codec
-  extends FlatSpec
-  with Matchers {
+class TestCorrectedBZip2Codec extends FlatSpec with Matchers {
 
   val testFileURI = getClass.getResource("/lbzip2_32767.bz2")
 
@@ -16,8 +14,8 @@ class TestCorrectedBZip2Codec
       .set("spark.driver.allowMultipleContexts", "true")
 
     val sparkContext = new SparkContext(conf)
-
     an [Throwable] should be thrownBy sparkContext.textFile(testFileURI.toString).take(1)
+    sparkContext.stop()
   }
 
   "CorrectedBZip2Codec" should "successfully read the test file" in {
@@ -29,5 +27,6 @@ class TestCorrectedBZip2Codec
 
     val sparkContext = new SparkContext(conf)
     sparkContext.textFile(testFileURI.toString).take(1).head should equal("TEST")
+    sparkContext.stop()
   }
 }

@@ -1,8 +1,8 @@
 package org.wikimedia.analytics.refinery.core
 
+import org.scalatest.{FlatSpec, Matchers}
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
 import org.joda.time.DateTime
-import org.scalatest.{FlatSpec, Matchers}
 
 import scala.collection.immutable.ListMap
 import scala.util.matching.Regex

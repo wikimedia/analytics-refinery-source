@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 import java.sql.Timestamp
 
 import com.holdenkarau.spark.testing.SharedSparkContext
-import org.scalatest.{Matchers, FlatSpec}
+import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TestHistoryEventHelpers._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 

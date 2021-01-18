@@ -21,7 +21,6 @@
 package org.wikimedia.analytics.refinery.job
 
 import org.apache.log4j.LogManager
-import org.apache.spark.{SparkContext, Accumulator}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions.input_file_name
 import org.apache.spark.sql.types._

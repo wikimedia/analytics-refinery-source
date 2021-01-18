@@ -3,13 +3,13 @@ package org.wikimedia.analytics.refinery.core.config
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, DateTimeZone}
 import org.joda.time.format.DateTimeFormatter
 import org.scalactic.Equality
-import org.scalatest.{BeforeAndAfter, FlatSpec, Inside, Matchers}
+import org.scalatest.{BeforeAndAfter, Inside}
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.matching.Regex
 
 
 class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with Inside with ConfigHelper {
-
 
     case class Params(
         str: String = "default str",
@@ -256,4 +256,5 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         files should equal(expectedFiles)
         remainingArgs should equal(expectedArgs)
     }
+
 }

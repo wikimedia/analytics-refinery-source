@@ -21,6 +21,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils
 import org.apache.hadoop.hive.ql.Driver
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.internal.{SQLConf, VariableSubstitution}
 import org.apache.spark.sql.{AnalysisException, DataFrame, SQLContext}
 
 /**
@@ -38,6 +39,10 @@ private[hive] class WMFSparkSQLDriver(val context: SQLContext = WMFSparkSQLEnv.s
     override def run(command: String): CommandProcessorResponse = {
         // TODO unify the error code
         try {
+            val substitutorCommand = SQLConf.withExistingConf(context.conf) {
+                new VariableSubstitution().substitute(command)
+            }
+            context.sparkContext.setJobDescription(substitutorCommand)
             response = context.sql(command)
 
             new CommandProcessorResponse(0)

@@ -13,7 +13,8 @@ import org.apache.spark.sql.types.{DoubleType, LongType, StringType, StructType}
 import org.apache.spark.sql.{DataFrame, Row}
 import org.joda.time.DateTime
 import org.scalamock.scalatest.MockFactory
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.BeforeAndAfterEach
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.util.parsing.json.JSON
 
