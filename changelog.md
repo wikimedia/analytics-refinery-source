@@ -1,3 +1,8 @@
+## v0.0.144
+* Fix DataFrameExtension.convertToSchema repartition
+* Change DataFrameToDruid base temporary path
+* refinery-core: iputils: refresh cloud addresses
+
 ## v0.0.143
 * Update junit and netty versions for github security alert
 * Refine - Add TransformFunction is_wmf_domain
