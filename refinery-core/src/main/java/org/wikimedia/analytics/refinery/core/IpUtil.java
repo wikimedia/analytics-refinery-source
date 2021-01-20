@@ -55,40 +55,18 @@ public class IpUtil {
      * <p>
      * The following list is sourced from ops/puppet.git's data.yaml file (see above)
      * Specifically these were taken from the labs portion
-     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L261
+     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L273
      *
-     * Last updated: 2019-09-23
+     * Last updated: 2021-01-20
      */
     final String[] labsSubnets = new String[] {
-            // labs-instances-eqiad
-            "10.68.0.0/24",
-            "2620:0:861:201::/64",
-
-            "10.68.16.0/21",
-            "2620:0:861:202::/64",
-
+            // cloud-eqiad1
             "172.16.0.0/21",
+            "185.15.56.0/25",
 
-            "10.68.32.0/24",
-            "2620:0:861:203::/64",
-
-            "10.68.48.0/24",
-            "2620:0:861:204::/64",
-
-            // labs-instances-codfw
-            "10.196.0.0/24",
-            "2620:0:860:201::/64",
-
-            "10.196.16.0/21",
-            "2620:0:860:202::/64",
-
-            "172.16.128.0/21",
-
-            "10.196.32.0/24",
-            "2620:0:860:203::/64",
-
-            "10.196.48.0/24",
-            "2620:0:860:204::/64",
+            // cloud-codfw1dev
+            "172.16.128.0/24",
+            "185.15.57.0/29",
     };
 
     Set<IpAddressMatcher> labsSubnetsCache;

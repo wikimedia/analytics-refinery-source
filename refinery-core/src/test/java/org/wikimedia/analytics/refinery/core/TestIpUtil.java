@@ -85,12 +85,8 @@ public class TestIpUtil extends TestCase {
     }
 
     public void testGetNeworkOriginLabsIpv4() {
-        assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("10.68.16.44"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("185.15.56.1"));
         assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("172.16.4.22"));
-    }
-
-    public void testGetNeworkOriginLabsIpv6() {
-        assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("2620:0:861:204::dead:beef"));
     }
 
     public void testGetNeworkOriginWikimediaIpv4() {

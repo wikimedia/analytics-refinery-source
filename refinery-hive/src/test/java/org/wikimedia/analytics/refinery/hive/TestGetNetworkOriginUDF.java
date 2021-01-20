@@ -33,13 +33,8 @@ public class TestGetNetworkOriginUDF {
 
     @Test
     public void testEvaluateWithLabsIpv4() {
-        assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("10.68.16.44"));
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("185.15.56.1"));
         assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("172.16.4.22"));
-    }
-
-    @Test
-    public void testEvaluateWithLabsIpv6() {
-        assertEquals(NetworkOrigin.WIKIMEDIA_LABS.toString(), fixture.evaluate("2620:0:861:204::dead:beef"));
     }
 
     @Test
