@@ -538,6 +538,14 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         statements should equal(expected)
     }
 
+    it should "not fail to convert schema of an empty DataFrame" in {
+        val fromSchema = StructType(Seq(StructField("a", IntegerType, nullable = true)))
+
+        val rdd = sc.emptyRDD[Row]
+        val df = spark.createDataFrame(rdd, fromSchema)
+        df.convertToSchema(fromSchema)
+    }
+
     it should "convert a DataFrame to superset schema" in {
         val smallerSchema = StructType(
             StructField("a", StructType(

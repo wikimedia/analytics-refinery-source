@@ -732,7 +732,12 @@ object HiveExtensions extends LogHelper {
             df.createOrReplaceTempView(tableName)
             val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema, schema)} FROM $tableName"
             log.debug(s"Converting DataFrame using SQL query:\n$sqlQuery")
-            df.sqlContext.sql(sqlQuery).makeNullable().repartition(partitionNumber)
+            // Don't repartition if the dataframe has no partition, has it makes the job fail
+            if (partitionNumber > 0) {
+                df.sqlContext.sql(sqlQuery).makeNullable().repartition(partitionNumber)
+            } else {
+                df.sqlContext.sql(sqlQuery).makeNullable()
+            }
         }
 
         def makeNullable(): DataFrame = {
