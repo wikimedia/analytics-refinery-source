@@ -1,3 +1,6 @@
+## v0.0.145
+* Fix DataFrameToHive repartition-to-empty failure
+
 ## v0.0.144
 * Fix DataFrameExtension.convertToSchema repartition
 * Change DataFrameToDruid base temporary path
