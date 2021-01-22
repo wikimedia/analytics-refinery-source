@@ -865,6 +865,28 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         spark.sql("SELECT event.numField FROM newDf WHERE event.numField IS NOT NULL").count should equal(2)
         spark.sql("SELECT event.numField FROM newDf").rdd.collect.foreach(r => r.getLong(0) should equal(456L))
     }
+
+    it should "repartition a non-empty dataframe" in {
+        val eventsSeq = Seq("""{"id": 1, "myField": 0}""", """{"id": 1, "myField": 5}""")
+        import spark.implicits._
+        val dfTarget = spark.read.json(spark.createDataset[String](sc.parallelize(eventsSeq, 2)))
+        val dfTest = spark.read.json(spark.createDataset[String](sc.parallelize(eventsSeq, 1)))
+
+        val df = dfTest.repartitionAs(dfTarget)
+
+        df.rdd.getNumPartitions should equal(2)
+    }
+
+    it should "do nothing when repartitioning  an empty dataframe" in {
+        val fromSchema = StructType(Seq(StructField("a", IntegerType, nullable = true)))
+        val rdd = sc.emptyRDD[Row]
+        val dfTarget = spark.createDataFrame(rdd, fromSchema)
+        val dfTest = spark.emptyDataFrame
+
+        val df = dfTest.repartitionAs(dfTarget)
+
+        df.rdd.getNumPartitions should equal(0)
+    }
 }
 
 // case classes used by DataFrame convertToSchema tests

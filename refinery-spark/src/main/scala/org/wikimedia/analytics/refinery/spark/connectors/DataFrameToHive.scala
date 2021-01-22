@@ -92,21 +92,19 @@ object DataFrameToHive extends LogHelper {
         // Set this so we can partition by fields in the DataFrame.
         spark.conf.set("hive.exec.dynamic.partition.mode", "nonstrict")
 
-        // Keep number of partitions to reset it after DataFrame API changes it
-        // Since the spark context is used across multiple jobs, we don't want
-        // to use a global setting.
-        val originalPartitionNumber = inputPartDf.df.rdd.getNumPartitions
-
         // Add the Hive partition columns and apply any other configured transform functions,
         // and then normalize (lowercase top level fields names, widen certain types, etc.).
         val transformedPartDf = transformFunctions
           .foldLeft(inputPartDf.applyPartitions)((currPartDf, fn) => fn(currPartDf))
 
         val partDf = transformedPartDf.copy(df = transformedPartDf.df
-            // Normalize field names (toLower, etc.)
-            // and widen types that we can (e.g. Integer -> Long)
-            .normalizeAndWiden()
-            .repartition(originalPartitionNumber)
+              // Normalize field names (toLower, etc.)
+              // and widen types that we can (e.g. Integer -> Long)
+              .normalizeAndWiden()
+              // Keep number of partitions to reset it after DataFrame API changes it
+              // Since the spark context is used across multiple jobs, we don't want
+              // to use a global setting.
+              .repartitionAs(inputPartDf.df)
         )
 
         // Grab the partition name keys to use for Hive partitioning.

@@ -732,12 +732,7 @@ object HiveExtensions extends LogHelper {
             df.createOrReplaceTempView(tableName)
             val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema, schema)} FROM $tableName"
             log.debug(s"Converting DataFrame using SQL query:\n$sqlQuery")
-            // Don't repartition if the dataframe has no partition, has it makes the job fail
-            if (partitionNumber > 0) {
-                df.sqlContext.sql(sqlQuery).makeNullable().repartition(partitionNumber)
-            } else {
-                df.sqlContext.sql(sqlQuery).makeNullable()
-            }
+            df.sqlContext.sql(sqlQuery).makeNullable().repartitionAs(df)
         }
 
         def makeNullable(): DataFrame = {
@@ -771,6 +766,15 @@ object HiveExtensions extends LogHelper {
 
         def findColumns(columnNames: Seq[String]): Seq[Column] = {
             columnNames.flatMap(c => Try(df(c)).toOption)
+        }
+
+        def repartitionAs(originalDf: DataFrame): DataFrame = {
+            val partitionNumber = originalDf.rdd.getNumPartitions
+            if (partitionNumber > 0) {
+                df.repartition(partitionNumber)
+            } else {
+                df
+            }
         }
     }
 
