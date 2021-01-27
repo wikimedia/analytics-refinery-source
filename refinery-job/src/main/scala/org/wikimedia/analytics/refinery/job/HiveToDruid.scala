@@ -140,8 +140,9 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         val spark = SparkSession.builder().enableHiveSupport().appName("HiveToDruid").getOrCreate()
         val success = apply(spark)(config)
 
-        // Exit with proper code only if not running in YARN.
-        if (spark.conf.get("spark.master") != "yarn") {
+        // Exit with proper code only if not running in YARN or deploy mode is client.
+        if (spark.conf.get("spark.master") != "yarn" ||
+            spark.conf.get("spark.submit.deployMode") == "client") {
             sys.exit(if (success) 0 else 1)
         }
     }
