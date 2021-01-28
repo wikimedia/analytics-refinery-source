@@ -127,7 +127,6 @@ public class TestPageview {
             String user_agent,
             String x_analytics_header
     ) {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
         assertEquals(
                 test_description,
                 project,
