@@ -1,3 +1,6 @@
+## v0.0.146
+* Make HiveToDruid return exit code when deployMode=client
+
 ## v0.0.145
 * Fix DataFrameToHive repartition-to-empty failure
 
