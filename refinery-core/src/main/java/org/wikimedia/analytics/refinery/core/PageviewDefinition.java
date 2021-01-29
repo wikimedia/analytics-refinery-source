@@ -166,10 +166,8 @@ public class PageviewDefinition {
     private boolean isAppPageview(WebrequestData data) {
 
         final String rawXAnalyticsHeader = data.getRawXAnalyticsHeader();
-        final String userAgent = data.getUserAgent();
         final String uriPath = data.getUriPath();
         final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
-        
         
         // See analytics request for KAiOS pageviews to be turned into events here:
         // https://phabricator.wikimedia.org/T244547
@@ -241,12 +239,14 @@ public class PageviewDefinition {
      * See: https://wikitech.wikimedia.org/wiki/X-Analytics#Keys
      * for x-analytics info.
      *
-     * Please note that requests tagged as 'preview' are not counted
-     * as pageviews.
+     * The following tags can show up in X-Analytics.  If they do, they disqualify the
+     * request from counting as a pageview:
+     *   - page previews tagged as preview=1
+     *   - test and load test requests tagged as debug=1
      *
-     * We use the raw xAnalytics header rather than x_analytics_map
+     * We use the raw X-Analytics header rather than x_analytics_map
      * to make sure this function can be applied
-     * to raw data, where the parsing of x-Analytics header into
+     * to raw data, where the parsing of X-Analytics header into
      * a map has not yet happened.
      *
      * @param  data
@@ -288,12 +288,12 @@ public class PageviewDefinition {
 
         String special = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "special").trim().toLowerCase();
         String preview = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim();
+        String debug = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "debug").trim();
 
-        // in the absence of preview or special there is little we can infer
-        // about content from x-analytics
-        if (preview.isEmpty() && special.isEmpty()){
+        // in the absence of these tags, there is little we can infer about the request
+        if (preview.isEmpty() && special.isEmpty() && debug.isEmpty()) {
             return true;
-        } else if (preview.equals("1")) {
+        } else if (preview.equals("1") || debug.equals("1")) {
             return false;
         }
 
