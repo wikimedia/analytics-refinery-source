@@ -1,3 +1,6 @@
+## v0.1.0
+* Exclude debug requests from pageviews
+
 ## v0.0.146
 * Make HiveToDruid return exit code when deployMode=client
 
