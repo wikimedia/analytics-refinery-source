@@ -428,8 +428,8 @@
         Those number reference jar-versions to be used as dependencies.
         We should try to keep them in sync with our hadoop/hive/spark versions.
       -->
-      <hadoop.version>2.6.0-cdh5.15.0</hadoop.version>
-      <hive.version>1.1.0-cdh5.15.0</hive.version>
+      <hadoop.version>2.10.1</hadoop.version>
+      <hive.version>2.3.6</hive.version>
       <scala.version>2.11.7</scala.version>
       <spark.version>2.4.4</spark.version>
       <camus.version>0.1.0-wmf12</camus.version>
