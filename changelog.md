@@ -1,3 +1,6 @@
+## v0.1.1
+* Update hadoop and hive dependencies versions (BigTop upgrade)
+
 ## v0.1.0
 * Exclude debug requests from pageviews
 
