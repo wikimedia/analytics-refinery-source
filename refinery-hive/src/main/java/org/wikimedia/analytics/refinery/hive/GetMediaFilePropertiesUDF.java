@@ -169,6 +169,8 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
 
             result[IDX_WIDTH] = null;
             result[IDX_HEIGHT] = null;
+
+            result[IDX_TRANSCODING] = null;
         } else {
             result[IDX_BASE_NAME] = PercentEncoder.encode(info.getBaseName());
 
