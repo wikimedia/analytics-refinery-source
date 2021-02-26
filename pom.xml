@@ -266,6 +266,22 @@
   </dependencyManagement>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <!--
+            The sonar plugin is not meant to be used locally, but is used as
+            part of CI to publish static analysis results to
+            https://sonarcloud.io/organizations/wmftest/projects. This analysis
+            is also reported to users as bot-comments directly on gerrit CRs.
+            A similar local analysis can be run with https://www.sonarlint.org/.
+          -->
+          <groupId>org.sonarsource.scanner.maven</groupId>
+          <artifactId>sonar-maven-plugin</artifactId>
+          <version>3.8.0.2131</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -434,6 +450,9 @@
       <spark.version>2.4.4</spark.version>
       <camus.version>0.1.0-wmf12</camus.version>
       <guava.version>16.0</guava.version>
+      <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+      <sonar.login>${env.SONAR_API_KEY}</sonar.login>
+      <sonar.organization>wmftest</sonar.organization>
     </properties>
 
   </project>
