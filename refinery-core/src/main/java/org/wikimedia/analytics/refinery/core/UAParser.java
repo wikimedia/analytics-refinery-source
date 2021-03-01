@@ -71,17 +71,10 @@ public class UAParser {
     }
 
     public UAParser() {
-        try {
-            // CachingParser default cache size is 1000.
-            // Expanding it to 10000 divides computation
-            // by ~2.5, and expanding it more has less impact
-            cachingParser = new CachingParser(10000);
-        } catch (IOException e) {
-            // no recovery should be possible, log and rethrow
-            // runtime exception will be logged to stdout by default
-            LOG.error(e.getMessage(), e);
-            throw new RuntimeException("Failed to instantiate CachingParser");
-        }
+        // CachingParser default cache size is 1000.
+        // Expanding it to 10000 divides computation
+        // by ~2.5, and expanding it more has less impact
+        cachingParser = new CachingParser(10000);
     }
 
     /**
