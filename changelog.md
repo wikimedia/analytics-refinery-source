@@ -1,3 +1,10 @@
+## v0.1.2
+* Update UA-Parser to 1.5.2
+* Minimal configuration of Sonar maven plugin
+* Standardize CI builds on Maven Wrapper
+* Make null result same shape as normal result
+* Fix wikitext history job
+
 ## v0.1.1
 * Update hadoop and hive dependencies versions (BigTop upgrade)
 
