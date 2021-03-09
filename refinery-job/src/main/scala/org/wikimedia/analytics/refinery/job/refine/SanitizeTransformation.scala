@@ -14,21 +14,21 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   * This module returns a transformation function that can be applied
   * to the Refine process to sanitize a given PartitionedDataFrame.
   *
-  * The sanitization is done using a whitelist to determine which tables
-  * and fields should be purged and which ones should be kept. The whitelist
+  * The sanitization is done using a allowlist to determine which tables
+  * and fields should be purged and which ones should be kept. The allowlist
   * is provided as a recursive tree of Map[String, Any], following format and
   * rules described below:
   *
   *   Map(
   *       "tableOne" -> Map(
   *           "fieldOne" -> "keep",
-  *           "fieldTwo" -> "keepAll",
+  *           "fieldTwo" -> "keep_all",
   *           "fieldThree" -> Map(
   *               "subFieldOne" -> "keep"
   *           ),
   *           "fieldFour" -> "hash",
   *       ),
-  *       "tableTwo" -> "keepAll",
+  *       "tableTwo" -> "keep_all",
   *       "__defaults__" -> Map(
   *           "fieldFour" -> "keep"
   *       )
@@ -37,18 +37,18 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *
   * TABLES:
   *
-  * - The first level of the whitelist corresponds to table names.
+  * - The first level of the allowlist corresponds to table names.
   *
   * - If the table name of the given HivePartition is not present in the
-  *   whitelist, the transformation function will return an empty DataFrame.
+  *   allowlist, the transformation function will return an empty DataFrame.
   *
-  * - If the table name of the given HivePartition is present in the whitelist and
-  *   is tagged as 'keepAll', the transformation function will return the full
+  * - If the table name of the given HivePartition is present in the allowlist and
+  *   is tagged as 'keep_all', the transformation function will return the full
   *   DataFrame as is.
   *
-  * - For tables, tags different from 'keepAll' will throw an exception.
+  * - For tables, string tags different from 'keep_all' will throw an exception.
   *
-  * - If the table name of the given HivePartition is present in the whitelist
+  * - If the table name of the given HivePartition is present in the allowlist
   *   and its value is a Map, the transformation function will apply the
   *   sanitizations specified in that Map to the DataFrame's fields and return it.
   *   See: FIELDS.
@@ -56,9 +56,9 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *
   * FIELDS:
   *
-  * - The second and subsequent levels of the whitelist correspond to field names.
+  * - The second and subsequent levels of the allowlist correspond to field names.
   *
-  * - If a field (or sub-field) name is not present in the corresponding whitelist
+  * - If a field (or sub-field) name is not present in the corresponding allowlist
   *   Map, the transformation function will set that field to null for all records,
   *   regardless of field type.
   *
@@ -71,14 +71,14 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *
   * FIELDS OF TYPE STRUCT OR MAP:
   *
-  * - If a field name of type Struct/Map is present in the corresponding whitelist
-  *   Map and is tagged 'keepAll', the transformation function will copy the full
+  * - If a field of type Struct/Map is present in the corresponding allowlist and
+  *   Map and is tagged 'keep_all', the transformation function will copy the full
   *   Struct/Map content of that field to the returned DataFrame.
   *
-  * - For fields of type Struct/Map, tags different from 'keepAll' will throw an exception.
+  * - For fields of type Struct/Map, string tags different from 'keep_all' will throw an exception.
   *
-  * - Struct/Map type fields, like tables, can have a Map as whitelist value as well.
-  *   If a field name of Struct/Map type is present in the whitelist and its value
+  * - Struct/Map type fields, like tables, can have a Map as allowlist value as well.
+  *   If a field of Struct/Map type is present in the allowlist and its value
   *   is a Map, the transformation function will apply the sanitizations
   *   specified in that Map to its nested fields. See: FIELDS.
   *
@@ -86,12 +86,12 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   * FIELDS OF TYPES DIFFERENT FROM STRUCT OR MAP:
   *
   * - If a field name of non-Struct/non-Map type is present in the corresponding
-  *   whitelist Map and is tagged 'keep', the transformation function will copy
+  *   allowlist Map and is tagged 'keep', the transformation function will copy
   *   its value to the returned DataFrame.
   *
   * - For non-Struct/non-Map type fields, tags different from 'keep' will throw an exception.
   *
-  * - Non-Struct/non-Map type fields can not have Map values in the whitelist.
+  * - Non-Struct/non-Map type fields can not have Map values in the allowlist.
   *   If this happens, an exception will be thrown.
   *
   * - Fields of some simple types (like String) allow additional tags with handy
@@ -100,23 +100,23 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *
   * HASHING:
   *
-  * - If a field name of type String is present in the corresponding whitelist Map and
+  * - If a field name of type String is present in the corresponding allowlist Map and
   *   is tagged 'hash', the transformation function will apply an HMAC algorithm to it
-  *   (salt + hash) using the salts passed to WhitelistSanitization.apply() as private key
+  *   (salt + hash) using the salts passed to AllowlistSanitization.apply() as private key
   *   and SHA-256 as hash function, and then copy the resulting number formatted as a
   *   64-character-long hexadecimal String to the returned DataFrame.
   *
-  * - If the whitelist contains 'hash' tags, but the 'salts' parameter is not passed to
-  *   WhitelistSanitization.apply(), an exception will be thrown.
+  * - If the allowlist contains 'hash' tags, but the 'salts' parameter is not passed to
+  *   AllowlistSanitization.apply(), an exception will be thrown.
   *
-  * - Non-String type fields can not have 'hash' tags in the whitelist.
+  * - Non-String type fields can not have 'hash' tags in the allowlist.
   *   If this happens, an exception will be thrown.
   *
   *
   * DEFAULTS SECTION:
   *
-  * - If the whitelist contains a top level key named '__defaults__', its spec
-  *   will be applied as a default to all whitelisted tables.
+  * - If the allowlist contains a top level key named '__defaults__', its spec
+  *   will be applied as a default to all allowlisted tables.
   *
   * - Fields (or sub-fields) that are present in the defaults spec and are not
   *   present in the table-specific spec will be sanitized as indicated in the
@@ -125,7 +125,7 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   * - Fields (or sub-fields) that are present in the table-specific spec will be
   *   sanitized as indicated in it, regardless of the defaults spec for that field.
   *
-  * - Tables that are not present in the whitelist, will not be applied defaults.
+  * - Tables that are not present in the allowlist, will not be applied defaults.
   *   Hence, the transformation function will return an empty DataFrame.
   *
   *
@@ -133,26 +133,26 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *
   * - Different data sets might need sanitization for different reasons.
   *   For some of them, convenience might be more important than robustness.
-  *   In these cases, the use of 'keepAll' can save lots of lines of code.
+  *   In these cases, the use of 'keep_all' can save lots of lines of code.
   *   For other data sets, robustness will be the most important thing. In
-  *   those cases, the use of 'keepAll' might be dangerous, because it doesn't
+  *   those cases, the use of 'keep_all' might be dangerous, because it doesn't
   *   have control over new fields added to tables or new sub-fields added to
-  *   Struct/Map fields. Differentiating between 'keep' and 'keepAll' allows to
-  *   easily avoid unwanted use of the 'keepAll' semantics.
+  *   Struct/Map fields. Differentiating between 'keep' and 'keep_all' allows to
+  *   easily avoid unwanted use of the 'keep_all' semantics.
   *
   */
-object WhitelistSanitization {
+object SanitizeTransformation {
 
-    type Whitelist = Map[String, Any]
+    type Allowlist = Map[String, Any]
 
-    val WhitelistDefaultsSectionLabel = "__defaults__"
-    val HashingAlgorithm = "HmacSHA256"
+    val allowlistDefaultsSectionLabel = "__defaults__"
+    val hashingAlgorithm              = "HmacSHA256"
 
 
     /**
       * The following tree structure stores a 'compiled' representation
-      * of the whitelist. It is constructed prior to any data transformation,
-      * so that the whitelist checks and lookups are performed only once per
+      * of the allowlist. It is constructed prior to any data transformation,
+      * so that the allowlist checks and lookups are performed only once per
       * table and not once per row.
       */
     sealed trait MaskNode {
@@ -235,8 +235,8 @@ object WhitelistSanitization {
     }
 
     // MapMaskNode corresponds to nested sanitizations on top of Map values.
-    case class MapMaskNode(whitelist: Whitelist) extends MaskNode {
-        // For map nodes the apply function applies the map whitelist
+    case class MapMaskNode(allowlist: Allowlist) extends MaskNode {
+        // For map nodes the apply function applies the map allowlist
         // on all key-value pairs of the given map.
         def apply(value: Any): Any = {
             if (value == null) {
@@ -245,9 +245,9 @@ object WhitelistSanitization {
                 val valueMap = value.asInstanceOf[Map[String, Any]]
                 valueMap.flatMap { case (key, value) =>
                     val lowerCaseKey = key.toLowerCase
-                    if (whitelist.contains(lowerCaseKey)) {
+                    if (allowlist.contains(lowerCaseKey)) {
                         Seq(
-                            key -> (whitelist(lowerCaseKey) match {
+                            key -> (allowlist(lowerCaseKey) match {
                                 case childMask: MapMaskNode => childMask.apply(value)
                                 case action: SanitizationAction => action.apply(value)
                             })
@@ -265,14 +265,14 @@ object WhitelistSanitization {
                         case _ => other
                     }
                 case otherMap: MapMaskNode =>
-                    val otherWhitelist = otherMap.whitelist
+                    val otherAllowlist = otherMap.allowlist
                     MapMaskNode(
-                        whitelist.filterKeys(k => !otherWhitelist.contains(k)) ++
-                        otherWhitelist.filterKeys(k => !whitelist.contains(k)) ++
-                        whitelist.keys.filter(k => otherWhitelist.contains(k)).map { k =>
-                            (whitelist(k), otherWhitelist(k)) match {
+                        allowlist.filterKeys(k => !otherAllowlist.contains(k)) ++
+                        otherAllowlist.filterKeys(k => !allowlist.contains(k)) ++
+                        allowlist.keys.filter(k => otherAllowlist.contains(k)).map { k =>
+                            (allowlist(k), otherAllowlist(k)) match {
                                 case (a: MapMaskNode, b: MapMaskNode) => k -> a.merge(b)
-                                case _ => k -> otherWhitelist(k)
+                                case _ => k -> otherAllowlist(k)
                             }
                         }.toMap
                     )
@@ -281,7 +281,7 @@ object WhitelistSanitization {
         // For testing.
         def equals(other: MaskNode): Boolean = {
             other match {
-                case otherMap: MapMaskNode => whitelist == otherMap.whitelist
+                case otherMap: MapMaskNode => allowlist == otherMap.allowlist
                 case _ => false
             }
         }
@@ -307,8 +307,8 @@ object WhitelistSanitization {
                 // The initialization of the mac object could have been done
                 // when constructing the Hash instance, if it wasn't because
                 // javax.crypto.Mac instances are not serializable...
-                val mac = Mac.getInstance(HashingAlgorithm)
-                val keySpec = new SecretKeySpec(salt.getBytes, HashingAlgorithm)
+                val mac = Mac.getInstance(hashingAlgorithm)
+                val keySpec = new SecretKeySpec(salt.getBytes, hashingAlgorithm)
                 mac.init(keySpec)
                 val messageBytes = value.asInstanceOf[String].getBytes
                 val hashBytes: Array[Byte] = mac.doFinal(messageBytes)
@@ -321,43 +321,43 @@ object WhitelistSanitization {
     /**
      * Returns a transformation function to be used in the Refine process
      * to sanitize a given PartitionedDataFrame. The sanitization is
-     * based on the specified whitelist. See comment at the top of this
-     * module for more details on the whitelist format.
+     * based on the specified allowlist. See comment at the top of this
+     * module for more details on the allowlist format.
      *
-     * @param whitelist    The whitelist object (see type Whitelist).
+     * @param allowlist    The allowlist object (see type Allowlist).
      * @param salts        Seq of Tuples (startDateTime, endDateTime, saltString)
      *                     used to securely hash specified fields depending on time.
-     *                     Required only when the whitelist contains the tag 'hash'.
+     *                     Required only when the allowlist contains the tag 'hash'.
      *
      * @return Refine.TransformFunction  See more details in Refine.scala.
      */
     def apply(
-        whitelist: Whitelist,
+        allowlist: Allowlist,
         salts: Seq[(DateTime, DateTime, String)] = Seq.empty
     ): PartitionedDataFrame => PartitionedDataFrame = {
-        val lowerCaseWhitelist = makeWhitelistLowerCase(whitelist)
+        val lowerCaseAllowlist = makeAllowlistLowerCase(allowlist)
         (partDf: PartitionedDataFrame) => {
             val salt = chooseSalt(salts, partDf.partition)
             sanitizeTable(
                 partDf,
-                lowerCaseWhitelist,
+                lowerCaseAllowlist,
                 salt
             )
         }
     }
 
     /**
-     * Recursively transforms all whitelist keys and tag values to lower case.
-     * The whitelist accepts any casing for the tags, but from now on all tags
+     * Recursively transforms all allowlist keys and tag values to lower case.
+     * The allowlist accepts any casing for the tags, but from now on all tags
      * will be lower case and without separators.
      */
-    def makeWhitelistLowerCase(
-        whitelist: Whitelist
-    ): Whitelist = {
-        whitelist.map { case (key, value) =>
+    def makeAllowlistLowerCase(
+        allowlist: Allowlist
+    ): Allowlist = {
+        allowlist.map { case (key, value) =>
             key.toLowerCase -> (value match {
                 case tag: String => tag.replaceAll("[-_ ]", "").toLowerCase
-                case childWhitelist: Whitelist => makeWhitelistLowerCase(childWhitelist)
+                case childAllowlist: Allowlist => makeAllowlistLowerCase(childAllowlist)
             })
         }
     }
@@ -411,34 +411,34 @@ object WhitelistSanitization {
     }
 
     /**
-     * Sanitizes a given PartitionedDataFrame with the specified whitelist.
+     * Sanitizes a given PartitionedDataFrame with the specified allowlist.
      */
     def sanitizeTable(
         partDf: PartitionedDataFrame,
-        whitelist: Whitelist,
+        allowlist: Allowlist,
         salt: Option[String] = None
     ): PartitionedDataFrame = {
-        whitelist.get(partDf.partition.table.toLowerCase) match {
-            // Table is not in the whitelist: return empty DataFrame.
+        allowlist.get(partDf.partition.table.toLowerCase) match {
+            // Table is not in the allowlist: return empty DataFrame.
             case None => partDf.copy(df = emptyDataFrame(partDf.df.sparkSession, partDf.df.schema))
-            // Table is in the whitelist as keepall: return DataFrame as is.
+            // Table is in the allowlist as keepall: return DataFrame as is.
             case Some("keepall") => partDf
-            // Table is in the whitelist and has further specifications:
-            case Some(tableWhitelist: Whitelist) =>
+            // Table is in the allowlist and has further specifications:
+            case Some(tableAllowlist: Allowlist) =>
                 // Create table-specific sanitization mask.
                 val tableSpecificMask = getStructMask(
                     partDf.df.schema,
-                    tableWhitelist,
+                    tableAllowlist,
                     salt,
                     partDf.partition.keys
                 )
                 // Merge the table-specific mask with the defaults mask,
-                // if the defaults section is present in the whitelist.
-                val defaultsWhitelist = whitelist.get(WhitelistDefaultsSectionLabel)
-                val sanitizationMask = if (defaultsWhitelist.isDefined) {
+                // if the defaults section is present in the allowlist.
+                val defaultsAllowlist = allowlist.get(allowlistDefaultsSectionLabel)
+                val sanitizationMask = if (defaultsAllowlist.isDefined) {
                     getStructMask(
                         partDf.df.schema,
-                        defaultsWhitelist.get.asInstanceOf[Whitelist],
+                        defaultsAllowlist.get.asInstanceOf[Allowlist],
                         salt,
                         partDf.partition.keys
                     ).merge(tableSpecificMask)
@@ -449,20 +449,20 @@ object WhitelistSanitization {
                     sanitizationMask
                 )
             case _ => throw new IllegalArgumentException(
-                s"Invalid whitelist value for table '${partDf.partition.table}'."
+                s"Invalid allowlist value for table '${partDf.partition.table}'."
             )
         }
     }
 
     /**
-      * Returns a sanitization mask (compiled whitelist) for a given StructType and whitelist.
-      * The `partitions` parameter enforces whitelisting partition columns.
+      * Returns a sanitization mask (compiled allowlist) for a given StructType and allowlist.
+      * The `partitions` parameter enforces allowlisting partition columns.
       *
-      * This function also validates that the given whitelist is correctly defined.
+      * This function also validates that the given allowlist is correctly defined.
       */
     def getStructMask(
         struct: StructType,
-        whitelist: Whitelist,
+        allowlist: Allowlist,
         salt: Option[String] = None,
         partitions: Seq[String] = Seq.empty
     ): MaskNode = {
@@ -473,11 +473,11 @@ object WhitelistSanitization {
                     ValueMaskNode(Identity())
                 } else {
                     val lowerCaseFieldName = field.name.toLowerCase
-                    if (whitelist.contains(lowerCaseFieldName)) {
-                        // The field is in the whitelist and should be fully or partially kept.
-                        getValueMask(field, whitelist(lowerCaseFieldName), salt)
+                    if (allowlist.contains(lowerCaseFieldName)) {
+                        // The field is in the allowlist and should be fully or partially kept.
+                        getValueMask(field, allowlist(lowerCaseFieldName), salt)
                     } else {
-                        // The field is not in the whitelist and should be purged.
+                        // The field is not in the allowlist and should be purged.
                         if (field.nullable) {
                             ValueMaskNode(Nullify())
                         } else {
@@ -492,41 +492,41 @@ object WhitelistSanitization {
     }
 
     /**
-      * Returns a sanitization mask (compiled whitelist) for a given MapType and whitelist.
+      * Returns a sanitization mask (compiled allowlist) for a given MapType and allowlist.
       * As opposed to the StructMask (that uses implicit indexes), this mask uses lookups
       * to determine which fields to keep or purge. The reason being that Maps do not
       * guarantee the order their elements are iterated.
       * Thus, Maps are less performant than Structs in this case.
       *
-      * This function also validates that the given whitelist is correctly defined.
+      * This function also validates that the given allowlist is correctly defined.
       */
     def getMapMask(
         map: MapType,
-        whitelist: Whitelist,
+        allowlist: Allowlist,
         salt: Option[String] = None
     ): MaskNode = {
         MapMaskNode(
             map.valueType match {
-                case MapType(_, _, _) => whitelist.map { case (key, value) =>
-                    // The whitelist for this field indicates the field is nested.
+                case MapType(_, _, _) => allowlist.map { case (key, value) =>
+                    // The allowlist for this field indicates the field is nested.
                     // Build the MaskNode accordingly. If necessary, call recursively.
                     value match {
                         case "keepall" => key -> Identity()
-                        case childWhitelist: Whitelist =>
-                            key -> getMapMask(map.valueType.asInstanceOf[MapType], childWhitelist, salt)
+                        case childAllowlist: Allowlist =>
+                            key -> getMapMask(map.valueType.asInstanceOf[MapType], childAllowlist, salt)
                         case _ => throw new IllegalArgumentException(
-                            s"Invalid whitelist value for map key '${key}'."
+                            s"Invalid allowlist value for map key '${key}'."
                         )
                     }
                 }
-                case _ => whitelist.map { case (key, value) =>
-                    // The whitelist for this field indicates the field is simple (not nested).
+                case _ => allowlist.map { case (key, value) =>
+                    // The allowlist for this field indicates the field is simple (not nested).
                     // Build the MaskNode accordingly.
                     value match {
                         case "keep" => key -> Identity()
                         case "hash" if map.valueType == StringType && salt.isDefined => key -> Hash(salt.get)
                         case _ => throw new IllegalArgumentException(
-                            s"Invalid salt or whitelist value for map key '${key}'."
+                            s"Invalid salt or allowlist value for map key '${key}'."
                         )
                     }
                 }
@@ -535,52 +535,52 @@ object WhitelistSanitization {
     }
 
     /**
-      * Returns a sanitization mask (compiled whitelist) for a given StructField and whitelist.
+      * Returns a sanitization mask (compiled allowlist) for a given StructField and allowlist.
       *
-      * This function also validates that the given whitelist is correctly defined.
+      * This function also validates that the given allowlist is correctly defined.
       */
     def getValueMask(
         field: StructField,
-        whitelistValue: Any,
+        allowlistValue: Any,
         salt: Option[String] = None
     ): MaskNode = {
         field.dataType match {
-            case StructType(_) | MapType(_, _, _) => whitelistValue match {
+            case StructType(_) | MapType(_, _, _) => allowlistValue match {
                 // The field is nested, either StructType or MapType.
                 // Build the MaskNode accordingly. If necessary, call recursively.
                 case "keepall" => ValueMaskNode(Identity())
-                case childWhitelist: Whitelist => field.dataType match {
+                case childAllowlist: Allowlist => field.dataType match {
                     case StructType(_) =>
                         getStructMask(
                             field.dataType.asInstanceOf[StructType],
-                            childWhitelist,
+                            childAllowlist,
                             salt
                         )
                     case MapType(_, _, _) =>
                         getMapMask(
                             field.dataType.asInstanceOf[MapType],
-                            childWhitelist,
+                            childAllowlist,
                             salt
                         )
                 }
                 case _ => throw new IllegalArgumentException(
-                    s"Invalid whitelist value for nested field '${field.name}'."
+                    s"Invalid allowlist value for nested field '${field.name}'."
                 )
             }
-            case _ => whitelistValue match {
+            case _ => allowlistValue match {
                 // The field is not nested. Build the MaskNode accordingly.
                 case "keep" => ValueMaskNode(Identity())
                 case "hash" if field.dataType == StringType && salt.isDefined =>
                     ValueMaskNode(Hash(salt.get))
                 case _ => throw new IllegalArgumentException(
-                    s"Invalid salt or whitelist value for non-nested field '${field.name}'."
+                    s"Invalid salt or allowlist value for non-nested field '${field.name}'."
                 )
             }
         }
     }
 
     /**
-      * Applies a sanitization mask (compiled whitelist) to a DataFrame.
+      * Applies a sanitization mask (compiled allowlist) to a DataFrame.
       */
     def sanitizeDataFrame(
         partDf: PartitionedDataFrame,

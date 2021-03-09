@@ -8,10 +8,10 @@ import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import scala.collection.immutable.ListMap
-import WhitelistSanitization._
+import SanitizeTransformation._
 
 
-class TestWhitelistSanitization extends FlatSpec
+class TestSanitizeTransformation extends FlatSpec
     with Matchers with DataFrameSuiteBase {
 
     val fakeHivePartition = new HivePartition(database = "database", t = "table", location = "/fake/location")
@@ -25,8 +25,8 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result.count == 0)
     }
 
-    it should "make the whitelist lower case" in {
-        val whitelist = Map(
+    it should "make the allowlist lower case" in {
+        val allowlist = Map(
             "lowercase" -> "keepall",
             "camelCase" -> "keepAll",
             "snake_case" -> "keep_all",
@@ -36,7 +36,7 @@ class TestWhitelistSanitization extends FlatSpec
                 "kebab-case" -> "keep-all"
             )
         )
-        val result = makeWhitelistLowerCase(whitelist)
+        val result = makeAllowlistLowerCase(allowlist)
         val expected = Map(
             "lowercase" -> "keepall",
             "camelcase" -> "keepall",
@@ -121,18 +121,18 @@ class TestWhitelistSanitization extends FlatSpec
     it should "create a value mask for simple fields" in {
         val field = StructField("field", StringType, nullable=true)
 
-        // simple field whitelisted with keep
+        // simple field allowlisted with keep
         val result1 = getValueMask(field, "keep")
         val expected1 = ValueMaskNode(Identity())
         assert(result1.equals(expected1))
 
-        // string field whitelisted with hash
+        // string field allowlisted with hash
         val salt = "salt"
         val result2 = getValueMask(field, "hash", Some(salt))
         val expected2 = ValueMaskNode(Hash(salt))
         assert(result2.equals(expected2))
 
-        // simple field whitelisted with invalid label
+        // simple field allowlisted with invalid label
         an[Exception] should be thrownBy getValueMask(field, "keepall")
     }
 
@@ -141,17 +141,17 @@ class TestWhitelistSanitization extends FlatSpec
             StructField("subfield", StringType, nullable=true)
         )), nullable=true)
 
-        // nested field whitelisted with keepall
+        // nested field allowlisted with keepall
         val result1 = getValueMask(field, "keepall")
         val expected1 = ValueMaskNode(Identity())
         assert(result1.equals(expected1))
 
-        // nested struct field partially whitelisted
+        // nested struct field partially allowlisted
         val result2 = getValueMask(field, Map("subfield" -> "keep"))
         val expected2 = StructMaskNode(Array(ValueMaskNode(Identity())))
         assert(result2.equals(expected2))
 
-        // nested field whitelisted with invalid label
+        // nested field allowlisted with invalid label
         an[Exception] should be thrownBy getValueMask(field, "keep")
     }
 
@@ -168,18 +168,18 @@ class TestWhitelistSanitization extends FlatSpec
     it should "create a map mask for a map with simple values" in {
         val mapType = MapType(StringType, StringType, false)
 
-        // simple subfield whitelisted with keep
+        // simple subfield allowlisted with keep
         val result1 = getMapMask(mapType, Map("subfield" -> "keep"))
         val expected1 = MapMaskNode(Map("subfield" -> Identity()))
         assert(result1.equals(expected1))
 
-        // string field whitelisted with hash
+        // string field allowlisted with hash
         val salt = "salt"
         val result2 = getMapMask(mapType, Map("subfield" -> "hash"), Some(salt))
         val expected2 = MapMaskNode(Map("subfield" -> Hash(salt)))
         assert(result2.equals(expected2))
 
-        // map subfield whitelisted with keep
+        // map subfield allowlisted with keep
         an[Exception] should be thrownBy getMapMask(mapType, Map("subfield" -> "keepall"))
     }
 
@@ -190,12 +190,12 @@ class TestWhitelistSanitization extends FlatSpec
             false
         )
 
-        // map subfield whitelisted with keepall
+        // map subfield allowlisted with keepall
         val result = getMapMask(mapOfMapsType, Map("subfield" -> "keepall"))
         val expected = MapMaskNode(Map("subfield" -> Identity()))
         assert(result.equals(expected))
 
-        // map subfield whitelisted with keep
+        // map subfield allowlisted with keep
         an[Exception] should be thrownBy getMapMask(mapOfMapsType, Map("subfield" -> "keep"))
     }
 
@@ -224,7 +224,7 @@ class TestWhitelistSanitization extends FlatSpec
             )), nullable=true),
             StructField("fa3", StringType, nullable=true)
         )), nullable=true)
-        val whitelist = Map(
+        val allowlist = Map(
             "fa1" -> "keep",
             "fa2" -> Map(
                 "fb2" -> Map(
@@ -232,7 +232,7 @@ class TestWhitelistSanitization extends FlatSpec
                 )
             )
         )
-        val result = getValueMask(field, whitelist)
+        val result = getValueMask(field, allowlist)
         val expected = StructMaskNode(Array(
             ValueMaskNode(Identity()),
             StructMaskNode(Array(
@@ -266,9 +266,9 @@ class TestWhitelistSanitization extends FlatSpec
         val nullifyMask = ValueMaskNode(Nullify())
         val identityMask = ValueMaskNode(Identity())
         val mapMask = MapMaskNode(Map("f1" -> Nullify(), "f2" -> Identity()))
-        assert(nullifyMask.merge(mapMask).asInstanceOf[MapMaskNode].whitelist.size == 2)
-        assert(identityMask.merge(mapMask).asInstanceOf[MapMaskNode].whitelist.size == 2)
-        assert(mapMask.merge(nullifyMask).asInstanceOf[MapMaskNode].whitelist.size == 2)
+        assert(nullifyMask.merge(mapMask).asInstanceOf[MapMaskNode].allowlist.size == 2)
+        assert(identityMask.merge(mapMask).asInstanceOf[MapMaskNode].allowlist.size == 2)
+        assert(mapMask.merge(nullifyMask).asInstanceOf[MapMaskNode].allowlist.size == 2)
         assert(mapMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
     }
 
@@ -295,7 +295,7 @@ class TestWhitelistSanitization extends FlatSpec
             "f4" -> Identity()
         ))
         val result = mapMask1.merge(mapMask2).asInstanceOf[MapMaskNode]
-        assert(result.whitelist == Map(
+        assert(result.allowlist == Map(
             "f1" -> Identity(),
             "f2" -> Identity(),
             "f3" -> MapMaskNode(Map("sf3" -> Identity(), "sf3bis" -> Identity())),
@@ -341,7 +341,7 @@ class TestWhitelistSanitization extends FlatSpec
                 ValueMaskNode(Nullify()),
                 ValueMaskNode(Identity())
             )),
-            // Note lowercase f (it would be lowercased anyway by makeWhitelistLowerCase).
+            // Note lowercase f (it would be lowercased anyway by makeAllowlistLowerCase).
             MapMaskNode(Map(
                 "f1" -> Identity(),
                 "f2" -> Hash("salt")
@@ -399,7 +399,7 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result(2) == Row(3, null, "ppa"))
     }
 
-    it should "return the source DataFrame as is when whitelisting a table with keepall" in {
+    it should "return the source DataFrame as is when allowlisting a table with keepall" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(Row(1))),
@@ -415,7 +415,7 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result(0) == Row(1))
     }
 
-    it should "return an empty DataFrame when the table is not in the whitelist" in {
+    it should "return an empty DataFrame when the table is not in the allowlist" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(Row(1))),
@@ -430,7 +430,7 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result.length == 0)
     }
 
-    it should "raise an error when whitelisting a table with keep tag" in {
+    it should "raise an error when allowlisting a table with keep tag" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(Row(1))),
@@ -444,7 +444,7 @@ class TestWhitelistSanitization extends FlatSpec
         )
     }
 
-    it should "partially sanitize table with a proper whitelist block" in {
+    it should "partially sanitize table with a proper allowlist block" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(Row(1, true), Row(2, false))),
@@ -491,7 +491,7 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result(1) == Row(2, "bye", null))
     }
 
-    it should "automatically whitelist partition fields" in {
+    it should "automatically allowlist partition fields" in {
         val partDf = new PartitionedDataFrame(
             spark.createDataFrame(
                 sc.parallelize(Seq(Row(1, true), Row(2, false))),
@@ -516,7 +516,7 @@ class TestWhitelistSanitization extends FlatSpec
         assert(result(1) == Row(2, false))
     }
 
-    it should "lower case table and field names before checking them against the whitelist" in {
+    it should "lower case table and field names before checking them against the allowlist" in {
         val partDf = new PartitionedDataFrame(
                 spark.createDataFrame(
                     sc.parallelize(Seq(Row(1, true), Row(2, false))),

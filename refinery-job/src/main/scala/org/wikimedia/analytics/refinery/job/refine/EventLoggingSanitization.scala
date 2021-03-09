@@ -17,7 +17,9 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
 {
     // Config class for CLI argument parser using scopt.
     case class Config(
-        whitelist_path : String = "/wmf/refinery/current/static_data/eventlogging/whitelist.yaml",
+        allowlist_path : String = "/wmf/refinery/current/static_data/eventlogging/allowlist.yaml",
+        // TODO: remove whitelist_path config once no jobs are using it.
+        whitelist_path : String = "",
         salts_path     : Option[String] = None
     )
 
@@ -28,8 +30,8 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
 
         val propertiesDoc: ListMap[String, String] = {
             val doc = ListMap(
-                "whitelist_path" ->
-                    s"Path to EventLogging's whitelist file. Default: ${default.whitelist_path}",
+                "allowlist_path" ->
+                    s"Path to EventLogging's allowlist file. Default: ${default.allowlist_path}",
                 "salts_path" ->
                     s"""Read the cryptographic salts for hashing of fields from this path.
                        |Default: ${default.salts_path}"""
@@ -48,11 +50,11 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
         }
 
         val usage: String =
-            """|Sanitize EventLogging Hive tables using a whitelist.
+            """|Sanitize EventLogging Hive tables using a allowlist.
                |
-               |Given an input base path for the data and one for the whitelist, this job
+               |Given an input base path for the data and one for the allowlist, this job
                |will search all subdirectories for input partitions to sanitize. It will
-               |interpret the whitelist and apply it to keep only the tables and fields
+               |interpret the allowlist and apply it to keep only the tables and fields
                |mentioned in it.
                |
                |Example:
@@ -60,7 +62,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
                |   # read configs out of this file
                |   --config_file                 /etc/refinery/refine/eventlogging_sanitization.properties \
                |   # Override and/or set other configs on the CLI
-               |   --whitelist_path              /wmf/path/to/whitelist \
+               |   --allowlist_path              /wmf/path/to/allowlist \
                |   --input_path                  /wmf/data/event \
                |   --output_path                 /user/mforns/sanitized' \
                |   --database                    mforns \
@@ -97,7 +99,7 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
         val refineConfig = Refine.loadConfig(refineArgs)
 
         val allSucceeded = apply(spark)(
-            config.whitelist_path,
+            config.allowlist_path,
             config.salts_path,
             refineConfig
         )
@@ -111,12 +113,20 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
 
     def loadConfig(args: Array[String]): Config = {
         val config = try {
-            configureArgs[Config] (args)
+            val c = configureArgs[Config] (args)
+            // TODO: remove this once no jobs use whitelist_path.
+            // If whitelist_path was given, assume we should use it as allowlist_path.
+            if (c.whitelist_path != "") {
+                c.copy(allowlist_path=c.whitelist_path)
+            } else {
+                c
+            }
         } catch {
             case e: ConfigHelperException =>
             log.fatal (e.getMessage + ". Aborting.")
             sys.exit(1)
         }
+
         log.info("Loaded configuration:\n" + prettyPrint(config))
         config
     }
@@ -129,30 +139,30 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
       * @return true if the sanitization succeeded, false otherwise.
       */
     def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
-        whitelist_path: String,
+        allowlist_path: String,
         salts_path    : Option[String],
         refineConfig  : Refine.Config
     ): Boolean = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
-        // Read whitelist from yaml file.
-        val whitelistStream = fs.open(new Path(whitelist_path))
-        val javaObject = new Yaml().load[Object](whitelistStream)
-        val whitelist = validateWhitelist(javaObject)
+        // Read allowlist from yaml file.
+        val allowlistStream = fs.open(new Path(allowlist_path))
+        val javaObject = new Yaml().load[Object](allowlistStream)
+        val allowlist = validateAllowlist(javaObject)
 
         // Read hashing salts if provided.
         val hashingSalts = loadHashingSalts(fs, salts_path)
 
-        // Get a Regex with all tables that are whitelisted.
+        // Get a Regex with all tables that are allowlisted.
         // This prevents Refine to collect RefineTargets for those tables
         // and to create a tree of directories just to store success files.
         val tableWhitelistRegex = Some(refineConfig.table_whitelist_regex.getOrElse(
-            new Regex("^(" + whitelist.keys.mkString("|") + ")$")
+            new Regex("^(" + allowlist.keys.mkString("|") + ")$")
         ))
 
-        // Get WhitelistSanitization transform function.
-        val sanitizationTransformFunction = WhitelistSanitization(
-            whitelist,
+        // Get AllowlistSanitization transform function.
+        val sanitizationTransformFunction = SanitizeTransformation(
+            allowlist,
             hashingSalts
         )
 
@@ -171,39 +181,39 @@ object EventLoggingSanitization extends LogHelper with ConfigHelper
 
 
   /**
-    * Tries to cast a java object into a [[WhitelistSanitization.Whitelist]],
+    * Tries to cast a java object into a [[SanitizeTransformation.Allowlist]],
     * and enforce no "keepall" tag is used.
     *
     * Throws a ClassCastException in case of casting failure,
     * or an IllegalArgumentException in case of keepall tag used
     *
-    * @param javaObject  The unchecked whitelist structure
+    * @param javaObject  The unchecked allowlist structure
     * @return a Map[String, Any] having no keepall tag.
     */
-  def validateWhitelist(javaObject: Object): WhitelistSanitization.Whitelist = {
+  def validateAllowlist(javaObject: Object): SanitizeTransformation.Allowlist = {
         // Transform to java map.
         val javaMap = try {
             javaObject.asInstanceOf[java.util.Map[String, Any]]
         } catch {
             case e: ClassCastException => throw new ClassCastException(
-                "Whitelist object can not be cast to Map[String, Any]."
+                "Allowlist object can not be cast to Map[String, Any]."
             )
         }
         // Apply recursively.
         javaMap.asScala.toMap.map { case (key, value) =>
             value match {
                 case "keepall" => throw new IllegalArgumentException(
-                    "Keyword 'keepall' is not permitted in EventLogging whitelist."
+                    "Keyword 'keepall' is not permitted in EventLogging allowlist."
                 )
                 case tag: String => key -> tag
-                case nested: Object => key -> validateWhitelist(nested)
+                case nested: Object => key -> validateAllowlist(nested)
             }
         }
     }
 
     /**
       * Loads the salts stored in a salts directory in HDFS
-      * and returns them in the format expected by WhiteListSanitization.
+      * and returns them in the format expected by SanitizeTransformation.
       * A Seq of tuples of the form: (<startDateTime>, <endDateTime>, <saltString>)
       */
     def loadHashingSalts(
