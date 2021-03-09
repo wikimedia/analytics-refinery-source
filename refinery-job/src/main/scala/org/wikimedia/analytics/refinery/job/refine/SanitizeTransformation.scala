@@ -1,18 +1,29 @@
 package org.wikimedia.analytics.refinery.job.refine
 
+import java.io.{BufferedReader, InputStreamReader}
+
+import com.github.nscala_time.time.Imports.DateTimeFormat
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{MapType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.core.HivePartition
-import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.spark.sql.{HiveExtensions, PartitionedDataFrame}
+import org.yaml.snakeyaml.Yaml
+
+import scala.collection.JavaConverters._
 
 
 /**
-  * This module returns a transformation function that can be applied
+  * This module returns a transform function that can be applied
   * to the Refine process to sanitize a given PartitionedDataFrame.
+  *
+  * Note that this is not a Refine.TransformFunction on its own,
+  * but that SanitizeTransformation.apply creates and returns
+  * a Refine.TransformFunction based on on the input allowlist and salts.
   *
   * The sanitization is done using a allowlist to determine which tables
   * and fields should be purged and which ones should be kept. The allowlist
@@ -129,7 +140,7 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
   *   Hence, the transformation function will return an empty DataFrame.
   *
   *
-  * WHY USE 2 DIFFERENT TAGS: KEEP AND KEEPALL?
+  * WHY USE 2 DIFFERENT TAGS: keep AND keep_all?
   *
   * - Different data sets might need sanitization for different reasons.
   *   For some of them, convenience might be more important than robustness.
@@ -148,6 +159,9 @@ object SanitizeTransformation {
     val allowlistDefaultsSectionLabel = "__defaults__"
     val hashingAlgorithm              = "HmacSHA256"
 
+    val keepAllTag = "keep_all"
+    val keepTag = "keep"
+    val hashTag = "hash"
 
     /**
       * The following tree structure stores a 'compiled' representation
@@ -335,31 +349,99 @@ object SanitizeTransformation {
         allowlist: Allowlist,
         salts: Seq[(DateTime, DateTime, String)] = Seq.empty
     ): PartitionedDataFrame => PartitionedDataFrame = {
-        val lowerCaseAllowlist = makeAllowlistLowerCase(allowlist)
         (partDf: PartitionedDataFrame) => {
             val salt = chooseSalt(salts, partDf.partition)
             sanitizeTable(
                 partDf,
-                lowerCaseAllowlist,
+                allowlist,
                 salt
             )
         }
     }
 
     /**
-     * Recursively transforms all allowlist keys and tag values to lower case.
-     * The allowlist accepts any casing for the tags, but from now on all tags
-     * will be lower case and without separators.
-     */
-    def makeAllowlistLowerCase(
-        allowlist: Allowlist
+      * Loads allowlist from allowListPath in fs.
+      *
+      * @param fs
+      * @param allowlistPath
+      * @param keepAllTagEnabled
+      * @return
+      */
+    def loadAllowlist(fs: FileSystem)(
+        allowlistPath: String,
+        keepAllTagEnabled: Boolean = false
     ): Allowlist = {
-        allowlist.map { case (key, value) =>
-            key.toLowerCase -> (value match {
-                case tag: String => tag.replaceAll("[-_ ]", "").toLowerCase
-                case childAllowlist: Allowlist => makeAllowlistLowerCase(childAllowlist)
-            })
+        // Load allowlist from YAML file.
+        convertAllowlist(
+            new Yaml().load[Object](fs.open(new Path(allowlistPath))),
+            keepAllTagEnabled
+        )
+    }
+
+    /**
+      * Tries to cast a java object into a [[SanitizeTransformation.Allowlist]],
+      * and enforce keep_all_enabled.
+      *
+      * Throws a ClassCastException in case of casting failure,
+      * or an IllegalArgumentException in case of keep_all tag used
+      *
+      * @param javaObject  The unchecked allowlist structure
+      * @return a Map[String, Any] having no keep_all tag.
+      */
+    def convertAllowlist(
+        javaObject: Object,
+        keepAllTagEnabled: Boolean = false
+    ): Allowlist = {
+        // Transform to java map.
+        val javaMap = try {
+            javaObject.asInstanceOf[java.util.Map[String, Any]]
+        } catch {
+            case e: ClassCastException => throw new ClassCastException(
+                "Allowlist object can not be cast to Map[String, Any]. " + e.getMessage
+            )
         }
+
+        // Apply recursively.
+        javaMap.asScala.toMap.map { case (key, value) =>
+            val newValue = value match {
+                case `keepAllTag` if !keepAllTagEnabled => throw new IllegalArgumentException(
+                    s"'${keepAllTag}' tag is not permitted in sanitization allowlist. ($key: $value)"
+                )
+                case `keepTag` | `hashTag` | `keepAllTag` => value
+                case nested: Object => convertAllowlist(nested, keepAllTagEnabled)
+                case _ => throw new IllegalArgumentException(
+                    s"'${value}' tag is not a sanitization tag. ($key: $value)"
+                )
+            }
+
+            // Allowlist keys are either Hive table or field names. Normalize them.
+            HiveExtensions.normalizeName(key) -> newValue
+        }
+    }
+
+    /**
+      * Loads the salts stored in a salts directory in HDFS
+      * and returns them in the format expected by SanitizeTransformation function.
+      * A Seq of tuples of the form: (<startDateTime>, <endDateTime>, <saltString>)
+      */
+    def loadHashingSalts(fs: FileSystem)(
+        saltsPath: String
+    ): Seq[(DateTime, DateTime, String)] = {
+        val dateTimeFormatter = DateTimeFormat.forPattern("yyyyMMddHH")
+        val status = fs.listStatus(new Path(saltsPath))
+        status.map((s) => {
+            val fileNameParts = s.getPath.getName.split("_")
+            val startDateTime = DateTime.parse(fileNameParts(0), dateTimeFormatter)
+            // If file name does not have second component,
+            // means the salt does not expire.
+            val endDateTime = if (fileNameParts(1) != "") {
+                DateTime.parse(fileNameParts(1), dateTimeFormatter)
+            } else new DateTime(3000, 1, 1, 0, 0) // Never expires.
+            val saltStream = fs.open(s.getPath)
+            val saltReader = new BufferedReader(new InputStreamReader(saltStream))
+            val salt = saltReader.lines.toArray.mkString
+            (startDateTime, endDateTime, salt)
+        })
     }
 
     /**
@@ -421,8 +503,8 @@ object SanitizeTransformation {
         allowlist.get(partDf.partition.table.toLowerCase) match {
             // Table is not in the allowlist: return empty DataFrame.
             case None => partDf.copy(df = emptyDataFrame(partDf.df.sparkSession, partDf.df.schema))
-            // Table is in the allowlist as keepall: return DataFrame as is.
-            case Some("keepall") => partDf
+            // Table is in the allowlist as keep_all: return DataFrame as is.
+            case Some(`keepAllTag`) => partDf
             // Table is in the allowlist and has further specifications:
             case Some(tableAllowlist: Allowlist) =>
                 // Create table-specific sanitization mask.
@@ -511,7 +593,7 @@ object SanitizeTransformation {
                     // The allowlist for this field indicates the field is nested.
                     // Build the MaskNode accordingly. If necessary, call recursively.
                     value match {
-                        case "keepall" => key -> Identity()
+                        case `keepAllTag` => key -> Identity()
                         case childAllowlist: Allowlist =>
                             key -> getMapMask(map.valueType.asInstanceOf[MapType], childAllowlist, salt)
                         case _ => throw new IllegalArgumentException(
@@ -523,8 +605,8 @@ object SanitizeTransformation {
                     // The allowlist for this field indicates the field is simple (not nested).
                     // Build the MaskNode accordingly.
                     value match {
-                        case "keep" => key -> Identity()
-                        case "hash" if map.valueType == StringType && salt.isDefined => key -> Hash(salt.get)
+                        case `keepTag` => key -> Identity()
+                        case `hashTag` if map.valueType == StringType && salt.isDefined => key -> Hash(salt.get)
                         case _ => throw new IllegalArgumentException(
                             s"Invalid salt or allowlist value for map key '${key}'."
                         )
@@ -548,7 +630,7 @@ object SanitizeTransformation {
             case StructType(_) | MapType(_, _, _) => allowlistValue match {
                 // The field is nested, either StructType or MapType.
                 // Build the MaskNode accordingly. If necessary, call recursively.
-                case "keepall" => ValueMaskNode(Identity())
+                case `keepAllTag` => ValueMaskNode(Identity())
                 case childAllowlist: Allowlist => field.dataType match {
                     case StructType(_) =>
                         getStructMask(
@@ -569,8 +651,8 @@ object SanitizeTransformation {
             }
             case _ => allowlistValue match {
                 // The field is not nested. Build the MaskNode accordingly.
-                case "keep" => ValueMaskNode(Identity())
-                case "hash" if field.dataType == StringType && salt.isDefined =>
+                case `keepTag` => ValueMaskNode(Identity())
+                case `hashTag` if field.dataType == StringType && salt.isDefined =>
                     ValueMaskNode(Hash(salt.get))
                 case _ => throw new IllegalArgumentException(
                     s"Invalid salt or allowlist value for non-nested field '${field.name}'."
