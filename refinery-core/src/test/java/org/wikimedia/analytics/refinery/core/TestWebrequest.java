@@ -207,6 +207,21 @@ public class TestWebrequest {
             webrequest_inst.isWMFHostname("en.wikipedia.org")
         );
 
+        assertTrue(
+                "Should be WMF hostname",
+                webrequest_inst.isWMFHostname("recommend.wmflabs.org")
+        );
+
+        assertTrue(
+                "Should be WMF hostname",
+                webrequest_inst.isWMFHostname("recommend.wmcloud.org")
+        );
+
+        assertTrue(
+                "Should be WMF hostname",
+                webrequest_inst.isWMFHostname("recommend.toolforge.org")
+        );
+
         assertFalse(
             "Should not be WMF hostname",
             webrequest_inst.isWMFHostname("boogers.com")

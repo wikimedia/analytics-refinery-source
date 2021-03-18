@@ -103,7 +103,10 @@ public class Webrequest {
         "mediawiki.org",
         "wikimediafoundation.org",
         "wikiworkshop.org",
-        "wmfusercontent.org"
+        "wmfusercontent.org",
+        "wmflabs.org",
+        "wmcloud.org",
+        "toolforge.org"
     );
     /**
      * In an analysis of a days worth of webrequest data,
