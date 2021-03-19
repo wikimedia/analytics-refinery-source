@@ -48,16 +48,33 @@ object RefineSanitize extends LogHelper with ConfigHelper
                |mentioned in it. Anything not explicitly allow listed will be nulled.
                |
                |Example:
-               |  spark-submit --class org.wikimedia.analytics.refinery.job.RefineSanitize refinery-job.jar \
+               |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.RefineSanitize refinery-job.jar \
                |   # read configs out of this file
-               |   --config_file                 /etc/refinery/refine/event_sanitize_job.properties \
+               |   --config_file=/etc/refinery/refine/event_sanitize_job.properties \
                |   # Override and/or set other configs on the CLI
-               |   --allowlist_path              /wmf/path/to/allowlist \
-               |   --input_path                  /wmf/data/event \
-               |   --output_path                 /user/mforns/sanitized' \
-               |   --database                    mforns \
-               |   --since                       24 \
+               |   --allowlist_path=/wmf/path/to/allowlist \
+               |   --salts_path=/wmf/path/to/salts
+               |   --input_path=/wmf/data/event \
+               |   --output_path=/user/mforns/sanitized' \
+               |   --output_database=mforns \
+               |   --since=24 \
                |"""
+
+        /**
+          * Loads Config from args
+          */
+        def apply(args: Array[String]): Config = {
+            val config = try {
+                configureArgs[Config] (args)
+            } catch {
+                case e: ConfigHelperException =>
+                    log.fatal (e.getMessage + ". Aborting.")
+                    sys.exit(1)
+            }
+
+            log.info("Loaded RefineSanitize config:\n" + prettyPrint(config))
+            config
+        }
     }
 
     def main(args: Array[String]): Unit = {
@@ -73,57 +90,39 @@ object RefineSanitize extends LogHelper with ConfigHelper
         }
 
         // Load RefineSanitize specific configs
-        val sanitizeConfig = loadConfig(args)
-        // Also load Refine configs
-        val refineConfig = Refine.loadConfig(args)
+        val config = Config(args)
+        // Also load Refine configs with some defaults
+        val refineConfig = Refine.Config(args)
 
-        val allSucceeded = apply(spark)(
-            sanitizeConfig.allowlist_path,
-            sanitizeConfig.salts_path,
-            sanitizeConfig.keep_all_enabled,
-            refineConfig
-        )
-
+        val allSucceeded = apply(spark)(config, refineConfig)
         // Exit with proper exit val if not running in YARN.
         if (spark.conf.get("spark.master") != "yarn") {
             sys.exit(if (allSucceeded) 0 else 1)
         }
     }
 
-    def loadConfig(args: Array[String]): Config = {
-        val config = try {
-            configureArgs[Config] (args)
-        } catch {
-            case e: ConfigHelperException =>
-                log.fatal (e.getMessage + ". Aborting.")
-                sys.exit(1)
-        }
-
-        log.info("Loaded configuration:\n" + prettyPrint(config))
-        config
-    }
-
     /**
       * Apply sanitization to tables in Hive with the specified params.
       *
       * @param spark Spark session
-      * @param salts_path Path to salts file
-      * @param keep_all_enabled Whether to enable the use of the keep_all flag.
+      * @param config RefineSanitize.config
       * @param refineConfig Refine.Config
       * @return true if the sanitization succeeded, false otherwise.
       */
-    def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
-        allowlist_path   : String,
-        salts_path       : Option[String],
-        keep_all_enabled : Boolean,
-        refineConfig     : Refine.Config
+    def apply(
+        spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
+    )(
+        config: Config,
+        refineConfig: Refine.Config
     ): Boolean = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
-        val allowlist = SanitizeTransformation.loadAllowlist(fs)(allowlist_path, keep_all_enabled)
-        log.debug(s"Loaded allowlist from $allowlist_path:\n" + allowlist)
+        val allowlist = SanitizeTransformation.loadAllowlist(fs)(
+            config.allowlist_path, config.keep_all_enabled
+        )
+        log.info(s"Loaded allowlist from ${config.allowlist_path}:\n" + allowlist)
 
-        val hashingSalts = salts_path match {
+        val hashingSalts = config.salts_path match {
             case Some(saltsPath) => SanitizeTransformation.loadHashingSalts(fs)(saltsPath)
             case None => Seq.empty
         }
@@ -134,20 +133,36 @@ object RefineSanitize extends LogHelper with ConfigHelper
             hashingSalts
         )
 
-        // If --table_whitelist_regex is not explicitly configured,
-        // use the value of all table keys in the allowlist to build table_whitelist_regex.
+        // If --table_include_regex is not explicitly configured,
+        // use the value of all table keys in the allowlist to build table_include_regex.
         // This prevents Refine to load RefineTargets for unwanted tables.
-        val tableWhitelistRegex = Some(refineConfig.table_whitelist_regex.getOrElse(
-            new Regex("^(" + allowlist.keys.mkString("|") + ")$")
-        ))
+        val tableIncludeRegex = getTableIncludeList(
+            refineConfig.table_include_regex,
+            allowlist
+        )
 
-        // Use Refine with the sanitization transform function to sanitize data.
-        Refine(
-            spark,
+        // Call Refine with the sanitization transform function to sanitize data.
+        Refine(spark)(
             refineConfig.copy(
-                transform_functions = refineConfig.transform_functions :+ sanitize.asInstanceOf[Refine.TransformFunction],
-                table_whitelist_regex = tableWhitelistRegex
+                table_include_regex=tableIncludeRegex,
+                transform_functions=refineConfig.transform_functions :+ sanitize.asInstanceOf[Refine.TransformFunction]
             )
         )
+    }
+
+    /**
+      * If tableIncludeListRegex is defined, uses that.
+      * Otherwise, builds a table include regex from keys in the allowlist.
+      * @param tableIncludeRegex
+      * @param allowlist
+      * @return
+      */
+    def getTableIncludeList(
+        tableIncludeRegex: Option[Regex],
+        allowlist        : SanitizeTransformation.Allowlist
+    ): Option[Regex] = {
+        Some(tableIncludeRegex.getOrElse(
+            new Regex("^(" + allowlist.keys.mkString("|") + ")$")
+        ))
     }
 }

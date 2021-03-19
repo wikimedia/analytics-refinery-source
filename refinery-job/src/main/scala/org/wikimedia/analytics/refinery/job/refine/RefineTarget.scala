@@ -3,10 +3,13 @@ package org.wikimedia.analytics.refinery.job.refine
 import com.github.nscala_time.time.Imports.{DateTime, _}
 import java.io.{BufferedReader, EOFException, InputStreamReader}
 
+import com.github.nscala_time.time
+import com.github.nscala_time.time.Imports
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, Row, SparkSession}
 import org.apache.spark.sql.catalyst.util.PermissiveMode
+import org.apache.spark.sql.execution.FileSourceScanExec
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
@@ -16,6 +19,10 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import scala.util.control.Exception.allCatch
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
+
+// TODO: use these for find in parallel configuration?
+import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.forkjoin.ForkJoinPool
 
 
 /**
@@ -40,7 +47,7 @@ import scala.util.{Failure, Success, Try}
   *     Full input partition path
   *
   * @param partition
-  *     HivePartition
+  *     Output HivePartition
   *
   * @param schemaLoader
   *     A SparkSchemaLoader that knows what the schema of this RefineTarget
@@ -412,92 +419,46 @@ case class RefineTarget(
       * @param ignoreDoneFlag
       * @return
       */
-    private def shouldRefine(
-         ignoreFailureFlag: Boolean,
-         ignoreDoneFlag: Boolean
+    def shouldRefine(
+         ignoreFailureFlag: Boolean = false,
+         ignoreDoneFlag: Boolean = false
     ): Boolean = {
 
         // This could be written and returned as a single boolean conditional statement,
         // keeping track of possible states was confusing.  This is clearer.
 
         // If the outputExists, check for existent status flag files
-        if (outputExists()) {
+        val shouldRefineThis = if (outputExists()) {
             // If doneFlag exists, and the input mtime has changed, then we need to refine.
             if (doneFlagExists()) {
-                return ignoreDoneFlag || inputMTimeCached != doneFlagMTime()
+                ignoreDoneFlag || inputMTimeCached != doneFlagMTime()
+            } else if (failureFlagExists()) {
+                // Else if the failure flag exists, we need to refine if
+                // we are ignoring the failure flag, or if the input mtime has changed.
+                ignoreFailureFlag || inputMTimeCached != failureFlagMTime()
+            } else {
+                true
             }
-            // Else if the failure flag exists, we need to refine if
-            // we are ignoring the failure flag, or if the input mtime has changed.
-            else if (failureFlagExists()) {
-                return ignoreFailureFlag || inputMTimeCached != failureFlagMTime()
-            }
+        } else {
+            // If none of the above conditions are met, we should certainly refine.
+            true
         }
-
-        // If none of the above conditions return, we will refine.
-        true
-    }
-
-    /**
-      * Given a RefineTarget, and option whitelist regex and blacklist regex,
-      * this returns true if the RefineTarget should be refined, based on regex matching and
-      * on output existence and doneFlag content.
-      *
-      * Both tableWhitelistRegex and tableBlacklistRegex are applied if given.
-      * If a table matches both regexes, it will blacklisted.
-      *
-      * @param tableWhitelistRegex Option[Regex]
-      * @param tableBlacklistRegex Option[Regex]
-      * @param ignoreFailureFlag
-      * @param ignoreDoneFlag
-      * @return
-      */
-    def shouldRefine(
-        tableWhitelistRegex: Option[Regex] = None,
-        tableBlacklistRegex: Option[Regex] = None,
-        ignoreFailureFlag  : Boolean = false,
-        ignoreDoneFlag     : Boolean = false
-    ): Boolean = {
-        // Filter for targets that will refine to tables that match the whitelist
-        if (tableWhitelistRegex.isDefined &&
-            !RefineTarget.regexMatches(partition.table, tableWhitelistRegex.get)
-        ) {
-            log.debug(
-                s"$this table ${partition.table} does not match table whitelist regex " +
-                    s"${tableWhitelistRegex.get}', skipping."
-            )
-            return false
-        }
-
-        // Filter out targets that will refine to tables that match the blacklist
-        if (tableBlacklistRegex.isDefined &&
-            RefineTarget.regexMatches(partition.table, tableBlacklistRegex.get)
-        ) {
-            log.debug(
-                s"$this table ${partition.table} matches table blacklist regex " +
-                    s"'${tableBlacklistRegex.get}', skipping."
-            )
-            return false
-        }
-
-        // Finally filter for those that need to be refined (have new data, or need re-refined).
-        val shouldRefineThis = shouldRefine(ignoreFailureFlag, ignoreDoneFlag)
 
         // If this shouldn't be refined, output some debug statements about why.
-        if (!shouldRefineThis) {
+        if (shouldRefineThis == false) {
             if (failureFlagExists()) {
                 log.warn(
                     s"$this previously failed refinement and does not have new data since the " +
-                        s"last refine at ${failureFlagMTime().getOrElse("_unknown_")}, skipping."
+                    s"last refine at ${failureFlagMTime().getOrElse("_unknown_")}, skipping."
                 )
             }
             else if (doneFlagExists()) {
                 log.debug(
                     s"$this does not have new data since the last successful refine at " +
-                        s"${doneFlagMTime().getOrElse("_unknown_")}, skipping."
+                    s"${doneFlagMTime().getOrElse("_unknown_")}, skipping."
                 )
             }
         }
-
         shouldRefineThis
     }
 
@@ -708,104 +669,293 @@ object RefineTarget {
       *
       * @param spark
       *     SparkSession
-      *
-      * @param baseInputPath
+      * @param inputBasePath
       *     Path to base input datasets.  Each subdirectory
       *     is assumed to be a unique dataset with individual
       *     partitions.  Every subdirectory's partition
       *     paths here must be compatible with the provided
       *     values of inputPathDateTimeFormatter and inputPathRegex.
-      *
-      * @param baseTableLocationPath
+      * @param outputBasePath
       *     Path to directory where Hive table data will be stored.
       *     $baseTableLocationPath/$table will be the value of the
       *     external Hive table's LOCATION.
-      *
-      * @param databaseName
-      *     Hive database name
-      *
+      * @param outputDatabase
+      * Output target Hive database name
       * @param inputPathDateTimeFormatter
       *     Formatter used to construct input partition paths
       *     in the given time range.
-      *
       * @param inputPathRegex
       *     Regex used to extract table name and partition
       *     information.
-      *
-      * @param sinceDateTime
+      * @param since
       *     Start date time to look for input partitions.
-      *
-      * @param untilDateTime
+      * @param until
       *     End date time to look for input partitions.
       *     Defaults to DateTime.now
-      *
       * @param schemaLoader
       *     Will be used to get the DataFrame with a specific schema.
-      *
       * @param dfReaderOptions
       *     See RefineTarget dfReaderOptions
-      *s
       * @param useMergedSchemaForRead
       *     See RefineTarget useMergedSchemaForRead
-      *
+      * @param tableIncludeRegex
+      *     If given, the inferred table name must match or it will not be included in the results.
+      * @param tableExcludeRegex
+      *     If given, the inferred table name must not match or it will not be included in the results.
       * @return
       */
     def find(
-        spark: SparkSession,
-        baseInputPath: Path,
-        baseTableLocationPath: Path,
-        databaseName: String,
+        spark                     : SparkSession,
+        inputBasePath             : Path,
         inputPathDateTimeFormatter: DateTimeFormatter,
-        inputPathRegex: Regex,
-        sinceDateTime: DateTime,
-        untilDateTime: DateTime = DateTime.now,
-        schemaLoader: SparkSchemaLoader = ExplicitSchemaLoader(None),
-        dfReaderOptions: Map[String, String] = Map(),
-        useMergedSchemaForRead: Boolean = false
+        inputPathRegex            : Regex,
+        outputBasePath            : Path,
+        outputDatabase            : String,
+        since                     : DateTime,
+        until                     : DateTime = DateTime.now,
+        schemaLoader              : SparkSchemaLoader = ExplicitSchemaLoader(None),
+        dfReaderOptions           : Map[String, String] = Map(),
+        useMergedSchemaForRead    : Boolean = false,
+        tableIncludeRegex         : Option[Regex] = None,
+        tableExcludeRegex         : Option[Regex] = None
     ): Seq[RefineTarget] = {
-        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-        val inputDatasetPaths = subdirectoryPaths(fs, baseInputPath)
 
-        // Map all partitions in each inputPaths since sinceDateTime to RefineTargets
-        inputDatasetPaths.flatMap { inputDatasetPath =>
-            // Get all possible input partition paths for all directories in inputDatasetPath
-            // between sinceDateTime and untilDateTime.
-            // This will include all possible partition paths in that time range, even if that path
-            // does not actually exist.
-            val pastPartitionPaths = partitionPathsSince(
-                inputDatasetPath.toString,
-                inputPathDateTimeFormatter,
-                sinceDateTime,
-                untilDateTime
-            ).filter { case inputPathRegex => true }
+        val partitionPaths = getPartitionPathsFromFS(
+            spark,
+            inputBasePath,
+            inputPathDateTimeFormatter,
+            inputPathRegex,
+            since,
+            until,
+            tableIncludeRegex,
+            tableExcludeRegex
+        )
 
-            // Convert each possible partition input path into a possible RefineTarget for refinement.
-            pastPartitionPaths.map(partitionPath => {
-                // Any capturedKeys other than table are expected to be partition key=values.
-                val partition = HivePartition(
-                    databaseName,
-                    baseTableLocationPath.toString,
-                    partitionPath.toString,
-                    inputPathRegex
-                )
+        partitionPaths.map(partitionPath => {
+            // Any capturedKeys other than table are expected to be partition key=values.
+            val partition = HivePartition(
+                outputDatabase,
+                outputBasePath.toString,
+                partitionPath.toString,
+                inputPathRegex
+            )
 
-                RefineTarget(
-                    spark,
-                    partitionPath,
-                    partition,
-                    schemaLoader,
-                    providedDfReaderOptions=dfReaderOptions,
-                    useMergedSchemaForRead=useMergedSchemaForRead
-                )
-            })
-            // We only care about input partition paths that actually exist,
-            // so filter out those that don't.
-            .filter(_.inputExists())
-        }
+            RefineTarget(
+                spark,
+                partitionPath,
+                partition,
+                schemaLoader,
+                providedDfReaderOptions=dfReaderOptions,
+                useMergedSchemaForRead=useMergedSchemaForRead
+            )
+        })
     }
 
     /**
-      * Retruns a Seq of all directory Paths in a directory.
+      * Finds RefineTargets from an input Hive database.
+      * This is simpler than finding RefineTargets from the FileSystem, as
+      * the Hive metastore already knows about tables, partitions, and paths.
+      *
+      * @param spark
+      *     SparkSession
+      * @param inputDatabase
+      *     Database in which to search for target input table\s.
+      * @param outputBasePath
+      *     Path to directory where Hive table data will be stored.
+      *     $baseTableLocationPath/$table will be the value of the
+      *     external Hive table's LOCATION.
+      * @param outputDatabase
+      *     Output target Hive database name
+      * @param since
+      *     Start date time to look for input partitions.
+      * @param until
+      *     End date time to look for input partitions.
+      *     Defaults to DateTime.now
+      * @param tableIncludeRegex
+      *     If given, the inferred table name must match or it will not be included in the results.
+      * @param tableExcludeRegex
+      *     If given, the inferred table name must not match or it will not be included in the results.
+      * @return
+      */
+    def find(
+        spark            : SparkSession,
+        inputDatabase    : String,
+        outputBasePath   : Path,
+        outputDatabase   : String,
+        since            : DateTime,
+        until            : DateTime,
+        tableIncludeRegex: Option[Regex],
+        tableExcludeRegex: Option[Regex]
+    ): Seq[RefineTarget] = {
+
+        // Table name -> Partition path
+        val tableToPartitionPaths: Map[String, Seq[Path]] = getPartitionPathsFromDB(
+            spark,
+            inputDatabase,
+            since,
+            until,
+            tableIncludeRegex,
+            tableExcludeRegex
+        )
+
+        // Iterate over the tables and partition paths and build a big list of RefineTargets.
+        tableToPartitionPaths.foldLeft(Seq[RefineTarget]())( {
+            case (targets, (tableName, partitionPaths)) => {
+                // All partition paths for this tableName will have the
+                // same schema as the input table.
+                // Create an ExplicitSchemaLoader and reuse for all of them.
+                val schemaLoader = ExplicitSchemaLoader(
+                    Some(spark.table(s"${inputDatabase}.${tableName}").schema)
+                )
+
+                targets ++ partitionPaths.map({ partitionPath =>
+                    val partition = HivePartition(
+                        outputDatabase,
+                        tableName,
+                        outputBasePath.toString,
+                        partitionPath.toString
+                    )
+
+                    RefineTarget(
+                        spark,
+                        partitionPath,
+                        partition,
+                        schemaLoader
+                    )
+                })
+            }
+        })
+    }
+
+    /**
+      * Searches inputBasePath for partition paths that match inputPathRegex
+      * between since and until.
+      */
+    def getPartitionPathsFromFS(
+        spark                     : SparkSession,
+        inputBasePath             : Path,
+        inputPathDateTimeFormatter: DateTimeFormatter,
+        inputPathRegex            : Regex,
+        since                     : DateTime,
+        until                     : DateTime = DateTime.now,
+        tableIncludeRegex         : Option[Regex] = None,
+        tableExcludeRegex         : Option[Regex] = None
+    ): Seq[Path] = {
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        val inputDatasetPaths = subdirectoryPaths(fs, inputBasePath)
+
+        // In parallel Map all partitions in each inputPaths since sinceDateTime to RefineTargets
+        inputDatasetPaths.par.flatMap(inputDatasetPath => {
+            log.debug(s"Searching for partition paths in $inputDatasetPath that match $inputPathRegex. (tableIncludeRegex: $tableIncludeRegex, tableExcludeRegex: $tableExcludeRegex")
+            // Get all possible input partition paths for all directories in inputDatasetPath
+            // between sinceDateTime and untilDateTime, and filter them
+            // for paths that match inputPathRegex and actually exist.
+            val partitionPaths = partitionPathsSince(
+                inputDatasetPath.toString,
+                inputPathDateTimeFormatter,
+                since,
+                until
+            ).filter(partitionPath => {
+                if (!fs.exists(partitionPath)) {
+                    // Early return if the partition path doesn't exist.
+                    false
+                } else {
+                    // If the table name extracted from the possible partition path
+                    // matches the inputPathRegex, and it passes the include/exclude regexes,
+                    // then keep it.
+                    val m = inputPathRegex.findFirstMatchIn(partitionPath.toString)
+                    val tableMatched = if (m.isDefined) {
+                        val tableName = m.get.group("table")
+                        shouldInclude(tableName.toLowerCase, tableIncludeRegex, tableExcludeRegex)
+                    }
+                    else {
+                        false
+                    }
+
+                    if (!tableMatched) {
+                        log.debug(
+                            s"Discarding $partitionPath as it does not match the provided regexes."
+                        )
+                    }
+                    tableMatched
+                }
+            })
+
+            log.debug(s"Done searching for partition paths in $inputDatasetPath")
+            partitionPaths
+        }).seq
+    }
+
+    /**
+      * Gets a Map of tableName -> partitionPaths.
+      * Queries the database for tables in inputDatabase matching the table include/exclude
+      * regexes and filters for date partitions between since and until.
+      */
+    def getPartitionPathsFromDB(
+        spark: SparkSession,
+        inputDatabase: String,
+        since: DateTime,
+        until: DateTime = DateTime.now,
+        tableIncludeRegex: Option[Regex] = None,
+        tableExcludeRegex: Option[Regex] = None
+    ): Map[String, Seq[Path]] = {
+        // construct a temporary HivePartition which we will use to build our Hive
+        // partition where clause.
+        val partitionsSQLClause = HivePartition.getBetweenCondition(since, until)
+
+        val tableNames = getTableNames(spark, inputDatabase).filter(t => {
+            shouldInclude(t.toLowerCase, tableIncludeRegex, tableExcludeRegex)
+        })
+
+        // In parallel, get a map of table names to partitionPaths
+        tableNames.par.map(tableName => {
+            log.debug(s"Searching for Hive partitions in $inputDatabase.$tableName where $partitionsSQLClause")
+            val table          = spark.table(s"$inputDatabase.$tableName")
+            val partitionQuery = table.where(partitionsSQLClause)
+            // Idea from https://jaceklaskowski.gitbooks.io/mastering-spark-sql/content/demo/demo-hive-partitioned-parquet-table-partition-pruning.html
+            val partitionPaths = partitionQuery.queryExecution.executedPlan.collect({
+                case op: FileSourceScanExec => op
+            }).head.relation.location.rootPaths
+
+            log.debug(s"Done searching for Hive partitions in $inputDatabase.$tableName")
+            tableName -> partitionPaths
+        }).seq.toMap
+    }
+
+    /**
+      * Given a string, and include Regex and exclude Regex Options, determine if the
+      * string should be 'included'.  None for either of the Regex Options means any
+      * string will pass the check.
+      */
+    def shouldInclude(
+        s: String,
+        include: Option[Regex] = None,
+        exclude: Option[Regex] = None
+    ): Boolean = {
+        (include.isEmpty || regexMatches(s, include.get)) &&
+        (exclude.isEmpty || !regexMatches(s, exclude.get))
+    }
+
+    /**
+      *
+      * @param spark SparkSession
+      * @param database Database in which to get table names
+      * @return
+      */
+    def getTableNames(spark: SparkSession, database: String): Seq[String] = {
+        // Store the currentDatabase so we can reset back to it.
+        val currentDatabase = spark.catalog.currentDatabase
+        spark.catalog.setCurrentDatabase(database)
+        // Get a Seq of table names in database
+        val tables = spark.catalog.listTables.collect.map(_.name).toSeq
+        // Reset to original currentDatabase.
+        spark.catalog.setCurrentDatabase(currentDatabase)
+
+        tables
+    }
+
+    /**
+      * Returns a Seq of all directory Paths in a directory.
       * @param fs           Hadoop FileSystem
       * @param inDirectory  directory Path in which to look for subdirectories
       * @return

@@ -10,6 +10,8 @@ import org.wikimedia.analytics.refinery.spark.connectors.{IngestionStatus, DataF
 import scala.collection.immutable.ListMap
 import scala.collection.JavaConversions._
 
+// TODO: Use HivePartition.getBetweenCondition instead of the versions here.
+
 /**
  * Loads Hive tables to Druid.
  *

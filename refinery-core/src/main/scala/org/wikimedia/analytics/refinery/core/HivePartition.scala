@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.core
 
+import com.github.nscala_time.time.Imports.DateTime
+
 import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
 
@@ -39,17 +41,7 @@ case class HivePartition(
       * or   year=2017,month=7,day=12,hour in case of dynamic partitioning
       */
     val hiveQL: String = {
-        partitions.map { case (k: String, v: Option[String]) =>
-            v match {
-                // If the value looks like a number, strip leading 0s
-                case Some(n) if n.forall(_.isDigit) => (k, Some(n.replaceFirst("^0+(?!$)", "")))
-                // Else the value should be a string, then quote it.
-                case Some(s) => (k, Some(s""""$s""""))
-                case None => (k, v)
-            }
-        }
-        .map(p => if (p._2.isDefined) s"${p._1}=${p._2.get}" else s"${p._1}")
-        .mkString(",")
+        HivePartition.mapToHiveQL(partitions, ",")
     }
 
     /**
@@ -112,7 +104,7 @@ case class HivePartition(
     }
 
     override def toString: String = {
-        s"$tableName ($hiveQL)"
+        s"$tableName ($path)"
     }
 }
 
@@ -123,6 +115,12 @@ case class HivePartition(
   * rather than a ListMap directly.
   */
 object HivePartition {
+
+    /**
+      * Possible Hive date time partition keys.
+      */
+    val possibleDateTimePartitionKeys: Seq[String] = Seq("year", "month", "day", "hour")
+
     /**
       *
       * @param s The string to normalize
@@ -178,7 +176,7 @@ object HivePartition {
         partitionPath: String
     ): HivePartition = {
         val location = baseLocation + "/" + table
-        new HivePartition(database, table, location, partitionPathToListMap(partitionPath))
+        new HivePartition(database, table, location, pathToMap(partitionPath))
     }
 
     /**
@@ -219,11 +217,14 @@ object HivePartition {
       * Converts a partition path in Hive format to a ListMap.
       * E.g.
       *   key1=val1/key2=val2 -> ListMap(key1 -> val1, key2 -> val2)
-      * @param partitionPath
+      * @param partitionPath Partition location file path
       * @return
       */
-    def partitionPathToListMap(partitionPath: String): ListMap[String, Option[String]] = {
-        val partitionParts = trimString(partitionPath, "/").split("/")
+    def pathToMap(partitionPath: String): ListMap[String, Option[String]] = {
+        val partitionParts = trimString(partitionPath, "/")
+            .split("/")
+            .filter(_.contains("="))
+
         partitionParts.foldLeft(ListMap[String, Option[String]]())({
             case (partitionMap, partitionPart) =>
                 val keyVal = partitionPart.split("=")
@@ -232,10 +233,60 @@ object HivePartition {
     }
 
     /**
-      * Trims leading and trailing occurences of toTrim from target string.
+      * Converts a DateTime to a partition ListMap
+      * @param dt DateTime
+      * @param dtKeys
+      *     Seq of partition keys to extract from dt. Only year, month, day, and hour supported.
+      * @return
+      */
+    def dateTimeToMap(
+        dt: DateTime,
+        dtKeys: Seq[String] = possibleDateTimePartitionKeys
+    ): ListMap[String, Option[String]] = {
+        dtKeys.foldLeft(ListMap[String, Option[String]]()) ({ case (partitionMap, key) =>
+            val value = key match {
+                case "year"     => dt.year.get
+                case "month"    => dt.monthOfYear.get
+                case "day"      => dt.dayOfMonth.get
+                case "hour"     => dt.hourOfDay.get
+            }
+            partitionMap + (key -> Some(value.toString))
+        })
+    }
+
+    /**
+      * Converts a partition ListMap to a HiveQL String.
+      * @param partitions ListMap of partiton key, value pairs.
+      * @param separator
+      *     partition separator to use. Depending on the usage, you might want
+      *     ",", " AND ", or maybe even "/".
+      * @param comparison
+      *     String to use for partition key val comparison, e.g. key=val, or key >= val.
+      * @return
+      */
+    def mapToHiveQL(
+        partitions: ListMap[String, Option[String]],
+        separator: String = ",",
+        comparison: String = "="
+    ): String = {
+        partitions.map({ case (k: String, v: Option[String]) =>
+            v match {
+                // If the value looks like a number, strip leading 0s
+                case Some(n) if n.forall(_.isDigit) => (k, Some(n.replaceFirst("^0+(?!$)", "")))
+                // Else the value should be a string, then quote it.
+                case Some(s) => (k, Some(s""""$s""""))
+                case None => (k, v)
+            }
+        })
+        .map(p => if (p._2.isDefined) s"${p._1}${comparison}${p._2.get}" else s"${p._1}")
+        .mkString(separator)
+    }
+
+    /**
+      * Trims leading and trailing occurrences of toTrim from target string.
       * trimString("////a/b/c/////", "/") -> "a/b/c"
-      * @param target
-      * @param toTrim
+      * @param target string to trim
+      * @param toTrim characters to remove from string
       */
     private def trimString(target: String, toTrim: String): String = {
         val trimRegex = s"^$toTrim*(.*[^$toTrim])$toTrim*$$".r
@@ -266,4 +317,123 @@ object HivePartition {
         }
     }
 
+    /**
+      * Add a mapValues function to ListMap that behaves the same as Map mapValues,
+      * but returns a ListMap.
+      * @param lm ListMap
+      * @tparam K Key type
+      * @tparam V1 Value type
+      */
+    private implicit class ListMapOps[K, V1](lm: ListMap[K, V1]) {
+        def listMapValues[V2](f: V1 => V2): ListMap[K, V2] = {
+            lm.map { case (k, v1) => (k, f(v1))}
+        }
+    }
+
+    /**
+      * Given 2 DateTimes, build a SQL where condition that satisifies partitions
+      * that are between the 2 DateTimes.
+      * @param since Since this DateTime inclusive.
+      * @param until Until this DateTime exclusive.
+      * @param dtKeys Partition key names to use for comparison.
+      * @return
+      */
+    def getBetweenCondition(
+        since: DateTime,
+        until: DateTime,
+        dtKeys: Seq[String] = possibleDateTimePartitionKeys
+    ): String = {
+        getBetweenCondition(
+            dateTimeToMap(since, dtKeys).listMapValues(_.get.toInt),
+            dateTimeToMap(until, dtKeys).listMapValues(_.get.toInt)
+        )
+    }
+
+    /**
+      * Returns a string with a SparkSQL condition that can be inserted into
+      * a WHERE clause to timely slice a table between two given datetimes,
+      * and cause partition pruning (condition can not use CONCAT to compare).
+      * The since and until datetimes are passed in the form of ListMaps:
+      * ListMap("year" -> 2019, "month" -> 1, "day" -> 1, "hour" -> 0)
+      * If the ListMap contains keys that are not one of possibleDateTimePartitionKeys,
+      * they will not be used in the resulting condition.
+      */
+    def getBetweenCondition(
+        sinceMap: ListMap[String, Int],
+        untilMap: ListMap[String, Int]
+    ): String = {
+        // Check that partition keys of sinceMap and untilMap match.
+        val sincePartitionKeys = sinceMap.keysIterator.toList
+        val untilPartitionKeys = untilMap.keysIterator.toList
+        if (sincePartitionKeys != untilPartitionKeys) throw new IllegalArgumentException(
+            s"since partition keys ($sincePartitionKeys) do not " +
+            s"match until partition keys ($untilPartitionKeys)."
+        )
+
+        // Get values for current partition.
+        val key = sinceMap.head._1
+        val since = sinceMap.head._2
+        val until = untilMap.head._2
+
+        // Check that since is smaller than until.
+        if (since > until) throw new IllegalArgumentException(
+            s"since ($since) greater than until ($until) for partition key '$key'."
+        )
+
+        if (since == until) {
+            // Check that since does not equal until for last partition.
+            // Nothing would fulfill the condition, because until is exclusive.
+            if (sinceMap.size == 1) throw new IllegalArgumentException(
+                s"since equal to until ($since) for last partition key '$key'."
+            )
+
+            // If since equals until for a given partition key, specify that
+            // in the condition and AND it with the recursive call to generate
+            // the between condition for further partitions.
+            s"$key = $since AND " + getBetweenCondition(sinceMap.tail, untilMap.tail)
+        } else {
+            // If since is smaller than until, AND two threshold conditions,
+            // one to specify greater than since, and another to specify
+            // smaller than until.
+            getThresholdCondition(sinceMap, ">") +
+            " AND " +
+            getThresholdCondition(untilMap, "<")
+        }
+    }
+
+    /**
+      * Returns a string with a SparkSQL condition that can be inserted into
+      * a WHERE clause to timely slice a table below or above a given datetime,
+      * and cause partition pruning (condition can not use CONCAT to compare).
+      * The threshold datetime is passed in the form of a ListMap:
+      * ListMap("year" -> 2019, "month" -> 1, "day" -> 1, "hour" -> 0)
+      * The order parameter determines whether the condition should accept
+      * values above (>) or below (<) the threshold.
+      */
+    def getThresholdCondition(
+        thresholdMap: ListMap[String, Int],
+        comparison: String
+    ): String = {
+        val key = thresholdMap.head._1
+        val threshold = thresholdMap.head._2
+
+        if (thresholdMap.size == 1) {
+            // If there's only one partition key to compare,
+            // output a simple comparison expression.
+            // Note: > becomes inclusive, while < remains exclusive.
+            if (comparison == ">") s"$key >= $threshold" else s"$key < $threshold"
+        } else {
+            // If there's more than one partition key to compare,
+            // output a condition that covers the following 2 cases:
+            // 1) The case where the value for the current partition is
+            //    exclusively smaller (or greater) than the threshold
+            //    (further partitions are irrelevant).
+            // 2) The case where the value for the current partition equals
+            //    the threshold, provided that further partitions fulfill the
+            //    condition created by the corresponding recursive call.
+            s"($key $comparison $threshold OR $key = $threshold AND " +
+            getThresholdCondition(thresholdMap.tail, comparison) +
+            ")"
+        }
+    }
 }
