@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.core.config
 
-import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat}
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, DateTimeZone}
 import org.joda.time.format.DateTimeFormatter
 import org.scalactic.Equality
 import org.scalatest.{BeforeAndAfter, FlatSpec, Inside, Matchers}
@@ -83,7 +83,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             None,
             bool=true,
             Seq("first", "second"),
-            new DateTime(2018, 2, 1, 0, 0),
+            new DateTime(2018, 2, 1, 0, 0, DateTimeZone.UTC),
             DateTimeFormat.forPattern("yyyy-MM-dd'T'HH"),
             "(\\w+) (\\w+)".r,
             Some("\\d+".r),
@@ -92,7 +92,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
 
         val args = Array(
             "--str",            "myStr",
-            "--dt",             "2018-02-01T00:00:00",
+            "--dt",             "2018-02-01T00:00:00Z",
             "--groups",         "first,second",
             "--dtFormatter",    "yyyy-MM-dd'T'HH",
             "--pattern",        "(\\w+) (\\w+)",
@@ -113,7 +113,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             None,
             bool=true,
             Seq("joseph", "andrew"),
-            new DateTime(2018, 3, 1, 0, 0),
+            new DateTime(2018, 3, 1, 0, 0, DateTimeZone.UTC),
             DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
             "[abc]".r
         )
@@ -132,14 +132,14 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             Some(4.4),
             bool=false,
             Seq("joseph", "andrew"),
-            new DateTime(2018, 4, 1, 0, 0),
+            new DateTime(2018, 4, 1, 0, 0, DateTimeZone.UTC),
             DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
             "[abc]".r
         )
 
         val args = Array(
             "--str", "overrideString",
-            "--dt", "2018-04-01T00:00:00",
+            "--dt", "2018-04-01T00:00:00Z",
             "--bool", "false",
             "--int", "123",
             "--intOpt", "456",
@@ -162,14 +162,14 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             Some(1.234),
             bool=false,
             Seq("otto", "joal"),
-            new DateTime(2018, 4, 1, 0, 0),
+            new DateTime(2018, 4, 1, 0, 0, DateTimeZone.UTC),
             DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
             "[abc]".r
         )
 
         val args = Array(
             "--str", "overrideString",
-            "--dt", "2018-04-01T00:00:00",
+            "--dt", "2018-04-01T00:00:00Z",
             "--bool", "false",
             "--int", "123",
             "--intOpt", "456",
@@ -194,7 +194,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             Some(1.234),
             bool=false,
             Seq("otto", "joal"),
-            new DateTime(2018, 4, 1, 0, 0),
+            new DateTime(2018, 4, 1, 0, 0, DateTimeZone.UTC),
             DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
             "[abc]".r
         )
@@ -205,7 +205,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
 
         val args = Array(
             "--str", "overrideString",
-            "--dt", "2018-04-01T00:00:00",
+            "--dt", "2018-04-01T00:00:00Z",
             "--bool", "false",
             "--config_file", propertiesFile,
             "--int", "123",

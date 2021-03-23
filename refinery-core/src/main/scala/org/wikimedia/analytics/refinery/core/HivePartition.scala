@@ -1,8 +1,8 @@
 package org.wikimedia.analytics.refinery.core
 
-import com.github.nscala_time.time.Imports.DateTime
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
 
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.{ListMap, Set}
 import scala.util.matching.Regex
 
 
@@ -42,6 +42,15 @@ case class HivePartition(
       */
     val hiveQL: String = {
         HivePartition.mapToHiveQL(partitions, ",")
+    }
+
+    /**
+      * DateTime of this HivePartition.
+      * Only available if this HivePartition has date time keys for which
+      * all have concrete values, i.e. none are 'dynamic partition' values.
+      */
+    val dt: Option[DateTime] = {
+        HivePartition.mapToDateTime(partitions)
     }
 
     /**
@@ -252,6 +261,56 @@ object HivePartition {
             }
             partitionMap + (key -> Some(value.toString))
         })
+    }
+
+    /**
+      * Checks if partitions has date time keys, that the partition keys in valid hierarchical
+      * order, e.g. month without year is invalid.  If there are no dt keys, this
+      * returns false.
+      */
+    def validateDateTimeKeys(partitions: ListMap[String, Option[String]]): Boolean = {
+        partitions.keySet match {
+            case keys if keys.contains("hour") => keys.contains("day") && keys.contains("month") && keys.contains("year")
+            case keys if keys.contains("day") => keys.contains("month") && keys.contains("year")
+            case keys if keys.contains("month") => keys.contains("year")
+            case keys => keys.contains("year")
+            case _ => false
+        }
+    }
+
+    /**
+      * Converts a partition ListMap to a DateTime using dtKeys,
+      * if the partition ListMap contains any of the dtKeys, else None.
+      */
+    def mapToDateTime(
+        partitions: ListMap[String, Option[String]],
+        dtKeys: Seq[String] = possibleDateTimePartitionKeys
+    ): Option[DateTime] = {
+        // If the partition dtKeys miss any hierarchical keys, (e.g. month with no year is bad),
+        // Or if any of the partition dt key values is None
+        // (meaning it is a dynamic partition).
+        if (
+            !validateDateTimeKeys(partitions) ||
+            dtKeys.exists(k => partitions.contains(k) && partitions(k).isEmpty)
+        ) {
+            None
+        } else {
+            // Else build a DateTime out of the dtKeys in partitions
+            Some(dtKeys.foldLeft(new DateTime(0).withZone(DateTimeZone.UTC))((dt, dtKey) => {
+                if (partitions.contains(dtKey)) {
+                    val dtValue = partitions(dtKey).get.toInt
+                    dtKey match {
+                        case "year" => dt.withYear(dtValue)
+                        case "month" => dt.withMonthOfYear(dtValue)
+                        case "day" => dt.withDayOfMonth(dtValue)
+                        case "hour" => dt.withHourOfDay(dtValue)
+                        case _ => dt
+                    }
+                } else {
+                    dt
+                }
+            }))
+        }
     }
 
     /**

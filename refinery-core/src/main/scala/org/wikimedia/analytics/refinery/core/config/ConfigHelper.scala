@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.core.config
 
 import scala.util.matching.Regex
 import com.github.nscala_time.time.Imports._
-import org.joda.time.format.DateTimeFormatter
+import org.joda.time.format.{DateTimeFormatter, ISODateTimeFormat}
 import profig._
 import cats.syntax.either._
 import io.circe.CursorOp.DownField
@@ -59,8 +59,6 @@ import scala.reflect.macros.blackbox
   *
   */
 trait ConfigHelper {
-    private final val dateFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss")
-
     implicit val decodeOptionString: Decoder[Option[String]] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal(Some(s)).leftMap(t =>
             throw new RuntimeException(s"Failed parsing '$s' into a string.", t)
@@ -156,14 +154,17 @@ trait ConfigHelper {
 
     // Support implicit DateTime conversion from string to DateTime
     // The opt can either be given in integer hours ago, or
-    // as a yyyy-MM-dd'T'HH:mm:ss formatted date time.
+    // as a ISO-8601 formatted date time.
+    private final val isoDateTimeFormatter = ISODateTimeFormat.dateTimeParser()
     implicit val decodeDateTime: Decoder[DateTime] = Decoder.decodeString.emap { s =>
         Either.catchNonFatal({
-            if (s.forall(Character.isDigit)) DateTime.now - s.toInt.hours
-            else DateTime.parse(s, dateFormatter)
+            {
+                if (s.forall(Character.isDigit)) DateTime.now - s.toInt.hours
+                else DateTime.parse(s, isoDateTimeFormatter)
+            }.withZone(DateTimeZone.UTC)
         }).leftMap(t => throw new RuntimeException(
             s"Failed parsing '$s' into a DateTime. Must provide either an integer hours ago, " +
-             "or a yyyy-MM-dd'T'HH:mm:ss formatted string."
+             "or a yyyy-MM-dd'T'HH:mm:ssZ formatted string."
         ))
     }
 
