@@ -245,4 +245,15 @@ object RefineMonitor extends LogHelper with ConfigHelper {
 
         targets.isEmpty
     }
+
+    /**
+      * Overloaded apply that takes a SparkSession and a RefineMonitor.Config object
+      *
+      * @param spark
+      * @param config
+      * @return
+      */
+    def apply(spark: SparkSession, config: Config): Boolean = {
+        (apply(spark) _).tupled(Config.unapply(config).get)
+    }
 }

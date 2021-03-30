@@ -16,38 +16,17 @@ class TestSanitizeTransformation extends FlatSpec
 
     val fakeHivePartition = new HivePartition(database = "database", t = "table", location = "/fake/location")
 
+    val keepAllTag = SanitizeTransformation.keepAllTag
+    val keepTag = SanitizeTransformation.keepTag
+    val hashTag = SanitizeTransformation.hashTag
+
     it should "return an empty DataFrame" in {
         val schema = StructType(Seq(
             StructField("f1", IntegerType, nullable=true)
         ))
         val result: DataFrame = emptyDataFrame(spark, schema)
-        assert(result.schema == schema)
-        assert(result.count == 0)
-    }
-
-    it should "make the allowlist lower case" in {
-        val allowlist = Map(
-            "lowercase" -> "keepall",
-            "camelCase" -> "keepAll",
-            "snake_case" -> "keep_all",
-            "nested" -> Map(
-                "UPPERCASE" -> "KEEPALL",
-                "PascalCase" -> "KeepAll",
-                "kebab-case" -> "keep-all"
-            )
-        )
-        val result = makeAllowlistLowerCase(allowlist)
-        val expected = Map(
-            "lowercase" -> "keepall",
-            "camelcase" -> "keepall",
-            "snake_case" -> "keepall",
-            "nested" -> Map(
-                "uppercase" -> "keepall",
-                "pascalcase" -> "keepall",
-                "kebab-case" -> "keepall"
-            )
-        )
-        assert(result == expected)
+        result.schema should equal(schema)
+        result.count should equal(0)
     }
 
     it should "get the start and end of year-month-day-hour partition" in {
@@ -63,8 +42,8 @@ class TestSanitizeTransformation extends FlatSpec
             )
         )
         val (start, end) = getPartitionStartAndEnd(partition)
-        assert(start.equals(new DateTime(2019, 2, 28, 23, 0)))
-        assert(end.equals(new DateTime(2019, 3, 1, 0, 0)))
+        start should equal(new DateTime(2019, 2, 28, 23, 0))
+        end should equal(new DateTime(2019, 3, 1, 0, 0))
     }
 
     it should "get the start and end of year-month partition" in {
@@ -78,8 +57,8 @@ class TestSanitizeTransformation extends FlatSpec
             )
         )
         val (start, end) = getPartitionStartAndEnd(partition)
-        assert(start.equals(new DateTime(2018, 12, 1, 0, 0)))
-        assert(end.equals(new DateTime(2019, 1, 1, 0, 0)))
+        start should equal(new DateTime(2018, 12, 1, 0, 0))
+        end should equal(new DateTime(2019, 1, 1, 0, 0))
     }
 
     it should "choose salt correctly" in {
@@ -97,7 +76,7 @@ class TestSanitizeTransformation extends FlatSpec
             (new DateTime(2018, 12, 1, 0, 0), new DateTime(2019, 1, 1, 0, 0), "salt2")
         )
         val result = chooseSalt(salts, partition)
-        assert(result == Some("salt2"))
+        result should equal(Some("salt2"))
     }
 
     it should "return None if there are no matching salts" in {
@@ -115,25 +94,25 @@ class TestSanitizeTransformation extends FlatSpec
             (new DateTime(2018, 12, 1, 0, 0), new DateTime(2018, 12, 1, 1, 0), "salt2")
         )
         val result = chooseSalt(salts, partition)
-        assert(result == None)
+        result should equal(None)
     }
 
     it should "create a value mask for simple fields" in {
         val field = StructField("field", StringType, nullable=true)
 
         // simple field allowlisted with keep
-        val result1 = getValueMask(field, "keep")
+        val result1 = getValueMask(field, keepTag)
         val expected1 = ValueMaskNode(Identity())
-        assert(result1.equals(expected1))
+        result1 should equal(expected1)
 
         // string field allowlisted with hash
         val salt = "salt"
-        val result2 = getValueMask(field, "hash", Some(salt))
+        val result2 = getValueMask(field, hashTag, Some(salt))
         val expected2 = ValueMaskNode(Hash(salt))
-        assert(result2.equals(expected2))
+        result2 should equal(expected2)
 
         // simple field allowlisted with invalid label
-        an[Exception] should be thrownBy getValueMask(field, "keepall")
+        an[Exception] should be thrownBy getValueMask(field, keepAllTag)
     }
 
     it should "create a value mask for nested fields" in {
@@ -142,45 +121,45 @@ class TestSanitizeTransformation extends FlatSpec
         )), nullable=true)
 
         // nested field allowlisted with keepall
-        val result1 = getValueMask(field, "keepall")
+        val result1 = getValueMask(field, keepAllTag)
         val expected1 = ValueMaskNode(Identity())
-        assert(result1.equals(expected1))
+        result1 should equal(expected1)
 
         // nested struct field partially allowlisted
-        val result2 = getValueMask(field, Map("subfield" -> "keep"))
+        val result2 = getValueMask(field, Map("subfield" -> keepTag))
         val expected2 = StructMaskNode(Array(ValueMaskNode(Identity())))
         assert(result2.equals(expected2))
 
         // nested field allowlisted with invalid label
-        an[Exception] should be thrownBy getValueMask(field, "keep")
+        an[Exception] should be thrownBy getValueMask(field, keepTag)
     }
 
     it should "raise an error when creating a value mask with an invalid hash action" in {
         // string field, but salt is not defined
         val field1 = StructField("field", StringType, nullable=true)
-        an[Exception] should be thrownBy getValueMask(field1, "hash", None)
+        an[Exception] should be thrownBy getValueMask(field1, hashTag, None)
 
         // salt is defined, but field is not string
         val field2 = StructField("field", IntegerType, nullable=true)
-        an[Exception] should be thrownBy getValueMask(field2, "hash", Some("salt"))
+        an[Exception] should be thrownBy getValueMask(field2, hashTag, Some("salt"))
     }
 
     it should "create a map mask for a map with simple values" in {
         val mapType = MapType(StringType, StringType, false)
 
         // simple subfield allowlisted with keep
-        val result1 = getMapMask(mapType, Map("subfield" -> "keep"))
+        val result1 = getMapMask(mapType, Map("subfield" -> keepTag))
         val expected1 = MapMaskNode(Map("subfield" -> Identity()))
-        assert(result1.equals(expected1))
+        result1 should equal(expected1)
 
         // string field allowlisted with hash
         val salt = "salt"
-        val result2 = getMapMask(mapType, Map("subfield" -> "hash"), Some(salt))
+        val result2 = getMapMask(mapType, Map("subfield" -> hashTag), Some(salt))
         val expected2 = MapMaskNode(Map("subfield" -> Hash(salt)))
-        assert(result2.equals(expected2))
+        result2 should equal(expected2)
 
         // map subfield allowlisted with keep
-        an[Exception] should be thrownBy getMapMask(mapType, Map("subfield" -> "keepall"))
+        an[Exception] should be thrownBy getMapMask(mapType, Map("subfield" -> keepAllTag))
     }
 
     it should "create a map mask for a map with map values" in {
@@ -191,12 +170,12 @@ class TestSanitizeTransformation extends FlatSpec
         )
 
         // map subfield allowlisted with keepall
-        val result = getMapMask(mapOfMapsType, Map("subfield" -> "keepall"))
+        val result = getMapMask(mapOfMapsType, Map("subfield" -> keepAllTag))
         val expected = MapMaskNode(Map("subfield" -> Identity()))
-        assert(result.equals(expected))
+        result should equal(expected)
 
         // map subfield allowlisted with keep
-        an[Exception] should be thrownBy getMapMask(mapOfMapsType, Map("subfield" -> "keep"))
+        an[Exception] should be thrownBy getMapMask(mapOfMapsType, Map("subfield" -> keepTag))
     }
 
     it should "create a struct mask with nullified value" in {
@@ -225,10 +204,10 @@ class TestSanitizeTransformation extends FlatSpec
             StructField("fa3", StringType, nullable=true)
         )), nullable=true)
         val allowlist = Map(
-            "fa1" -> "keep",
+            "fa1" -> keepTag,
             "fa2" -> Map(
                 "fb2" -> Map(
-                    "fc" -> "keep"
+                    "fc" -> keepTag
                 )
             )
         )
@@ -246,30 +225,30 @@ class TestSanitizeTransformation extends FlatSpec
     it should "merge a value mask with a value mask correctly" in {
         val nullifyMask = ValueMaskNode(Nullify())
         val identityMask = ValueMaskNode(Identity())
-        assert(nullifyMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action == Nullify())
-        assert(nullifyMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
-        assert(identityMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action == Identity())
-        assert(identityMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
+        nullifyMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action should equal(Nullify())
+        nullifyMask.merge(identityMask).asInstanceOf[ValueMaskNode].action should equal(Identity())
+        identityMask.merge(nullifyMask).asInstanceOf[ValueMaskNode].action should equal(Identity())
+        identityMask.merge(identityMask).asInstanceOf[ValueMaskNode].action should equal(Identity())
     }
 
     it should "merge a value mask with a struct mask correctly" in {
         val nullifyMask = ValueMaskNode(Nullify())
         val identityMask = ValueMaskNode(Identity())
         val structMask = StructMaskNode(Array(nullifyMask, identityMask))
-        assert(nullifyMask.merge(structMask).asInstanceOf[StructMaskNode].children.size == 2)
-        assert(identityMask.merge(structMask).asInstanceOf[StructMaskNode].children.size == 2)
-        assert(structMask.merge(nullifyMask).asInstanceOf[StructMaskNode].children.size == 2)
-        assert(structMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
+        nullifyMask.merge(structMask).asInstanceOf[StructMaskNode].children.size should equal(2)
+        identityMask.merge(structMask).asInstanceOf[StructMaskNode].children.size should equal(2)
+        structMask.merge(nullifyMask).asInstanceOf[StructMaskNode].children.size should equal(2)
+        structMask.merge(identityMask).asInstanceOf[ValueMaskNode].action should equal(Identity())
     }
 
     it should "merge a value mask with a map mask correctly" in {
         val nullifyMask = ValueMaskNode(Nullify())
         val identityMask = ValueMaskNode(Identity())
         val mapMask = MapMaskNode(Map("f1" -> Nullify(), "f2" -> Identity()))
-        assert(nullifyMask.merge(mapMask).asInstanceOf[MapMaskNode].allowlist.size == 2)
-        assert(identityMask.merge(mapMask).asInstanceOf[MapMaskNode].allowlist.size == 2)
-        assert(mapMask.merge(nullifyMask).asInstanceOf[MapMaskNode].allowlist.size == 2)
-        assert(mapMask.merge(identityMask).asInstanceOf[ValueMaskNode].action == Identity())
+        nullifyMask.merge(mapMask).asInstanceOf[MapMaskNode].allowlist.size should equal(2)
+        identityMask.merge(mapMask).asInstanceOf[MapMaskNode].allowlist.size should equal(2)
+        mapMask.merge(nullifyMask).asInstanceOf[MapMaskNode].allowlist.size should equal(2)
+        mapMask.merge(identityMask).asInstanceOf[ValueMaskNode].action should equal(Identity())
     }
 
     it should "merge a struct mask with a struct mask correctly" in {
@@ -278,9 +257,9 @@ class TestSanitizeTransformation extends FlatSpec
         val structMask1 = StructMaskNode(Array(nullifyMask, identityMask))
         val structMask2 = StructMaskNode(Array(identityMask, nullifyMask))
         val result = structMask1.merge(structMask2).asInstanceOf[StructMaskNode]
-        assert(result.children.size == 2)
-        assert(result.children(0).asInstanceOf[ValueMaskNode].action == Identity())
-        assert(result.children(1).asInstanceOf[ValueMaskNode].action == Identity())
+        result.children.size should equal(2)
+        result.children(0).asInstanceOf[ValueMaskNode].action should equal(Identity())
+        result.children(1).asInstanceOf[ValueMaskNode].action should equal(Identity())
     }
 
     it should "merge a map mask with a map mask correctly" in {
@@ -295,7 +274,7 @@ class TestSanitizeTransformation extends FlatSpec
             "f4" -> Identity()
         ))
         val result = mapMask1.merge(mapMask2).asInstanceOf[MapMaskNode]
-        assert(result.allowlist == Map(
+        result.allowlist should equal(Map(
             "f1" -> Identity(),
             "f2" -> Identity(),
             "f3" -> MapMaskNode(Map("sf3" -> Identity(), "sf3bis" -> Identity())),
@@ -309,12 +288,11 @@ class TestSanitizeTransformation extends FlatSpec
         // regular value
         val result1 = Hash(salt).apply("some string value")
         val expected1 = "3BF2B893B2A0F57586E7CF73AF0690F061FAA9546F2C385AD93174BB9A81468C"
-        assert(result1 == expected1)
+        result1 should equal(expected1)
 
         // null value
         val result2 = Hash(salt).apply(null)
-        val expected2 = null
-        assert(result2 == expected2)
+        assert(result2 == null)
     }
 
     it should "return null when a sanitization action receives null" in {
@@ -323,14 +301,16 @@ class TestSanitizeTransformation extends FlatSpec
             ValueMaskNode(Nullify()),
             ValueMaskNode(Identity())
         ))
-        assert(mask1.apply(null) == null)
+        val result1 = mask1.apply(null)
+        assert(result1 == null)
 
         // MapMaskNode
         val mask2 = MapMaskNode(Map(
             "f1" -> Nullify(),
             "f2" -> Identity()
         ))
-        assert(mask2.apply(null) == null)
+        val result2 = mask2.apply(null)
+        assert(result2 == null)
     }
 
     it should "sanitize a row by applying a sanitization mask" in {
@@ -367,7 +347,7 @@ class TestSanitizeTransformation extends FlatSpec
             ),
             Map()
         )
-        assert(result == expected)
+        result should equal(expected)
     }
 
     it should "sanitize a data frame" in {
@@ -393,10 +373,10 @@ class TestSanitizeTransformation extends FlatSpec
             ValueMaskNode(Identity())
         ))
         val result = sanitizeDataFrame(partDf, mask).df.collect.sortBy(_.getInt(0))
-        assert(result.length == 3)
-        assert(result(0) == Row(1, null, "muk"))
-        assert(result(1) == Row(2, null, "jji"))
-        assert(result(2) == Row(3, null, "ppa"))
+        result.length should equal(3)
+        result(0) should equal(Row(1, null, "muk"))
+        result(1) should equal(Row(2, null, "jji"))
+        result(2) should equal(Row(3, null, "ppa"))
     }
 
     it should "return the source DataFrame as is when allowlisting a table with keepall" in {
@@ -409,10 +389,10 @@ class TestSanitizeTransformation extends FlatSpec
         )
         val result = sanitizeTable(
             partDf,
-            Map("table" -> "keepall")
+            Map("table" -> keepAllTag)
         ).df.collect
-        assert(result.length == 1)
-        assert(result(0) == Row(1))
+        result.length should equal(1)
+        result(0) should equal(Row(1))
     }
 
     it should "return an empty DataFrame when the table is not in the allowlist" in {
@@ -427,7 +407,7 @@ class TestSanitizeTransformation extends FlatSpec
             partDf,
             Map()
         ).df.collect
-        assert(result.length == 0)
+        result.length should equal(0)
     }
 
     it should "raise an error when allowlisting a table with keep tag" in {
@@ -440,7 +420,7 @@ class TestSanitizeTransformation extends FlatSpec
         )
         an[Exception] should be thrownBy sanitizeTable(
             partDf,
-            Map("table" -> "keep")
+            Map("table" -> keepTag)
         )
     }
 
@@ -457,11 +437,11 @@ class TestSanitizeTransformation extends FlatSpec
         )
         val result = sanitizeTable(
             partDf,
-            Map("table" -> Map("f1" -> "keep"))
+            Map("table" -> Map("f1" -> keepTag))
         ).df.collect.sortBy(_.getInt(0))
-        assert(result.length == 2)
-        assert(result(0) == Row(1, null))
-        assert(result(1) == Row(2, null))
+        result.length should equal(2)
+        result(0) should equal(Row(1, null))
+        result(1) should equal(Row(2, null))
     }
 
     it should "sanitize table with proper defaults" in {
@@ -482,13 +462,13 @@ class TestSanitizeTransformation extends FlatSpec
         val result = sanitizeTable(
             partDf,
             Map(
-                "table" -> Map("f1" -> "keep"),
-                "__defaults__" -> Map("f2" -> "keep")
+                "table" -> Map("f1" -> keepTag),
+                "__defaults__" -> Map("f2" -> keepTag)
             )
         ).df.collect.sortBy(_.getInt(0))
-        assert(result.length == 2)
-        assert(result(0) == Row(1, "hi", null))
-        assert(result(1) == Row(2, "bye", null))
+        result.length should equal(2)
+        result(0) should equal(Row(1, "hi", null))
+        result(1) should equal(Row(2, "bye", null))
     }
 
     it should "automatically allowlist partition fields" in {
@@ -509,11 +489,11 @@ class TestSanitizeTransformation extends FlatSpec
         )
         val result = sanitizeTable(
             partDf,
-            Map("table" -> Map("f2" -> "keep"))
+            Map("table" -> Map("f2" -> keepTag))
         ).df.collect.sortBy(_.getInt(0))
-        assert(result.length == 2)
-        assert(result(0) == Row(1, true))
-        assert(result(1) == Row(2, false))
+        result.length should equal(2)
+        result(0) should equal(Row(1, true))
+        result(1) should equal(Row(2, false))
     }
 
     it should "lower case table and field names before checking them against the allowlist" in {
@@ -529,10 +509,10 @@ class TestSanitizeTransformation extends FlatSpec
             )
         val result = sanitizeTable(
             partDf,
-            Map("table" -> Map("fieldname1" -> "keep", "fieldname2" -> "keep"))
+            Map("table" -> Map("fieldname1" -> keepTag, "fieldname2" -> keepTag))
         ).df.collect.sortBy(_.getInt(0))
-        assert(result.length == 2)
-        assert(result(0) == Row(1, true))
-        assert(result(1) == Row(2, false))
+        result.length should equal(2)
+        result(0) should equal(Row(1, true))
+        result(1) should equal(Row(2, false))
     }
 }

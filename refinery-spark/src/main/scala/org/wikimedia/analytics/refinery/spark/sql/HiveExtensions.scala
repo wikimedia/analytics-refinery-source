@@ -39,6 +39,22 @@ object HiveExtensions extends LogHelper {
     val sanitizeFieldPattern: Regex = "(^[^A-Za-z_]|[^A-Za-z0-9_])".r
 
     /**
+      * Normalizes a Hive table or field name using sanitizeFieldPattern.
+      * @param name name to normalize
+      * @param lowerCase whether to convert the name to lower case.
+      * @return
+      */
+    def normalizeName(name: String, lowerCase: Boolean = true): String = {
+        val sanitizedName = sanitizeFieldPattern.replaceAllIn(name, "_")
+
+        if (lowerCase) {
+          sanitizedName.toLowerCase
+        } else {
+          sanitizedName
+        }
+    }
+
+    /**
       * Implicit methods extensions for Spark StructField.
       *
       * @param field
@@ -86,7 +102,6 @@ object HiveExtensions extends LogHelper {
           * Here, normalizing means:
           * - conditionally convert field name to lower case
           * - Convert bad characters in field names to underscores.
-          * - widen some types (ints -> longs, floats -> doubles)
           * - makeNullable true
           *
           * Ints are converted to Longs, Floats are converted to Doubles.
@@ -97,15 +112,17 @@ object HiveExtensions extends LogHelper {
           * @return
           */
         def normalize(lowerCase: Boolean = true): StructField = {
-            val f = field
+            field
                 // convert bad chars to underscores
-                .copy(name=sanitizeFieldPattern.replaceAllIn(field.name, "_"))
+                .copy(name=normalizeName(field.name, lowerCase))
                 // make nullable
                 .makeNullable()
-            // conditionally to lower case
-            if (lowerCase) f.toLowerCase else f
         }
 
+        /**
+         * Normalizes the fields and widen some types (ints -> longs, floats -> doubles).
+         * @return
+         */
         def normalizeAndWiden(): StructField = {
             field.normalize().widen()
         }
