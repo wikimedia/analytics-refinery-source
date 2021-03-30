@@ -139,6 +139,42 @@ class TestHivePartition extends FlatSpec with Matchers {
         ))
     }
 
+    it should "convert a partition ListMap to a DateTime" in {
+        HivePartition.mapToDateTime(
+            ListMap("year" -> Some("2015"), "month" -> Some("5"))
+        ) should equal(
+            Some(new DateTime(2015, 5, 1, 0, 0, DateTimeZone.UTC))
+        )
+
+        HivePartition.mapToDateTime(
+            ListMap("year" -> Some("2015"), "month" -> Some("05"), "day" -> Some("2"), "hour" -> Some("12"))
+        ) should equal(
+            Some(new DateTime(2015, 5, 2, 12, 0, DateTimeZone.UTC))
+        )
+
+        // Has no dtKeys, should be None.
+        HivePartition.mapToDateTime(
+            ListMap("datacenter" -> Some("eqiad"))
+        ) should equal(
+            None
+        )
+
+        // Has invalid hierarchy of dtKeys, should be None.
+        HivePartition.mapToDateTime(
+            // month without year is not valid.
+            ListMap("datacenter" -> Some("eqiad"), "month" -> Some("12"))
+        ) should equal(
+            None
+        )
+
+        // Has dynamic partition, should be None.
+        HivePartition.mapToDateTime(
+            ListMap("datacenter" -> Some("eqiad"), "year" -> Some("2021"), "month" -> None)
+        ) should equal(
+            None
+        )
+    }
+
     it should "convert a partition ListMap to Hive QL" in {
         val partitionMap = ListMap(
             "year" -> Some("2015"), "month" -> Some("5")

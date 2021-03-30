@@ -422,11 +422,34 @@ object Refine extends LogHelper with ConfigHelper {
             }
         }
 
-        // Collect a string of failures that we might email as a report later.
-        var failureMessages = ""
+        // Build a report string about any encountered failures.
+        var reportBody = ""
+        var earliestFailureDt = config.since
+        var latestFailureDt = config.until
         if (failuresByTable.nonEmpty) {
 
             for ((table, failures) <- failuresByTable.filter(_._2.nonEmpty)) {
+                val sortedFailures = failures.sortBy((t) => {
+                    t.get.partition.dt.getOrElse(new DateTime(0))
+                })
+
+                val earliestFailureTarget = sortedFailures.head.get
+
+                if (
+                    earliestFailureTarget.partition.dt.isDefined &&
+                    earliestFailureTarget.partition.dt.get < earliestFailureDt
+                ) {
+                    earliestFailureDt = earliestFailureTarget.partition.dt.get
+                }
+
+                val latestFailureTarget = sortedFailures.last.get
+                if (
+                    latestFailureTarget.partition.dt.isDefined &&
+                    latestFailureTarget.partition.dt.get > latestFailureDt
+                ) {
+                    latestFailureDt = latestFailureTarget.partition.dt.get
+                }
+
                 // Log each failed refinement.
                 val message =
                     s"The following ${failures.length} of ${targetsByTable(table).size} " +
@@ -434,12 +457,22 @@ object Refine extends LogHelper with ConfigHelper {
                     failures.mkString("\n\t")
 
                 log.error(message)
-                failureMessages += "\n\n" + message
+                reportBody += "\n\n" + message
 
                 hasFailures = true
             }
 
-            failureMessages += s"\n\napplicationId: ${spark.sparkContext.applicationId}"
+            reportBody += s"\n\napplicationId: ${spark.sparkContext.applicationId}"
+
+            val tablesWithFailuresRegex = failuresByTable.keys.mkString("|")
+            val rerunOptions = Seq(
+                "--ignore_failure_flag=true",
+                s"--table_whitelist_regex='$tablesWithFailuresRegex'",
+                s"--since='${earliestFailureDt.hourOfDay().roundFloorCopy()}'",
+                s"--until='${latestFailureDt.hourOfDay().roundCeilingCopy()}"
+            )
+            reportBody += s"\n\nTo rerun, use the following options:\n"
+            reportBody += rerunOptions.mkString(" ")
         }
 
         // If we should send this as a failure email report
@@ -448,14 +481,17 @@ object Refine extends LogHelper with ConfigHelper {
             val smtpHost = config.smtp_uri.split(":")(0)
             val smtpPort = config.smtp_uri.split(":")(1)
 
+            val jobName = spark.conf.get("spark.app.name")
+            val subject = s"Refine failures for job $jobName: $config.input_path -> $config.output_path"
+
             log.info(s"Sending failure email report to ${config.to_emails.mkString(",")}")
             Utilities.sendEmail(
                 smtpHost,
                 smtpPort,
                 config.from_email,
                 config.to_emails.toArray,
-                s"Refine failure report for $config.input_path -> $config.output_path",
-                failureMessages
+                subject,
+                reportBody
             )
         }
 
