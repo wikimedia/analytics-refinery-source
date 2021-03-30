@@ -1,3 +1,11 @@
+## v0.1.3
+* Improve Refine failure report email
+* Add support for finding RefineTarget inputs from Hive
+* Refactor EventLoggingSanitization to a generic job: RefineSanitize
+* Rename whitelist to allowlist for Refine sanitization
+* Update WMF domain list with Cloud and toolforge
+* Fix failing sonar analysis due to JDK11 removing tools.jar
+
 ## v0.1.2
 * Update UA-Parser to 1.5.2
 * Minimal configuration of Sonar maven plugin
