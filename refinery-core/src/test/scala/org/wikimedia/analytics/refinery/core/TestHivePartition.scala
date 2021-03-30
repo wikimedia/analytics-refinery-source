@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.core
 
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
+import org.joda.time.DateTime
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.collection.immutable.ListMap
@@ -115,4 +117,103 @@ class TestHivePartition extends FlatSpec with Matchers {
         p.partitions should equal(partitionShouldBe)
     }
 
+    it should "convert a DateTime to a ListMap" in {
+        // 2021-03-22T19:30:10.000Z
+        val dt = new DateTime(
+            2021,
+            3,
+            22,
+            19,
+            30,
+            10,
+            DateTimeZone.UTC
+        )
+
+        HivePartition.dateTimeToMap(dt, Seq("year")) should equal(ListMap("year" -> Some("2021")))
+
+        HivePartition.dateTimeToMap(dt) should equal(ListMap(
+            "year" -> Some("2021"),
+            "month" -> Some("3"),
+            "day" -> Some("22"),
+            "hour" -> Some("19")
+        ))
+    }
+
+    it should "convert a partition ListMap to Hive QL" in {
+        val partitionMap = ListMap(
+            "year" -> Some("2015"), "month" -> Some("5")
+        )
+
+        HivePartition.mapToHiveQL(partitionMap) should equal("year=2015,month=5")
+
+        HivePartition.mapToHiveQL(partitionMap, " AND ", ">=") should equal(
+            "year>=2015 AND month>=5"
+        )
+    }
+
+    it should "get threshold condition for <" in {
+        val result = HivePartition.getThresholdCondition(
+            ListMap("year" -> 2019, "month" -> 10, "day" -> 5),
+            "<"
+        )
+        val expected = "(year < 2019 OR year = 2019 AND (month < 10 OR month = 10 AND day < 5))"
+        assert(result == expected)
+    }
+
+    it should "get threshold condition for >" in {
+        val result = HivePartition.getThresholdCondition(
+            ListMap("year" -> 2019, "month" -> 10, "day" -> 5),
+            ">"
+        )
+        val expected = "(year > 2019 OR year = 2019 AND (month > 10 OR month = 10 AND day >= 5))"
+        result should equal(expected)
+    }
+
+    it should "fail when calling getBetweenCondition with unmatching key sets" in {
+        intercept[IllegalArgumentException] {
+            HivePartition.getBetweenCondition(
+                ListMap("year" -> 2019, "month" -> 10, "day" -> 5),
+                ListMap("month" -> 10, "day" -> 5, "hour" -> 3)
+            )
+        }
+    }
+
+    it should "fail when calling getBetweenCondition with since > until" in {
+        intercept[IllegalArgumentException] {
+            HivePartition.getBetweenCondition(
+                ListMap("year" -> 2019, "month" -> 10, "day" -> 6),
+                ListMap("year" -> 2019, "month" -> 10, "day" -> 5)
+            )
+        }
+    }
+
+    it should "fail when calling getBetweenCondition with since = until for last partition" in {
+        intercept[IllegalArgumentException] {
+            HivePartition.getBetweenCondition(
+                ListMap("year" -> 2019),
+                ListMap("year" -> 2019)
+            )
+        }
+    }
+
+    it should "get between condition with recursive calls" in {
+        val result = HivePartition.getBetweenCondition(
+            ListMap("year" -> 2019, "month" -> 10, "day" -> 5),
+            ListMap("year" -> 2019, "month" -> 10, "day" -> 15)
+        )
+        val expected = "year = 2019 AND month = 10 AND day >= 5 AND day < 15"
+        result should equal(expected)
+    }
+
+    it should "get between condition with calls to getThresholdCondition" in {
+        val result = HivePartition.getBetweenCondition(
+            ListMap("year" -> 2018, "month" -> 10),
+            ListMap("year" -> 2019, "month" -> 10)
+        )
+        val expected = (
+            "(year > 2018 OR year = 2018 AND month >= 10) AND " +
+                "(year < 2019 OR year = 2019 AND month < 10)"
+            )
+        result should equal(expected)
+    }
 }

@@ -10,7 +10,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{MapType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.DateTime
-import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 import org.wikimedia.analytics.refinery.spark.sql.{HiveExtensions, PartitionedDataFrame}
 import org.yaml.snakeyaml.Yaml
 
@@ -152,7 +152,7 @@ import scala.collection.JavaConverters._
   *   easily avoid unwanted use of the 'keep_all' semantics.
   *
   */
-object SanitizeTransformation {
+object SanitizeTransformation extends LogHelper {
 
     type Allowlist = Map[String, Any]
 
@@ -500,11 +500,18 @@ object SanitizeTransformation {
         allowlist: Allowlist,
         salt: Option[String] = None
     ): PartitionedDataFrame = {
-        allowlist.get(partDf.partition.table.toLowerCase) match {
+        val tableName = partDf.partition.table
+        allowlist.get(tableName.toLowerCase) match {
             // Table is not in the allowlist: return empty DataFrame.
-            case None => partDf.copy(df = emptyDataFrame(partDf.df.sparkSession, partDf.df.schema))
+            case None => {
+                log.debug(s"$tableName is not in the allowlist, returning an empty DataFrame")
+                partDf.copy(df = emptyDataFrame(partDf.df.sparkSession, partDf.df.schema))
+            }
             // Table is in the allowlist as keep_all: return DataFrame as is.
-            case Some(`keepAllTag`) => partDf
+            case Some(`keepAllTag`) => {
+                log.debug(s"$tableName is marked as keep_all, returning the DataFrame as is.")
+                partDf
+            }
             // Table is in the allowlist and has further specifications:
             case Some(tableAllowlist: Allowlist) =>
                 // Create table-specific sanitization mask.
@@ -531,7 +538,7 @@ object SanitizeTransformation {
                     sanitizationMask
                 )
             case _ => throw new IllegalArgumentException(
-                s"Invalid allowlist value for table '${partDf.partition.table}'."
+                s"Invalid allowlist value for table '$tableName'."
             )
         }
     }
