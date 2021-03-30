@@ -14,7 +14,9 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
     // Specific parameters for EventLoggingSanitizationMonitor.
     // Other parameters are reused from RefineMonitor.Config.
     case class Config(
-        whitelist_path: String = "/wmf/refinery/current/static_data/eventlogging/whitelist.yaml"
+        allowlist_path: String = "/wmf/refinery/current/static_data/eventlogging/allowlist.yaml",
+        // TODO: remove whitelist_path config once no jobs are using it.
+        whitelist_path : String = "/wmf/refinery/current/static_data/eventlogging/whitelist.yaml"
     )
 
     object Config {
@@ -22,8 +24,8 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
 
         val propertiesDoc: ListMap[String, String] = {
             val doc = ListMap(
-                "whitelist_path" ->
-                    s"Path to EventLogging's whitelist file. Default: ${defaults.whitelist_path}"
+                "allowlist_path" ->
+                    s"Path to EventLogging's allowlist file. Default: ${defaults.allowlist_path}"
             )
 
             // We reuse Refine.Config and Refine.Config help documentation, but since
@@ -33,7 +35,7 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
                 "input_path_regex",
                 "input_path_regex_capture_groups",
                 "input_path_datetime_format",
-                "table_whitelist_regex"
+                "table_allowlist_regex"
             )
 
             // Combine our property doc with Refine.Config's property doc
@@ -93,7 +95,7 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
         val refineMonitorConfig = RefineMonitor.loadConfig(refineMonitorArgs)
 
         val allSucceeded = apply(spark)(
-            config.whitelist_path,
+            config.allowlist_path,
             refineMonitorConfig
         )
 
@@ -105,7 +107,14 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
 
     def loadConfig(args: Array[String]): Config = {
         val config = try {
-            configureArgs[Config] (args)
+            val c = configureArgs[Config] (args)
+            // TODO: remove this once no jobs use whitelist_path.
+            // If whitelist_path was given, assume we should use it as allowlist_path.
+            if (c.whitelist_path != "") {
+                c.copy(allowlist_path=c.whitelist_path)
+            } else {
+                c
+            }
         } catch {
             case e: ConfigHelperException =>
             log.fatal (e.getMessage + ". Aborting.")
@@ -116,21 +125,21 @@ object EventLoggingSanitizationMonitor extends LogHelper with ConfigHelper {
     }
 
     def apply(spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate())(
-        whitelist_path: String,
+        allowlist_path: String,
         refineMonitorConfig  : RefineMonitor.Config
     ): Boolean = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
-        // Read whitelist from yaml file.
-        val whitelistStream = fs.open(new Path(whitelist_path))
-        val javaObject = new Yaml().load[Object](whitelistStream)
-        val whitelist = EventLoggingSanitization.validateWhitelist(javaObject)
+        // Read allowlist from yaml file.
+        val allowlistStream = fs.open(new Path(allowlist_path))
+        val javaObject = new Yaml().load[Object](allowlistStream)
+        val allowlist = EventLoggingSanitization.validateAllowlist(javaObject)
 
-        // Get a Regex with all tables that are whitelisted.
+        // Get a Regex with all tables that are allowlisted.
         // This prevents RefineMonitor to collect RefineTargets
         // for tables that were not copied over the sanitized database.
         val tableWhitelistRegex = Some(refineMonitorConfig.table_whitelist_regex.getOrElse(
-            new Regex("^(" + whitelist.keys.mkString("|") + ")$")
+            new Regex("^(" + allowlist.keys.mkString("|") + ")$")
         ))
 
         // Call RefineMonitor with the updated config case class.
