@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
+import java.util.Locale
+
 
 /**
   * This object contains utility functions to parse user data
@@ -199,7 +201,7 @@ object UserEventBuilder extends Serializable {
       case _: Throwable =>
         val dateTime = try {
           DateTime.parse(blockExpirationStr,
-                         DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss").withZoneUTC())
+                         DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss").withLocale(Locale.ROOT).withZoneUTC())
         } catch {
           case _: Throwable =>
             try {
@@ -211,26 +213,26 @@ object UserEventBuilder extends Serializable {
                 try {
                   DateTime.parse(blockExpirationStr,
                                  DateTimeFormat.forPattern(
-                                     "E, dd MMM yyyy HH:mm:ss 'GMT'").withZoneUTC())
+                                     "E, dd MMM yyyy HH:mm:ss 'GMT'").withLocale(Locale.ROOT).withZoneUTC())
                 } catch {
                   case _: Throwable =>
                     try {
                       DateTime.parse(blockExpirationStr,
                                      DateTimeFormat.forPattern(
-                                         "dd MMM yyyy HH:mm:ss 'GMT'").withZoneUTC())
+                                         "dd MMM yyyy HH:mm:ss 'GMT'").withLocale(Locale.ROOT).withZoneUTC())
                     } catch {
                       case _: Throwable =>
                         try {
                           DateTime.parse(
                               blockExpirationStr,
-                              DateTimeFormat.forPattern("dd MMM yyyy").withZoneUTC())
+                              DateTimeFormat.forPattern("dd MMM yyyy").withLocale(Locale.ROOT).withZoneUTC())
                         } catch {
                           case _: Throwable =>
                             try {
                               DateTime.parse(
                                   timestamp
                                     .substring(0, 8) + blockExpirationStr,
-                                  DateTimeFormat.forPattern("yyyyMMddHH:mm").withZoneUTC())
+                                  DateTimeFormat.forPattern("yyyyMMddHH:mm").withLocale(Locale.ROOT).withZoneUTC())
                             } catch {
                               case _: Throwable =>
                                 return (Seq.empty[String],
