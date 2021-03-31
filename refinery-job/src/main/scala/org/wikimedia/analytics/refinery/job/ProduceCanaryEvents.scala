@@ -5,11 +5,12 @@ import java.net.URI
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
-
 import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.core.config._
-import org.wikimedia.eventutilities.core.event.{EventStream, EventStreamFactory}
-import org.wikimedia.eventutilities.core.http.HttpResult
+import org.wikimedia.eventutilities.core.event.{EventSchemaLoader, EventStream, EventStreamConfig, EventStreamFactory, WikimediaDefaults}
+import org.wikimedia.eventutilities.core.http.{BasicHttpClient, BasicHttpResult}
+import org.wikimedia.eventutilities.core.json.{JsonLoader, JsonSchemaLoader}
+import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.monitoring.CanaryEventProducer
 
 object ProduceCanaryEvents extends LogHelper with ConfigHelper {
@@ -20,18 +21,35 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         stream_names: Seq[String] = Seq(),
         settings_filters: Map[String, String] = Map(),
         schema_base_uris: Seq[String] = Seq(
-            "https://schema.wikimedia.org/repositories/primary/jsonschema",
-            "https://schema.wikimedia.org/repositories/secondary/jsonschema"
+            "https://schema.discovery.wmnet/repositories/primary/jsonschema",
+            "https://schema.discovery.wmnet/repositories/secondary/jsonschema"
         ),
         event_stream_config_uri: String = "https://meta.wikimedia.org/w/api.php",
         event_service_config_uri: Option[String] = None,
+        use_wikimedia_http_client: Boolean = true,
         dry_run: Boolean = true
-    )
+    ) {
+        // Call validate now so we can throw at instantiation if this Config is not valid.
+        validate()
+
+        /**
+          * Validates that configs as provided make sense.
+          * Throws IllegalArgumentException if not.
+          */
+        private def validate(): Unit = {
+            if (stream_names.isEmpty && settings_filters.isEmpty) {
+                throw new IllegalArgumentException(
+                    "Must provide one of --stream_names or --settings_filters to target " +
+                    "streams for which to produce canary events."
+                )
+            }
+        }
+    }
 
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        val default: Config = Config()
+        val default: Config = Config(Seq("_EXAMPLE_STREAM_"))
 
         val propertiesDoc: ListMap[String, String] = ListMap(
             "stream_names" ->"""
@@ -59,6 +77,12 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
                |maps event intake service name to an HTTP URI.  This
                |will be used to determine the event intake service URI
                |to which a canary event should be produced.
+               |""".stripMargin,
+            "use_wikimedia_http_client" ->
+                s"""If true, wikimedia-event-utilities WikimediaDefaults.WIKIMEDIA_HTTP_CLIENT
+               |will be used when making http request to get event stream config and to post
+               |canary events.  This should always be used in production to properly route
+               |to internal production API endpoints.  Default: ${default.use_wikimedia_http_client}
                |""".stripMargin,
             "dry_run" -> s"""
                 |Don't actually produce any canary events, just
@@ -88,18 +112,21 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
               |     org.wikimedia.analytics.refinery.job.ProduceCanaryEvents \
               |     --settings_filters=canary_events_enabled:true
               |"""
-    }
 
-    def loadConfig(args: Array[String]): Config = {
-        val config = try {
-            configureArgs[Config](args)
-        } catch {
-            case e: ConfigHelperException =>
-                log.fatal(e.getMessage + ". Aborting.")
-                sys.exit(1)
+        /**
+          * Loads Config from args
+          */
+        def apply(args: Array[String]): Config = {
+            val config = try {
+                configureArgs[Config](args)
+            } catch {
+                case e: ConfigHelperException =>
+                    log.fatal(e.getMessage + ". Aborting.")
+                    sys.exit(1)
+            }
+            log.info("Loaded ProduceCanaryEvents config:\n" + prettyPrint(config))
+            config
         }
-        log.info("Loaded configuration:\n" + prettyPrint(config))
-        config
     }
 
     def main(args: Array[String]): Unit = {
@@ -113,74 +140,67 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         if (!log.getAllAppenders.hasMoreElements) {
             addConsoleLogAppender()
         }
-        val config = loadConfig(args)
+        val config = Config(args)
 
         val success = apply(config)
         sys.exit(if (success) 0 else 1)
     }
 
     /**
-      * Overloaded apply that calls apply from a ProduceCanaryEvents.Config instance.
-      */
-    def apply(config: Config): Boolean = {
-        apply(
-            config.stream_names,
-            config.settings_filters,
-            config.schema_base_uris,
-            config.event_stream_config_uri,
-            config.event_service_config_uri,
-            config.dry_run
-        )
-    }
-
-    /**
-      * Produces canary events (or just logs them if dry_run).
+      * Produces canary events (or just logs them if config.dry_run).
       * @return
       */
-    def apply(
-        stream_names: Seq[String] = Config.default.stream_names,
-        settings_filters: Map[String, String] = Config.default.settings_filters,
-        schema_base_uris: Seq[String] = Config.default.schema_base_uris,
-        event_stream_config_uri: String = Config.default.event_stream_config_uri,
-        event_service_config_uri: Option[String] = Config.default.event_service_config_uri,
-        dry_run: Boolean = Config.default.dry_run
-    ): Boolean = {
+    def apply(config: Config): Boolean = {
+        // Use the WIKIMEDIA_HTTP_CLIENT if in WMF production.
+        // This routes e.g. meta.wikimedia.org -> api-ro.wikimedia.org.
+        val httpClient = if (config.use_wikimedia_http_client) {
+            WikimediaDefaults.WIKIMEDIA_HTTP_CLIENT
+        } else {
+            BasicHttpClient.builder().build()
+        }
 
-        if (stream_names.isEmpty && settings_filters.isEmpty) {
-            log.error(
-                "Must provide one of --stream_names or --settings_filters to target " +
-                "streams for which to produce canary events."
+        // ResourceLoader that will be used to get stream config and JSONSchemas.
+        val resourceLoader = ResourceLoader.builder()
+            .withHttpClient(httpClient)
+            .setBaseUrls(ResourceLoader.asURLs(config.schema_base_uris.asJava))
+            .build()
+
+        // EventSchemaLoader using ResourceLoader.
+        val eventSchemaLoader = EventSchemaLoader.builder()
+            .setJsonSchemaLoader(JsonSchemaLoader.build(resourceLoader))
+            .build()
+
+        // EventStreamConfig using ResourceLoader
+        val eventStreamConfig = {
+            val eventStreamConfigBuilder = EventStreamConfig.builder()
+                .setEventStreamConfigLoader(config.event_stream_config_uri)
+                .setJsonLoader(new JsonLoader(resourceLoader))
+            // If event_service_config_uri is defined, call setEventServiceToUriMap
+            config.event_service_config_uri.foreach(eventStreamConfigBuilder.setEventServiceToUriMap)
+            eventStreamConfigBuilder.build()
+        }
+
+        // EventStreamFactory using eventSchemaLoader and eventStreamConfig
+        val eventStreamFactory = EventStreamFactory.builder()
+          .setEventSchemaLoader(eventSchemaLoader)
+          .setEventStreamConfig(eventStreamConfig)
+          .build()
+
+        val targetEventStreams = getTargetEventStreams(
+            eventStreamFactory,
+            config.stream_names,
+            config.settings_filters
+        )
+
+        if (targetEventStreams.isEmpty) {
+            log.warn(
+                "No event streams match the provided stream_names and settings_filters. " +
+                "No canary events will be produced."
             )
             false
         } else {
-
-            val eventStreamFactoryBuilder = EventStreamFactory.builder()
-            eventStreamFactoryBuilder.setEventSchemaLoader(schema_base_uris.asJava)
-            event_service_config_uri match {
-                case Some(uri) => eventStreamFactoryBuilder.setEventStreamConfig(
-                    event_stream_config_uri,
-                    uri
-                )
-                case _ => eventStreamFactoryBuilder.setEventStreamConfig(event_stream_config_uri)
-            }
-            val eventStreamFactory = eventStreamFactoryBuilder.build()
-
-            val targetEventStreams = getTargetEventStreams(
-                eventStreamFactory,
-                stream_names,
-                settings_filters
-            )
-
-            if (targetEventStreams.isEmpty) {
-                log.warn(
-                    "No event streams match the provided stream_names and settings_filters. " +
-                    "No canary events will be produced."
-                )
-                false
-            } else {
-                val canaryEventProducer = new CanaryEventProducer(eventStreamFactory)
-                produceCanaryEvents(canaryEventProducer, targetEventStreams, dry_run)
-            }
+            val canaryEventProducer = new CanaryEventProducer(eventStreamFactory, httpClient)
+            produceCanaryEvents(canaryEventProducer, targetEventStreams, config.dry_run)
         }
     }
 
@@ -244,7 +264,7 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         )
 
         if (!dryRun) {
-            val results: mutable.Map[URI, HttpResult] = CanaryEventProducer.postEventsToUris(
+            val results: mutable.Map[URI, BasicHttpResult] = canaryEventProducer.postEventsToUris(
                 uriToCanaryEvents
             ).asScala
 

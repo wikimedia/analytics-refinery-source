@@ -1,22 +1,24 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import org.wikimedia.eventutilities.core.event.EventSchemaLoader
-import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
-import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
-import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.apache.hadoop.fs.FsUrlStreamHandlerFactory
 import java.net.URL
+
 import scala.collection.JavaConverters._
 
-import scala.util.{Failure, Success, Try}
+import org.apache.hadoop.fs.FsUrlStreamHandlerFactory
+import org.apache.spark.sql.types.StructType
+import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
+import org.wikimedia.eventutilities.core.event.EventSchemaLoader
+import org.wikimedia.eventutilities.core.json.JsonSchemaLoader
+import org.wikimedia.eventutilities.core.util.ResourceLoader
+import org.wikimedia.eventutilities.core.event.WikimediaDefaults
 
 /**
   * Implementations of SparkSchemaLoader
   */
 
 /**
-  * A SparkSchemaLoader that uses refinery.core.jsonschema.EventSchemaLoader to load
+  * A SparkSchemaLoader that uses org.wikimedia.eventutilities.core.event.EventSchemaLoader to load
   * schemas from example event data.  This class will get the first line out of a RefineTarget
   * and expect it to be a JSON event.  That event will be passed to the eventSchemaLoader
   * to get a JsonSchema for it.  Then JsonSchemaConverter.toSparkSchema will convert that JSONSchema
@@ -86,22 +88,40 @@ class EventSparkSchemaLoader(
   */
 object EventSparkSchemaLoader {
     // Make sure that EventSchemaLoader can handle hdfs:// URIs.
-    // NOTE: this can only be called once per JVM.
+    // (This makes is possible for e.g. com.google.common.io.Resources
+    // to load hdfs URIs.)
     URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory)
 
     /**
       * Helper constructor to create a EventSparkSchemaLoader using EventSchemaLoader from a
       * list of schemaBaseUris.
-      *
-      * @param schemaBaseUris
-      * @param loadLatest
-      * @return
       */
     def apply(
         schemaBaseUris: Seq[String],
-        loadLatest: Boolean = true
+        loadLatest: Boolean = true,
+        schemaField: Option[String] = None
     ): EventSparkSchemaLoader = {
-        new EventSparkSchemaLoader(new EventSchemaLoader(schemaBaseUris.asJava), loadLatest)
+        new EventSparkSchemaLoader(buildEventSchemaLoader(schemaBaseUris, schemaField), loadLatest)
+    }
+
+    /**
+      * Builds a wikimedia event utilities EventSchemaLoader that loads
+      * schemas from the given schemaBaseUris.
+      */
+    def buildEventSchemaLoader(
+        schemaBaseUris: Seq[String],
+        schemaField: Option[String] = None
+    ): EventSchemaLoader = {
+        val resourceLoader = ResourceLoader.builder()
+            .setBaseUrls(ResourceLoader.asURLs(schemaBaseUris.asJava))
+            .build()
+        val eventSchemaLoaderBuilder = EventSchemaLoader.builder()
+            .setJsonSchemaLoader(JsonSchemaLoader.build(resourceLoader))
+
+        if (schemaField.isDefined) {
+            eventSchemaLoaderBuilder.setSchemaField(schemaField.get)
+        }
+        eventSchemaLoaderBuilder.build()
     }
 }
 
@@ -109,19 +129,12 @@ object EventSparkSchemaLoader {
 object WikimediaEventSparkSchemaLoader {
     /**
       * Returns an instance of EventSparkSchemaLoader using WMF's
-      * remote event schema repository URLs by default.
+      * remote event schema repository URLs.
       *
-      * @param schemaBaseUris
       * @param loadLatest
       * @return
       */
-    def apply(
-        schemaBaseUris: Seq[String] = Seq(
-            "https://schema.wikimedia.org/repositories/primary/jsonschema",
-            "https://schema.wikimedia.org/repositories/secondary/jsonschema"
-        ),
-        loadLatest: Boolean = true
-    ): EventSparkSchemaLoader = {
-        EventSparkSchemaLoader(schemaBaseUris, loadLatest)
+    def apply(loadLatest: Boolean = true): EventSparkSchemaLoader = {
+        new EventSparkSchemaLoader(WikimediaDefaults.EVENT_SCHEMA_LOADER, loadLatest)
     }
 }
