@@ -59,7 +59,7 @@ object RefineMonitor extends LogHelper {
 
         val targets = Refine.getRefineTargets(spark, config)
         // Filter for targets that still need, or have failed refinement.
-        .filter(_.shouldRefine())
+        .filter(_.shouldRefine(ignoreFailureFlag=true))
 
         val inputDescription = if (config.input_path.isDefined) {
             s"path ${config.input_path.get}"
@@ -72,31 +72,46 @@ object RefineMonitor extends LogHelper {
 
         if (targets.isEmpty) {
             log.info(
-                s"No targets need refinement in $inputDescription -> $outputDescription"
+                s"No targets need or have failed refinement in $inputDescription -> $outputDescription"
             )
-        }
+        } else {
+            val groupedTargets: Map[Boolean, Seq[RefineTarget]] = targets.groupBy(_.failureFlagExists())
+            val failedRefineTargets = groupedTargets.get(true)
+            val needRefineTargets = groupedTargets.get(false)
 
-        else {
             val doneFlag = targets.head.doneFlag
-            val report = s" The following dataset targets in $inputDescription between " +
-                s"${config.since} and ${config.until} need refinement into the output path ${config.output_path}\n\n" +
-                s"If data is present in the output path, then either $doneFlag flag has been " +
-                s"removed or it contains a timestamp older than the input data's modification time." +
-                targets.map(_.partition).mkString("\n\t")
+
+            val report = new StringBuilder()
+            report ++= s"The following dataset targets in $inputDescription between "
+            report ++= s"${config.since} and ${config.until} either have failed or still need refinement "
+            report ++= s"into the output path ${config.output_path.get}."
+
+            if (failedRefineTargets.nonEmpty) {
+                report ++= "\n\nTargets with failures:\n"
+                report ++= "\t" + failedRefineTargets.get.map(_.partition).mkString("\n\t")
+            }
+            if (needRefineTargets.nonEmpty) {
+                report ++= "\n\nTargets needing refinement*:\n"
+                report ++= "\t" + needRefineTargets.get.map(_.partition).mkString("\n\t")
+                report ++= s"\n\n*If data is present in the output path, then either $doneFlag "
+                report ++= "flag has been removed or it contains a timestamp older than the input "
+                report ++= "data's modification time.)\n"
+            }
+
             log.warn(report)
 
             if (config.should_email_report) {
                 val smtpHost = config.smtp_uri.split(":")(0)
                 val smtpPort = config.smtp_uri.split(":")(1)
 
-                log.info(s"Sending failure email report to ${config.to_emails.mkString(",")}")
+                log.info(s"Sending problem email report to ${config.to_emails.mkString(",")}")
                 Utilities.sendEmail(
                     smtpHost,
                     smtpPort,
                     config.from_email,
                     config.to_emails.toArray,
-                    s"Refined datasets missing for $inputDescription -> $outputDescription",
-                    report
+                    s"RefineMonitor problem report for $inputDescription -> $outputDescription",
+                    report.mkString
                 )
             }
         }

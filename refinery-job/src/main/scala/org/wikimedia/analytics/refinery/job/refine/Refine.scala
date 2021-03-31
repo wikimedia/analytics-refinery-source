@@ -86,7 +86,7 @@ object Refine extends LogHelper with ConfigHelper {
                 }
                 // Ensure that input_path_regex_capture_groups contains "table", as this is needed
                 // to determine the Hive table name we will refine into.
-                if (!input_path_regex_capture_groups.get.contains("table")) {
+                else if (!input_path_regex_capture_groups.get.contains("table")) {
                     illegalArgumentMessages +=
                         s"Invalid <input-capture> $input_path_regex_capture_groups. " +
                         "Must at least contain 'table' as a named capture group."
@@ -124,8 +124,12 @@ object Refine extends LogHelper with ConfigHelper {
 
     object Config {
         // This is just used to ease generating help message with default values.
-        // Required configs are set to dummy values.
-        val default: Config = Config()
+        // Required configs are set to dummy values so that validate() will succeed.
+        val default: Config = new Config(
+            input_database = Some("_INPUT_EXAMPLE_"),
+            output_database = Some("_OUTPUT_EXAMPLE_"),
+            output_path = Some("_OUTPUT_EXAMPLE_")
+        )
 
         val propertiesDoc: ListMap[String, String] = ListMap(
             "config_file <file1.properties,files2.properties>" ->
@@ -144,7 +148,7 @@ object Refine extends LogHelper with ConfigHelper {
                 """Base path of output data and of external Hive tables.  Completed refine targets
                   |are expected to be found here in subdirectories based on extracted table names.""",
             "output_database" ->
-                s"Hive database name in which to manage refined Hive tables.  Default: ${default.output_database}",
+                s"Hive database name in which to manage refined Hive tables.",
             "since" ->
                 s"""Look for refine targets since this date time.  This may either be given as an integer
                    |number of hours ago, or an ISO-8601 formatted date time.  Default: ${default.since}""",
@@ -163,8 +167,7 @@ object Refine extends LogHelper with ConfigHelper {
                 s"""This should be a comma separated list of named capture groups
                    |corresponding to the groups captured byt input-regex.  These need to be
                    |provided in the order that the groups are captured.  This ordering will
-                   |also be used for partitioning.  Ignored if using input_database.
-                   |Default: ${default.input_path_regex_capture_groups.mkString(",")}""",
+                   |also be used for partitioning.  Ignored if using input_database.""",
             "input_path_datetime_format" ->
                 s"""This DateTimeFormat will be used to generate all possible partitions since
                    |the given since property in each dataset directory.  This format will be used
