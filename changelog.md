@@ -1,3 +1,7 @@
+## v0.1.4
+* Include RefineFailuresChecker functionality into RefineMonitor and fix bug in Refine.Config
+* Switch to eventutilities 1.0.5
+
 ## v0.1.3
 * Improve Refine failure report email
 * Add support for finding RefineTarget inputs from Hive
