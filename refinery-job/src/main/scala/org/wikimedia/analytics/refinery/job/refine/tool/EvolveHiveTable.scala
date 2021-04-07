@@ -7,11 +7,10 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.job.refine.EventSparkSchemaLoader
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
-
-import scala.collection.JavaConverters._
 
 /**
   * A simple CLI tool to manually evolve (or create!) Hive tables from JSONSchemas.
@@ -79,7 +78,7 @@ object EvolveHiveTable extends ConfigHelper {
         baseSchemaUris: Seq[String] = EvolveHiveTable.BASE_SCHEMA_URIS_DEFAULT,
         spark: SparkSession
     ): EvolveHiveTable = {
-        new EvolveHiveTable(new EventSchemaLoader(baseSchemaUris.asJava), spark)
+        new EvolveHiveTable(EventSparkSchemaLoader.buildEventSchemaLoader(baseSchemaUris), spark)
     }
 
 }

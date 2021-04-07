@@ -1,8 +1,15 @@
 package org.wikimedia.analytics.refinery.job.refine
 
+import scala.collection.immutable.ListMap
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.forkjoin.ForkJoinPool
+import scala.util.{Success, Try}
+import scala.util.matching.Regex
+
+import cats.syntax.either._
 import com.github.nscala_time.time.Imports._
 import io.circe.Decoder
-import cats.syntax.either._
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.PermissiveMode
@@ -12,15 +19,7 @@ import org.wikimedia.analytics.refinery.core.config._
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
-import org.wikimedia.eventutilities.core.event.{EventLoggingSchemaLoader, EventSchemaLoader}
-
-import scala.collection.JavaConverters._
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
-import scala.util.matching.Regex
-import scala.util.{Success, Try}
+import org.wikimedia.eventutilities.core.event.WikimediaDefaults
 
 /**
   * Looks for hourly input partition directories with data that need refinement,
@@ -62,13 +61,13 @@ object Refine extends LogHelper with ConfigHelper {
         corrupt_record_failure_threshold    : Integer = 1
     ) {
         // Call validate now so we can throw at instantiation if this Config is not valid.
-        validate
+        validate()
 
         /**
           * Validates that configs as provided make sense.
-          * Throws InvalidArgumentException if not.
+          * Throws IllegalArgumentException if not.
           */
-         private def validate: Unit = {
+         private def validate(): Unit = {
             val illegalArgumentMessages: ArrayBuffer[String] = ArrayBuffer()
 
             if (input_path.isDefined && input_database.isDefined) {
@@ -582,13 +581,10 @@ object Refine extends LogHelper with ConfigHelper {
         val schemaLoader =  schemaBaseUris match {
             case Seq() => ExplicitSchemaLoader(None)
             // eventlogging is a special case.
-            case Seq("eventlogging") => new EventSparkSchemaLoader(new EventLoggingSchemaLoader())
-            case baseUris: Seq[String] => {
-                new EventSparkSchemaLoader(new EventSchemaLoader(
-                    baseUris.asJava,
-                    schemaField
-                ))
-            }
+            case Seq("eventlogging") =>
+                new EventSparkSchemaLoader(WikimediaDefaults.EVENTLOGGING_SCHEMA_LOADER)
+            case baseUris: Seq[String] =>
+                EventSparkSchemaLoader(baseUris, loadLatest=true, Some(schemaField))
         }
 
         RefineTarget.find(
