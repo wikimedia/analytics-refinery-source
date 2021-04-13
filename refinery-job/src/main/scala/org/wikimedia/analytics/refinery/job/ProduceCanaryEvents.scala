@@ -273,9 +273,10 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
                 log.info("All canary events successfully produced.");
             } else {
                 val failuresDescription = failures.map({
-                    case (uri, httpResult) => s"POST $uri =>\n  $httpResult"
+                    case (uri, httpResult) =>
+                        s"POST $uri => $httpResult. Response body:\n  ${httpResult.getBodyAsString}"
                 }).mkString("\n\n")
-                log.error("Some canary events failed to be produced\n" + failuresDescription);
+                log.error("Some canary events failed to be produced:\n" + failuresDescription);
             }
 
             failures.isEmpty
