@@ -186,7 +186,7 @@ trait ConfigHelper {
     }
 
     /**
-      * Pretty prints a Scala value similar to its source represention.
+      * Pretty prints a Scala value similar to its source representation.
       * Particularly useful for case classes.
       *
       * This is useful for printing out final ConfigHelper loaded configuration case classes.

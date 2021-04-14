@@ -2,12 +2,12 @@ package org.wikimedia.analytics.refinery.spark.sql
 
 import java.util.UUID
 import scala.util.matching.Regex
-
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.types._
-import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+
 import scala.util.Try
 
 /**
@@ -39,19 +39,13 @@ object HiveExtensions extends LogHelper {
     val sanitizeFieldPattern: Regex = "(^[^A-Za-z_]|[^A-Za-z0-9_])".r
 
     /**
-      * Normalizes a Hive table or field name using sanitizeFieldPattern.
+      * Normalizes a Hive table or field name using HivePartition.normalize.
       * @param name name to normalize
       * @param lowerCase whether to convert the name to lower case.
       * @return
       */
     def normalizeName(name: String, lowerCase: Boolean = true): String = {
-        val sanitizedName = sanitizeFieldPattern.replaceAllIn(name, "_")
-
-        if (lowerCase) {
-          sanitizedName.toLowerCase
-        } else {
-          sanitizedName
-        }
+        HivePartition.normalize(name, lowerCase)
     }
 
     /**

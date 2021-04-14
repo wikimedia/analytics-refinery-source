@@ -23,7 +23,7 @@ class TestHivePartition extends FlatSpec with Matchers {
     val dynamicPartition = partition.copy(partitions = partitions + ("month" -> None))
 
     it should "normalized fully qualified table name" in {
-        partition.tableName should equal(s"`$database`.`${table.replace("-", "_")}`")
+        partition.tableName should equal(s"`$database`.`${table.replace("-", "_").toLowerCase}`")
     }
 
     it should "have partition keys" in {
@@ -64,7 +64,7 @@ class TestHivePartition extends FlatSpec with Matchers {
             database, baseLocation, s"/path/to/raw/hourly/dc2_Test-Table2/2015/05", regex
         )
 
-        p.tableName should equal(s"`$database`.`Test_Table2`")
+        p.tableName should equal(s"`$database`.`test_table2`")
         p.path should equal(s"$baseLocation/${p.table}/datacenter=dc2/year=2015/month=5")
 
         val partitionShouldBe = ListMap(
