@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.core
 
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
 
-import scala.collection.immutable.{ListMap, Set}
+import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
 
 
@@ -131,12 +131,26 @@ object HivePartition {
     val possibleDateTimePartitionKeys: Seq[String] = Seq("year", "month", "day", "hour")
 
     /**
-      *
-      * @param s The string to normalize
+      * This regex will be used to replace characters in field names that
+      * are likely not compatible in most SQL contexts.
+      * This regex uses the Avro rules. https://avro.apache.org/docs/1.8.0/spec.html#names
+      */
+    val sanitizeFieldPattern: Regex = "(^[^A-Za-z_]|[^A-Za-z0-9_])".r
+
+    /**
+      * Normalizes a Hive table or field name using sanitizeFieldPattern.
+      * @param name name to normalize
+      * @param lowerCase whether to convert the name to lower case.
       * @return
       */
-    def normalize(s: String): String = {
-        s.replace("-", "_")
+    def normalize(name: String, lowerCase: Boolean = true): String = {
+        val sanitizedName = sanitizeFieldPattern.replaceAllIn(name, "_")
+
+        if (lowerCase) {
+            sanitizedName.toLowerCase
+        } else {
+            sanitizedName
+        }
     }
 
     /**
@@ -274,7 +288,6 @@ object HivePartition {
             case keys if keys.contains("day") => keys.contains("month") && keys.contains("year")
             case keys if keys.contains("month") => keys.contains("year")
             case keys => keys.contains("year")
-            case _ => false
         }
     }
 

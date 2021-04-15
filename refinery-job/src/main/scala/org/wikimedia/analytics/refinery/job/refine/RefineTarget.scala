@@ -865,8 +865,8 @@ object RefineTarget {
                     // then keep it.
                     val m = inputPathRegex.findFirstMatchIn(partitionPath.toString)
                     val tableMatched = if (m.isDefined) {
-                        val tableName = m.get.group("table")
-                        shouldInclude(tableName.toLowerCase, tableIncludeRegex, tableExcludeRegex)
+                        val tableName = HivePartition.normalize(m.get.group("table"))
+                        shouldInclude(tableName, tableIncludeRegex, tableExcludeRegex)
                     }
                     else {
                         false
@@ -904,7 +904,8 @@ object RefineTarget {
         val partitionsSQLClause = HivePartition.getBetweenCondition(since, until)
 
         val tableNames = getTableNames(spark, inputDatabase).filter(t => {
-            shouldInclude(t.toLowerCase, tableIncludeRegex, tableExcludeRegex)
+            val tableName = HivePartition.normalize(t)
+            shouldInclude(tableName, tableIncludeRegex, tableExcludeRegex)
         })
 
         // In parallel, get a map of table names to partitionPaths

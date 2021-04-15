@@ -25,10 +25,10 @@ object RefineSanitize extends LogHelper with ConfigHelper
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        val default = Config("")
+        val default: Config = Config("")
 
         // RefineSanitize accepts all Refine options plus some extras.
-        val propertiesDoc = Refine.Config.propertiesDoc ++ ListMap(
+        val propertiesDoc: Map[String, String] = Refine.Config.propertiesDoc ++ ListMap(
             "allowlist_path" ->
                 "Path to the sanitization allowlist file.",
             "salts_path" ->
@@ -67,9 +67,10 @@ object RefineSanitize extends LogHelper with ConfigHelper
             val config = try {
                 configureArgs[Config] (args)
             } catch {
-                case e: ConfigHelperException =>
-                    log.fatal (e.getMessage + ". Aborting.")
+                case e: ConfigHelperException => {
+                    log.fatal(e.getMessage + ". Aborting.")
                     sys.exit(1)
+                }
             }
 
             log.info("Loaded RefineSanitize config:\n" + prettyPrint(config))
@@ -145,7 +146,7 @@ object RefineSanitize extends LogHelper with ConfigHelper
         Refine(spark)(
             refineConfig.copy(
                 table_include_regex=tableIncludeRegex,
-                transform_functions=refineConfig.transform_functions :+ sanitize.asInstanceOf[Refine.TransformFunction]
+                transform_functions=refineConfig.transform_functions :+ sanitize
             )
         )
     }

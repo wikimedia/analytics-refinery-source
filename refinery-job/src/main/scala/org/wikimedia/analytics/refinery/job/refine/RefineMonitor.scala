@@ -82,9 +82,10 @@ object RefineMonitor extends LogHelper {
             val doneFlag = targets.head.doneFlag
 
             val report = new StringBuilder()
+            report ++= s"RefineMonitor found problems for $inputDescription -> $outputDescription:\n\n"
             report ++= s"The following dataset targets in $inputDescription between "
             report ++= s"${config.since} and ${config.until} either have failed or still need refinement "
-            report ++= s"into the output path ${config.output_path.get}."
+            report ++= s"into $outputDescription."
 
             if (failedRefineTargets.nonEmpty) {
                 report ++= "\n\nTargets with failures:\n"
@@ -104,13 +105,16 @@ object RefineMonitor extends LogHelper {
                 val smtpHost = config.smtp_uri.split(":")(0)
                 val smtpPort = config.smtp_uri.split(":")(1)
 
+                val jobName = spark.conf.get("spark.app.name")
+                val subject = s"RefineMonitor problem report for job $jobName"
+
                 log.info(s"Sending problem email report to ${config.to_emails.mkString(",")}")
                 Utilities.sendEmail(
                     smtpHost,
                     smtpPort,
                     config.from_email,
                     config.to_emails.toArray,
-                    s"RefineMonitor problem report for $inputDescription -> $outputDescription",
+                    subject,
                     report.mkString
                 )
             }

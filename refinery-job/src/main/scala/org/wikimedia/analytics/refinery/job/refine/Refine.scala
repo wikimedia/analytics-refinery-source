@@ -4,9 +4,8 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 import scala.util.matching.Regex
-
 import cats.syntax.either._
 import com.github.nscala_time.time.Imports._
 import io.circe.Decoder
@@ -110,9 +109,13 @@ object Refine extends LogHelper with ConfigHelper {
         }
 
         /**
-          * Compiled regex with capture groups.
+          * Compiled input_path_regex with capture groups.
           */
-        lazy val inputPathRegex: Regex = {
+        def inputPathRegex: Regex = {
+            // NOTE: this could be a val, but doing so messes with ConfigHelper.prettyPrint.
+            // prettyPrint uses reflection to match case class constructor property names with
+            // class vals, and if the number of constructor properties is different than the number
+            // of vals, it falls back to toString.
             new Regex(
                 // We know these are defined, as validate will have thrown if not.
                 input_path_regex.get,
@@ -161,6 +164,9 @@ object Refine extends LogHelper with ConfigHelper {
                    |partitions from the input path.  You are required to capture at least "table"
                    |using this regex.  The default will match an hourly bucketed Camus import hierarchy,
                    |using the topic name as the table name.  Ignored if using input_database.
+                   |This is matched against directory paths, NOT Hive normalized table names, so
+                   |even though extracted table name will eventually be normalized, this
+                   |regex will match against the directory paths before normalization.
                    |Default: ${default.input_path_regex}""",
             "input_path_regex_capture_groups" ->
                 s"""This should be a comma separated list of named capture groups
@@ -178,9 +184,11 @@ object Refine extends LogHelper with ConfigHelper {
                    |import hierarchy.  Ignored if using input_database.
                    |Default: ${default.input_path_datetime_format}""",
             "table_include_regex" ->
-                "Regex of table names to look for.",
+                """Regex of table names to look for. Matched against Hive normalized table names,
+                |so make sure your regex is normalized (lowercased, etc.) accordingly.""",
             "table_exclude_regex" ->
-                "Regex of table names to skip.",
+                """Regex of table names to skip. Matched against Hive normalized table names,
+                |so make sure your regex is normalized (lowercased, etc.) accordingly.""",
             "transform_functions" ->
                 s"""Comma separated list of fully qualified module.ObjectNames.  The objects'
                    |apply methods should take a DataFrame and a HivePartition and return
@@ -266,7 +274,6 @@ object Refine extends LogHelper with ConfigHelper {
             |   --table_exclude_regex       '.*page_properties_change.*'
             |"""
 
-
         /**
           * Loads Config from args
           */
@@ -274,11 +281,11 @@ object Refine extends LogHelper with ConfigHelper {
             val config = try {
                 configureArgs[Config](args)
             } catch {
-                case e: ConfigHelperException =>
+                case e: ConfigHelperException => {
                     log.fatal(e.getMessage + ". Aborting.")
                     sys.exit(1)
+                }
             }
-
             log.info("Loaded Refine config:\n" + prettyPrint(config))
             config
         }
@@ -397,25 +404,26 @@ object Refine extends LogHelper with ConfigHelper {
             // not yet exist, we want the first target here to issue a CREATE, while the
             // next one to use the created table, or ALTER it if necessary.  We don't
             // want multiple CREATEs for the same table to happen in parallel.
-            if (!config.dry_run)
+            if (!config.dry_run) {
                 table -> refineTargets(
                     spark,
                     tableTargets.seq,
                     config.transform_functions,
                     config.corrupt_record_failure_threshold
                 )
-            // If dry_run was given, don't refine, just map to Successes.
-            else
+            } // If dry_run was given, don't refine, just map to Successes.
+            else {
                 table -> tableTargets.seq.map(Success(_))
+            }
         }
 
-        // Log successes and failures.
-        val successesByTable = jobStatusesByTable.map(t => t._1 -> t._2.filter(_.isSuccess))
-        val failuresByTable = jobStatusesByTable.map(t => t._1 -> t._2.filter(_.isFailure))
-
-        var hasFailures = false
+        // Log successes:
+        // Map of table name to Seq[Success[RefineTarget]]
+        val successesByTable = jobStatusesByTable
+            .mapValues(_.filter(_.isSuccess))
+            .filter(_._2.nonEmpty)
         if (successesByTable.nonEmpty) {
-            for ((table, successes) <- successesByTable.filter(_._2.nonEmpty)) {
+            for ((table, successes) <- successesByTable) {
                 val totalRefinedRecordCount = targetsByTable(table).map(_.recordCount).sum
                 log.info(
                     s"Successfully refined ${successes.length} of ${targetsByTable(table).size} " +
@@ -424,52 +432,72 @@ object Refine extends LogHelper with ConfigHelper {
             }
         }
 
+        // Log failures, and send an email report of failures if configured to do so:
+        // Map of table name to Seq[RefineTargetException]
+        val exceptionsByTable = jobStatusesByTable.mapValues({ tries: Seq[Try[RefineTarget]] =>
+            tries.collect { case Failure(e) => e }
+        }).filter(_._2.nonEmpty)
+
         // Build a report string about any encountered failures.
+        var hasFailures = false
         var reportBody = ""
         var earliestFailureDt = config.since
         var latestFailureDt = config.until
-        if (failuresByTable.nonEmpty) {
+        if (exceptionsByTable.nonEmpty) {
+            val inputDescription = if (config.input_path.isDefined) {
+                s"path ${config.input_path.get}"
+            } else {
+                s"database ${config.input_database}"
+            }
+            val outputDescription =
+                s"database ${config.output_database.get} (${config.output_path.get})"
 
-            for ((table, failures) <- failuresByTable.filter(_._2.nonEmpty)) {
-                val sortedFailures = failures.sortBy((t) => {
-                    t.get.partition.dt.getOrElse(new DateTime(0))
-                })
+            reportBody += s"Refine failures for $inputDescription -> $outputDescription\n\n"
 
-                val earliestFailureTarget = sortedFailures.head.get
+            for ((table, exceptions) <- exceptionsByTable) {
+                // Get the RefineTargets out of all the RefineTargetExceptions
+                // and sort by dt.  Then use the earliest and latest failed
+                // RefineTarget to build helpful information about how to rerun.
+                val sortedFailedTargets: Seq[RefineTarget] = exceptions
+                    .collect { case e: RefineTargetException => e.target }
+                    .sortBy  { t => t.partition.dt.getOrElse(new DateTime(0)) }
 
-                if (
-                    earliestFailureTarget.partition.dt.isDefined &&
-                    earliestFailureTarget.partition.dt.get < earliestFailureDt
-                ) {
-                    earliestFailureDt = earliestFailureTarget.partition.dt.get
+                earliestFailureDt = sortedFailedTargets.head match {
+                    case t if t.partition.dt.isDefined && t.partition.dt.get < earliestFailureDt =>
+                        t.partition.dt.get
+                    case _ => earliestFailureDt
                 }
 
-                val latestFailureTarget = sortedFailures.last.get
-                if (
-                    latestFailureTarget.partition.dt.isDefined &&
-                    latestFailureTarget.partition.dt.get > latestFailureDt
-                ) {
-                    latestFailureDt = latestFailureTarget.partition.dt.get
+                latestFailureDt = sortedFailedTargets.last match {
+                    case t if t.partition.dt.isDefined && t.partition.dt.get > latestFailureDt =>
+                        t.partition.dt.get
+                    case _ => latestFailureDt
                 }
 
                 // Log each failed refinement.
                 val message =
-                    s"The following ${failures.length} of ${targetsByTable(table).size} " +
-                    s"dataset partitions for table $table failed refinement:\n\t" +
-                    failures.mkString("\n\t")
+                    s"The following ${exceptions.length} of ${targetsByTable(table).size} " +
+                    s"dataset partitions for output table $table failed refinement:\n\t" +
+                    exceptions.mkString("\n\t")
 
                 log.error(message)
                 reportBody += "\n\n" + message
-
                 hasFailures = true
             }
 
             reportBody += s"\n\napplicationId: ${spark.sparkContext.applicationId}"
 
-            val tablesWithFailuresRegex = failuresByTable.keys.mkString("|")
+            // Get a usable table_include_regex for rerunOptions.
+            // We need to use the target.partition.table here, as the
+            // tableName keys in exceptionsByTable are fully qualified like `db`.`table`,
+            // and we need just table for the table_include_regex
+            val tablesWithFailuresRegex = exceptionsByTable.collect {
+                case (_, rtes: Seq[RefineTargetException]) => rtes.head.target.partition.table
+            }.mkString("|")
+
             val rerunOptions = Seq(
                 "--ignore_failure_flag=true",
-                s"--table_whitelist_regex='$tablesWithFailuresRegex'",
+                s"--table_include_regex='$tablesWithFailuresRegex'",
                 s"--since='${earliestFailureDt.hourOfDay().roundFloorCopy()}'",
                 s"--until='${latestFailureDt.hourOfDay().roundCeilingCopy()}"
             )
@@ -483,8 +511,9 @@ object Refine extends LogHelper with ConfigHelper {
             val smtpHost = config.smtp_uri.split(":")(0)
             val smtpPort = config.smtp_uri.split(":")(1)
 
+
             val jobName = spark.conf.get("spark.app.name")
-            val subject = s"Refine failures for job $jobName: $config.input_path -> $config.output_path"
+            val subject = s"Refine failures for job $jobName"
 
             log.info(s"Sending failure email report to ${config.to_emails.mkString(",")}")
             Utilities.sendEmail(
@@ -686,10 +715,12 @@ object Refine extends LogHelper with ConfigHelper {
 
                 target.success(recordCount)
             } catch {
-                case e: Exception =>
+                case e: Exception => {
                     log.error(s"Failed refinement of dataset $target.", e)
                     target.writeFailureFlag()
-                    target.failure(e)
+                    val f = target.failure(e)
+                    f
+                }
             }
         })
     }
