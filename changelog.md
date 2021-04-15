@@ -1,3 +1,8 @@
+## v0.1.5
+* Fix bug in Refine where table regexes were not matching properly
+* Factor our HiveExtensions.normalizeName to HivePartition.normalize.
+* ProduceCanaryEvents - include httpRequest body in failure message
+
 ## v0.1.4
 * Include RefineFailuresChecker functionality into RefineMonitor and fix bug in Refine.Config
 * Switch to eventutilities 1.0.5
