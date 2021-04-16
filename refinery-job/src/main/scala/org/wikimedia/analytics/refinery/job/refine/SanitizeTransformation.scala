@@ -509,7 +509,7 @@ object SanitizeTransformation extends LogHelper {
             }
             // Table is in the allowlist as keep_all: return DataFrame as is.
             case Some(`keepAllTag`) => {
-                log.debug(s"$tableName is marked as keep_all, returning the DataFrame as is.")
+                log.debug(s"$tableName is marked as $keepAllTag, returning the DataFrame as is.")
                 partDf
             }
             // Table is in the allowlist and has further specifications:
@@ -538,7 +538,7 @@ object SanitizeTransformation extends LogHelper {
                     sanitizationMask
                 )
             case _ => throw new IllegalArgumentException(
-                s"Invalid allowlist value for table '$tableName'."
+                s"Invalid allowlist value for table `$tableName`."
             )
         }
     }
@@ -653,16 +653,23 @@ object SanitizeTransformation extends LogHelper {
                         )
                 }
                 case _ => throw new IllegalArgumentException(
-                    s"Invalid allowlist value for nested field '${field.name}'."
+                    s"Invalid allowlist value ${allowlistValue} for nested field ${field.toDDL}"
                 )
             }
             case _ => allowlistValue match {
                 // The field is not nested. Build the MaskNode accordingly.
                 case `keepTag` => ValueMaskNode(Identity())
-                case `hashTag` if field.dataType == StringType && salt.isDefined =>
+                case `hashTag` if field.dataType == StringType => {
+                    if (salt.isEmpty) {
+                        throw new IllegalArgumentException(
+                            s"Salt must be defined in order to use allowlist value " +
+                            s"$allowlistValue for field ${field.toDDL}"
+                        )
+                    }
                     ValueMaskNode(Hash(salt.get))
+                }
                 case _ => throw new IllegalArgumentException(
-                    s"Invalid salt or allowlist value for non-nested field '${field.name}'."
+                    s"Invalid allowlist value ${allowlistValue} for field ${field.toDDL}"
                 )
             }
         }
