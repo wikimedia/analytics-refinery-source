@@ -121,7 +121,6 @@ public class GetUAPropertiesUDF extends GenericUDF {
      * @return
      * @throws HiveException
      */
-    @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         assert uaParser != null: "Evaluate called without initializing 'uaParser'";

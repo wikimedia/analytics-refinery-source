@@ -18,8 +18,6 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.joda.time.format.ISODateTimeFormat;
-import org.wikimedia.analytics.refinery.core.Utilities;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
