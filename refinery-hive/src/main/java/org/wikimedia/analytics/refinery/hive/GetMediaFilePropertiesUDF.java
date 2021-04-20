@@ -14,16 +14,18 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.wikimedia.analytics.refinery.core.media.MediaType;
 import org.wikimedia.analytics.refinery.core.media.MediaFileUrlParser;
 import org.wikimedia.analytics.refinery.core.media.MediaFileUrlInfo;
@@ -56,9 +58,10 @@ import java.util.List;
         value = "_FUNC_(url) - Returns a map of details to a media file url",
         extended = "argument 0 is the url to analyze")
 public class GetMediaFilePropertiesUDF extends GenericUDF {
-    private Object[] result;
+    private Converter[] converters = new Converter[1];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
 
-    private StringObjectInspector inputOI;
+    private Object[] result;
 
     private int IDX_BASE_NAME;
     private int IDX_IS_ORIGINAL;
@@ -74,15 +77,11 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
             throws UDFArgumentException {
+
         checkArgsSize(arguments, 1, 1);
-
-        // ... and the parameter has to be a string
-        if (!(arguments[0] instanceof StringObjectInspector)) {
-            throw new UDFArgumentTypeException(0, "The parameter to "
-                    + "GetMediaFileProperties has to be a string");
-        }
-
-        inputOI = (StringObjectInspector) arguments[0];
+        checkArgPrimitive(arguments, 0);
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
         List<String> fieldNames = new LinkedList<String>();
         List<ObjectInspector> fieldOIs= new LinkedList<ObjectInspector>();
@@ -135,19 +134,12 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
 
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert arguments != null : "Method 'evaluate' of GetMediaFileProperties "
-                + "called with null arguments array";
-        assert arguments.length == 1 : "Method 'evaluate' of "
-                + "GetMediaFileProperties called arguments of length "
-                + arguments.length + " (instead of 1)";
-        // arguments is an array with exactly 1 entry.
-
         assert result != null : "Result object has not yet been initialized, "
                 + "but evaluate called";
         // result object has been initialized. So it's an array of objects of
         // the right length.
 
-        String url = inputOI.getPrimitiveJavaObject(arguments[0].get());
+        String url = getStringValue(arguments, 0, converters);
 
         MediaFileUrlInfo info = MediaFileUrlParser.parse(url);
 

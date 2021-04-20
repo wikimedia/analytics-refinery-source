@@ -16,6 +16,8 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.session.SessionState;
@@ -23,10 +25,9 @@ import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.maxmind.ISPDatabaseReader;
 
@@ -56,9 +57,10 @@ import java.util.Map;
         + "Returns a map with isp, organization, autonomous_system_organization, autonomous_system_number "
         + "keys and the appropriate values for each of them")
 public class GetISPDataUDF extends GenericUDF {
+    private Converter[] converters = new Converter[1];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
 
     Map<String, String> result;
-    private ObjectInspector argumentOI;
     private ISPDatabaseReader maxMindISP;
 
     static final Logger LOG = Logger.getLogger(GetISPDataUDF.class.getName());
@@ -108,18 +110,9 @@ public class GetISPDataUDF extends GenericUDF {
         initializeReader(SessionState.get());
 
         checkArgsSize(arguments, 1, 1);
-        ObjectInspector arg1 = arguments[0];
         checkArgPrimitive(arguments, 0);
-
-        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg1).getPrimitiveCategory();
-
-        if (primitiveCategory != PrimitiveCategory.STRING) {
-            throw new UDFArgumentTypeException(0,
-                    "A string argument was expected but an argument of type " + arg1.getTypeName()
-                            + " was given.");
-        }
-
-        argumentOI = arg1;
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
         result = new HashMap<>();
 
@@ -163,15 +156,13 @@ public class GetISPDataUDF extends GenericUDF {
 
         result.clear();
 
-        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
-            String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            Map<String, String> ispDataResult = maxMindISP.getResponse(ip).getMap();
-            if (ispDataResult != null) {
-                for (String field : ispDataResult.keySet()) {
-                    Object value = ispDataResult.get(field);
-                    if (value != null) {
-                        result.put(field, value.toString());
-                    }
+        String ip = getStringValue(arguments, 0, converters);
+        Map<String, String> ispDataResult = maxMindISP.getResponse(ip).getMap();
+        if (ispDataResult != null) {
+            for (String field : ispDataResult.keySet()) {
+                Object value = ispDataResult.get(field);
+                if (value != null) {
+                    result.put(field, value.toString());
                 }
             }
         }

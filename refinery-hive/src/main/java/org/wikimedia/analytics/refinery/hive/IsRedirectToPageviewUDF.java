@@ -19,8 +19,6 @@ package org.wikimedia.analytics.refinery.hive;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
@@ -61,29 +59,20 @@ import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 @UDFType(deterministic = true)
 public class IsRedirectToPageviewUDF extends IsPageviewUDF {
 
-
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException{
 
-        String uriHost = PrimitiveObjectInspectorUtils.getString(
-            arguments[0].get(), (PrimitiveObjectInspector) argumentsOI[0]);
-        String uriPath = PrimitiveObjectInspectorUtils.getString(
-            arguments[1].get(), (PrimitiveObjectInspector) argumentsOI[1]);
-        String uriQuery = PrimitiveObjectInspectorUtils.getString(
-            arguments[2].get(), (PrimitiveObjectInspector) argumentsOI[2]);
-        ;
-        String httpStatus = PrimitiveObjectInspectorUtils.getString(
-            arguments[3].get(), (PrimitiveObjectInspector) argumentsOI[3]);
-        String contentType = PrimitiveObjectInspectorUtils.getString(
-            arguments[4].get(), (PrimitiveObjectInspector) argumentsOI[4]);
-        String userAgent = PrimitiveObjectInspectorUtils.getString(
-            arguments[5].get(), (PrimitiveObjectInspector) argumentsOI[5]);
+        String uriHost = getStringValue(arguments, 0, converters);
+        String uriPath = getStringValue(arguments, 1, converters);
+        String uriQuery = getStringValue(arguments, 2, converters);
+        String httpStatus = getStringValue(arguments, 3, converters);
+        String contentType = getStringValue(arguments, 4, converters);
+        String userAgent = getStringValue(arguments, 5, converters);
 
         String rawXAnalyticsHeader = "";
 
         if (checkForXAnalytics) {
-            rawXAnalyticsHeader = PrimitiveObjectInspectorUtils.getString(
-                arguments[6].get(), (PrimitiveObjectInspector) argumentsOI[6]);
+            rawXAnalyticsHeader = getStringValue(arguments, 6, converters);
         }
 
         WebrequestData webrequestData = new WebrequestData(uriHost, uriPath,

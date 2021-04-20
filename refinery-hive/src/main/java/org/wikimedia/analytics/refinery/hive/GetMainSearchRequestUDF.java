@@ -17,6 +17,8 @@ package org.wikimedia.analytics.refinery.hive;
 
 import java.util.List;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -24,9 +26,9 @@ import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 
 /**
  * Returns the primary full text search request from provided list of requests.
@@ -52,21 +54,24 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspe
     value = "_FUNC_(wiki, requests) - Returns the primary full text search request from requests")
 @UDFType(deterministic = true)
 public class GetMainSearchRequestUDF extends GenericUDF {
+    private Converter[] converters = new Converter[2];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[2];
+
     final private static String FULL_TEXT = "full_text";
 
-    private StringObjectInspector wikiOI;
     private ListObjectInspector listOI;
     private CirrusRequestDeser deser;
 
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
-        GenericUDFHelper argsHelper = new GenericUDFHelper();
         checkArgsSize(arguments, 2, 2);
 
         // first argument must be a string
-        argsHelper.checkArgType(arguments, 0, PrimitiveCategory.STRING);
-        wikiOI = (StringObjectInspector) arguments[0];
+        checkArgPrimitive(arguments, 0);
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
+        GenericUDFHelper argsHelper = new GenericUDFHelper();
         // second argument must be an array of structs
         argsHelper.checkListArgType(arguments, 1, ObjectInspector.Category.STRUCT);
         listOI = (ListObjectInspector) arguments[1];
@@ -85,7 +90,11 @@ public class GetMainSearchRequestUDF extends GenericUDF {
 
     @Override
     public Object evaluate(DeferredObject[] dos) throws HiveException {
-        if (dos[0].get() == null || dos[1].get() == null) {
+        String wiki = getStringValue(dos, 0, converters);
+        if (wiki == null) {
+            return null;
+        }
+        if (dos[1].get() == null) {
             return null;
         }
         if (listOI.getListLength(dos[1].get()) == 0) {
@@ -93,7 +102,6 @@ public class GetMainSearchRequestUDF extends GenericUDF {
         }
 
         List<?> requests = listOI.getList(dos[1].get());
-        String wiki = wikiOI.getPrimitiveJavaObject(dos[0].get());
         String prefix = wiki + "_";
         for (Object request : requests) {
             String[] indices = deser.getIndices(request);

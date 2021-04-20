@@ -1,17 +1,17 @@
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.wikimedia.analytics.refinery.core.*;
 
 import java.util.*;
@@ -41,11 +41,12 @@ import java.util.*;
         + "Returns a map with project_family, project, qualifiers, tld keys and "
         + "the appropriate values for each of them")
 public class GetHostPropertiesUDF extends GenericUDF {
+    private Converter[] converters = new Converter[1];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
+
     private Object[] result;
 
     private Webrequest webrequest;
-
-    private StringObjectInspector argumentOI;
 
     private int IDX_PROJECT_CLASS;
     private int IDX_PROJECT_FAMILY;
@@ -72,28 +73,13 @@ public class GetHostPropertiesUDF extends GenericUDF {
             throws UDFArgumentException {
 
         checkArgsSize(arguments, 1, 1);
-        //we are expecting the parameter to be of String type.
-        ObjectInspector arg = arguments[0];
-        int argIndex = 0;
-
         checkArgPrimitive(arguments, 0);
-
-        // Now that we have made sure that the argument is of primitive type, we can get the primitive
-        // category
-        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg)
-                .getPrimitiveCategory();
-
-        if (primitiveCategory != PrimitiveCategory.STRING) {
-            throw new UDFArgumentTypeException(argIndex,
-                    "A string argument was expected but an argument of type " + arg.getTypeName()
-                            + " was given.");
-
-        }
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
         // Instantiate the Webrequest
         webrequest = Webrequest.getInstance();
 
-        argumentOI = (StringObjectInspector) arg;
         List<String> fieldNames = new LinkedList<>();
         List<ObjectInspector> fieldOIs= new LinkedList<>();
         int idx = 0;
@@ -145,19 +131,12 @@ public class GetHostPropertiesUDF extends GenericUDF {
      */
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert arguments != null : "Method 'evaluate' of GetHostPropertiesUDF "
-                + "called with null arguments array";
-        assert arguments.length == 1 : "Method 'evaluate' of "
-                + "GetHostPropertiesUDF called arguments of length "
-                + arguments.length + " (instead of 1)";
-        // arguments is an array with exactly 1 entry.
-
         assert result != null : "Result object has not yet been initialized, "
                 + "but evaluate called";
         // result object has been initialized. So it's an array of objects of
         // the right length.
 
-        String uriHost = argumentOI.getPrimitiveJavaObject(arguments[0].get());
+        String uriHost = getStringValue(arguments, 0, converters);
 
         NormalizedHostInfo normHost = webrequest.normalizeHost(uriHost);
 

@@ -1,17 +1,17 @@
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.UAParser;
 
@@ -38,9 +38,10 @@ import java.util.Map;
         + "Returns a map with browser_name, browser_major, device, os_name, os_minor, os_major keys and "
         + "the appropriate values for each of them")
 public class GetUAPropertiesUDF extends GenericUDF {
-    private Map<String, String> emptyMap = new HashMap<String,String>();
+    private Converter[] converters = new Converter[1];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
+
     private UAParser uaParser;
-    private ObjectInspector argumentOI;
 
     // TODO figure out why not everything is logged to hive.log and some logging
     // TODO through log4j stays on the hadoop logs
@@ -64,27 +65,13 @@ public class GetUAPropertiesUDF extends GenericUDF {
             throws UDFArgumentException {
 
         checkArgsSize(arguments, 1, 1);
-        //we are expecting the parameter to be of String type.
-        ObjectInspector arg = arguments[0];
-        int argIndex = 0;
-
         checkArgPrimitive(arguments, 0);
-        // Now that we have made sure that the argument is of primitive type, we can get the primitive
-        // category
-        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg)
-                .getPrimitiveCategory();
-
-        if (primitiveCategory != PrimitiveCategory.STRING) {
-            throw new UDFArgumentTypeException(argIndex,
-                    "A string argument was expected but an argument of type " + arg.getTypeName()
-                            + " was given.");
-
-        }
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
         // Instantiate the UAParser
         uaParser = new UAParser();
 
-        argumentOI = arg;
         return ObjectInspectorFactory.getStandardMapObjectInspector(
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector,
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector);
@@ -113,13 +100,8 @@ public class GetUAPropertiesUDF extends GenericUDF {
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         assert uaParser != null: "Evaluate called without initializing 'uaParser'";
 
-        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
-            String ua = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            return uaParser.getUAMap(ua);
-        }
-
-        // Return an empty map in case of arguments irregularity
-        return emptyMap;
+        String ua = getStringValue(arguments, 0, converters);
+        return uaParser.getUAMap(ua);
     }
 
     /**

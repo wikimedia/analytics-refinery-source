@@ -16,16 +16,17 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.io.Text;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.maxmind.CountryDatabaseReader;
@@ -55,9 +56,10 @@ import java.io.IOException;
         value = "_FUNC_(ip) - returns the ISO country code that corresponds to the given IP",
         extended = "")
 public class GetCountryISOCodeUDF extends GenericUDF {
+    private Converter[] converters = new Converter[1];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
 
     private final Text result = new Text();
-    private ObjectInspector argumentOI;
     private CountryDatabaseReader maxMindCountryCode;
 
     static final Logger LOG = Logger.getLogger(GetCountryISOCodeUDF.class.getName());
@@ -95,19 +97,9 @@ public class GetCountryISOCodeUDF extends GenericUDF {
         initializeReader(SessionState.get());
 
         checkArgsSize(arguments, 1, 1);
-        ObjectInspector arg1 = arguments[0];
-
         checkArgPrimitive(arguments, 0);
-        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg1).getPrimitiveCategory();
-
-        if (primitiveCategory != PrimitiveCategory.STRING) {
-            throw new UDFArgumentTypeException(0,
-                    "A string argument was expected but an argument of type " + arg1.getTypeName()
-                            + " was given.");
-        }
-
-        //Cache the argument to be used in evaluate
-        argumentOI = arg1;
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
         return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
     }
@@ -130,10 +122,8 @@ public class GetCountryISOCodeUDF extends GenericUDF {
 
         result.clear();
 
-        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
-            String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            result.set(maxMindCountryCode.getResponse(ip).getCountryCode());
-        }
+        String ip = getStringValue(arguments, 0, converters);
+        result.set(maxMindCountryCode.getResponse(ip).getCountryCode());
         return result;
     }
 

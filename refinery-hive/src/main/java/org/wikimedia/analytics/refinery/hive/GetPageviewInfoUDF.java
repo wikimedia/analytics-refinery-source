@@ -16,16 +16,18 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.Webrequest;
 
@@ -69,14 +71,14 @@ import java.util.Map;
                 + "(project, language_variant, article) for the pageview request.",
         extended = "")
 public class GetPageviewInfoUDF extends GenericUDF {
+    private Converter[] converters = new Converter[3];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[3];
 
     public static final String PROJECT_KEY = "project";
     public static final String LANGUAGE_VARIANT_KEY = "language_variant";
     public static final String PAGE_TITLE_KEY = "page_title";
 
-
     Map<String, String> result;
-    private StringObjectInspector[] inputsOI = new StringObjectInspector[3];
     private PageviewDefinition pageviewDefinition;
 
     @Override
@@ -87,12 +89,9 @@ public class GetPageviewInfoUDF extends GenericUDF {
 
         // ... and the parameters have to be strings
         for (int i = 0; i < 3; i++) {
-            if (!(arguments[i] instanceof StringObjectInspector)) {
-                throw new UDFArgumentTypeException(0, "Parameter "
-                        + Integer.toString(i) + " to GetPageviewInfoUDF "
-                        + "has to be a string");
-            }
-            inputsOI[i] = (StringObjectInspector) arguments[i];
+            checkArgPrimitive(arguments, i);
+            checkArgGroups(arguments, i, inputTypes, STRING_GROUP);
+            obtainStringConverter(arguments, i, inputTypes, converters);
         }
 
         result = new HashMap<>(3);
@@ -105,13 +104,6 @@ public class GetPageviewInfoUDF extends GenericUDF {
 
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert arguments != null : "Method 'evaluate' of GetPageviewInfoUDF "
-                + "called with null arguments array";
-        assert arguments.length == 3 : "Method 'evaluate' of "
-                + "GetPageviewInfoUDF called arguments of length "
-                + arguments.length + " (instead of 3)";
-        // arguments is an array with exactly 3 entry.
-
         assert result != null : "Result object has not yet been initialized, "
                 + "but evaluate called";
         // result map has been initialized.
@@ -121,9 +113,9 @@ public class GetPageviewInfoUDF extends GenericUDF {
 
         result.clear();
 
-        String uriHost = inputsOI[0].getPrimitiveJavaObject(arguments[0].get());
-        String uriPath = inputsOI[1].getPrimitiveJavaObject(arguments[1].get());
-        String uriQuery = inputsOI[2].getPrimitiveJavaObject(arguments[2].get());
+        String uriHost = getStringValue(arguments, 0, converters);
+        String uriPath = getStringValue(arguments, 1, converters);
+        String uriQuery = getStringValue(arguments, 2, converters);
 
         result.put(PROJECT_KEY, Webrequest.getProjectFromHost(uriHost));
         result.put(LANGUAGE_VARIANT_KEY, pageviewDefinition.getLanguageVariantFromPath(uriPath));
