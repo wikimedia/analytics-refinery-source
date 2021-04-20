@@ -1,3 +1,6 @@
+## v0.1.6
+* SanitizeTransformation - Just some simple logging improvements
+
 ## v0.1.5
 * Fix bug in Refine where table regexes were not matching properly
 * Factor our HiveExtensions.normalizeName to HivePartition.normalize.
