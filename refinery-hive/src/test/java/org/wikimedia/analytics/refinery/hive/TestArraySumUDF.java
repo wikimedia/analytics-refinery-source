@@ -18,10 +18,7 @@ package org.wikimedia.analytics.refinery.hive;
 import java.lang.Integer;
 import java.util.List;
 import java.util.ArrayList;
-import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
-import junitparams.mappers.CsvWithHeaderMapper;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -32,7 +29,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 @RunWith(JUnitParamsRunner.class)
 public class TestArraySumUDF {

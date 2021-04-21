@@ -7,8 +7,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.junit.Test;
 
-import java.util.HashMap;
-
 public class TestUAParserUDFArgumentHandling {
 
 
@@ -35,6 +33,3 @@ public class TestUAParserUDFArgumentHandling {
 
 
 }
-
-
-
