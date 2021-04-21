@@ -16,7 +16,7 @@
 
 package org.wikimedia.analytics.refinery.cassandra;
 
-import org.apache.cassandra.hadoop.ColumnFamilyOutputFormat;
+import org.apache.cassandra.hadoop.cql3.CqlOutputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 
 import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
@@ -310,8 +310,8 @@ public class CassandraXSVLoader extends Configured implements Tool {
 
         // If batch size parameters are set, use them
         if ((conf.getInt(CASSANDRA_NODES, 0) > 0) && (conf.getInt(BATCH_SIZE_PROP, 0) > 0)) {
-            conf.setInt(ColumnFamilyOutputFormat.BATCH_THRESHOLD, conf.getInt(BATCH_SIZE_PROP, 0));
-            conf.setInt(ColumnFamilyOutputFormat.QUEUE_SIZE,
+            conf.setInt(CqlOutputFormat.BATCH_THRESHOLD, conf.getInt(BATCH_SIZE_PROP, 0));
+            conf.setInt(CqlOutputFormat.QUEUE_SIZE,
                     conf.getInt(BATCH_SIZE_PROP, 0) * conf.getInt(CASSANDRA_NODES, 0) + 1);
         }
 
