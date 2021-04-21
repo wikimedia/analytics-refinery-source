@@ -290,6 +290,40 @@
     <pluginManagement>
       <plugins>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-checkstyle-plugin</artifactId>
+          <version>3.1.1</version>
+          <configuration>
+            <configLocation>org/wikimedia/discovery/build/tools/checkstyle/checkstyle.xml</configLocation>
+            <suppressionsLocation>org/wikimedia/discovery/build/tools/checkstyle/suppressions.xml</suppressionsLocation>
+            <includeTestSourceDirectory>true</includeTestSourceDirectory>
+            <consoleOutput>true</consoleOutput>
+            <failsOnError>false</failsOnError>
+            <failOnViolation>false</failOnViolation>
+          </configuration>
+          <dependencies>
+            <dependency>
+              <groupId>com.puppycrawl.tools</groupId>
+              <artifactId>checkstyle</artifactId>
+              <version>8.40</version>
+            </dependency>
+            <dependency>
+              <groupId>org.wikimedia.discovery</groupId>
+              <artifactId>discovery-maven-tool-configs</artifactId>
+              <version>${discovery-maven-tool-configs.version}</version>
+            </dependency>
+          </dependencies>
+          <executions>
+            <execution>
+              <id>checkstyle</id>
+              <goals>
+                <goal>check</goal>
+              </goals>
+              <phase>test</phase>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
           <!--
             The sonar plugin is not meant to be used locally, but is used as
             part of CI to publish static analysis results to
@@ -431,7 +465,11 @@
           <artifactId>scalatest-maven-plugin</artifactId>
           <version>1.0</version>
         </plugin>
-    </plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-checkstyle-plugin</artifactId>
+        </plugin>
+      </plugins>
     </build>
 
     <reporting>
@@ -458,6 +496,7 @@
 
     <properties>
       <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
+      <discovery-maven-tool-configs.version>1.16</discovery-maven-tool-configs.version>
       <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
       <skip.tests>false</skip.tests>
       <java.version>1.8</java.version>
