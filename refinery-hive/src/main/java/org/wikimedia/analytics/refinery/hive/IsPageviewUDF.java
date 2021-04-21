@@ -88,7 +88,6 @@ public class IsPageviewUDF extends GenericUDF {
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
 
-        GenericUDFHelper argsHelper = new GenericUDFHelper();
         //at least we should have 6 arguments
         checkArgsSize(arguments, minArguments, maxArguments);
 
@@ -97,7 +96,7 @@ public class IsPageviewUDF extends GenericUDF {
         }
 
         for (int i = 0; i < arguments.length; i++) {
-            argsHelper.checkArgPrimitive(arguments, i);
+            checkArgPrimitive(arguments, i);
         }
 
         argumentsOI = arguments;
