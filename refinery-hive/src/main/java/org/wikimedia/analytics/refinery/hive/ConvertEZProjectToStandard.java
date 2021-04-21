@@ -10,10 +10,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.io.Text;
-import org.wikimedia.analytics.refinery.core.LocaleUtil;
 import org.wikimedia.analytics.refinery.core.pagecountsEZ.EZProjectConverter;
-
-import java.util.List;
 
 /**
  * A Hive UDF to return the standard wiki name from a Pagecounts-EZ-formatted name
@@ -47,7 +44,6 @@ public class ConvertEZProjectToStandard extends GenericUDF {
         return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         result.clear();

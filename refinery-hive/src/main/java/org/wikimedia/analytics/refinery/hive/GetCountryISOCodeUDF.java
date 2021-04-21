@@ -133,7 +133,6 @@ public class GetCountryISOCodeUDF extends GenericUDF {
         super.configure(context);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         assert maxMindCountryCode != null : "Evaluate called without initializing 'maxMindCountryCode'";

@@ -16,7 +16,6 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
-import org.apache.commons.lang.LocaleUtils;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -74,7 +73,6 @@ public class GetCountryNameUDF extends GenericUDF {
         return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         result.clear();

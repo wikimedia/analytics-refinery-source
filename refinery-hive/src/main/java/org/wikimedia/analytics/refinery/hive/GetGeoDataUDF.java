@@ -166,7 +166,6 @@ public class GetGeoDataUDF extends GenericUDF {
      * @return Object Map<String, String>
      * @throws HiveException
      */
-    @SuppressWarnings("unchecked")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
         assert maxMindGeocode != null : "Evaluate called without initializing 'geocodeCity'";
