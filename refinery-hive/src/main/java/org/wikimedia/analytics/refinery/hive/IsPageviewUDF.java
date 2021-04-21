@@ -90,7 +90,7 @@ public class IsPageviewUDF extends GenericUDF {
 
         GenericUDFHelper argsHelper = new GenericUDFHelper();
         //at least we should have 6 arguments
-        argsHelper.checkArgsSize(arguments, minArguments, maxArguments);
+        checkArgsSize(arguments, minArguments, maxArguments);
 
         if (arguments.length > minArguments){
             checkForXAnalytics = true;

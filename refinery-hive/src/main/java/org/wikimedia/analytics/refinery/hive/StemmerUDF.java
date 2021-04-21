@@ -81,7 +81,7 @@ public class StemmerUDF extends GenericUDF {
      */
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
-        argsHelper.checkArgsSize(arguments, 1, 2);
+        checkArgsSize(arguments, 1, 2);
 
         for (int i = 0; i < arguments.length; i++) {
             argsHelper.checkArgPrimitive(arguments, i);

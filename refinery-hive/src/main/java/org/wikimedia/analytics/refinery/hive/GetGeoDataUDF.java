@@ -108,10 +108,7 @@ public class GetGeoDataUDF extends GenericUDF {
 
         initializeReader(SessionState.get());
 
-        if (arguments.length != 1) {
-            throw new UDFArgumentLengthException("The GetGeoDataUDF takes an array with only 1 element as argument");
-        }
-
+        checkArgsSize(arguments, 1, 1);
         ObjectInspector arg1 = arguments[0];
 
         if (arg1.getCategory() != Category.PRIMITIVE) {

@@ -19,7 +19,6 @@ import java.math.BigDecimal;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
@@ -57,8 +56,7 @@ public class ArraySumUDF extends GenericUDF {
 	@Override
 	public ObjectInspector initialize(ObjectInspector[] arguments)
 		throws UDFArgumentException{
-		GenericUDFHelper argsHelper = new GenericUDFHelper();
-		argsHelper.checkArgsSize(arguments, 1, 2);
+		checkArgsSize(arguments, 1, 2);
 
 		// first argument must be an array of numeric values
 		if (!arguments[0].getCategory().equals(ObjectInspector.Category.LIST)) {

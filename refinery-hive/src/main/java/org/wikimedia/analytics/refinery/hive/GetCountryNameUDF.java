@@ -63,7 +63,7 @@ public class GetCountryNameUDF extends GenericUDF {
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
 
         GenericUDFHelper argsHelper = new GenericUDFHelper();
-        argsHelper.checkArgsSize(arguments, 1, 1);
+        checkArgsSize(arguments, 1, 1);
         argsHelper.checkArgPrimitive(arguments, 0);
         argsHelper.checkArgType(arguments, 0, PrimitiveCategory.STRING);
 
