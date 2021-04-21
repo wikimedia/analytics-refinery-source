@@ -15,15 +15,18 @@
  */
 package org.wikimedia.analytics.refinery.core;
 
-import org.apache.commons.codec.binary.Hex;
-
 import java.io.Serializable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
+import org.apache.commons.codec.binary.Hex;
+
 /**
- * Computes a traffic actor signature as:
+ * Computes a traffic actor signature.
+ *
+ * The signature is computed as:
+ *
  * md5(
  *     concat(
  *       ip,
@@ -42,13 +45,13 @@ public class ActorSignatureGenerator implements Serializable {
     private final StringBuilder message;
 
     // Non serializable object - Transient
-    transient private MessageDigest digest;
+    private transient MessageDigest digest;
 
     private void initializeDigestIfNeeded() {
         if (digest == null) {
             try {
                 digest = MessageDigest.getInstance("MD5");
-            } catch(NoSuchAlgorithmException e) {
+            } catch (NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
         }
