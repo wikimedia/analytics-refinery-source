@@ -513,6 +513,7 @@
       <sonar.host.url>https://sonarcloud.io</sonar.host.url>
       <sonar.login>${env.SONAR_API_KEY}</sonar.login>
       <sonar.organization>wmftest</sonar.organization>
+      <sonar.java.checkstyle.reportPaths>target/checkstyle-result.xml</sonar.java.checkstyle.reportPaths>
     </properties>
 
   <profiles>
