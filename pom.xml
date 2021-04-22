@@ -339,6 +339,26 @@
           <artifactId>sonar-maven-plugin</artifactId>
           <version>3.8.0.2131</version>
         </plugin>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>0.8.6</version>
+          <executions>
+            <execution>
+              <id>default-prepare-agent</id>
+              <goals>
+                <goal>prepare-agent</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>default-report</id>
+              <goals>
+                <goal>report</goal>
+              </goals>
+              <phase>prepare-package</phase>
+            </execution>
+          </executions>
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
@@ -470,8 +490,8 @@
             <includes>
               <include>**/Test*.java</include>
             </includes>
-            <!-- Needed to avoid encoding problems when building. -->
-            <argLine>-Dfile.encoding=UTF-8</argLine>
+            <!-- argLine is forwarded from JaCoCo, and the file encoding given to avoid problems when building. -->
+            <argLine>${argLine} -Dfile.encoding=UTF-8</argLine>
           </configuration>
         </plugin>
         <plugin>
@@ -508,12 +528,35 @@
           <artifactId>scalatest-maven-plugin</artifactId>
           <version>1.0</version>
         </plugin>
+
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+        </plugin>
+
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-checkstyle-plugin</artifactId>
         </plugin>
       </plugins>
     </build>
+
+    <reporting>
+      <plugins>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <reportSets>
+            <reportSet>
+              <reports>
+                <!-- select non-aggregate reports -->
+                <report>report</report>
+              </reports>
+            </reportSet>
+          </reportSets>
+        </plugin>
+      </plugins>
+    </reporting>
 
     <properties>
       <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
