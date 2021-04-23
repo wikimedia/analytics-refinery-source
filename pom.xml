@@ -362,14 +362,48 @@
       </plugin>
 
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>findbugs-maven-plugin</artifactId>
-        <version>2.5.2</version>
-        <!--
-          <threshold>Normal</threshold> High|Normal|Low|Exp|Ignore <effort>Default</effort>Min|Default|Max
-          <debug>true</debug>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>4.0.4</version>
+        <configuration>
+          <effort>high</effort>
+          <threshold>low</threshold>
+          <excludeFilterFile>org/wikimedia/discovery/build/tools/spotbugs/spotbugs-excludes.xml</excludeFilterFile>
           <failOnError>false</failOnError>
-          -->
+          <plugins>
+            <plugin>
+              <groupId>com.mebigfatguy.sb-contrib</groupId>
+              <artifactId>sb-contrib</artifactId>
+              <version>7.4.7</version>
+            </plugin>
+            <plugin>
+              <groupId>jp.skypencil.findbugs.slf4j</groupId>
+              <artifactId>bug-pattern</artifactId>
+              <version>1.5.0</version>
+            </plugin>
+          </plugins>
+        </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs</artifactId>
+            <version>${spotbugs.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.wikimedia.discovery</groupId>
+            <artifactId>discovery-maven-tool-configs</artifactId>
+            <version>${discovery-maven-tool-configs.version}</version>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <id>spotbugs-check</id>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <phase>verify</phase>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
@@ -490,12 +524,14 @@
       <hive.version>2.3.6</hive.version>
       <scala.version>2.11.7</scala.version>
       <spark.version>2.4.4</spark.version>
+      <spotbugs.version>4.1.2</spotbugs.version>
       <camus.version>0.1.0-wmf12</camus.version>
       <guava.version>16.0</guava.version>
       <sonar.host.url>https://sonarcloud.io</sonar.host.url>
       <sonar.login>${env.SONAR_API_KEY}</sonar.login>
       <sonar.organization>wmftest</sonar.organization>
       <sonar.java.checkstyle.reportPaths>target/checkstyle-result.xml</sonar.java.checkstyle.reportPaths>
+      <sonar.java.spotbugs.reportPaths>target/spotbugsXml.xml</sonar.java.spotbugs.reportPaths>
     </properties>
 
   <profiles>
