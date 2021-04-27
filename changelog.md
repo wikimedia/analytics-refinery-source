@@ -1,3 +1,7 @@
+## v0.1.7
+* Bump to eventutilities 1.0.6
+* (Six related commits on style checking and linting)
+
 ## v0.1.6
 * SanitizeTransformation - Just some simple logging improvements
 
