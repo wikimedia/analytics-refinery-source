@@ -499,7 +499,7 @@ object Refine extends LogHelper with ConfigHelper {
                 "--ignore_failure_flag=true",
                 s"--table_include_regex='$tablesWithFailuresRegex'",
                 s"--since='${earliestFailureDt.hourOfDay().roundFloorCopy()}'",
-                s"--until='${latestFailureDt.hourOfDay().roundCeilingCopy()}"
+                s"--until='${latestFailureDt.hourOfDay().roundCeilingCopy()}'"
             )
             reportBody += s"\n\nTo rerun, use the following options:\n"
             reportBody += rerunOptions.mkString(" ")
