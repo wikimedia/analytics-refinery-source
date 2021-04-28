@@ -1,3 +1,6 @@
+## v0.1.8
+* Fix bug in RefineSanitizeMonitor when using keep_all_enabled
+
 ## v0.1.7
 * Bump to eventutilities 1.0.6
 * (Six related commits on style checking and linting)
