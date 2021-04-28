@@ -66,8 +66,9 @@ object RefineSanitizeMonitor extends LogHelper {
     ): Boolean = {
         val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
 
-        val allowlist = SanitizeTransformation.loadAllowlist(fs)(sanitizeConfig.allowlist_path)
-
+        val allowlist = SanitizeTransformation.loadAllowlist(fs)(
+            sanitizeConfig.allowlist_path, sanitizeConfig.keep_all_enabled
+        )
 
         // If --table_include_regex is not explicitly configured,
         // use the value of all table keys in the allowlist to build table_include_regex.
