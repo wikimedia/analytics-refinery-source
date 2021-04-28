@@ -124,6 +124,10 @@
       <name>Internal Snapshot Repository</name>
       <url>https://archiva.wikimedia.org/repository/snapshots/</url>
     </snapshotRepository>
+    <site>
+      <id>analytics-refinery-site</id>
+      <url>https://doc.wikimedia.org/analytics-refinery</url>
+    </site>
   </distributionManagement>
 
   <dependencyManagement>
@@ -446,6 +450,11 @@
           <configuration>
             <tagNameFormat>v@{project.version}</tagNameFormat>
             <autoVersionSubmodules>true</autoVersionSubmodules>
+            <!--
+              Only deploy code, but not site, it gets deployed via the
+              -maven-java8-docker-site-publish jenkins job instead.
+            -->
+            <goals>deploy</goals>
           </configuration>
         </plugin>
 
@@ -505,28 +514,6 @@
         </plugin>
       </plugins>
     </build>
-
-    <reporting>
-      <plugins>
-        <plugin>
-          <artifactId>maven-javadoc-plugin</artifactId>
-          <version>2.9</version>
-          <configuration>
-            <linksource>true</linksource>
-          </configuration>
-        </plugin>
-        <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>findbugs-maven-plugin</artifactId>
-          <version>2.5.2</version>
-          <!--
-            <threshold>Normal</threshold> High|Normal|Low|Exp|Ignore <effort>Default</effort>Min|Default|Max
-            <debug>true</debug>
-            <failOnError>false</failOnError>
-            -->
-        </plugin>
-      </plugins>
-    </reporting>
 
     <properties>
       <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
