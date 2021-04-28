@@ -1,3 +1,6 @@
+## v0.1.9
+* Revert addition of maven doc site generation (somehow this is causing release to fail).
+
 ## v0.1.8
 * Fix bug in RefineSanitizeMonitor when using keep_all_enabled
 
