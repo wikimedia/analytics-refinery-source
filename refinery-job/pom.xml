@@ -251,7 +251,25 @@
             <groupId>com.criteo</groupId>
             <artifactId>rsvd</artifactId>
             <version>1.0</version>
+            <exclusions>
+                <!--
+                  Excluded from here as this dependency is a snapshot
+                  from sunset https://bintray.com/
+                  Adding the actual release of the version just after
+                 -->
+                <exclusion>
+                    <groupId>net.jpountz.lz4</groupId>
+                    <artifactId>lz4</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+        <!-- Added to fix failing snapshot dependency from above -->
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.15</version>
+        </dependency>
+
 
     </dependencies>
 

@@ -1,4 +1,5 @@
 ## v0.1.10
+* Fix com.criteo:rsvd dependency issue
 * Update refinery-cassandra to cassandra 3.11
 * Report on test coverage
 * Ensure that maven site generation works.
