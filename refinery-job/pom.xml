@@ -258,8 +258,8 @@
                   Adding the actual release of the version just after
                  -->
                 <exclusion>
-                    <groupId>net.jpountz.lz4</groupId>
-                    <artifactId>lz4</artifactId>
+                    <groupId>commons-codec</groupId>
+                    <artifactId>commons-codec</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
