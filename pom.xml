@@ -490,6 +490,7 @@
               <include>**/Test*.java</include>
             </includes>
             <!-- argLine is forwarded from JaCoCo, and the file encoding given to avoid problems when building. -->
+            <!--suppress UnresolvedMavenProperty -->
             <argLine>${argLine} -Dfile.encoding=UTF-8</argLine>
           </configuration>
         </plugin>
@@ -574,6 +575,7 @@
       <spotbugs.version>4.1.2</spotbugs.version>
       <guava.version>16.0.1</guava.version>
       <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+      <!--suppress UnresolvedMavenProperty -->
       <sonar.login>${env.SONAR_API_KEY}</sonar.login>
       <sonar.organization>wmftest</sonar.organization>
       <sonar.java.checkstyle.reportPaths>target/checkstyle-result.xml</sonar.java.checkstyle.reportPaths>
