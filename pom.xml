@@ -7,7 +7,7 @@
 
   <groupId>org.wikimedia.analytics.refinery</groupId>
   <artifactId>refinery</artifactId>
-  <version>0.1.11-SNAPSHOT</version>
+  <version>0.1.11</version>
   <packaging>pom</packaging>
 
 
@@ -29,7 +29,7 @@
         SCM in CI. Namely CI pushes over https when developers typically use ssh.
     -->
     <developerConnection>${developerConnection}</developerConnection>
-    <tag>HEAD</tag>
+    <tag>v0.1.11</tag>
   </scm>
 
   <organization>
