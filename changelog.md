@@ -1,3 +1,6 @@
+## v0.1.11
+* Add scala job for reliability metrics of Wikidata
+
 ## v0.1.10
 * Fix com.criteo:rsvd dependency issue
 * Update refinery-cassandra to cassandra 3.11
