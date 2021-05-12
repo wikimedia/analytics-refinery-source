@@ -16,7 +16,6 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
-import org.wikimedia.analytics.refinery.hive.EntropyUDAF.EntropyUDAFState;
 import org.wikimedia.analytics.refinery.hive.EntropyUDAF.EntropyUDAFEvaluator;
 
 import junitparams.JUnitParamsRunner;

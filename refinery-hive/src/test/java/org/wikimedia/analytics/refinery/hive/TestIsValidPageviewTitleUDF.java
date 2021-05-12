@@ -15,9 +15,7 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
-import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
-import junitparams.mappers.CsvWithHeaderMapper;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 

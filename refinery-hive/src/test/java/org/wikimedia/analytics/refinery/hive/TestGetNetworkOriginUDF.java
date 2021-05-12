@@ -15,7 +15,6 @@
  */
 package org.wikimedia.analytics.refinery.hive;
 
-import org.wikimedia.analytics.refinery.core.IpUtil;
 import org.wikimedia.analytics.refinery.core.IpUtil.NetworkOrigin;
 
 import static org.junit.Assert.assertEquals;

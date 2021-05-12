@@ -1,9 +1,5 @@
 package org.wikimedia.analytics.refinery.hive;
 
-import junitparams.FileParameters;
-import junitparams.JUnitParamsRunner;
-import junitparams.mappers.CsvWithHeaderMapper;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -43,6 +39,6 @@ public class TestConvertEZProjectToStandard {
         String invalidEZName = "en.z.ads";
         GenericUDF.DeferredObject[] args = new GenericUDF.DeferredObject[] { new GenericUDF.DeferredJavaObject(invalidEZName) };
 
-        Object result = udf.evaluate(args);
+        udf.evaluate(args);
     }
 }
