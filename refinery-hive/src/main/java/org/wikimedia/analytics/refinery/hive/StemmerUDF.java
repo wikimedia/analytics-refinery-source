@@ -1,13 +1,16 @@
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import com.google.common.base.Joiner;
 import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
@@ -51,15 +54,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-;
-
 public class StemmerUDF extends GenericUDF {
+    private Converter[] converters = new Converter[2];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[2];
 
     private final transient Map<String, Analyzer> analyzersCache = new HashMap<String, Analyzer>();
-
-    GenericUDFHelper argsHelper = new GenericUDFHelper();
-
-    private StringObjectInspector[] inputsOI = new StringObjectInspector[3];
 
     private static final String EMPTY = "";
 
@@ -85,7 +84,8 @@ public class StemmerUDF extends GenericUDF {
 
         for (int i = 0; i < arguments.length; i++) {
             checkArgPrimitive(arguments, i);
-            inputsOI[i] = (StringObjectInspector) arguments[i];
+            checkArgGroups(arguments, i, inputTypes, STRING_GROUP);
+            obtainStringConverter(arguments, i, inputTypes, converters);
         }
 
         initAnalyzersCache();
@@ -174,18 +174,15 @@ public class StemmerUDF extends GenericUDF {
      */
     @Override
     public String evaluate(DeferredObject[] arguments) throws HiveException {
-        String text;
-        String lang = "en";
-
-        if (arguments.length >= 0 && inputsOI != null) {
-            text = inputsOI[0].getPrimitiveJavaObject(arguments[0].get());
-
-            if (arguments.length > 1) {
-                lang = inputsOI[1].getPrimitiveJavaObject(arguments[1].get());
-            }
-
+        if (arguments.length > 0) {
+            String text = getStringValue(arguments, 0, converters);
             if (text == null) {
                 return EMPTY;
+            }
+
+            String lang = "en";
+            if (arguments.length > 1) {
+                lang = getStringValue(arguments, 1, converters);
             }
 
             // happy case

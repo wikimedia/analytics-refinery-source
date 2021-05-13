@@ -16,6 +16,8 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.session.SessionState;
@@ -23,10 +25,9 @@ import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.maxmind.GeocodeDatabaseReader;
 
@@ -56,9 +57,10 @@ import java.util.Map;
         + "Returns a map with continent, country_code, country, city, subdivision, postal_code, latitude, longitude, "
         + "timezone keys and the appropriate values for each of them")
 public class GetGeoDataUDF extends GenericUDF {
+    private Converter[] converters = new Converter[1];
+    private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
 
     Map<String, String> result;
-    private ObjectInspector argumentOI;
     protected GeocodeDatabaseReader maxMindGeocode;
 
     static final Logger LOG = Logger.getLogger(GetGeoDataUDF.class.getName());
@@ -108,19 +110,9 @@ public class GetGeoDataUDF extends GenericUDF {
         initializeReader(SessionState.get());
 
         checkArgsSize(arguments, 1, 1);
-        ObjectInspector arg1 = arguments[0];
-
         checkArgPrimitive(arguments, 0);
-
-        PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg1).getPrimitiveCategory();
-
-        if (primitiveCategory != PrimitiveCategory.STRING) {
-            throw new UDFArgumentTypeException(0,
-                    "A string argument was expected but an argument of type " + arg1.getTypeName()
-                            + " was given.");
-        }
-
-        argumentOI = arg1;
+        checkArgGroups(arguments, 0, inputTypes, STRING_GROUP);
+        obtainStringConverter(arguments, 0, inputTypes, converters);
 
         result = new HashMap<>();
 
@@ -164,16 +156,14 @@ public class GetGeoDataUDF extends GenericUDF {
 
         result.clear();
 
-        if (arguments.length == 1 && argumentOI != null && arguments[0] != null) {
-            String ip = ((StringObjectInspector) argumentOI).getPrimitiveJavaObject(arguments[0].get());
-            Map<String, String> geoDataResult = maxMindGeocode.getResponse(ip).getMap();
+        String ip = getStringValue(arguments, 0, converters);
+        Map<String, String> geoDataResult = maxMindGeocode.getResponse(ip).getMap();
 
-            if (geoDataResult != null) {
-                for (String field : geoDataResult.keySet()) {
-                    Object value = geoDataResult.get(field);
-                    if (value != null) {
-                        result.put(field, value.toString());
-                    }
+        if (geoDataResult != null) {
+            for (String field : geoDataResult.keySet()) {
+                Object value = geoDataResult.get(field);
+                if (value != null) {
+                    result.put(field, value.toString());
                 }
             }
         }

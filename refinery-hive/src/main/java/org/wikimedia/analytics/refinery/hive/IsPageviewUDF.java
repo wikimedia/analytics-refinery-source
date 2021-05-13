@@ -16,18 +16,19 @@
 
 package org.wikimedia.analytics.refinery.hive;
 
+import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
+
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
-
 
 /**
  * A Hive UDF to classify a Wikimedia webrequest as a 'pageview'.
@@ -66,14 +67,12 @@ import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
         extended = "")
 @UDFType(deterministic = true)
 public class IsPageviewUDF extends GenericUDF {
-
-    protected ObjectInspector[] argumentsOI;
-
-    protected  boolean checkForXAnalytics = false;
+    protected boolean checkForXAnalytics = false;
     protected int maxArguments = 7;
     protected int minArguments = 6;
 
-
+    protected Converter[] converters = new Converter[maxArguments];
+    protected PrimitiveCategory[] inputTypes = new PrimitiveCategory[maxArguments];
 
     /**
      * Executed once per job, checks arguments size.
@@ -97,35 +96,26 @@ public class IsPageviewUDF extends GenericUDF {
 
         for (int i = 0; i < arguments.length; i++) {
             checkArgPrimitive(arguments, i);
+            checkArgGroups(arguments, i, inputTypes, STRING_GROUP);
+            obtainStringConverter(arguments, i, inputTypes, converters);
         }
-
-        argumentsOI = arguments;
 
         return PrimitiveObjectInspectorFactory.javaBooleanObjectInspector;
     }
 
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException{
-
-        String uriHost = PrimitiveObjectInspectorUtils.getString(
-            arguments[0].get(), (PrimitiveObjectInspector) argumentsOI[0]);
-        String uriPath = PrimitiveObjectInspectorUtils.getString(
-            arguments[1].get(), (PrimitiveObjectInspector) argumentsOI[1]);
-        String uriQuery = PrimitiveObjectInspectorUtils.getString(
-            arguments[2].get(), (PrimitiveObjectInspector) argumentsOI[2]);
-        ;
-        String httpStatus = PrimitiveObjectInspectorUtils.getString(
-            arguments[3].get(), (PrimitiveObjectInspector) argumentsOI[3]);
-        String contentType = PrimitiveObjectInspectorUtils.getString(
-            arguments[4].get(), (PrimitiveObjectInspector) argumentsOI[4]);
-        String userAgent = PrimitiveObjectInspectorUtils.getString(
-            arguments[5].get(), (PrimitiveObjectInspector) argumentsOI[5]);
+        String uriHost = getStringValue(arguments, 0, converters);
+        String uriPath = getStringValue(arguments, 1, converters);
+        String uriQuery = getStringValue(arguments, 2, converters);
+        String httpStatus = getStringValue(arguments, 3, converters);
+        String contentType = getStringValue(arguments, 4, converters);
+        String userAgent = getStringValue(arguments, 5, converters);
 
         String rawXAnalyticsHeader = "";
 
         if (checkForXAnalytics) {
-            rawXAnalyticsHeader = PrimitiveObjectInspectorUtils.getString(
-                arguments[6].get(), (PrimitiveObjectInspector) argumentsOI[6]);
+            rawXAnalyticsHeader = getStringValue(arguments, 6, converters);
         }
 
         WebrequestData webrequestData = new WebrequestData(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
