@@ -16,7 +16,6 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
@@ -75,11 +74,7 @@ public class GetMediaFilePropertiesUDF extends GenericUDF {
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
             throws UDFArgumentException {
-        // We need exactly 1 parameter
-        if (arguments == null || arguments.length != 1) {
-            throw new UDFArgumentLengthException("The function "
-                    + "GetMediaFileProperties expects exactly 1 parameter");
-        }
+        checkArgsSize(arguments, 1, 1);
 
         // ... and the parameter has to be a string
         if (!(arguments[0] instanceof StringObjectInspector)) {

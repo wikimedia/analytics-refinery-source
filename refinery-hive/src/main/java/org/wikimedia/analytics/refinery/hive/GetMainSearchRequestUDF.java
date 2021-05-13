@@ -61,7 +61,7 @@ public class GetMainSearchRequestUDF extends GenericUDF {
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
         GenericUDFHelper argsHelper = new GenericUDFHelper();
-        argsHelper.checkArgsSize(arguments, 2, 2);
+        checkArgsSize(arguments, 2, 2);
 
         // first argument must be a string
         argsHelper.checkArgType(arguments, 0, PrimitiveCategory.STRING);

@@ -2,7 +2,6 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
@@ -73,11 +72,7 @@ public class GetHostPropertiesUDF extends GenericUDF {
     public ObjectInspector initialize(ObjectInspector[] arguments)
             throws UDFArgumentException {
 
-        if (arguments.length != 1) {
-            throw new UDFArgumentLengthException(
-                    "The GetHostPropertiesUDF takes an array with only 1 element as argument");
-        }
-
+        checkArgsSize(arguments, 1, 1);
         //we are expecting the parameter to be of String type.
         ObjectInspector arg = arguments[0];
         int argIndex = 0;

@@ -18,7 +18,6 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
@@ -83,11 +82,8 @@ public class GetPageviewInfoUDF extends GenericUDF {
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
             throws UDFArgumentException {
-        // We need exactly 3 parameters
-        if (arguments == null || arguments.length != 3) {
-            throw new UDFArgumentLengthException("The function "
-                    + "GetPageviewInfoUDF expects exactly 3 parameter");
-        }
+
+        checkArgsSize(arguments, 3, 3);
 
         // ... and the parameters have to be strings
         for (int i = 0; i < 3; i++) {
