@@ -64,7 +64,7 @@ public class GetCountryNameUDF extends GenericUDF {
 
         GenericUDFHelper argsHelper = new GenericUDFHelper();
         checkArgsSize(arguments, 1, 1);
-        argsHelper.checkArgPrimitive(arguments, 0);
+        checkArgPrimitive(arguments, 0);
         argsHelper.checkArgType(arguments, 0, PrimitiveCategory.STRING);
 
         //Cache the argument to be used in evaluate

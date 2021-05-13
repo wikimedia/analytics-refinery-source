@@ -22,7 +22,6 @@ import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
@@ -110,12 +109,7 @@ public class GetISPDataUDF extends GenericUDF {
 
         checkArgsSize(arguments, 1, 1);
         ObjectInspector arg1 = arguments[0];
-
-        if (arg1.getCategory() != Category.PRIMITIVE) {
-            throw new UDFArgumentTypeException(0,
-                    "A string argument was expected but an argument of type " + arg1.getTypeName()
-                            + " was given.");
-        }
+        checkArgPrimitive(arguments, 0);
 
         PrimitiveCategory primitiveCategory = ((PrimitiveObjectInspector) arg1).getPrimitiveCategory();
 

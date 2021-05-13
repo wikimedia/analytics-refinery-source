@@ -84,7 +84,7 @@ public class StemmerUDF extends GenericUDF {
         checkArgsSize(arguments, 1, 2);
 
         for (int i = 0; i < arguments.length; i++) {
-            argsHelper.checkArgPrimitive(arguments, i);
+            checkArgPrimitive(arguments, i);
             inputsOI[i] = (StringObjectInspector) arguments[i];
         }
 

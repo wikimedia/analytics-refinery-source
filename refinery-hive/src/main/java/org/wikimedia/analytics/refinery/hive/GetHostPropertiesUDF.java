@@ -7,7 +7,6 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
@@ -77,12 +76,7 @@ public class GetHostPropertiesUDF extends GenericUDF {
         ObjectInspector arg = arguments[0];
         int argIndex = 0;
 
-        if (arg.getCategory() != Category.PRIMITIVE) {
-            throw new UDFArgumentTypeException(argIndex,
-                    "A string argument was expected but an argument of type " + arg.getTypeName()
-                            + " was given.");
-
-        }
+        checkArgPrimitive(arguments, 0);
 
         // Now that we have made sure that the argument is of primitive type, we can get the primitive
         // category
