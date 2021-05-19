@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job
 
 import java.net.URI
-
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
@@ -13,7 +12,10 @@ import org.wikimedia.eventutilities.core.json.{JsonLoader, JsonSchemaLoader}
 import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.monitoring.CanaryEventProducer
 
+import scala.util.Try
+
 object ProduceCanaryEvents extends LogHelper with ConfigHelper {
+
     /**
       * Config class for use config files and args.
       */
@@ -200,8 +202,28 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
             false
         } else {
             val canaryEventProducer = new CanaryEventProducer(eventStreamFactory, httpClient)
-            produceCanaryEvents(canaryEventProducer, targetEventStreams, config.dry_run)
+
+            // Instead of producing all streams at once, produce them one at a time.
+            // This is less efficient (results in an HTTP post for every stream (actually 2,
+            // one for each DC)), but allows us to handle errors for each stream separately.
+            // See: https://phabricator.wikimedia.org/T270138
+            val results: Seq[Try[Boolean]] = targetEventStreams.map { eventStream =>
+                Try(
+                    produceCanaryEvents(canaryEventProducer, Seq(eventStream), config.dry_run)
+                )
+            }
+
+            // Log any unexpected exceptions after we are done producing events.
+            val exceptions = results.filter(_.isFailure).map(_.failed.get)
+            exceptions.foreach(log.error("Encountered exception in produceCanaryEvents.", _))
+
+            // Failures where produceCanaryEvents return false
+            val failures = results.filter(r => r.isSuccess && !r.get)
+
+            // Return true if there were no unexpected exceptions or failures
+            exceptions.nonEmpty && failures.nonEmpty
         }
+
     }
 
     /**
@@ -243,24 +265,20 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         eventStreams: Seq[EventStream],
         dryRun: Boolean = false
     ): Boolean = {
-
         // Map of event service URI -> List of canary events to produce to that event service.
-        val uriToCanaryEvents = canaryEventProducer.getCanaryEventsToPostForStreams(
-            eventStreams.asJava
-        )
-
+        val uriToCanaryEvents = canaryEventProducer.getCanaryEventsToPostForStreams(eventStreams.asJava)
 
         // Build a description string of the POST requests and events for logging.
         val canaryEventsPostDescription = uriToCanaryEvents.asScala.toList.map({
             case (uri, canaryEvents) =>
                 s"POST $uri\n  ${CanaryEventProducer.eventsToArrayNode(canaryEvents)}"
-        }).mkString("\n\n")
+        }).mkString("\n")
 
         log.info(
             {if (dryRun) "DRY-RUN, would have produced " else "Producing "} +
             "canary events for streams:\n  " +
-            eventStreams.map(_.streamName).mkString("\n  ") + "\n\n" +
-            canaryEventsPostDescription
+            eventStreams.map(_.streamName).mkString("\n  ") + "\n" +
+            canaryEventsPostDescription + "\n"
         )
 
         if (!dryRun) {
