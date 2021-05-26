@@ -217,11 +217,33 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
             val exceptions = results.filter(_.isFailure).map(_.failed.get)
             exceptions.foreach(log.error("Encountered exception in produceCanaryEvents.", _))
 
-            // Failures where produceCanaryEvents return false
+            // Failures have already been logged.
             val failures = results.filter(r => r.isSuccess && !r.get)
+            val successes = results.filter(r => r.isSuccess && r.get)
+
+            if (successes.nonEmpty) {
+                log.info(
+                    "Succeeded producing canary events to " +
+                    s" ${successes.length} / ${targetEventStreams.length} streams."
+                )
+            }
+
+            if (exceptions.nonEmpty) {
+                log.error(
+                    "Encountered unexpected exceptions when producing canary events to " +
+                    s" ${exceptions.length} / ${targetEventStreams.length} streams."
+                )
+            }
+
+            if (failures.nonEmpty) {
+                log.error(
+                    "Encountered failures when producing canary events to " +
+                    s"${failures.length} / ${targetEventStreams.length} streams."
+                )
+            }
 
             // Return true if there were no unexpected exceptions or failures
-            exceptions.nonEmpty && failures.nonEmpty
+            exceptions.isEmpty && failures.isEmpty
         }
 
     }
