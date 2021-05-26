@@ -1,3 +1,6 @@
+## v0.1.13
+* ProduceCanaryEvents - fix exit val
+
 ## v0.1.12
 * ProduceCanaryEvents - produce events one at a time for better error handling
 
