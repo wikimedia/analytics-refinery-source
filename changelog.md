@@ -1,3 +1,6 @@
+## v0.1.12
+* ProduceCanaryEvents - produce events one at a time for better error handling
+
 ## v0.1.11
 * Add scala job for reliability metrics of Wikidata
 
