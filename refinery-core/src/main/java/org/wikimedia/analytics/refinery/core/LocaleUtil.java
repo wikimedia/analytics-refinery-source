@@ -18,7 +18,7 @@ public class LocaleUtil {
             countryCode = "";
         }
         Locale l = new Locale("", countryCode);
-        String displayCountry = l.getDisplayCountry();
+        String displayCountry = l.getDisplayCountry(Locale.ROOT);
         return displayCountry.equalsIgnoreCase(countryCode) ? UNKNOWN_VALUE : displayCountry;
     }
 
