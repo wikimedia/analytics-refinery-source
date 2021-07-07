@@ -32,6 +32,7 @@ object Refine extends LogHelper with ConfigHelper {
       */
     case class Config(
         input_path                          : Option[String] = None,
+        input_format                        : Option[String] = None,
         input_path_regex                    : Option[String] = None,
         input_path_regex_capture_groups     : Option[Seq[String]] = None,
         input_path_datetime_format          : DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
@@ -89,6 +90,15 @@ object Refine extends LogHelper with ConfigHelper {
                         s"Invalid <input-capture> $input_path_regex_capture_groups. " +
                         "Must at least contain 'table' as a named capture group."
                 }
+
+                if (
+                    input_format.isDefined &&
+                    !RefineTarget.supportedInputFormats.contains(input_format.get)
+                ) {
+                    illegalArgumentMessages +=
+                        s"Invalid input_format ${input_format.get}. " +
+                        s"Must be one of ${RefineTarget.supportedInputFormats.mkString(",")}"
+                }
             } else if (input_database.isEmpty) {
                 illegalArgumentMessages += "Must provide one of input_path or input_database."
             }
@@ -143,6 +153,10 @@ object Refine extends LogHelper with ConfigHelper {
                   |/path/to/raw/data/{myprefix_dataSetOne,myprefix_dataSetTwo}, etc.
                   |Each of these subdirectories will be searched for refine target
                   |partitions.  This parameter is incompatible with input_database.""",
+            "input_format" ->
+                s"""Format of the input data, used when reading data with Spark DataFrameReader.
+                  |Must be one of ${RefineTarget.supportedInputFormats.mkString(",")}.
+                  |Only used with input_path, not with input_database.""",
             "input_database" ->
                 """Hive database name from which to search for refine targets.
                   |This parameter is incompatible with input_path.""",
@@ -546,6 +560,7 @@ object Refine extends LogHelper with ConfigHelper {
             getRefineTargetsFromFS(
                 spark,
                 config.input_path.get,
+                config.input_format,
                 config.inputPathRegex,
                 config.input_path_datetime_format,
                 config.output_path.get,
@@ -588,6 +603,7 @@ object Refine extends LogHelper with ConfigHelper {
     def getRefineTargetsFromFS(
         spark                     : SparkSession,
         inputPath                 : String,
+        inputFormat               : Option[String],
         inputPathRegex            : Regex,
         inputPathDateTimeFormatter: DateTimeFormatter,
         outputPath                : String,
@@ -627,6 +643,7 @@ object Refine extends LogHelper with ConfigHelper {
             until,
             schemaLoader,
             dfReaderOptions,
+            inputFormat,
             useMergedSchemaForRead,
             tableIncludeRegex,
             tableExcludeRegex

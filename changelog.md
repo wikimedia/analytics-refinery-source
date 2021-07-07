@@ -1,3 +1,6 @@
+## v0.1.14
+* RefineTarget - support gzipped json input format
+
 ## v0.1.13
 * ProduceCanaryEvents - fix exit val
 

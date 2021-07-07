@@ -1,10 +1,8 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports.{DateTime, _}
-import java.io.{BufferedReader, EOFException, InputStreamReader}
 
-import com.github.nscala_time.time
-import com.github.nscala_time.time.Imports
+import java.io.{BufferedReader, EOFException, InputStreamReader}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, Row, SparkSession}
@@ -16,13 +14,10 @@ import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
+import java.util.zip.GZIPInputStream
 import scala.util.control.Exception.allCatch
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
-
-// TODO: use these for find in parallel configuration?
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
 
 
 /**
@@ -144,7 +139,16 @@ case class RefineTarget(
     /**
       * The value of inputFormatOpt if provided, else the value returned by inferInputFormat
       */
-    lazy val inputFormat: String = inputFormatOpt.getOrElse(inferInputFormat)
+    lazy val inputFormat: String = {
+        val format: String = inputFormatOpt.getOrElse(inferInputFormat)
+        if (!RefineTarget.supportedInputFormats.contains(format)) {
+            throw new RuntimeException(
+                s"Unsupported RefineTarget inputFormat $format. " +
+                s"Must be one of ${RefineTarget.supportedInputFormats.mkString(",")}"
+            )
+        }
+        format
+    }
 
     /**
       * Default DataFrameReader options that will be used when reading the input DataFrame.
@@ -463,8 +467,9 @@ case class RefineTarget(
     }
 
     /**
-      * Reads the first bytes in inputPath as chars, and examines them to
-      * infer the file format.  This will only work if the first file
+      * If the first input file ends with .gz or .gzip, will be assume
+      * gzip compressed JSON.  Else, reads the first bytes in inputPath as chars,
+      * and examines them to infer the file format.  This will only work if the first file
       * is Parquet, JSON text, or SequenceFile with JSON string values.
       * If the directory is empty, this will return "empty".
       *
@@ -487,11 +492,21 @@ case class RefineTarget(
 
         // Read the first few characters out of the first data file.
         val buffer = new Array[Char](3)
-        val in = new BufferedReader(new InputStreamReader(fs.open(inputDataFiles.head)))
-        val bytesRead = in.read(buffer, 0, buffer.length)
-        in.close()
 
-        // Return empty we can't read any bytes from the first data file.
+        // If first file has gzip extension, assume it is gzip compressed.
+        val inputStream = if (
+            inputDataFiles.head.getName.endsWith(".gz") ||
+            inputDataFiles.head.getName.endsWith(".gzip")
+        ) {
+            new GZIPInputStream(fs.open(inputDataFiles.head))
+        } else {
+            fs.open(inputDataFiles.head)
+        }
+        val reader = new BufferedReader(new InputStreamReader(inputStream))
+        val bytesRead =  reader.read(buffer, 0, buffer.length)
+        reader.close()
+
+        // Return empty if we can't read any bytes from the first data file.
         // This probably shouldn't happen, since we filtered where f.getLen > 0,
         // but is good just in case.
         if (bytesRead <= 0) return "empty"
@@ -611,6 +626,12 @@ case class RefineTarget(
 object RefineTarget {
 
     /**
+      * List of supported input data formats. Used for validating
+      * RefineTarget instance inputFormat.
+      */
+    val supportedInputFormats = Seq("parquet", "json", "sequence_json", "text", "empty")
+
+    /**
       * Helper constructor to create a RefineTarget inferring the output HivePartition
       * using a full outputPath to the partition location.
       *
@@ -715,6 +736,7 @@ object RefineTarget {
         until                     : DateTime = DateTime.now,
         schemaLoader              : SparkSchemaLoader = ExplicitSchemaLoader(None),
         dfReaderOptions           : Map[String, String] = Map(),
+        inputFormat               : Option[String] = None,
         useMergedSchemaForRead    : Boolean = false,
         tableIncludeRegex         : Option[Regex] = None,
         tableExcludeRegex         : Option[Regex] = None
@@ -746,6 +768,7 @@ object RefineTarget {
                 partition,
                 schemaLoader,
                 providedDfReaderOptions=dfReaderOptions,
+                inputFormatOpt=inputFormat,
                 useMergedSchemaForRead=useMergedSchemaForRead
             )
         })
