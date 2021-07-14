@@ -730,6 +730,9 @@ object Refine extends LogHelper with ConfigHelper {
                     s"(# refined records: $recordCount)"
                 )
 
+                // Explicitly un-cache the input DataFrame.
+                partDf.df.unpersist
+
                 target.success(recordCount)
             } catch {
                 case e: Exception => {

@@ -1,3 +1,6 @@
+## v0.1.15
+* Refine - explicitly uncache DataFrame when done
+
 ## v0.1.14
 * RefineTarget - support gzipped json input format
 
