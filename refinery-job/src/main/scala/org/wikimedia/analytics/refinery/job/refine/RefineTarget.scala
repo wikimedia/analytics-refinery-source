@@ -503,7 +503,7 @@ case class RefineTarget(
             fs.open(inputDataFiles.head)
         }
         val reader = new BufferedReader(new InputStreamReader(inputStream))
-        val bytesRead =  reader.read(buffer, 0, buffer.length)
+        val bytesRead = reader.read(buffer, 0, buffer.length)
         reader.close()
 
         // Return empty if we can't read any bytes from the first data file.
