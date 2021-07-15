@@ -74,7 +74,9 @@ public class UAParser {
         // CachingParser default cache size is 1000.
         // Expanding it to 10000 divides computation
         // by ~2.5, and expanding it more has less impact
-        cachingParser = new CachingParser(10000);
+        if (cachingParser == null) {
+            cachingParser = new CachingParser(10000);
+        }
     }
 
     /**
