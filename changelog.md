@@ -1,5 +1,6 @@
 ## v0.1.15
 * Refine - explicitly uncache DataFrame when done
+* Fix UAParser initialization to re-use static CachingParser instance and synchronize its usage
 
 ## v0.1.14
 * RefineTarget - support gzipped json input format
