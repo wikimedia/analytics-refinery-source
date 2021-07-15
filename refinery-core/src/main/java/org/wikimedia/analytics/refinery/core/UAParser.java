@@ -38,7 +38,11 @@ public class UAParser {
 
     private static final Logger LOG = Logger.getLogger(UAParser.class.getName());
 
+    // CachingParser uses a org.apache.commons.collections4.map.LRUMap that is not
+    // thread-safe. We therefore need to synchronize its usage, and we use a dedicated
+    // object to do so.
     private static CachingParser cachingParser;
+    private static final Object cachingParserLock = new Object();
 
     /*
      * Meta-methods to enable eager instantiation in a singleton-based way.
@@ -74,8 +78,10 @@ public class UAParser {
         // CachingParser default cache size is 1000.
         // Expanding it to 10000 divides computation
         // by ~2.5, and expanding it more has less impact
-        if (cachingParser == null) {
-            cachingParser = new CachingParser(10000);
+        synchronized (cachingParserLock) {
+            if (cachingParser == null) {
+                cachingParser = new CachingParser(10000);
+            }
         }
     }
 
@@ -102,7 +108,10 @@ public class UAParser {
 
         if (uaString.length() <= MAX_UA_LENGTH) {
             try {
-                Client c = cachingParser.parse(uaString);
+                Client c;
+                synchronized (cachingParserLock) {
+                    c = cachingParser.parse(uaString);
+                }
                 if (c != null) {
                     browser = c.userAgent;
                     device = c.device;
