@@ -32,7 +32,7 @@ import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import scala.collection.immutable.ListMap
 // These aren't directly used, but are referenced in SQL UDFs.
 // Import them to get compile time errors if they aren't available.
-import org.wikimedia.analytics.refinery.hive.{GetUAPropertiesUDF, IsSpiderUDF, GetGeoDataUDF}
+import org.wikimedia.analytics.refinery.hive.{GetUAPropertiesUDF, IsSpiderUDF, GetGeoDataUDF, GetHostPropertiesUDF}
 
 
 /**
@@ -51,7 +51,8 @@ object event_transforms {
         deduplicate.apply,
         geocode_ip.apply,
         parse_user_agent.apply,
-        add_is_wmf_domain.apply
+        add_is_wmf_domain.apply,
+        add_normalized_host.apply
     )
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
@@ -592,5 +593,35 @@ object remove_canary_events extends LogHelper {
                 )
             )
         }
+    }
+}
+
+/**
+ * Use GetHostPropertiesUDF to get normalized host data from meta.domain and/or webHost
+ * and add it as column normalized_host.
+ */
+object add_normalized_host extends LogHelper {
+    val possibleSourceColumnNames = Seq("meta.domain", "webHost")
+    val normalizedHostColumnName = "normalized_host"
+
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+        val spark = partDf.df.sparkSession
+
+        // Use GetHostPropertiesUDF to get normalized host data from meta.domain and/or webHost
+        spark.sql(
+            "CREATE OR REPLACE TEMPORARY FUNCTION get_host_properties AS " +
+              "'org.wikimedia.analytics.refinery.hive.GetHostPropertiesUDF'"
+        )
+
+        val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
+
+        val sourceColumnSql = sourceColumnNames match {
+            case Seq(singleColumnName) => singleColumnName
+            case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
+        }
+
+        partDf.copy(df = partDf.df.withColumn(
+            normalizedHostColumnName, expr(s"get_host_properties(${expr(sourceColumnSql)})")
+        ))
     }
 }

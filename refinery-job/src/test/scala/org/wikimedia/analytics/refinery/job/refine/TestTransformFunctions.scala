@@ -1,11 +1,12 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.apache.spark.sql.types.{BooleanType, StructField}
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.internal.StaticSQLConf.CATALOG_IMPLEMENTATION
+import org.apache.spark.sql.types.{ArrayType, BooleanType, StringType, StructField, StructType}
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
-import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
 import scala.collection.immutable.ListMap
 
@@ -71,6 +72,8 @@ case class NoWebHostEvent(
 )
 
 class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteBase {
+    override def conf: SparkConf = super.conf.set(CATALOG_IMPLEMENTATION.key, "hive")
+
     val id1 = Some("IDWONBROLhQYpNlqWiyQosrpfanQx51M")
     val id2 = Some("Wglv2Jv9hflaFtDdZSNXKFv9WwwoD6gX")
 
@@ -81,13 +84,14 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     val allowedExternalDomain = Some("translate.google.com")
     val unallowedExternalDomain = Some("invalid.hostname.org")
     val canaryDomain = Some("canary")
+    val mDotDomain = Some("en.m.wikipedia.org")
 
     //IPv4 addresses taken from MaxMind's test suite
     val ip1 = Some("81.2.69.160")
 
     val legacyEventLoggingEvent1 = TestLegacyEventLoggingEvent(id1, internalDomain, ip1)
     val legacyEventLoggingEvent2 = TestLegacyEventLoggingEvent(id2, internalDomain, ip1)
-    
+
     val event1 = TestEvent(
         Some(MetaSubObject(id1, dt1, internalDomain)),
         Some(HttpSubObject(ip1))
@@ -98,6 +102,10 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     )
     val canaryEvent1 = TestEvent(
         Some(MetaSubObject(id1, dt1, canaryDomain)),
+        Some(HttpSubObject(ip1))
+    )
+    val mDotEvent = TestEvent(
+        Some(MetaSubObject(id1, dt1, mDotDomain)),
         Some(HttpSubObject(ip1))
     )
 
@@ -122,6 +130,30 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         Some(Array("unmigrated", "tag")),
         Some(LegacyUserAgentStruct(
               Some("PreParsedUserAgent Browser")
+        ))
+    )
+
+    val migratedLegacyEventLoggingMDotEvent = TestLegacyEventLoggingMigrationEvent(
+        Some(MetaSubObject(id1, dt1, mDotDomain)),
+        Some(HttpSubObject(ip1)),
+        None,
+        None,
+        None,
+        Some("hello migrated"),
+        Some(Array("migrated", "tag")),
+        None
+    )
+    val unmigratedLegacyEventLoggingMDotEvent = TestLegacyEventLoggingMigrationEvent(
+        // no meta or http
+        None,
+        None,
+        id1,
+        mDotDomain,
+        ip1,
+        Some("hello unmigrated"),
+        Some(Array("unmigrated", "tag")),
+        Some(LegacyUserAgentStruct(
+            Some("PreParsedUserAgent Browser")
         ))
     )
 
@@ -298,6 +330,66 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
         val transformedDf = remove_canary_events(partDf)
         transformedDf.df.count should equal(3)
+    }
+
+    it should "get normalized_host using `meta.domain`" in {
+        val events = Seq(mDotEvent)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = add_normalized_host(partDf)
+
+        transformedDf.df.columns.contains("normalized_host") should equal(true)
+
+        transformedDf.df.schema("normalized_host") should equal(StructField("normalized_host", StructType(Seq(
+            StructField("project_class", StringType, true),
+            StructField("project", StringType, true),
+            StructField("qualifiers", ArrayType(StringType), true),
+            StructField("tld", StringType, true),
+            StructField("project_family", StringType, true)
+        )), true))
+
+        transformedDf.df.select("normalized_host.project_class").take(1).head.getString(0) should equal("wikipedia")
+        transformedDf.df.select("normalized_host.project_family").take(1).head.getString(0) should equal("wikipedia")
+        transformedDf.df.select("normalized_host.project").take(1).head.getString(0) should equal("en")
+        transformedDf.df.select("normalized_host.qualifiers").take(1).head.getSeq[String](0) should equal(Array("m"))
+        transformedDf.df.select("normalized_host.tld").take(1).head.getString(0) should equal("org")
+    }
+
+    it should "get normalized_host from `webHost` for migrated or unmigrated legacy events" in {
+        val events = Seq(migratedLegacyEventLoggingMDotEvent, unmigratedLegacyEventLoggingMDotEvent)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = add_normalized_host(partDf)
+
+        transformedDf.df.columns.contains("normalized_host") should equal(true)
+
+        transformedDf.df.schema("normalized_host") should equal(StructField("normalized_host", StructType(Seq(
+            StructField("project_class", StringType, true),
+            StructField("project", StringType, true),
+            StructField("qualifiers", ArrayType(StringType), true),
+            StructField("tld", StringType, true),
+            StructField("project_family", StringType, true)
+        )), true))
+
+        val projectClass = transformedDf.df.select("normalized_host.project_class").collect()
+        projectClass(0).getString(0) should equal("wikipedia")
+        projectClass(1).getString(0) should equal("wikipedia")
+
+        val projectFamily = transformedDf.df.select("normalized_host.project_family").collect()
+        projectFamily(0).getString(0) should equal("wikipedia")
+        projectFamily(1).getString(0) should equal("wikipedia")
+
+        val project = transformedDf.df.select("normalized_host.project").collect()
+        project(0).getString(0) should equal("en")
+        project(1).getString(0) should equal("en")
+
+        val qualifiers = transformedDf.df.select("normalized_host.qualifiers").collect()
+        qualifiers(0).getSeq[String](0) should equal(Array("m"))
+        qualifiers(1).getSeq[String](0) should equal(Array("m"))
+
+        val tld = transformedDf.df.select("normalized_host.tld").collect()
+        tld(0).getString(0) should equal("org")
+        tld(1).getString(0) should equal("org")
     }
 
     // These tests don't seem to work.  Apparently the test SparkSession doesn't
