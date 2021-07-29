@@ -1,5 +1,6 @@
 ## v0.1.16
 * Remove refinery-camus module - T271232
+* Refine - replace default formatters with gobblin convention
 
 ## v0.1.15
 * Refine - explicitly uncache DataFrame when done

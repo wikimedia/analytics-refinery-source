@@ -35,7 +35,7 @@ object Refine extends LogHelper with ConfigHelper {
         input_format                        : Option[String] = None,
         input_path_regex                    : Option[String] = None,
         input_path_regex_capture_groups     : Option[Seq[String]] = None,
-        input_path_datetime_format          : DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
+        input_path_datetime_format          : DateTimeFormatter = DateTimeFormat.forPattern("'year='yyyy/'month='MM/'day='dd/'hour='HH'"),
         input_database                      : Option[String] = None,
         output_path                         : Option[String] = None,
         output_database                     : Option[String] = None,
@@ -176,7 +176,7 @@ object Refine extends LogHelper with ConfigHelper {
                    |dataset base path, and should capture the table name and the partition values.
                    |Along with input-capture, this allows arbitrary extraction of table names and and
                    |partitions from the input path.  You are required to capture at least "table"
-                   |using this regex.  The default will match an hourly bucketed Camus import hierarchy,
+                   |using this regex.  The default will match an hourly bucketed Hive import hierarchy,
                    |using the topic name as the table name.  Ignored if using input_database.
                    |This is matched against directory paths, NOT Hive normalized table names, so
                    |even though extracted table name will eventually be normalized, this
@@ -194,7 +194,7 @@ object Refine extends LogHelper with ConfigHelper {
                    |supported is hourly.  Every hour in the past lookback-hours will be generated,
                    |but if you specify a less granular format (e.g. daily, like "daily"/yyyy/MM/dd),
                    |the code will reduce the generated partition search for that day to 1, instead of 24.
-                   |The default is suitable for generating partitions in an hourly bucketed Camus
+                   |The default is suitable for generating partitions in an hourly bucketed Hive
                    |import hierarchy.  Ignored if using input_database.
                    |Default: ${default.input_path_datetime_format}""",
             "table_include_regex" ->
@@ -270,22 +270,20 @@ object Refine extends LogHelper with ConfigHelper {
             |Input Datasets -> Partitioned Hive Parquet tables.
             |
             |Given an input base path, this will search all subdirectories for input
-            |partitions to convert to Parquet backed Hive tables.  This was originally
-            |written to work with JSON data imported via Camus into hourly buckets, but
-            |should be configurable to work with any regular directory hierarchy.
+            |partitions to convert to Parquet backed Hive tables.
             |
             |Example:
             |  spark-submit --class org.wikimedia.analytics.refinery.job.refine.Refine refinery-job.jar \
             |  # read configs out of this file
-            |   --config_file                 /etc/refinery/refine_eventlogging_eventbus.properties \
+            |   --config_file                     /etc/refinery/refine_event.properties \
             |   # Override and/or set other configs on the CLI
-            |   --input_path                  /wmf/data/raw/event \
-            |   --output_path                 /user/otto/external/eventbus5' \
-            |   --outout_database             event \
-            |   --since                       24 \
-            |   --input_regex                 '.*(eqiad|codfw)_(.+)/hourly/(\d+)/(\d+)/(\d+)/(\d+)' \
-            |   --input_regex_capture_groups  'datacenter,table,year,month,day,hour' \
-            |   --table_exclude_regex       '.*page_properties_change.*'
+            |   --input_path                      /wmf/data/raw/event \
+            |   --output_path                     /user/otto/external/eventbus5' \
+            |   --outout_database                 event \
+            |   --since                           24 \
+            |   --input_path_regex                '.*(eqiad|codfw)_(.+)/hourly/(\d+)/(\d+)/(\d+)/(\d+)' \
+            |   --input_path_regex_capture_groups 'datacenter,table,year,month,day,hour' \
+            |   --table_exclude_regex             '.*page_properties_change.*'
             |"""
 
         /**

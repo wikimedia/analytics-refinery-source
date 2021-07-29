@@ -668,22 +668,22 @@ object RefineTarget {
       *
       * inputPathDateTimeFormatter will be used to construct the expected inputPath for each
       * input partition directory between sinceDateTime and untilDateTime.  E.g. a formatter
-      * with a format of "'hourly'/yyyy/MM/dd/HH" will look for existent inputPaths
+      * with a format of "'year='yyyy/'month='MM/'day='dd/'hour='HH'" will look for existent inputPaths
       * for every hour in the provided time period, like
-      *     $baseInputPath/subdir1/hourly/2017/07/26/00,
-      *     $baseInputPath/subdir1/hourly/2017/07/26/01,
-      *     $baseInputPath/subdir2/hourly/2017/07/26/00,
-      *     $baseInputPath/subdir2/hourly/2017/07/26/01,
+      *     $baseInputPath/subdir1/year=2017/month=07/day=26/hour=00,
+      *     $baseInputPath/subdir1/year=2017/month=07/day=26/hour=01,
+      *     $baseInputPath/subdir2/year=2017/month=07/day=26/hour=00,
+      *     $baseInputPath/subdir2/year=2017/month=07/day=26/hour=01,
       * etc.
       *
       * inputPathRegex is expected to capture named groups that include "table" and any other
       * partition keys.  inputPathRegex's capture groups must contain one named "table".
       * E.g. new Regex(
-      *     "(eqiad|codfw)_(.+)/hourly/\\d{4}/\\d{2}/\\d{2}/\\d{2}",
+      *     "(eqiad|codfw)_(.+)/year=(\\d+)/month=(\\d+)/day=(\\d+)/hour=(\\d+)",
       *     "datacenter", "table", "year", "month", "day", "hour"
       *
       * and an inputPath of
-      *     $baseInputPath/eqiad_mediawiki_revision-create/2017/07/26/01
+      *     $baseInputPath/eqiad_mediawiki_revision-create/year=2017/month=07/day=26/hour=01
       *
       * Will construct a RefineTarget with table "mediawiki_revision_create" (hyphens are converted
       * to underscores) and partitions datacenter="eqiad",year=2017,month=07,day=26,hour=01
