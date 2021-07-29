@@ -1,3 +1,0 @@
-[submodule "refinery-camus/src/main/resources/schema_repo"]
-	path = refinery-camus/src/main/resources/schema_repo
-	url = https://gerrit.wikimedia.org/r/mediawiki/event-schemas
