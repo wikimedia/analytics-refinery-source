@@ -392,79 +392,73 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         tld(1).getString(0) should equal("org")
     }
 
-    // These tests don't seem to work.  Apparently the test SparkSession doesn't
-    // have Hive UDF support? Getting:
-    //   No handler for UDAF 'org.wikimedia.analytics.refinery.hive.GetUAPropertiesUDF'. Use sparkSession.udf.register(...) instead
-//
-//    // import org.wikimedia.analytics.refinery.job.refine._
-//    it should "geocode_ip `ip`" in {
-//        val events = Seq(legacyEventLoggingEvent1)
-//        val df = spark.createDataFrame(sc.parallelize(events))
-//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf = geocode_ip(partDf)
-//        transformedDf.df.columns.contains("geocoded_data") should equal(true)
-//        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
-//        // make sure ip field remains untouched
-//        transformedDf.df.select("ip").take(1).head.getString(0) should equal(legacyEventLoggingEvent1.ip.get)
-//
-//    }
-//
-//    it should "geocode_ip `http.client_ip`" in {
-//        val events = Seq(event1)
-//        val df = spark.createDataFrame(sc.parallelize(events))
-//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf = geocode_ip(partDf)
-//        transformedDf.df.columns.contains("geocoded_data") should equal(true)
-//        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
-//        // Make sure legacy ip column was not added as it was not in the source data schema
-//        transformedDf.df.hasColumn("ip") should equal(false);
-//    }
-//
-//    it should "geocode_ip `http.client_ip` and set legacy `ip` column" in {
-//        val events = Seq(migratedLegacyEventLoggingEvent)
-//        val df = spark.createDataFrame(sc.parallelize(events))
-//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf = geocode_ip(partDf)
-//        transformedDf.df.columns.contains("geocoded_data") should equal(true)
-//        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
-//        // ip field should be set to value of http.client_ip
-//        transformedDf.df.select("ip").take(1).head.getString(0) should equal(migratedLegacyEventLoggingEvent.http.get.client_ip.get)
-//    }
-//
-//    it should "parse_user_agent using `http.request_headers['user-agent']`" in {
-//        val events = Seq(event1)
-//        val df = spark.createDataFrame(sc.parallelize(events))
-//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf =  parse_user_agent(partDf)
-//        transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
-//    }
-//
-//    it should "parse_user_agent using `http.request_headers['user-agent']` and add legacy `useragent` struct" in {
-//        val events = Seq(migratedLegacyEventLoggingEvent)
-//        val df = spark.createDataFrame(sc.parallelize(events))
-//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf =  parse_user_agent(partDf)
-//        transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
-//        transformedDf.df.select("useragent.browser_family").take(1).head.getString(0) should equal("Firefox")
-//        transformedDf.df.select("useragent.is_mediawiki").take(1).head.getBoolean(0) should equal(false)
-//        transformedDf.df.select("useragent.is_bot").take(1).head.getBoolean(0) should equal(false)
-//    }
-//
-//    it should "parse_user_agent using `http.request_headers['user-agent']` and add legacy `useragent` struct, and also keep preparsed `useragent` struct" in {
-//        val events = Seq(migratedLegacyEventLoggingEvent, unmigratedLegacyEventLoggingEvent)
-//        val df = spark.createDataFrame(sc.parallelize(events))
-//        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-//        val transformedDf =  parse_user_agent(partDf)
-//        val browserFamiliesDf = transformedDf.df.selectExpr("user_agent_map.browser_family as uam_family", "useragent.browser_family as uas_family")
-//
-//        val uaMapBrowserFamily = transformedDf.df.select("user_agent_map.browser_family").collect()
-//        val uaStructBrowserFamily = transformedDf.df.select("useragent.browser_family").collect()
-//
-//        uaMapBrowserFamily(0).getString(0) should equal("Firefox")
-//        uaStructBrowserFamily(0).getString(0) should equal("Firefox")
-//
-//        uaMapBrowserFamily(1).getString(0) should equal(null)
-//        uaStructBrowserFamily(1).getString(0) should equal("PreParsedUserAgent Browser")
-//    }
+    it should "geocode_ip `ip`" in {
+        val events = Seq(legacyEventLoggingEvent1)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = geocode_ip(partDf)
+        transformedDf.df.columns.contains("geocoded_data") should equal(true)
+        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+        // make sure ip field remains untouched
+        transformedDf.df.select("ip").take(1).head.getString(0) should equal(legacyEventLoggingEvent1.ip.get)
+
+    }
+
+    it should "geocode_ip `http.client_ip`" in {
+        val events = Seq(event1)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = geocode_ip(partDf)
+        transformedDf.df.columns.contains("geocoded_data") should equal(true)
+        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+        // Make sure legacy ip column was not added as it was not in the source data schema
+        transformedDf.df.columns.contains("ip") should equal(false);
+    }
+
+    it should "geocode_ip `http.client_ip` and set legacy `ip` column" in {
+        val events = Seq(migratedLegacyEventLoggingEvent)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = geocode_ip(partDf)
+        transformedDf.df.columns.contains("geocoded_data") should equal(true)
+        transformedDf.df.select("geocoded_data.continent").take(1).head.getString(0) should equal("Europe")
+        // ip field should be set to value of http.client_ip
+        transformedDf.df.select("ip").take(1).head.getString(0) should equal(migratedLegacyEventLoggingEvent.http.get.client_ip.get)
+    }
+
+    it should "parse_user_agent using `http.request_headers['user-agent']`" in {
+        val events = Seq(event1)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf =  parse_user_agent(partDf)
+        transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
+    }
+
+    it should "parse_user_agent using `http.request_headers['user-agent']` and add legacy `useragent` struct" in {
+        val events = Seq(migratedLegacyEventLoggingEvent)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf =  parse_user_agent(partDf)
+        transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
+        transformedDf.df.select("useragent.browser_family").take(1).head.getString(0) should equal("Firefox")
+        transformedDf.df.select("useragent.is_mediawiki").take(1).head.getBoolean(0) should equal(false)
+        transformedDf.df.select("useragent.is_bot").take(1).head.getBoolean(0) should equal(false)
+    }
+
+    it should "parse_user_agent using `http.request_headers['user-agent']` and add legacy `useragent` struct, and also keep preparsed `useragent` struct" in {
+        val events = Seq(migratedLegacyEventLoggingEvent, unmigratedLegacyEventLoggingEvent)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf =  parse_user_agent(partDf)
+
+        val uaMapBrowserFamily = transformedDf.df.select("user_agent_map.browser_family").collect()
+        val uaStructBrowserFamily = transformedDf.df.select("useragent.browser_family").collect()
+
+        uaMapBrowserFamily(0).getString(0) should equal("Firefox")
+        uaStructBrowserFamily(0).getString(0) should equal("Firefox")
+
+        uaMapBrowserFamily(1).getString(0) should equal(null)
+        uaStructBrowserFamily(1).getString(0) should equal("PreParsedUserAgent Browser")
+    }
 
 }
