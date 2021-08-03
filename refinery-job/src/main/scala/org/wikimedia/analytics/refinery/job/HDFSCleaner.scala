@@ -15,7 +15,7 @@ import scala.collection.immutable.ListMap
 
 /**
   * Aids in deleting files older than a given mtime.
-  * Useful for cleaning the HDFS tmp directory in HDFS.
+  * Useful for cleaning the HDFS temp directory in HDFS.
   */
 object HDFSCleaner extends LogHelper with ConfigHelper {
 
@@ -27,7 +27,7 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
       * @type {[type]}
       */
     val disallowedPaths = Seq(
-        "/", "/wmf", "/wmf/data", "/wmf/camus", "/wmf/discovery", "/user"
+        "/", "/wmf", "/wmf/data", "/wmf/gobblin", "/wmf/discovery", "/user"
     )
 
     /**

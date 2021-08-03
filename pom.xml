@@ -17,7 +17,6 @@
     <module>refinery-tools</module>
     <module>refinery-hive</module>
     <module>refinery-job</module>
-    <module>refinery-camus</module>
     <module>refinery-cassandra</module>
   </modules>
 
@@ -573,7 +572,6 @@
       <scala.version>2.11.7</scala.version>
       <spark.version>2.4.4</spark.version>
       <spotbugs.version>4.1.2</spotbugs.version>
-      <camus.version>0.1.0-wmf12</camus.version>
       <guava.version>16.0.1</guava.version>
       <sonar.host.url>https://sonarcloud.io</sonar.host.url>
       <sonar.login>${env.SONAR_API_KEY}</sonar.login>
