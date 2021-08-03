@@ -1,6 +1,7 @@
 ## v0.1.16
 * Remove refinery-camus module - T271232
 * Refine - replace default formatters with gobblin convention
+* Refine - default event transform functions now add normalized_host info
 
 ## v0.1.15
 * Refine - explicitly uncache DataFrame when done
