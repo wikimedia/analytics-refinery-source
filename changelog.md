@@ -1,3 +1,6 @@
+## v0.1.17
+* Load cassandra3 from spark
+
 ## v0.1.16
 * Remove refinery-camus module - T271232
 * Refine - replace default formatters with gobblin convention
