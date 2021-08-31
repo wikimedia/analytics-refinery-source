@@ -75,27 +75,19 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <relocations>
-                                <relocation>
-                                    <pattern>com.maxmind</pattern>
-                                    <shadedPattern>com.shaded.maxmind</shadedPattern>
-                                    <includes>
-                                         <include>com.maxmind.**</include>
-                                    </includes>
-                                </relocation>
-                            </relocations>
-                        </configuration>
-                    </execution>
-                </executions>
+                <configuration>
+                    <relocations>
+                        <relocation>
+                            <pattern>com.maxmind</pattern>
+                            <shadedPattern>com.shaded.maxmind</shadedPattern>
+                            <includes>
+                                 <include>com.maxmind.**</include>
+                            </includes>
+                        </relocation>
+                    </relocations>
+                </configuration>
             </plugin>
+
             <plugin>
                 <!-- Add GeoIP path as system propertie values to surefire global parameters -->
                 <groupId>org.apache.maven.plugins</groupId>

@@ -1,3 +1,7 @@
+## v0.1.18
+* Standard artifacts are no longer shaded.  shaded versions are suffixed with -shaded.
+  Production deployments that reference the shaded jars will have to be updated.
+
 ## v0.1.17
 * Load cassandra3 from spark
 
