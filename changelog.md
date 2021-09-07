@@ -1,4 +1,5 @@
 ## v0.1.18
+* Add num-partitions parameter to mediawiki-history checkers
 * Standard artifacts are no longer shaded.  shaded versions are suffixed with -shaded.
   Production deployments that reference the shaded jars will have to be updated.
 

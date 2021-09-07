@@ -67,6 +67,7 @@ object MediawikiHistoryChecker {
                     previousSnapshot: String = "",  // Mandatory parameter, will be overwritten
                     newSnapshot: String = "",       // Mandatory parameter, will be overwritten
                     wikisToCheck: Int = 50,                      // Number of wikis to check
+                    numPartitions: Int = 1024,                   // Number of partitions to use
                     minEventsGrowthThreshold: Double = -0.01d,   // Set to -1% by default
                     maxEventsGrowthThreshold: Double = 1.0d,     // Set to 100% by default
                     wrongRowsRatioThreshold: Double = 0.05d,     // Set to 5% by default
@@ -108,6 +109,10 @@ object MediawikiHistoryChecker {
       p.copy(wikisToCheck = x)
     } text ("The number of wikis to include in the list of checked metrics (by decreasing edit activity)."
            + "(Default to 100)")
+
+    opt[Int]('t', "num-partitions") optional() valueName "<int>" action { (x, p) =>
+      p.copy(numPartitions = x)
+    } text ("The number of partitions to use to parallelize tasks (Default to 1024).")
 
     opt[Double]('m', "min-events-growth-threshold") optional() valueName "<double>" action { (x, p) =>
       p.copy(minEventsGrowthThreshold = x)
@@ -172,6 +177,7 @@ object MediawikiHistoryChecker {
             | previousSnapshot = ${params.previousSnapshot}
             | newSnapshot = ${params.newSnapshot}
             | wikisToCheck = ${params.wikisToCheck}
+            | numPartitions = ${params.numPartitions}
             | minEventsGrowthThreshold = ${params.minEventsGrowthThreshold}
             | maxEventsGrowthThreshold = ${params.maxEventsGrowthThreshold}
             | wrongRowsRatioThreshold = ${params.wrongRowsRatioThreshold}
@@ -187,6 +193,7 @@ object MediawikiHistoryChecker {
         // Spark setup
         val conf = new SparkConf()
           .setAppName(s"MediawikiHistoryChecker-$previousSnapshot-$newSnapshot")
+          .set("spark.sql.shuffle.partitions", params.numPartitions.toString)
           .set("spark.sql.parquet.compression.codec", "snappy")
           .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
           .set("spark.kryoserializer.buffer", "512k")
