@@ -27,7 +27,7 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
       * @type {[type]}
       */
     val disallowedPaths = Seq(
-        "/", "/wmf", "/wmf/data", "/wmf/gobblin", "/wmf/discovery", "/user"
+        "/", "/wmf", "/wmf/data", "/wmf/discovery", "/user"
     )
 
     /**

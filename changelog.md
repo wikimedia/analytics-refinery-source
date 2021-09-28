@@ -1,3 +1,6 @@
+## v0.1.19
+* Remove /wmf/gobblin from HDFSCleaner disallow list
+
 ## v0.1.18
 * Add num-partitions parameter to mediawiki-history checkers
 * Standard artifacts are no longer shaded.  shaded versions are suffixed with -shaded.
