@@ -1,5 +1,6 @@
 ## v0.1.20
 * Fix bug in HDFSCleaner where directories with only directories would always be deleted.
+* Spark JsonSchemaConverter now treats an object additionalProperties as a MapType always.
 
 ## v0.1.19
 * Remove /wmf/gobblin from HDFSCleaner disallow list
