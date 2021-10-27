@@ -158,14 +158,16 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
     }
 
     /**
-      * True if path does not contain any files or directories.
-      * Files are always considered empty paths.
+      * True if is a file or an empty directory.
       * @param fs
       * @param path
       * @return
       */
-    def isEmpty(fs: FileSystem, fileStatus: FileStatus): Boolean = {
-        fileStatus.isFile() || !fs.listFiles(fileStatus.getPath, false).hasNext
+    def isFileOrEmptyDirectory(fs: FileSystem, fileStatus: FileStatus): Boolean = {
+        // NOTE: listLocatedStatus.hasNext returns true if file or non-empty directory.
+        // Do not use fs.listStatus.hasNext, as a directory with only directories will
+        // return false.
+        fileStatus.isFile() || !fs.listLocatedStatus(fileStatus.getPath).hasNext
     }
 
     /**
@@ -202,7 +204,7 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
     ): Long = {
         val path = fileStatus.getPath
 
-        if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, fileStatus)) {
+        if (fileStatus.getModificationTime < cutoffTimestampMs && isFileOrEmptyDirectory(fs, fileStatus)) {
             deleteOrTrash(fs, path, skipTrash) match {
                 case true =>
                     log.debug(s"Deleted $path")
@@ -228,7 +230,7 @@ object HDFSCleaner extends LogHelper with ConfigHelper {
     def isOlderThanAndEmpty(cutoffTimestampMs: Long)(
         fs: FileSystem, fileStatus: FileStatus
     ): Long = {
-        if (fileStatus.getModificationTime < cutoffTimestampMs && isEmpty(fs, fileStatus))
+        if (fileStatus.getModificationTime < cutoffTimestampMs && isFileOrEmptyDirectory(fs, fileStatus))
             1L
         else
             0L
