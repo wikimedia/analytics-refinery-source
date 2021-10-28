@@ -123,7 +123,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         // no meta or http
         None,
         None,
-        id1,
+        id2,
         internalDomain,
         ip1,
         Some("hello unmigrated"),
@@ -176,6 +176,19 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val partDf = PartitionedDataFrame(df, fakeHivePartition)
         val transformedDf = deduplicate(partDf)
         transformedDf.df.count should equal(2)
+    }
+
+
+    it should "deduplicate based on `meta.id`, not removing rows with null `meta.id`" in {
+        val eventWithNullId = event2.copy(
+            meta=Some(MetaSubObject(None, Some("2020-01-01T00:00:00Z"), Some("test.wikipedia.org")))
+        )
+
+        val events = Seq(event1, event1, eventWithNullId, eventWithNullId, eventWithNullId)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = deduplicate(partDf)
+        transformedDf.df.count should equal(4)
     }
 
     it should "deduplicate based on `meta.id` or `uuid`" in {

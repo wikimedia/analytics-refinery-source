@@ -20,9 +20,9 @@ package org.wikimedia.analytics.refinery.job.refine
   * See the Refine --transform-functions CLI option documentation.
   */
 
+import java.util.UUID.randomUUID
 import scala.util.matching.Regex
-import org.apache.spark.sql.functions.{expr, udf}
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.functions.{coalesce, col, expr, udf}
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.wikimedia.analytics.refinery.core.{LogHelper, Webrequest}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive.TransformFunction
@@ -66,14 +66,25 @@ object event_transforms {
   * - meta.id: Newer (Modern Event Platform) id field.
   * - uuid: Legacy EventLogging Capsule id field.
   *
-  * The combination of these columns will be the unique id used for dropping duplicates.
+  * The first non null of these columns will be used as the key for dropping duplicate records.
   * If none of these columns exist, this is a no-op.
+  *
+  * If the values of all of these columns in a record is null, a temporary uuid
+  * will be generated for that record and that will be used for deduplication instead.
+  * In this way records with null id values will never be removed as part of deduplication.
   */
 object deduplicate extends LogHelper {
     val possibleSourceColumnNames = Seq("meta.id", "uuid")
 
+    /**
+      * Generates a new random UUID Column value prefixed with 'fake_'
+      */
+    val fakeUuid: UserDefinedFunction = udf(
+        () => { "fake_" + randomUUID().toString }
+    )
+
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
-        val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
+        val sourceColumnNames: Seq[String] = partDf.df.findColumnNames(possibleSourceColumnNames)
 
         // No-op
         if (sourceColumnNames.isEmpty) {
@@ -85,34 +96,27 @@ object deduplicate extends LogHelper {
         } else {
             log.info(s"Dropping duplicates based on ${sourceColumnNames.mkString(",")} columns in ${partDf.partition}")
 
-            // Temporarily add top level columns to the DataFrame
-            // with the same values as the sourceColumn.  This allows
-            // it to be used as with functions that don't work with
-            // nested (struct or map) columns (e.g. dropDuplicates).
-            // Fold over sourceColumnNames and accumulate a DataFrame with temporary
-            // column names and a Seq of the temp column names that were added.
-            var colIndex = 0
-            val (tempDf: DataFrame, tempColumnNames: Seq[String]) = sourceColumnNames.foldLeft((partDf.df, Seq.empty[String]))(
-                { case ((accDf: DataFrame, accTempNames: Seq[String]), sourceColumnName: String) =>
-                    // add a temp column for sourceColumnName
-                    val flattenedSourceColumnName = sourceColumnName.replaceAll("\\.", "_")
-                    val tempName = s"__temp__${flattenedSourceColumnName}__for_deduplicate_${colIndex}"
-                    colIndex += 1
-                    // Accumulate the df with temp column and a list of temp columns names added
-                    (
-                        accDf.withColumn(tempName, accDf(sourceColumnName)),
-                        accTempNames :+ tempName
-                    )
-            })
+            // Add fake uuid column into the list of idColumns that will be used, and
+            // then coalesce to use the first non null value found.
+            // This guarantees that if a record has NULL for all of the possible source id columns,
+            // NULL itself will not be considered a unique id.  In that case, the fake uuid will
+            // be used as the deduplication key, which will be unique in each row.
+            val idColumn = coalesce(sourceColumnNames.map(col) :+ fakeUuid():_*)
+
+            val tempColumnName = s"__temp__uuid__for_deduplicate"
+            val tempDf = partDf.df.withColumn(tempColumnName, idColumn)
 
             partDf.copy(df=tempDf
-                // Drop duplicate records based on tempColumnNames we added to the df.
-                .dropDuplicates(tempColumnNames)
-                // And drop the tempColumnNames from the result.
-                .drop(tempColumnNames:_*)
+                // Drop duplicate records based on the tempColumnName we added to the df.
+                .dropDuplicates(tempColumnName)
+                // And drop the tempColumnName column from the result.
+                .drop(tempColumnName)
             )
         }
     }
+
+
+
 }
 
 /**

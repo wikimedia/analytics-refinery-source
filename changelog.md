@@ -1,3 +1,6 @@
+## v0.1.21
+* Refine - don't remove records during deduplication if ids are null
+
 ## v0.1.20
 * Fix bug in HDFSCleaner where directories with only directories would always be deleted.
 * Spark JsonSchemaConverter now treats an object additionalProperties as a MapType always.
