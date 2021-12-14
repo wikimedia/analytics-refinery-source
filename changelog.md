@@ -1,3 +1,7 @@
+## v0.1.22
+* Simplify RSVD anomaly detection job for Airflow POC
+* Save commons json dumps as a table and add fields for wikidata
+
 ## v0.1.21
 * Refine - don't remove records during deduplication if ids are null
 
