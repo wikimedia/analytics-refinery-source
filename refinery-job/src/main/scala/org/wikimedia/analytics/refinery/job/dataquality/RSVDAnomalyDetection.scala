@@ -16,19 +16,19 @@ import scopt.OptionParser
 /**
  * RSVD Anomaly Detection
  *
- * Given a data quality metric group, outputs a line with the metric name and
- * its normalized deviation (comma separated, i.e. "response_time,12.34") for
+ * Given an anomaly detection metric source, outputs a line with the metric name
+ * and its normalized deviation (comma separated i.e. "response_time,12.34") for
  * each metric whose last data point has an absolute normalized deviation higher
  * than the specified threshold. Doesn't output anything, if no metric in the
- * metric group meets this condition.
+ * metric source meets this condition.
  *
  * == Source data parameters ==
- * The parameters quality-table, source-table, query-name and granularity
- * identify the data quality stats table to use and the hive partition (metric
- * group) to analyze. Those just specify the input data set.
+ * The parameters source-table and metric-source identify the anomaly detection
+ * table to use and the hive partition (metric source) to analyze. Those just
+ * specify the input data set.
  *
  * == Last data point parameter ==
- * The parameter last-data-point-dt gives the datetime of the last data point
+ * The parameter last-data-point-dt gives the date of the last data point
  * of the timeseries to be observed. This is also the data point that will be
  * subject to anomaly detection analysis. All data being older than that
  * will be used as reference data. All data being more recent than that
@@ -98,7 +98,7 @@ import scopt.OptionParser
  *
  * == Usage example ==
  *
- *   sudo -u analytics /usr/bin/spark2-submit \
+ *   /usr/bin/spark2-submit \
  *     --master yarn \
  *     --deploy-mode cluster \
  *     --queue production \
@@ -106,23 +106,21 @@ import scopt.OptionParser
  *     --executor-memory 2G \
  *     --executor-cores 4 \
  *     --class org.wikimedia.analytics.refinery.job.dataquality.RSVDAnomalyDetection \
- *     /srv/deployment/analytics/refinery/artifacts/org/wikimedia/analytics/refinery/refinery-job-0.0.110.jar \
- *     --quality-table wmf.data_quality_stats \
- *     --source-table wmf.pageview_hourly \
- *     --query-name traffic_entropy_by_country \
- *     --granularity daily \
- *     --last-data-point-dt 2020-01-01T00:00:00Z \
+ *     /srv/deployment/analytics/refinery/artifacts/org/wikimedia/analytics/refinery/refinery-job-0.1.22.jar \
+ *     --source-table wmf.anomaly_detection \
+ *     --metric-source traffic_entropy_by_country \
+ *     --last-data-point-dt 2020-01-01 \
  *     --deviation-threshold 10 \
  *     --output-path /tmp/anomalies/testing
  *
  * == Output example ==
  *
  * The output of this job is written to a given output path, so that it can
- * be checked for existence and read by Oozie. The format is the following:
+ * be checked for existence and read programmatically. The format looks like:
  *
- *   Myanmar,10.808835541792956
- *   Cuba,-14.644874464354071
- *   Iran,14.10441303567644
+ *   MetricName,10.808835541792956
+ *   AnotherMetricName,-14.644874464354071
+ *   YetAnotherMetricName,14.10441303567644
  */
 
 // The companion object contains constants, parameter definitions
@@ -141,7 +139,7 @@ object RSVDAnomalyDetection {
     val MaxNormalizedDeviation = 100.0
 
     // For timestamp formatting.
-    val DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    val DateTimeFormatter = DateTimeFormat.forPattern("yyyy-MM-dd")
 
     // Helper types.
     case class TimeSeriesDecomposition(
@@ -151,12 +149,10 @@ object RSVDAnomalyDetection {
 
     // Definition of job parameters.
     case class Params(
-        qualityTable: String = "",
         sourceTable: String = "",
-        queryName: String = "",
-        granularity: Granularity.Value = Granularity.hourly,
+        metricSource: String = "",
         lastDataPointDt: String = "",
-        seasonalityCycle: Int = 1,
+        seasonalityCycle: Int = 7,
         outputPath: String = "",
         defaultFiller: Double = 0.0,
         maxSparsity: Double = 0.2,
@@ -170,25 +166,21 @@ object RSVDAnomalyDetection {
     val argsParser = new OptionParser[Params]("RSVD Anomaly Detection") {
         help("help") text ("Print this usage text and exit.")
 
-        opt[String]("quality-table") required() valueName ("<table_name>") action { (x, p) =>
-            p.copy(qualityTable = x)
-        } text ("Fully qualified name of the data_quality_stats table.")
-
         opt[String]("source-table") required() valueName ("<table_name>") action { (x, p) =>
             p.copy(sourceTable = x)
         } text ("Fully qualified name of the table used to calculate the metrics to be analyzed.")
 
-        opt[String]("query-name") required() valueName ("<query_name>") action { (x, p) =>
-            p.copy(queryName = x)
-        } text ("Name of the query file (without .hql) used to calculate the metrics to be analyzed.")
-
-        opt[String]("granularity") required() valueName ("<granularity>") action { (x, p) =>
-            p.copy(granularity = Granularity.withName(x))
-        } text ("Granularity of the metrics to be analyzed (hourly|daily|monthly).")
+        opt[String]("metric-source") required() valueName ("<metric_source>") action { (x, p) =>
+            p.copy(metricSource = x)
+        } text ("Name of the job that produced the metrics to analyze.")
 
         opt[String]("last-data-point-dt") required() valueName ("<timestamp>") action { (x, p) =>
             p.copy(lastDataPointDt = x)
         } text ("Datetime of the last data point to analyze in ISO-8601 format (2020-01-01T00:00:00Z).")
+
+        opt[Int]("seasonality-cycle") optional() valueName ("<integer>") action { (x, p) =>
+            p.copy(seasonalityCycle = x)
+        } text ("Number of days that conform a full seasonality cycle for the timeseries. Default: 7.")
 
         opt[String]("output-path") required() valueName ("<path>") action { (x, p) =>
             p.copy(outputPath = x)
@@ -263,35 +255,33 @@ class RSVDAnomalyDetection(
             } else text
         }
 
-        if (outputText != "") {
-            val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-            fs.create(new Path(params.outputPath)).write(outputText.getBytes)
+        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+        val outputPath = new Path(params.outputPath)
+        if (outputText == "") {
+            // If no anomalies detected, make sure output file does not exist.
+            fs.delete(outputPath, false)
+        } else {
+            fs.create(outputPath).write(outputText.getBytes)
         }
     }
 
     /**
-     * Queries the given data quality table and gets the name of all metrics
-     * that belong to the metric group corresponding to the specified partition.
+     * Queries the given anomaly detection metrics table and gets the name of
+     * all metrics that belong to the specified metric source.
      */
     def getInputMetrics(): Array[String] = {
 
-
         val df = spark.sql(s"""
             SELECT DISTINCT metric
-            FROM ${params.qualityTable}
-            WHERE
-                source_table = '${params.sourceTable}' AND
-                query_name = '${params.queryName}' AND
-                granularity = '${params.granularity.name}'
+            FROM ${params.sourceTable}
+            WHERE source = '${params.metricSource}'
         """)
 
         df.map(_.getString(0)).collect
     }
 
-
-
     /**
-     * Queries the given data quality table and gets the time series
+     * Queries the given anomaly detection metrics table and gets the timeseries
      * corresponding to the indicated metric and last data point datetime.
      */
     def readTimeSeries(metric: String): Array[Double] = {
@@ -300,11 +290,9 @@ class RSVDAnomalyDetection(
             SELECT
                 dt,
                 value
-            FROM ${params.qualityTable}
+            FROM ${params.sourceTable}
             WHERE
-                source_table = '${params.sourceTable}' AND
-                query_name = '${params.queryName}' AND
-                granularity = '${params.granularity.name}' AND
+                source = '${params.metricSource}' AND
                 metric = '$metric' AND
                 dt <= '${params.lastDataPointDt}'
             ORDER BY dt
@@ -313,17 +301,12 @@ class RSVDAnomalyDetection(
 
         val rawTimeSeries = df.map(r => (r.getString(0), r.getDouble(1))).collect
         val timeSeries = fillInGaps(rawTimeSeries).map(_._2)
+
         // The input for the BlockMatrix needs to be rectangular, so the
         // time series length needs to be a multiple of the matrixHeight,
         // which is indicated by the seasonality cycle. The following lines
         // crop the oldest values of the time series to fit the matrix.
-
-        val adjustedSize = if (rawTimeSeries.length > params.granularity.maxTimeSeriesLength) {
-            params.granularity.maxTimeSeriesLength
-        } else {
-            timeSeries.length - (timeSeries.length % params.granularity.seasonalityCycle)
-        }
-
+        val adjustedSize = timeSeries.length - (timeSeries.length % params.seasonalityCycle)
         timeSeries.takeRight(adjustedSize)
     }
 
@@ -345,19 +328,11 @@ class RSVDAnomalyDetection(
             val minDt = DateTime.parse(rawTimeSeries(0)._1)
             val maxDt = DateTime.parse(params.lastDataPointDt)
 
+            val rangeDays = Days.daysBetween(minDt, maxDt).getDays
+            val fullDtRange = (0 to rangeDays).map(minDt.plusDays(_))
 
-            val fullDtRange = params.granularity match {
-                case Granularity.hourly =>
-                    val rangeHours = Hours.hoursBetween(minDt, maxDt).getHours
-                    (0 to rangeHours).map(minDt.plusHours(_))
-                case Granularity.daily =>
-                    val rangeDays = Days.daysBetween(minDt, maxDt).getDays
-                    (0 to rangeDays).map(minDt.plusDays(_))
-                case Granularity.monthly =>
-                    val rangeMonths = Months.monthsBetween(minDt, maxDt).getMonths
-                    (0 to rangeMonths).map(minDt.plusMonths(_))
-            }
-
+            // Create a time series of the desired length,
+            // full of default values.
             val defaultFullTimeSeries = fullDtRange.map(
                 dt => (RSVDAnomalyDetection.DateTimeFormatter.print(dt), params.defaultFiller)
             )
@@ -375,16 +350,19 @@ class RSVDAnomalyDetection(
      * Returns false otherwise.
      */
     def timeSeriesCanBeAnalyzed(timeSeries: Array[Double]): Boolean = {
+
         // The anomaly detection algorithm needs a time series with enough
         // data points, for the RSVD algorithm to be effective. The miminum
         // length is defined by the height and width of the RSVD matrices.
-        val minLength = params.granularity.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)
+        val minLength = params.seasonalityCycle * (params.rsvdDimensions + params.rsvdOversample)
         if (timeSeries.length >= minLength) {
+
             // Time series that are too sparse are filtered out, because they
             // are more difficult to extract signal from, and are more prone
             // to inaccuracies and false alarms.
             val sparsity = timeSeries.count(_ == params.defaultFiller) / timeSeries.length.toDouble
             sparsity <= params.maxSparsity
+
         } else false
     }
 
@@ -410,7 +388,7 @@ class RSVDAnomalyDetection(
         )
 
         // The time series needs to be transformed into a matrix for RSVD to work.
-        val matrix = timeSeriesToBlockMatrix(timeSeries, params.granularity.seasonalityCycle, config)
+        val matrix = timeSeriesToBlockMatrix(timeSeries, params.seasonalityCycle, config)
 
         val rsvdResults = RSVD.run(matrix, config, spark.sparkContext)
         // RSVD results need to be transformed into signal and noise time series.
