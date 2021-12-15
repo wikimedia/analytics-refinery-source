@@ -7,13 +7,50 @@ package org.wikimedia.analytics.refinery.job.structureddata.jsonparse
  *  - Some fields are renamed to prevent operator-name conflict in SQL
  */
 
+
+/**
+  * This object provide functions helping to convert from Json classes to Table classes
+  *
+  * Note: The nullify functions transform empty Map/Array to None (Option), preventing
+  * hitting a bug of Spark not managing to write empty arrays in hive parquet tables
+  * (https://issues.apache.org/jira/browse/SPARK-31345).
+  * TODO: Remove the nullify function when upgrading to Spark 3
+  */
+object JsonToTableUtility {
+  def nullifyMap[T, U](it: Option[Map[T, U]]): Option[Map[T, U]] = {
+    if (it.isEmpty || it.get.isEmpty) None
+    else it
+  }
+
+  def nullifySeq[T](it: Option[Seq[T]]): Option[Seq[T]] = {
+    if (it.isEmpty || it.get.isEmpty) None
+    else it
+  }
+
+  private def mapToSeq[T, U]
+    (converter: T => U)
+    (seqMap: Option[Map[String, Seq[T]]]): Option[Seq[U]] = {
+    nullifyMap[String, Seq[T]](seqMap).map(_.flatMap {
+      case (_, jsList) => jsList.map(js => converter(js))
+    }.toSeq)
+  }
+
+  val snakMapToSnakSeq = mapToSeq[JsonSnak, Snak](js => new Snak(js))_
+  val claimMapToClaimSeq = mapToSeq[JsonClaim, Claim](jc => new Claim(jc))_
+
+  def langMapToStringMap(lm: Option[Map[String, JsonLanguageValue]]): Option[Map[String,String]] = {
+    nullifyMap[String, JsonLanguageValue](lm).map(_.map({ case (lang, jlv) => lang -> jlv.value}))
+  }
+
+}
+
 case class SiteLink(
                      site: String,
                      title: String,
                      badges: Option[Seq[String]],
                      url: Option[String]
                    ) {
-  def this(jsl: JsonSiteLink) = this(jsl.site, jsl.title, jsl.badges.map(_.toVector), jsl.url)
+  def this(jsl: JsonSiteLink) = this(jsl.site, jsl.title, JsonToTableUtility.nullifySeq[String](jsl.badges), jsl.url)
 }
 
 case class DataValue(
@@ -41,14 +78,14 @@ case class Snak(
 }
 
 case class Reference(
-                      snaks: Seq[Snak],
-                      snaksOrder: Seq[String], // order of snacks using property
+                      snaks: Option[Seq[Snak]],
+                      snaksOrder: Option[Seq[String]], // order of snacks using property
                       hash: Option[String]
                     ) {
   def this(jr: JsonReference) =
     this(
-      jr.snaks.flatMap { case (_, jsList) => jsList.map(js => new Snak(js))}.toSeq,
-      jr.`snaks-order`,
+      JsonToTableUtility.snakMapToSnakSeq(jr.snaks),
+      JsonToTableUtility.nullifySeq[String](jr.`snaks-order`),
       jr.hash
     )
 }
@@ -68,9 +105,9 @@ case class Claim(
       new Snak(jc.mainsnak),
       jc.`type`,
       jc.rank,
-      jc.qualifiers.map(_.flatMap { case(_, jsList) => jsList.map(js => new Snak(js))}.toSeq),
-      jc.`qualifiers-order`,
-      jc.references.map(_.map(jr => new Reference(jr)))
+      JsonToTableUtility.snakMapToSnakSeq(jc.qualifiers),
+      JsonToTableUtility.nullifySeq[String](jc.`qualifiers-order`),
+      JsonToTableUtility.nullifySeq[JsonReference](jc.references).map(_.map(jr => new Reference(jr)))
     )
 }
 
@@ -84,16 +121,16 @@ case class CommonsEntity(
                           typ: String, // mediainfo
                           labels: Option[Map[String, String]], // lang -> value
                           descriptions: Option[Map[String, String]], // lang -> value
-                          statements: Seq[Claim],
+                          statements: Option[Seq[Claim]],
                           lastRevId: Option[Long]
                         ) {
   def this(je: CommonsJsonEntity) =
     this(
       je.id,
       je.`type`,
-      je.labels.map(_.map({ case (lang, jlv) => lang -> jlv.value})),
-      je.descriptions.map(_.map{ case (lang, jlv) => lang -> jlv.value}),
-      je.statements.flatMap { case (_, jcList) => jcList.map(jc => new Claim(jc))}.toSeq,
+      JsonToTableUtility.langMapToStringMap(je.labels),
+      JsonToTableUtility.langMapToStringMap(je.descriptions),
+      JsonToTableUtility.claimMapToClaimSeq(je.statements),
       je.lastrevid
     )
 }
@@ -105,7 +142,7 @@ case class WikidataEntity(
                            labels: Option[Map[String, String]], // lang -> value
                            descriptions: Option[Map[String, String]], // lang -> value
                            aliases: Option[Map[String, Seq[String]]], // lang -> [values]
-                           claims: Seq[Claim],
+                           claims: Option[Seq[Claim]],
                            siteLinks: Option[Seq[SiteLink]], // only in items
                            lastRevId: Option[Long]
                          ) {
@@ -114,11 +151,11 @@ case class WikidataEntity(
       je.id,
       je.`type`,
       je.datatype,
-      je.labels.map(_.map({ case (lang, jlv) => lang -> jlv.value})),
-      je.descriptions.map(_.map{ case (lang, jlv) => lang -> jlv.value}),
-      je.aliases.map(_.map{ case (lang, jlvList) => lang -> jlvList.map(_.value)}),
-      je.claims.flatMap { case (_, jcList) => jcList.map(jc => new Claim(jc))}.toSeq,
-      je.sitelinks.map(_.map { case (_, jsl) => new SiteLink(jsl)}.toSeq),
+      JsonToTableUtility.langMapToStringMap(je.labels),
+      JsonToTableUtility.langMapToStringMap(je.descriptions),
+      JsonToTableUtility.nullifyMap[String, Seq[JsonLanguageValue]](je.aliases).map(_.map{ case (lang, jlvList) => lang -> jlvList.map(_.value)}),
+      JsonToTableUtility.claimMapToClaimSeq(je.claims),
+      JsonToTableUtility.nullifyMap[String, JsonSiteLink](je.sitelinks).map(_.map { case (_, jsl) => new SiteLink(jsl)}.toSeq),
       je.lastrevid
     )
 }

@@ -31,8 +31,8 @@ case class JsonSnak(
                    )
 
 case class JsonReference(
-                          snaks: Map[String, Seq[JsonSnak]], // property -> [snaks]
-                          `snaks-order`: Seq[String], // order of snacks using property
+                          snaks: Option[Map[String, Seq[JsonSnak]]], // property -> [snaks]
+                          `snaks-order`: Option[Seq[String]], // order of snacks using property
                           hash: Option[String]
                         )
 
@@ -58,7 +58,7 @@ case class CommonsJsonEntity(
                               `type`: String, // mediainfo
                               labels: Option[Map[String, JsonLanguageValue]], // lang -> value
                               descriptions: Option[Map[String, JsonLanguageValue]], // lang -> value
-                              statements: Map[String, Seq[JsonClaim]], // property -> [statements]
+                              statements: Option[Map[String, Seq[JsonClaim]]], // property -> [statements]
                               lastrevid: Option[Long]
                             )
 
@@ -69,7 +69,7 @@ case class WikidataJsonEntity(
                                labels: Option[Map[String, JsonLanguageValue]], // lang -> value
                                descriptions: Option[Map[String, JsonLanguageValue]], // lang -> value
                                aliases: Option[Map[String, Seq[JsonLanguageValue]]], // lang -> [values]
-                               claims: Map[String, Seq[JsonClaim]], // property -> [claims]
+                               claims: Option[Map[String, Seq[JsonClaim]]], // property -> [claims]
                                sitelinks: Option[Map[String, JsonSiteLink]], // only in items
                                lastrevid: Option[Long]
                              )
