@@ -76,18 +76,27 @@ object augment_netflow extends LogHelper {
     }
 
     /**
-     * Applies the transform function to the given PartitionedDataFrame.
+     * Applies the transform function to the given PartitionedDataFrame depending on its table.
+     * The netflow and network_flows_internal data is very similar, and adding some custom logic
+     * at data augmentation step allows us not to add a new refine job.
+     * Ideally this will at some point be stored in an API accessible way, allowing to remove
+     * the hard-coded switch here.
      */
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         val networkToRegionMap = readNetworkToRegionMap(networkToRegionPath)
-        val augmentedDf = augmentDataFrame(partDf.df, networkToRegionMap)
+        val augmentedDf = partDf.partition.table match {
+            case "netflow" => augmentNetflowDataFrame(partDf.df, networkToRegionMap)
+            case "network_flows_internal" => augmentNetworkFlowsInternalDataFrame(partDf.df, networkToRegionMap)
+            case _ => throw new IllegalArgumentException(s"Unexpected table in augment_netflow: ${partDf.partition.table}")
+        }
+
         PartitionedDataFrame(augmentedDf, partDf.partition)
     }
 
     /**
      * Augments the given Netflow DataFrame with the new fields.
      */
-    def augmentDataFrame(
+    def augmentNetflowDataFrame(
         df: DataFrame,
         networkToRegionMap: Map[SerializableIpAddressMatcher, String]
     ): DataFrame = {
@@ -123,6 +132,27 @@ object augment_netflow extends LogHelper {
             withColumn("region",
                 wikimediaRegionUdf(col("peer_ip_src"))
             )
+    }
+
+    /**
+      * Augments the given network internal flow DataFrame with the new fields.
+      */
+    def augmentNetworkFlowsInternalDataFrame(
+        df: DataFrame,
+        networkToRegionMap: Map[SerializableIpAddressMatcher, String]
+    ): DataFrame = {
+        // Declare UDFs to use in SparkSQL.
+        val ipVersionUdf = udf(ipVersion _)
+        val wikimediaRegionUdf = udf(wikimediaRegion(networkToRegionMap))
+
+        // SparkSQL statements for DataFrame transformation.
+        df.
+          withColumn("ip_version",
+              ipVersionUdf(col("ip_src"))
+          ).
+          withColumn("region",
+              wikimediaRegionUdf(col("peer_ip_src"))
+          )
     }
 
     /**
