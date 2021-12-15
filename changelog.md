@@ -1,3 +1,6 @@
+## v0.1.23
+* Add SparkSQLNoCLIDriver job
+
 ## v0.1.22
 * Simplify RSVD anomaly detection job for Airflow POC
 * Save commons json dumps as a table and add fields for wikidata
