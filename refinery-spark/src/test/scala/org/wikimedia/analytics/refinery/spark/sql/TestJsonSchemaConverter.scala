@@ -1,9 +1,10 @@
+package org.wikimedia.analytics.refinery.spark.sql
+
 import scala.util.{Failure, Try}
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 
 class TestJsonSchemaConverter extends FlatSpec with Matchers {
 
