@@ -1,3 +1,7 @@
+## v0.1.24
+* Update refine netflow_augment transform function
+* Update structured_data dumps parsing job
+
 ## v0.1.23
 * Add SparkSQLNoCLIDriver job
 
