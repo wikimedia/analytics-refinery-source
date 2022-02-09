@@ -1,3 +1,6 @@
+## v0.1.25
+* Integrate SparkSQLNoCLIDriver and HiveToCassandra
+
 ## v0.1.24
 * Update refine netflow_augment transform function
 * Update structured_data dumps parsing job
