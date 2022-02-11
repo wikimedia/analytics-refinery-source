@@ -4,6 +4,7 @@ import org.apache.spark.sql.{SaveMode, SparkSession}
 import scopt.OptionParser
 
 /**
+ * FIXME Deprecated by analytics-refinery/hql/wikidata/item_page_link/weekly
  * Generate a wikidata_item_page_link snapshot from a wikidata entity table.
  * Data is saved in parquet-format in a partition-folder. Partition addition
  * to the related table is done in oozie.
