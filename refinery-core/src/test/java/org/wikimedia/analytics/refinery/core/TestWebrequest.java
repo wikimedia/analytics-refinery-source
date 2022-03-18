@@ -17,22 +17,22 @@ public class TestWebrequest {
     @Deprecated
     @Test
     @FileParameters(
-            value = "src/test/resources/isSpider_test_data.csv",
-            mapper = CsvWithHeaderMapper.class
+        value = "src/test/resources/isSpider_test_data.csv",
+        mapper = CsvWithHeaderMapper.class
     )
 
     public void testIsCrawler(
-            String test_description,
-            boolean is_crawler,
-            String user_agent
+        String test_description,
+        boolean is_crawler,
+        String user_agent
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
-                test_description,
-                is_crawler,
-                webrequest_inst.isCrawler(
-                        user_agent
-                )
+            test_description,
+            is_crawler,
+            webrequest_inst.isCrawler(
+                user_agent
+            )
         );
     }
 
@@ -95,8 +95,8 @@ public class TestWebrequest {
             test_description,
             expected_method,
             webrequest_inst.getAccessMethod(
-                    uri_host,
-                    user_agent
+                uri_host,
+                user_agent
             )
         );
     }
@@ -111,8 +111,8 @@ public class TestWebrequest {
 
     @Test
     @FileParameters(
-            value = "../refinery-core/src/test/resources/normalize_host_test_data.csv",
-            mapper = CsvWithHeaderMapper.class
+        value = "../refinery-core/src/test/resources/normalize_host_test_data.csv",
+        mapper = CsvWithHeaderMapper.class
     )
     public void testNormalizeHost(
         String test_description,
@@ -124,24 +124,24 @@ public class TestWebrequest {
     ) {
         Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
-                test_description + " - Project Class",
-                expectedProjectClass,
-                webrequest_inst.normalizeHost(uriHost).getProjectFamily()
+            test_description + " - Project Class",
+            expectedProjectClass,
+            webrequest_inst.normalizeHost(uriHost).getProjectFamily()
         );
         assertEquals(
-                test_description + " - Project",
-                expectedProject,
-                webrequest_inst.normalizeHost(uriHost).getProject()
+            test_description + " - Project",
+            expectedProject,
+            webrequest_inst.normalizeHost(uriHost).getProject()
         );
         assertEquals(
-                test_description + " - Qualifiers",
-                expectedQualifiers,
-                join(webrequest_inst.normalizeHost(uriHost).getQualifiers(), ";")
+            test_description + " - Qualifiers",
+            expectedQualifiers,
+            join(webrequest_inst.normalizeHost(uriHost).getQualifiers(), ";")
         );
         assertEquals(
-                test_description + " - TLD",
-                expectedTld,
-                webrequest_inst.normalizeHost(uriHost).getTld()
+            test_description + " - TLD",
+            expectedTld,
+            webrequest_inst.normalizeHost(uriHost).getTld()
         );
     }
 
@@ -153,48 +153,48 @@ public class TestWebrequest {
 
         // Null host
         assertEquals(
-                "Null - Project Class",
-                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
+            "Null - Project Class",
+            NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+            webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
         );
         assertEquals(
-                "Null - Project",
-                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getProject()
+            "Null - Project",
+            NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+            webrequest_inst.normalizeHost(testUriHost).getProject()
         );
         assertEquals(
-                "Null - Qualifiers",
-                new ArrayList<String>(),
-                webrequest_inst.normalizeHost(testUriHost).getQualifiers()
+            "Null - Qualifiers",
+            new ArrayList<String>(),
+            webrequest_inst.normalizeHost(testUriHost).getQualifiers()
         );
         assertEquals(
-                "Null - TLD",
-                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getTld()
+            "Null - TLD",
+            NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+            webrequest_inst.normalizeHost(testUriHost).getTld()
         );
 
         testUriHost = "";
 
         // Empty host
         assertEquals(
-               "Empty - Project Class",
-                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
+            "Empty - Project Class",
+            NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+            webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
         );
         assertEquals(
-                "Empty - Project",
-                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getProject()
+            "Empty - Project",
+            NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+            webrequest_inst.normalizeHost(testUriHost).getProject()
         );
         assertEquals(
-                "Empty - Qualifiers",
-                new ArrayList<String>(),
-                webrequest_inst.normalizeHost(testUriHost).getQualifiers()
+            "Empty - Qualifiers",
+            new ArrayList<String>(),
+            webrequest_inst.normalizeHost(testUriHost).getQualifiers()
         );
         assertEquals(
-                "Empty - TLD",
-                NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-                webrequest_inst.normalizeHost(testUriHost).getTld()
+            "Empty - TLD",
+            NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
+            webrequest_inst.normalizeHost(testUriHost).getTld()
         );
     }
 
@@ -208,18 +208,18 @@ public class TestWebrequest {
         );
 
         assertTrue(
-                "Should be WMF hostname",
-                webrequest_inst.isWMFHostname("recommend.wmflabs.org")
+            "Should be WMF hostname",
+            webrequest_inst.isWMFHostname("recommend.wmflabs.org")
         );
 
         assertTrue(
-                "Should be WMF hostname",
-                webrequest_inst.isWMFHostname("recommend.wmcloud.org")
+            "Should be WMF hostname",
+            webrequest_inst.isWMFHostname("recommend.wmcloud.org")
         );
 
         assertTrue(
-                "Should be WMF hostname",
-                webrequest_inst.isWMFHostname("recommend.toolforge.org")
+            "Should be WMF hostname",
+            webrequest_inst.isWMFHostname("recommend.toolforge.org")
         );
 
         assertFalse(

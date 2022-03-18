@@ -16,12 +16,16 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
+
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
 
 /**
  * Static functions to implement the Wikimedia pageview definition.
@@ -90,15 +94,6 @@ public class PageviewDefinition {
         "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
             + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
     );
-
-    /**
-     * In an analysis of a days worth of webrequest data,
-     * there were under 5000 distinct HTTP hostnames.
-     * The isPageviewHostname method of this class uses the above regexes.
-     * Caching the result of a given hostname check in this LRUCache
-     * speeds up webrequest -> pageview processing.
-     */
-    private Utilities.LRUCache<String, Boolean> pageviewHostnameCache = new Utilities.LRUCache<>(10000);
 
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
         /**
@@ -211,19 +206,35 @@ public class PageviewDefinition {
      */
     private boolean isPageviewHostname(String hostname) {
         hostname = hostname.toLowerCase();
-
-        if (pageviewHostnameCache.containsKey(hostname))
-            return pageviewHostnameCache.get(hostname);
-        else {
-            boolean matched = (
-                Utilities.patternIsFound(URI_HOST_WIKIMEDIA_DOMAIN_PATTERN, hostname) ||
-                Utilities.patternIsFound(URI_HOST_OTHER_PROJECTS_PATTERN, hostname) ||
-                Utilities.patternIsFound(URI_HOST_PROJECT_DOMAIN_PATTERN, hostname)
-            );
-            pageviewHostnameCache.put(hostname, matched);
-            return matched;
-        }
+        // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
+        return pageviewHostnameCache.getUnchecked(hostname);
     }
+
+    private boolean computeIsPreviewHostname(String hostname) {
+        return (
+                Utilities.patternIsFound(URI_HOST_WIKIMEDIA_DOMAIN_PATTERN, hostname) ||
+                        Utilities.patternIsFound(URI_HOST_OTHER_PROJECTS_PATTERN, hostname) ||
+                        Utilities.patternIsFound(URI_HOST_PROJECT_DOMAIN_PATTERN, hostname)
+        );
+    }
+
+    /**
+     * In an analysis of a days worth of webrequest data,
+     * there were under 5000 distinct HTTP hostnames.
+     * The isPageviewHostname method of this class uses the above regexes.
+     * Caching the result of a given hostname check in this Cache
+     * speeds up webrequest -> pageview processing.
+     */
+    private LoadingCache<String, Boolean> pageviewHostnameCache = CacheBuilder.newBuilder()
+        .maximumSize(10_000)
+        .build(
+            new CacheLoader<String, Boolean>() {
+                @Override
+                public Boolean load(String hostname) {
+                    return computeIsPreviewHostname(hostname);
+                }
+            }
+        );
 
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
@@ -282,7 +293,7 @@ public class PageviewDefinition {
      */
     private boolean pageDenotesContentConsumption(WebrequestData data){
 
-        // if x-analytics header is empty just move on, we cannnot infer anything
+        // if x-analytics header is empty just move on, we cannot infer anything
         if (data.getRawXAnalyticsHeader().isEmpty())
             return true;
 
