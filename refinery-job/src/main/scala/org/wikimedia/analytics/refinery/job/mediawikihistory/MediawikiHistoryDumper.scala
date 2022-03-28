@@ -1,8 +1,7 @@
 
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
-import java.util.{TimeZone, Calendar}
-
+import java.util.{Calendar, TimeZone}
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
@@ -10,11 +9,8 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{LongType, StringType, StructField, StructType}
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.SparkConf
-import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.{
-    MediawikiEvent,
-    MediawikiEventUserDetails,
-    MediawikiEventPageDetails
-}
+import org.wikimedia.analytics.refinery.job.HDFSArchiver
+import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.{MediawikiEvent, MediawikiEventPageDetails, MediawikiEventUserDetails}
 import scopt.OptionParser
 
 /**
@@ -25,18 +21,17 @@ import scopt.OptionParser
  * Size of the time bucket varies depending on the size of the wiki.
  * For example, big wikis might be split in 1-month buckets, while
  * medium wikis might be split in 1-year buckets, and small wikis
- * might be outputed as a single file.
+ * might be output as a single file.
  *
  * Parameters:
- *   snapshot         Mediawiki snapshot to dump (usually YYYY-MM).
- *   inputBasePath    HDFS base path where to read data from.
- *   tempDirectory    HDFS temporary directory for intermediate files.
- *   tempPartitions   Number of partitions to rehash data with (internal).
- *   outputBasePath   HDFS base path where to write the dump.
+ *   - snapshot         Mediawiki snapshot to dump (usually YYYY-MM).
+ *   - inputBasePath    HDFS base path where to read data from.
+ *   - tempDirectory    HDFS temporary directory for intermediate files.
+ *   - tempPartitions   Number of partitions to rehash data with (internal).
+ *   - outputBasePath   HDFS base path where to write the dump.
  *
  * Example of usage:
- *
- * sudo -u analytics spark2-submit \
+ * {{{ sudo -u analytics spark2-submit \
  *     --master yarn \
  *     --deploy-mode cluster \
  *     --executor-memory 32G \
@@ -49,7 +44,7 @@ import scopt.OptionParser
  *     --input-base-path /wmf/data/wmf/mediawiki/history \
  *     --temp-directory /tmp/mforns/mediawiki_history_dumps_12345 \
  *     --temp-partitions 256 \
- *     --output-base-path /wmf/data/archive/mediawiki/history
+ *     --output-base-path /wmf/data/archive/mediawiki/history}}}
  *
  */
 
@@ -186,11 +181,11 @@ object MediawikiHistoryDumper {
             flatMap(r => {
                 val event = MediawikiEvent.fromRow(r)
                 eventTimeBucket(event)
-                  // We can get the value of event_timestamp as None are filtered out in eventTimeBucket function
-                  .map(timeBucket => Seq(Row.fromTuple((event.wikiDb, timeBucket, event.eventTimestamp.get.getTime, event.toTSVLine))))
-                  .getOrElse(Seq.empty[Row])
-                    // The first 3 dimensions are used for proper partitioning
-                    // and ordering of the data, only the tsv line will be output.
+                    // We can get the value of event_timestamp as None are filtered out in eventTimeBucket function
+                    .map(timeBucket => Seq(Row.fromTuple((event.wikiDb, timeBucket, event.eventTimestamp.get.getTime, event.toTSVLine))))
+                    .getOrElse(Seq.empty[Row])
+                // The first 3 dimensions are used for proper partitioning
+                // and ordering of the data, only the tsv line will be output.
             })(partitionedDatasetRowEncoder).
             // The following line applies the repartitioning. It redistributes
             // the data among tempPartitions partitions. And makes sure that
@@ -269,20 +264,18 @@ object MediawikiHistoryDumper {
                     val wiki = wikiDirectory.getPath.getName.substring(5)
                     // The substring removes Hive partition prefix (time_bucket=).
                     val timeBucket = timeDirectory.getPath.getName.substring(12)
-
-                    val dataFiles = fs.listStatus(timeDirectory.getPath)
-                    if (dataFiles.length > 1) {
-                        // This should not happen.
-                        // Just making sure that we do not leave out any file.
-                        throw new RuntimeException("More than one file per folder generated.")
-                    }
-                    val sourcePath = dataFiles(0).getPath
-
                     val destinationDirectory = s"$outputBasePath/$snapshot/$wiki"
-                    fs.mkdirs(new Path(destinationDirectory))
                     val destinationFile = s"$snapshot.$wiki.$timeBucket.tsv.bz2"
                     val destinationPath = new Path(s"$destinationDirectory/$destinationFile")
-                    fs.rename(sourcePath, destinationPath)
+                    HDFSArchiver(
+                        sourceDirectory = timeDirectory.getPath,
+                        expectedFilenameEnding = "",
+                        checkDone = false,
+                        doneFilePath = new Path(""),
+                        archiveFile = destinationPath,
+                        archiveParentUmask = "022",
+                        archivePerms = "644"
+                    )
                 }
             }
         }

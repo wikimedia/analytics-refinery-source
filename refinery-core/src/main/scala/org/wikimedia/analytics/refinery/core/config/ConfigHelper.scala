@@ -7,6 +7,7 @@ import profig._
 import cats.syntax.either._
 import io.circe.CursorOp.DownField
 import io.circe.{Decoder, DecodingFailure}
+import org.apache.hadoop.fs.Path
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -151,6 +152,9 @@ trait ConfigHelper {
             throw new RuntimeException(s"Failed parsing '$s' into a DateTimeFormatter", t)
         )
     }
+
+    // implicit conversion from string to hadoop.fs.Path
+    implicit def stringToHadoopFsPath(s: String): Path = new Path(s)
 
     // Support implicit DateTime conversion from string to DateTime
     // The opt can either be given in integer hours ago, or
