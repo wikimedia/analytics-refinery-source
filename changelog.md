@@ -1,3 +1,7 @@
+## v0.1.26
+* Create a Hive to Graphite job
+* Add archiving job for Airflow
+
 ## v0.1.25
 * Integrate SparkSQLNoCLIDriver and HiveToCassandra
 
