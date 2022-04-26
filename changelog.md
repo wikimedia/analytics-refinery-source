@@ -1,3 +1,7 @@
+## v0.1.27
+* Make caching mechanisms thread ready
+* Migrate wikidata/item_page_link/weekly
+
 ## v0.1.26
 * Create a Hive to Graphite job
 * Add archiving job for Airflow
