@@ -14,14 +14,17 @@
 
 package org.wikimedia.analytics.refinery.core;
 
-import org.apache.commons.lang3.StringUtils;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.apache.commons.lang3.StringUtils;
+
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
 
 /**
  * Functions to work with Wikimedia webrequest data.
@@ -32,12 +35,12 @@ public class Webrequest {
      * Static values used as qualifiers in uri_host (meaning not TLD, not project_family nor project)
      */
     public static final Set<String> URI_QUALIFIERS = new HashSet<String>(Arrays.asList(
-            "m",
-            "mobile",
-            "wap",
-            "zero",
-            "www",
-            "download"
+        "m",
+        "mobile",
+        "wap",
+        "zero",
+        "www",
+        "download"
     ));
 
     /**
@@ -58,7 +61,7 @@ public class Webrequest {
     private Webrequest() {
     }
 
-    public static Webrequest getInstance(){
+    public static Webrequest getInstance() {
         return instance;
     }
 
@@ -108,15 +111,6 @@ public class Webrequest {
         "wmcloud.org",
         "toolforge.org"
     );
-    /**
-     * In an analysis of a days worth of webrequest data,
-     * there were under 5000 distinct HTTP hostnames.
-     * The isWMFHostname method of this class searches the above list of names
-     * for matching hostnames.
-     * Caching the result of a given hostname check in this LRUCache
-     * speeds the search.
-     */
-    private static final Utilities.LRUCache<String, Boolean> wmfHostnameCache = new Utilities.LRUCache<>(10000);
 
     /* Regex to coarsely match email addresses in the user-agent as part of spider identification,
        as the User-Agent policy - https://meta.wikimedia.org/wiki/User-Agent_policy,
@@ -142,18 +136,6 @@ public class Webrequest {
                         "User:|User_talk:|github|tools.wmflabs.org|Blackboard Safeassign|Damn Small XSS|MeetingRoomApp|" + coarseEmailPattern + ").*" +
                     ")$");
 
-    /*
-     * Spiders identification regexp takes a lot of computation power while there only are only
-     * a relatively small number of recurrent user_agent values (less than a million).
-     * We use a LRU cache to prevent recomputing agentType for frequently seen user agents.
-     */
-    private Utilities.LRUCache<String, Boolean> agentTypeCache = new Utilities.LRUCache<>(10000);
-
-
-    /**
-     * Used to speed up "normalization of hosts"
-     */
-    private Utilities.LRUCache<String, Object> normalizedHostCache = new Utilities.LRUCache<>(5000);
 
     /**
      * Pattern for automatically-added subdomains that indicate zero,
@@ -190,29 +172,47 @@ public class Webrequest {
         // Convert to lower case and remove any trailing . characters
         hostname = StringUtils.stripEnd(hostname.toLowerCase(), ".");
 
-        if (wmfHostnameCache.containsKey(hostname))
-            return wmfHostnameCache.get(hostname);
-        else {
-            // Split the hostname by .
-            String[] parts = hostname.split("\\.");
+        // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
+        return wmfHostnameCache.getUnchecked(hostname);
+    }
 
-            boolean matched = false;
-            // We need at least the TLD and the domain at the end of the hostname.
-            if (parts.length >= 2) {
-                // Final domain should be the last 2 elements of hostname parts
-                String domain = parts[parts.length - 2] + "." + parts[parts.length - 1];
-                matched = WMF_DOMAINS.contains(domain);
+    /**
+     * In an analysis of a days worth of webrequest data,
+     * there were under 5000 distinct HTTP hostnames.
+     * The isWMFHostname method of this class searches the above list of names
+     * for matching hostnames.
+     * Caching the result of a given hostname check in this Cache
+     * speeds the search.
+     */
+    private static LoadingCache<String, Boolean> wmfHostnameCache = CacheBuilder.newBuilder()
+        .maximumSize(10_000)
+        .build(
+            new CacheLoader<String, Boolean>() {
+                @Override
+                public Boolean load(String hostname) {
+                    return computeIsWMFHostname(hostname);
+                }
             }
+        );
 
-            wmfHostnameCache.put(hostname, matched);
-            return matched;
+    public static boolean computeIsWMFHostname(String hostname) {
+        // Split the hostname by .
+        String[] parts = hostname.split("\\.");
+
+        boolean matched = false;
+
+        // We need at least the TLD and the domain at the end of the hostname.
+        if (parts.length >= 2) {
+            // Final domain should be the last 2 elements of hostname parts
+            String domain = parts[parts.length - 2] + "." + parts[parts.length - 1];
+            matched = WMF_DOMAINS.contains(domain);
         }
+        return matched;
     }
 
     /**
      * Identifies a project from a pageview uriHost
      * NOTE: Provides correct result only if used with is_pageview = true
-     *
      * @param uriHost The url's host
      * @return The project identifier in format [xxx.]xxxx (en.wikipedia or wikisource for instance)
      */
@@ -220,51 +220,64 @@ public class Webrequest {
         if (uriHost == null || uriHost.length() > MAX_ADDRESS_LENGTH) return UNKNOWN_PROJECT_VALUE;
         String[] uri_parts = uriHost.toLowerCase().split("\\.");
         switch (uri_parts.length) {
-            // case wikixxx.org
-            case 2:
-                return uri_parts[0];
-            //case xx.wikixxx.org - Remove unwanted parts
-            case 3:
-                if (URI_QUALIFIERS.contains(uri_parts[0]))
-                    return uri_parts[1];
-                else
-                    return uri_parts[0] + "." + uri_parts[1];
+        // case wikixxx.org
+        case 2:
+            return uri_parts[0];
+        //case xx.wikixxx.org - Remove unwanted parts
+        case 3:
+            if (URI_QUALIFIERS.contains(uri_parts[0]))
+                return uri_parts[1];
+            else
+                return uri_parts[0] + "." + uri_parts[1];
             //xx.[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
-            case 4:
-                if (URI_QUALIFIERS.contains(uri_parts[0]))
-                    return uri_parts[2];
-                else
-                    return uri_parts[0] + "." + uri_parts[2];
+        case 4:
+            if (URI_QUALIFIERS.contains(uri_parts[0]))
+                return uri_parts[2];
+            else
+                return uri_parts[0] + "." + uri_parts[2];
             //xx.[m|mobile|wap|zero].[m|mobile|wap|zero].wikixxx.org - Remove unwanted parts
-            case 5:
-                if (URI_QUALIFIERS.contains(uri_parts[0]))
-                    return uri_parts[3];
-                else
-                    return uri_parts[0] + "." + uri_parts[3];
-            default:
-                return UNKNOWN_PROJECT_VALUE;
+        case 5:
+            if (URI_QUALIFIERS.contains(uri_parts[0]))
+                return uri_parts[3];
+            else
+                return uri_parts[0] + "." + uri_parts[3];
+        default:
+            return UNKNOWN_PROJECT_VALUE;
         }
     }
 
     /**
      * Identify a bunch of spiders; returns TRUE
      * if the user agent matches a known spider.
-     * @param    userAgent    the user agent associated with the request.
-     * @return   boolean
+     *
+     * @param userAgent the user agent associated with the request.
+     * @return boolean
      */
     public boolean isSpider(String userAgent) {
         if ("-".equals(userAgent))
             return true;
         else {
-            if (agentTypeCache.containsKey(userAgent))
-                return agentTypeCache.get(userAgent);
-            else {
-                boolean isSpider = spiderPattern.matcher(userAgent).find();
-                agentTypeCache.put(userAgent, isSpider);
-                return isSpider;
-            }
+            // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
+            return agentTypeCache.getUnchecked(userAgent);
         }
     }
+
+    /*
+     * Spiders identification regexp takes a lot of computation power while there are only
+     * a relatively small number of recurrent user_agent values (less than a million).
+     * We use a cache to prevent recomputing agentType for frequently seen user agents.
+     */
+    private LoadingCache<String, Boolean> agentTypeCache = CacheBuilder.newBuilder()
+        .maximumSize(10_000)
+        .build(
+            new CacheLoader<String, Boolean>() {
+                @Override
+                public Boolean load(String ua) {
+                    return spiderPattern.matcher(ua).find();
+                }
+            }
+        );
+
     /**
      * Kept for backward compatibility.
      */
@@ -280,18 +293,16 @@ public class Webrequest {
      * mobile app; if the user agent is not, but it is to m. or
      * zero. domains, mobile web; otherwise, desktop.
      *
-     * @param uriHost the value in the uri_host field.
-     *
+     * @param uriHost   the value in the uri_host field.
      * @param userAgent the user_agent.
-     *
      * @return String
      */
     public String getAccessMethod(String uriHost, String userAgent) {
         String accessMethod;
 
-        if(appAgentPattern.matcher(userAgent).find()){
+        if (appAgentPattern.matcher(userAgent).find()) {
             accessMethod = "mobile app";
-        } else if(uriHostPattern.matcher(uriHost).find()){
+        } else if (uriHostPattern.matcher(uriHost).find()) {
             accessMethod = "mobile web";
         } else {
             accessMethod = "desktop";
@@ -303,7 +314,6 @@ public class Webrequest {
     /**
      * Classifies a referer
      *
-     *
      * @param url The referer url to classify
      * @return RefererClassification
      */
@@ -313,7 +323,7 @@ public class Webrequest {
         }
 
         String[] urlParts = StringUtils.splitPreserveAllTokens(url, '/');
-        if (urlParts == null || urlParts.length <3) {
+        if (urlParts == null || urlParts.length < 3) {
             return RefererClass.UNKNOWN;
         }
 
@@ -327,12 +337,12 @@ public class Webrequest {
 
         String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
 
-        if (domainParts == null || domainParts.length <2) {
+        if (domainParts == null || domainParts.length < 2) {
             return RefererClass.UNKNOWN;
         }
 
-        if (domainParts[domainParts.length-1].equals("org")) {
-            switch (domainParts[domainParts.length-2]) {
+        if (domainParts[domainParts.length - 1].equals("org")) {
+            switch (domainParts[domainParts.length - 2]) {
             case "":
                 return RefererClass.UNKNOWN;
             case "mediawiki":
@@ -368,72 +378,81 @@ public class Webrequest {
      * @param uriHost The url's host
      * @return A NormalizedHostInfo object with projectFamily, project, qualifiers and tld values set.
      */
-    public NormalizedHostInfo normalizeHost(String uriHost) {
+    public static NormalizedHostInfo normalizeHost(String uriHost) {
+        if ((uriHost == null) || (uriHost.trim().isEmpty())) return new NormalizedHostInfo();
+        uriHost = uriHost.toLowerCase();
+        // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
+        return normalizedHostCache.getUnchecked(uriHost);
+    }
 
-        // use LRU cache to not repeat computations
+    /**
+     * Used to speed up "normalization of hosts"
+     */
+    private static LoadingCache<String, NormalizedHostInfo> normalizedHostCache = CacheBuilder.newBuilder()
+        .maximumSize(5_000)
+        .build(
+            new CacheLoader<String, NormalizedHostInfo>() {
+                @Override
+                public NormalizedHostInfo load(String uriHost) {
+                    return computeNormalizeHost(uriHost);
+                }
+            }
+        );
+
+    public static NormalizedHostInfo computeNormalizeHost(String uriHost) {
         NormalizedHostInfo result = new NormalizedHostInfo();
 
-        if ((uriHost == null) || (uriHost.trim().isEmpty())) return result;
+        // TODO fix, the host is split in two different ways on line 185 and this one
+        // Remove port if any
 
-        if (normalizedHostCache.containsKey(uriHost.toLowerCase())){
+        int portIdx = uriHost.indexOf(":");
+        uriHost = uriHost.substring(0, ((portIdx < 0) ? uriHost.length() : portIdx));
 
-            result = (NormalizedHostInfo)normalizedHostCache.get(uriHost.toLowerCase());
+        // Replace multiple dots by only one
+        uriHost = uriHost.replaceAll("[//.]+", ".");
 
-        }  else {
-            // TODO fix, the host is split in two different ways on line 185 and this one
-            // Remove port if any
-            int portIdx = uriHost.indexOf(":");
-            uriHost = uriHost.substring(0, ((portIdx < 0) ? uriHost.length() : portIdx));
+        // Split by the dots
+        String[] uriParts = uriHost.toLowerCase().split("\\.");
 
-            // Replace multiple dots by only one
-            uriHost = uriHost.replaceAll("[//.]+", ".");
+        // If no split part, return empty
+        if (uriParts.length <= 1) return result;
 
-            // Split by the dots
-            String[] uriParts = uriHost.toLowerCase().split("\\.");
+        // Handle special case where TLD is numeric --> assume IP address, don't normalize
+        // Length is > 0 because of previous check, so no error case
+        if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
 
-            // If no splitted part, return empty
-            if (uriParts.length <= 1) return result;
+        // project_family and TLD normalization
+        // Line 355 enforces uriParts.length greater than 2
+        result.setProjectFamily(uriParts[uriParts.length - 2]);
+        result.setTld(uriParts[uriParts.length - 1]);
 
-            // Handle special case where TLD is numeric --> assume IP address, don't normalize
-            // Length is > 0 because of previous check, so no error case
-            if (uriParts[uriParts.length - 1].matches("[0-9]+")) return result;
-
-            // project_family and TLD normalization
-            // Line 355 enforces uriParts.length greater than 2
-            result.setProjectFamily(uriParts[uriParts.length - 2]);
-            result.setTld(uriParts[uriParts.length - 1]);
-
-            // project/qualifier normalization
-            if ((uriParts.length > 2) && (!uriParts[0].equals("www"))) {
-                if (URI_QUALIFIERS.contains(uriParts[0])) {
-                    result.addQualifier(uriParts[0]);
-                } else {
-                    result.setProject(uriParts[0]);
-                }
+        // project/qualifier normalization
+        if ((uriParts.length > 2) && (!uriParts[0].equals("www"))) {
+            if (URI_QUALIFIERS.contains(uriParts[0])) {
+                result.addQualifier(uriParts[0]);
+            } else {
+                result.setProject(uriParts[0]);
             }
-            // qualifiers normalization: xx.[q1.q2.q3].wikixxx.xx
-            if (uriParts.length > 3) {
-                for (int i = 1; i < uriParts.length - 2; i++) {
-                    result.addQualifier(uriParts[i]);
-                }
+        }
+        // qualifiers normalization: xx.[q1.q2.q3].wikixxx.xx
+        if (uriParts.length > 3) {
+            for (int i = 1; i < uriParts.length - 2; i++) {
+                result.addQualifier(uriParts[i]);
             }
-            normalizedHostCache.put(uriHost.toLowerCase(),result);
         }
         return result;
-
     }
-
 
     public static boolean isSuccess(String httpStatus) {
-        return   SUCCESS_HTTP_STATUSES.contains(httpStatus);
+        return SUCCESS_HTTP_STATUSES.contains(httpStatus);
 
     }
 
-    public static boolean isRedirect(String httpStatus){
-         return REDIRECT_HTTP_STATUSES.contains(httpStatus);
+    public static boolean isRedirect(String httpStatus) {
+        return REDIRECT_HTTP_STATUSES.contains(httpStatus);
     }
 
-    public static boolean isTextHTMLContentType(String contentType){
-        return  TEXT_HTML_CONTENT_TYPES.contains(contentType);
+    public static boolean isTextHTMLContentType(String contentType) {
+        return TEXT_HTML_CONTENT_TYPES.contains(contentType);
     }
 }

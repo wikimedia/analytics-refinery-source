@@ -16,16 +16,15 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import java.util.Properties;
+import java.util.regex.Pattern;
+
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.regex.Pattern;
 
 /**
  * Static functions to work with Wikimedia data, broadly construed;
@@ -40,9 +39,9 @@ public class Utilities {
      *
      * @param   string    String to search in
      * @param   target    String to search for
-     * @return  boolean
+     * @return boolean
      */
-    public static boolean stringContains(String string, String target){
+    public static boolean stringContains(String string, String target) {
         return (target != null && string != null && string.contains(target));
     }
 
@@ -58,7 +57,7 @@ public class Utilities {
      */
     public static boolean patternIsFound(Pattern pattern, String target) {
 
-        return (target == null ||  target.isEmpty() )? false: pattern.matcher(target).find();
+        return (target == null || target.isEmpty()) ? false : pattern.matcher(target).find();
 
     }
 
@@ -79,12 +78,12 @@ public class Utilities {
         String value = "";
 
         int keyIndex = text.indexOf(key);
-        if(keyIndex == -1){
+        if (keyIndex == -1) {
             return value;
         }
 
         int delimiterIndex = text.indexOf(";", keyIndex);
-        if(delimiterIndex == -1){
+        if (delimiterIndex == -1) {
             value = text.substring(keyIndex + key.length() + 1);
         } else {
             value = text.substring(keyIndex + key.length() + 1, delimiterIndex);
@@ -92,28 +91,6 @@ public class Utilities {
 
         //Done
         return value;
-    }
-
-    /**
-     * Implementation is based on LinkedHashMap as this class
-     * has the handy ability of reordering records upon record access
-     * thus an LRU cache just needs to remove last entry.
-     * @param <K>
-     * @param <V>
-     */
-    public static class LRUCache<K, V> extends LinkedHashMap<K, V> {
-        private int cacheSize;
-
-        public LRUCache(int cacheSize) {
-            // Constructs an empty LinkedHashMap instance with the
-            // specified initial capacity, load factor and ordering mode.
-            super(16, 0.75f, true);
-            this.cacheSize = cacheSize;
-        }
-
-        protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-            return size() >= cacheSize;
-        }
     }
 
     public static void sendEmail(
@@ -141,8 +118,7 @@ public class Utilities {
             message.setText(body);
 
             Transport.send(message);
-        }
-        catch (MessagingException ex) {
+        } catch (MessagingException ex) {
             throw new RuntimeException(ex);
         }
     }
