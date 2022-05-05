@@ -102,7 +102,7 @@ public class MediaFileUrlParser {
             try {
                 ret = Integer.parseInt(digits);
             } catch (NumberFormatException e) {
-                // Since digits is required to be a string of digits, the only way a NumberFormatException can be thrown is that the number is too big. Hence, we bound the the maximum possible integer.
+                // Since digits is required to be a string of digits, the only way a NumberFormatException can be thrown is that the number is too big. Hence, we bound the maximum possible integer.
                 ret = Integer.MAX_VALUE;
             }
         }
