@@ -1,3 +1,8 @@
+## v0.2.0
+* Update to spark-3 and scala-2.12
+* Fix returned error code in HDFSArchiver
+* Fix typo in MediaFileUrlParser
+
 ## v0.1.27
 * Make caching mechanisms thread ready
 * Migrate wikidata/item_page_link/weekly
