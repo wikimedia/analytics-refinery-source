@@ -98,7 +98,7 @@ object HDFSArchiver extends LogHelper with ConfigHelper {
             config.archive_file,
             config.archive_parent_umask,
             config.archive_perms
-        )) 1 else 0
+        )) 0 else 1
         System.exit(statusCode)
     }
 
