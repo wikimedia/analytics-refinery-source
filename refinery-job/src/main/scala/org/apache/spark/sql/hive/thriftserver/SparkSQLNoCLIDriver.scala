@@ -174,16 +174,25 @@ object SparkSQLNoCLIDriver extends Logging {
 
         if (sessionState.execString != null) {
             val returnCode = noCli.processLine(sessionState.execString)
-            logInfo(s"Processed SQL query from command line with return code $returnCode")
+            if (returnCode != 0) {
+                logError("Problem processing the HQL query from command line")
+                throw new IllegalStateException("Problem processing HQL")
+            }
+            logInfo("Successfully processed SQL query from command line")
         } else {
             try {
                 if (sessionState.fileName != null) {
                     val returnCode = noCli.processFile(sessionState.fileName)
-                    logInfo(s"Processed SQL query from file with return code $returnCode")
+                    if (returnCode != 0) {
+                        logError("Problem processing the HQL query from file")
+                        throw new IllegalStateException("Problem processing HQL")
+                    }
+                    logInfo("Successfully processed SQL query from file")
                 }
             } catch {
                 case e: FileNotFoundException =>
                     logError(s"Could not open input file for reading. (${e.getMessage})")
+                    throw new IllegalStateException("Problem processing HQL", e)
             }
         }
         // Not closing the Hive-SQL session
