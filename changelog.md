@@ -1,3 +1,6 @@
+## v0.2.1 [post-release update]
+* Update SparkSQLNoCLIDriver to error correctly
+
 ## v0.2.0
 * Update to spark-3 and scala-2.12
 * Fix returned error code in HDFSArchiver
