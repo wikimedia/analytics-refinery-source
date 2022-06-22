@@ -1,0 +1,10 @@
+test_description,has_duplicate_params,uri_query,ignore_identical
+has duplicate params - empty,false,,true
+has duplicate params - empty,false,,false
+has duplicate params – unique,false,?foo=bar&buzz=quux,false
+has duplicate params – unique,false,?foo=bar&buzz=quux,true
+has duplicate params – dupe,true,?foo=bar&buzz=quux&foo=asd,true
+has duplicate params – dupe,true,?foo=bar&buzz=quux&foo=asd,false
+has duplicate params – identical dupe,true,?foo=bar&buzz=quux&foo=bar,false
+has duplicate params – identical dupe,false,?foo=bar&buzz=quux&foo=bar,true
+has duplicate params – dupe with no value,true,?foo=bar&buzz=quux&foo=,false
