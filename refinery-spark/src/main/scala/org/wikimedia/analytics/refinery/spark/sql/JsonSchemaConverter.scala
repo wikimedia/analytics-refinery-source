@@ -92,7 +92,9 @@ object JsonSchemaConverter extends LogHelper {
 
         val schemaTypeNode = jsonSchema.get(typeField)
         if (schemaTypeNode == null || !schemaTypeNode.isTextual)
-            throw new IllegalArgumentException(s"`$fieldName` schema must contain 'type' field")
+            throw new IllegalArgumentException(
+                s"`$fieldName` schema must contain 'type' field. schema is:\n${jsonSchema}"
+            )
 
         val typeText = schemaTypeNode.textValue()
         typeText match {
@@ -107,7 +109,6 @@ object JsonSchemaConverter extends LogHelper {
                 // or additionalProperties.
                 val properties = jsonSchema.get(propertiesField)
                 val additionalProperties = jsonSchema.get(additionalPropertiesField)
-
 
                 if (additionalProperties != null && additionalProperties.isObject) {
                     // Special map-case: additionalProperties has a schema, assume this is a MapType.
