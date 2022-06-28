@@ -93,7 +93,10 @@ public class GeocodeDatabaseReader extends AbstractDatabaseReader {
             cityResponse = reader.city(ipAddress);
 
         } catch (IOException | GeoIp2Exception ex) {
-            LOG.warn(ex);
+            // Suppress useless messages about 127.0.0.1 not found in database.
+            if (!ex.getMessage().contains("The address 127.0.0.1 is not in the database.")) {
+                LOG.warn(ex);
+            }
         }
 
         if (cityResponse == null)     {
