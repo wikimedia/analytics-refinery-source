@@ -1,5 +1,6 @@
 ## v0.2.2
 * UDF for testing uri_query for duplicate query parameters
+* Suppress useless GeocodeDatabaseReader log warn messages
 
 ## v0.2.1 [post-release update]
 * Update SparkSQLNoCLIDriver to error correctly
