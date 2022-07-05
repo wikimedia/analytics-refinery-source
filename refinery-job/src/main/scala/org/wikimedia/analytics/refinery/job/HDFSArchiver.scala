@@ -95,7 +95,7 @@ object HDFSArchiver extends LogHelper with ConfigHelper {
             config.source_directory,
             config.expected_filename_ending,
             config.check_done,
-            Path.mergePaths(config.source_directory, config.done_file),
+            new Path(config.source_directory, config.done_file),
             config.archive_file,
             config.archive_parent_umask,
             config.archive_perms
