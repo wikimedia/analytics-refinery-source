@@ -1,3 +1,7 @@
+## v0.2.3
+* Spark JsonSchemaConverter - log when schema does not contain type field
+* Fix HDFSArchiver doneFilePath parameter
+
 ## v0.2.2
 * UDF for testing uri_query for duplicate query parameters
 * Suppress useless GeocodeDatabaseReader log warn messages
