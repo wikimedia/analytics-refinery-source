@@ -1,3 +1,6 @@
+## v0.2.4
+* Update UA-Parser to 1.5.3
+
 ## v0.2.3
 * Spark JsonSchemaConverter - log when schema does not contain type field
 * Fix HDFSArchiver doneFilePath parameter

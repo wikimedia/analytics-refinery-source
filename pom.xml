@@ -202,7 +202,7 @@
       <dependency>
           <groupId>com.github.ua-parser</groupId>
           <artifactId>uap-java</artifactId>
-          <version>1.5.2</version>
+          <version>1.5.3</version>
       </dependency>
 
       <dependency>
