@@ -29,6 +29,7 @@ public enum SearchEngine {
     BING("Bing", "\\.bing\\.", ""),
     YANDEX("Yandex", "yandex\\.", ""),
     BAIDU("Baidu", "\\.baidu\\.", ""),
+    BRAVE("Brave", "search\\.brave\\.", ""),
     DDG("DuckDuckGo", "duckduckgo\\.", ""),
     ECOSIA("Ecosia", "\\.ecosia\\.", ""),
     STARTPAGE("Startpage", "\\.(startpage|ixquick)\\.", ""),
