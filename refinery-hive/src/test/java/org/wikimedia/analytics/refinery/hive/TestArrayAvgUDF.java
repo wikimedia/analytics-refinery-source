@@ -1,9 +1,10 @@
 package org.wikimedia.analytics.refinery.hive;
 
-import java.lang.Integer;
+import static org.junit.Assert.assertEquals;
+
 import java.util.List;
 import java.util.ArrayList;
-import junitparams.JUnitParamsRunner;
+
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -13,7 +14,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.assertEquals;
+import junitparams.JUnitParamsRunner;
+
+
 
 
 @RunWith(JUnitParamsRunner.class)
