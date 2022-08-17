@@ -1,3 +1,6 @@
+## v0.2.5
+* Added ArrayAvgUDF
+
 ## v0.2.4
 * Update UA-Parser to 1.5.3
 
