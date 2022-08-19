@@ -1,6 +1,8 @@
 package org.wikimedia.analytics.refinery.hive;
 
+
 import java.math.BigDecimal;
+
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.Description;
@@ -57,7 +59,7 @@ public class ArrayAvgUDF extends GenericUDF {
         checkArgsSize(arguments, 1, 2);
 
         // first argument must be an array of numeric values
-        if (!arguments[0].getCategory().equals(ObjectInspector.Category.LIST)) {
+        if (arguments[0].getCategory() != ObjectInspector.Category.LIST) {
             throw new UDFArgumentException("Argument 1 of function "
                     + this.getClass().getCanonicalName() + " must be array but "
                     + arguments[0].getTypeName() + " was found");
@@ -89,7 +91,7 @@ public class ArrayAvgUDF extends GenericUDF {
     }
 
     private boolean isNumericObjectInspector(ObjectInspector oi) {
-        if (!(oi.getCategory().equals(ObjectInspector.Category.PRIMITIVE))) {
+        if ((oi.getCategory() != ObjectInspector.Category.PRIMITIVE)) {
             return false;
         }
 
@@ -122,15 +124,13 @@ public class ArrayAvgUDF extends GenericUDF {
 
 
         for (Object inner : listOI.getList(arguments[0].get())) {
-            if (inner == null)
-            {
+            if (inner == null) {
                 continue;
             }
 
             Object primitive = elemOI.getPrimitiveJavaObject(inner);
             BigDecimal current = new BigDecimal(primitive.toString());
-            if (sigil == null || current.compareTo(sigil) != 0)
-            {
+            if (sigil == null || current.compareTo(sigil) != 0) {
                 countNoNulls += 1;
                 sum = sum.add(current);
             }
@@ -142,12 +142,10 @@ public class ArrayAvgUDF extends GenericUDF {
         }
 
 
-        if (otherResult.isInfinite() || otherResult.isNaN())
-        {
+        if (otherResult.isInfinite() || otherResult.isNaN()) {
             return null;
         }
-        else
-        {
+        else {
             BigDecimal avg = BigDecimal.valueOf(otherResult);
 
             HiveDecimal result = HiveDecimal.create(avg);
