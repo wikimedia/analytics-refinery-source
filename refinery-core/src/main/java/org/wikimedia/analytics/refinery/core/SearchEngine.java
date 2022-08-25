@@ -28,7 +28,7 @@ public enum SearchEngine {
     YAHOO("Yahoo", "search\\.yahoo\\.", ""),
     BING("Bing", "\\.bing\\.", ""),
     YANDEX("Yandex", "yandex\\.", ""),
-    BAIDU("Baidu", "\\.baidu\\.", ""),
+    BAIDU("Baidu", "baidu\\.", ""),
     DDG("DuckDuckGo", "duckduckgo\\.", ""),
     ECOSIA("Ecosia", "\\.ecosia\\.", ""),
     STARTPAGE("Startpage", "\\.(startpage|ixquick)\\.", ""),
@@ -44,9 +44,12 @@ public enum SearchEngine {
     COC_COC("Coc Coc", "coccoc\\.", ""),
     AOL("AOL", "search\\.aol\\.", ""),
     RAKUTEN("Rakuten", "\\.rakuten\\.", ""),
+    BRAVE("Brave", "search\\.brave\\.", ""),
+    PETAL("Petal", "petalsearch\\.", ""),
+    VK("VK", "go\\.mail\\.ru", ""),
 
     // Maintain PREDICTED_OTHER in last position for `SearchEngineClassifier.identifySearchEngine()`
-    PREDICTED_OTHER("Predicted Other", "(^.?|(?<!re)|(^|\\.)(pre|secure))search", "");
+    PREDICTED_OTHER("Predicted Other", "(^.?|(?<!re)|(^|\\.)(pre|secure))(search|suche)", "");
 
     private final String searchEngineName;
     private final String hostPattern;
