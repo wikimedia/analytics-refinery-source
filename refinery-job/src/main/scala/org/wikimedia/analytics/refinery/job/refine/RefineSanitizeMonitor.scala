@@ -2,8 +2,8 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.core.config._
-import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.tools.config._
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
   * A RefineMonitor job that uses the RefineSanitize allowlist_path property

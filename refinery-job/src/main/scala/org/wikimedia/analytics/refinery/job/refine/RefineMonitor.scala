@@ -1,7 +1,8 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.core.{LogHelper, Utilities}
+import org.wikimedia.analytics.refinery.core.Utilities
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 object RefineMonitor extends LogHelper {
     val usage = """

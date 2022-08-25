@@ -1,12 +1,12 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import java.io.FileInputStream
-import java.net.{InetAddress, Inet4Address, Inet6Address, UnknownHostException}
+import java.net.{Inet4Address, Inet6Address, InetAddress, UnknownHostException}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.{col, concat, expr, lit, split, udf, when}
 import org.springframework.security.web.util.matcher.IpAddressMatcher
-import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.yaml.snakeyaml.Yaml
 
 /**

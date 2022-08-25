@@ -3,8 +3,9 @@ package org.wikimedia.analytics.refinery.job
 import org.apache.commons.cli.OptionBuilder
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.hive.thriftserver.SparkSQLNoCLIDriver
-import org.wikimedia.analytics.refinery.core.{GraphiteClient, GraphiteMessage, LogHelper}
+import org.wikimedia.analytics.refinery.core.{GraphiteClient, GraphiteMessage}
 import org.wikimedia.analytics.refinery.hive.HiveCLIOptionsProcessor
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
  * Sends results of an HQL query to graphite

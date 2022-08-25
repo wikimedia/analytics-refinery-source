@@ -13,11 +13,12 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.PermissiveMode
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.{LogHelper, ReflectUtils, Utilities}
-import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.core.{ReflectUtils, Utilities}
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.WikimediaDefaults
 
 /**

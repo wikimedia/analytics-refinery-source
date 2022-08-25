@@ -4,8 +4,8 @@ import java.net.URI
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.{EventSchemaLoader, EventStream, EventStreamConfig, EventStreamFactory, WikimediaDefaults}
 import org.wikimedia.eventutilities.core.http.{BasicHttpClient, BasicHttpResult}
 import org.wikimedia.eventutilities.core.json.{JsonLoader, JsonSchemaLoader}

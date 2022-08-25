@@ -2,14 +2,13 @@ package org.wikimedia.analytics.refinery.job
 
 import java.io.IOException
 import java.io.FileNotFoundException
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.Trash
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.tools.config._
 
 import scala.collection.immutable.ListMap
 

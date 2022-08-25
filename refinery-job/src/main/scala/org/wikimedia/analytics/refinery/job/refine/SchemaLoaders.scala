@@ -1,13 +1,11 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import java.net.URL
-
 import scala.collection.JavaConverters._
-
 import org.apache.hadoop.fs.FsUrlStreamHandlerFactory
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
+import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 import org.wikimedia.eventutilities.core.json.JsonSchemaLoader
 import org.wikimedia.eventutilities.core.util.ResourceLoader

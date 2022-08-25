@@ -4,8 +4,8 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.immutable.ListMap
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, LocatedFileStatus, Path}
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.tools.config._
 
 /**
  * Job to archive a file on HDFS.

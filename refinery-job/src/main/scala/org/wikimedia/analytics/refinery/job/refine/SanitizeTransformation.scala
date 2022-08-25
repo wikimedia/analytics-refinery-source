@@ -1,8 +1,8 @@
 package org.wikimedia.analytics.refinery.job.refine
 
 import java.io.{BufferedReader, InputStreamReader}
-
 import com.github.nscala_time.time.Imports.DateTimeFormat
+
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -10,8 +10,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{MapType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.DateTime
-import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.{HiveExtensions, PartitionedDataFrame}
+import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.yaml.snakeyaml.Yaml
 
 import scala.collection.JavaConverters._

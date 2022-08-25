@@ -1,4 +1,4 @@
-package org.wikimedia.analytics.refinery.core.config
+package org.wikimedia.analytics.refinery.tools.config
 
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, DateTimeZone}
 import org.joda.time.format.DateTimeFormatter

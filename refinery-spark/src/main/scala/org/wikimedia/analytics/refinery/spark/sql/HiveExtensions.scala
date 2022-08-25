@@ -6,7 +6,8 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.types._
-import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import scala.util.Try
 

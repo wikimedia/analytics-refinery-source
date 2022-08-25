@@ -5,11 +5,11 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.functions.log
 import org.apache.spark.sql.{Column, SparkSession}
-import org.wikimedia.analytics.refinery.core.{LogHelper, HivePartition}
-import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
-import org.apache.spark.sql.functions.{udf, coalesce, lit}
+import org.apache.spark.sql.functions.{coalesce, lit, udf}
+import org.wikimedia.analytics.refinery.tools.config._
 
 import scala.collection.immutable.ListMap
 

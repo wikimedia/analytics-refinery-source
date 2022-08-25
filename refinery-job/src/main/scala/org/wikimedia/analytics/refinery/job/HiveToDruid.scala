@@ -4,9 +4,10 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.joda.time.DateTime
-import org.wikimedia.analytics.refinery.core.config._
-import org.wikimedia.analytics.refinery.core.LogHelper
-import org.wikimedia.analytics.refinery.spark.connectors.{IngestionStatus, DataFrameToDruid}
+import org.wikimedia.analytics.refinery.spark.connectors.{DataFrameToDruid, IngestionStatus}
+import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.tools.config._
+
 import scala.collection.immutable.ListMap
 import scala.collection.JavaConversions._
 

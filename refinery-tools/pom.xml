@@ -7,6 +7,7 @@
         <version>0.2.5-SNAPSHOT</version>
     </parent>
 
+    <groupId>org.wikimedia.analytics.refinery.tools</groupId>
     <artifactId>refinery-tools</artifactId>
     <name>Wikimedia Analytics Refinery Tools</name>
     <packaging>jar</packaging>
@@ -29,11 +30,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.wikimedia.analytics.refinery.core</groupId>
-            <artifactId>refinery-core</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>args4j</groupId>
             <artifactId>args4j</artifactId>
         </dependency>
@@ -43,14 +39,58 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_2.12</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.nscala-time</groupId>
+            <artifactId>nscala-time_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.outr</groupId>
+            <artifactId>profig_2.12</artifactId>
+            <version>2.3.8</version>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
 
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
+                <groupId>org.scala-tools</groupId>
+                <artifactId>maven-scala-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>testCompile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import java.beans.Transient
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.io.{LongWritable, Text}
@@ -9,7 +8,7 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
-import org.wikimedia.analytics.refinery.core.config._
+import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.wikihadoop.newapi.MediawikiXMLRevisionToJSONInputFormat
 
 import scala.collection.immutable.ListMap

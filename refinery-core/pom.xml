@@ -15,6 +15,11 @@
     <dependencies>
 
         <dependency>
+            <groupId>org.wikimedia.analytics.refinery.tools</groupId>
+            <artifactId>refinery-tools</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
             <scope>provided</scope>
@@ -142,12 +147,6 @@
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-reflect</artifactId>
             <version>${scala.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.outr</groupId>
-            <artifactId>profig_2.12</artifactId>
-            <version>2.3.8</version>
         </dependency>
 
     </dependencies>

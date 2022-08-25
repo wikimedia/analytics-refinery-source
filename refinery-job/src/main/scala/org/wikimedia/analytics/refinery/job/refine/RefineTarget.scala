@@ -10,9 +10,10 @@ import org.apache.spark.sql.catalyst.util.PermissiveMode
 import org.apache.spark.sql.execution.FileSourceScanExec
 import org.joda.time.Hours
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.{HivePartition, LogHelper}
+import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import java.util.zip.GZIPInputStream
 import scala.util.control.Exception.allCatch

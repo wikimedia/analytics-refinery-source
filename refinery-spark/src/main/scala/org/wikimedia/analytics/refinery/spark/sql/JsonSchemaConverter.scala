@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.spark.sql
 
 import com.fasterxml.jackson.databind.JsonNode
 import org.apache.spark.sql.types._
-import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import scala.collection.JavaConverters._
 import scala.util.Try

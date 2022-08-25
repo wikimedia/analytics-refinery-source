@@ -3,13 +3,12 @@ package org.wikimedia.analytics.refinery.spark.connectors
 import java.net.URI
 import java.sql.Connection
 import java.util.Properties
-
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
 import org.apache.hive.jdbc.HiveDriver
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.SparkSession
-import org.wikimedia.analytics.refinery.core.LogHelper
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 // Import implicit StructType and StructField conversions.
 // This allows us use these types with an extendend API

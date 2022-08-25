@@ -1,17 +1,17 @@
-package org.wikimedia.analytics.refinery.core.config
+package org.wikimedia.analytics.refinery.tools.config
 
-import scala.util.matching.Regex
-import com.github.nscala_time.time.Imports._
-import org.joda.time.format.{DateTimeFormatter, ISODateTimeFormat}
-import profig._
 import cats.syntax.either._
+import com.github.nscala_time.time.Imports._
 import io.circe.CursorOp.DownField
 import io.circe.{Decoder, DecodingFailure}
 import org.apache.hadoop.fs.Path
+import org.joda.time.format.{DateTimeFormatter, ISODateTimeFormat}
+import profig._
 
 import scala.annotation.tailrec
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
+import scala.util.matching.Regex
 
 /**
   * Extend this trait to get automatic mapping from properties config file and args

@@ -24,10 +24,11 @@ import java.util.UUID.randomUUID
 import scala.util.matching.Regex
 import org.apache.spark.sql.functions.{coalesce, col, expr, udf}
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.wikimedia.analytics.refinery.core.{LogHelper, Webrequest}
+import org.wikimedia.analytics.refinery.core.Webrequest
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive.TransformFunction
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import scala.collection.immutable.ListMap
 // These aren't directly used, but are referenced in SQL UDFs.

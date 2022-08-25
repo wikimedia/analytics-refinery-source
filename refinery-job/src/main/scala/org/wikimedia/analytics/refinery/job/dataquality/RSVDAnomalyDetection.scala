@@ -1,7 +1,6 @@
 package org.wikimedia.analytics.refinery.job.dataquality
 
 import java.lang.Math.{abs, ceil, max, min}
-
 import com.criteo.rsvd._
 import org.apache.commons.math3.stat.descriptive.rank.Percentile
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -10,7 +9,7 @@ import org.apache.spark.mllib.linalg.distributed.MatrixEntry
 import org.apache.spark.sql.SparkSession
 import org.joda.time.{DateTime, Days, Hours, Months}
 import org.joda.time.format.DateTimeFormat
-import org.wikimedia.analytics.refinery.core.LogHelper
+import org.wikimedia.analytics.refinery.tools.LogHelper
 import scopt.OptionParser
 
 /**
