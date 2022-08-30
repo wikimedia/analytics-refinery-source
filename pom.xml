@@ -153,7 +153,7 @@
       <dependency>
         <groupId>org.wikimedia</groupId>
         <artifactId>eventutilities</artifactId>
-        <version>1.0.6</version>
+        <version>1.2.0</version>
       </dependency>
 
       <dependency>

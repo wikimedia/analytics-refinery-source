@@ -191,14 +191,6 @@
             <artifactId>httpclient</artifactId>
         </dependency>
 
-        <!--
-        Force commons-lang3 version to prevent a bug in JSON date parsing in Spark
-        -->
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
-        </dependency>
-
         <!-- Needed to query Hive instead of Spark for ALTER TABLE in Refine job -->
         <dependency>
             <groupId>org.apache.hive</groupId>
