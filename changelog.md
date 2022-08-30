@@ -1,5 +1,8 @@
 ## v0.2.5
-* Added ArrayAvgUDF
+* Bump eventutilities to 1.2.0 and remove duplicate dependency
+* Repurpose refinery-tools to contain code reused across other modules
+* Update search engine detection
+* Add ArrayAvgUDF
 
 ## v0.2.4
 * Update UA-Parser to 1.5.3
