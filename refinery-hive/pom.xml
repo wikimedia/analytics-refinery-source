@@ -60,6 +60,10 @@
             <artifactId>hive-cli</artifactId>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>

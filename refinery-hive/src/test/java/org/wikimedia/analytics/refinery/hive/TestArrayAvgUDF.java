@@ -1,10 +1,12 @@
 package org.wikimedia.analytics.refinery.hive;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import java.util.List;
 import java.util.ArrayList;
 
+import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -12,6 +14,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.function.ThrowingRunnable;
 import org.junit.runner.RunWith;
 
 import junitparams.JUnitParamsRunner;
@@ -39,6 +42,121 @@ public class TestArrayAvgUDF {
         };
         udf.initialize(initArguments);
     }
+
+
+
+    @Test
+    public void testNullSigil() {
+        udf = new ArrayAvgUDF();
+
+        ObjectInspector listOI = ObjectInspectorFactory.getStandardListObjectInspector(
+                PrimitiveObjectInspectorFactory.javaIntObjectInspector
+        );
+
+        initArguments = new ObjectInspector[]{
+                listOI
+        };
+
+
+
+        List<Integer> list = new ArrayList<Integer>();
+        list.add(5);
+        list.add(0);
+        list.add(10);
+
+        GenericUDF.DeferredObject[] args = {
+                new GenericUDF.DeferredJavaObject(list),
+                new GenericUDF.DeferredJavaObject(-1)
+        };
+
+        try {
+            udf.initialize(initArguments);
+            assertEquals("should avg the arguments", 5, udf.evaluate(args));
+        } catch (HiveException e) {
+            e.printStackTrace();
+        }
+    }
+    @Test
+    public void testNonPrimitive() {
+
+        udf = new ArrayAvgUDF();
+
+        ObjectInspector listOI = ObjectInspectorFactory.getStandardListObjectInspector(
+                PrimitiveObjectInspectorFactory.javaVoidObjectInspector
+        );
+
+        initArguments = new ObjectInspector[]{
+                listOI,
+                PrimitiveObjectInspectorFactory.javaIntObjectInspector
+        };
+
+        try {
+
+            assertThrows("should fail ", UDFArgumentException.class, (ThrowingRunnable) udf.initialize(initArguments));
+        } catch (UDFArgumentException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testStringArguments() {
+
+        udf = new ArrayAvgUDF();
+
+        ObjectInspector listOI = ObjectInspectorFactory.getStandardListObjectInspector(
+                PrimitiveObjectInspectorFactory.javaHiveVarcharObjectInspector
+        );
+
+        initArguments = new ObjectInspector[]{
+                listOI,
+                PrimitiveObjectInspectorFactory.javaIntObjectInspector
+        };
+
+        try {
+
+            assertThrows("should fail ", UDFArgumentException.class, (ThrowingRunnable) udf.initialize(initArguments));
+        } catch (UDFArgumentException ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testIncorrectArguments() {
+        udf = new ArrayAvgUDF();
+
+        initArguments = new ObjectInspector[]{
+                PrimitiveObjectInspectorFactory.javaIntObjectInspector,
+                PrimitiveObjectInspectorFactory.javaIntObjectInspector
+        };
+
+        try {
+            assertThrows("should fail ", UDFArgumentException.class, (ThrowingRunnable) udf.initialize(initArguments));
+        } catch (UDFArgumentException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    @Test
+    public void testIncorrectSigil() {
+        udf = new ArrayAvgUDF();
+
+        ObjectInspector listOI = ObjectInspectorFactory.getStandardListObjectInspector(
+                PrimitiveObjectInspectorFactory.javaIntObjectInspector
+        );
+
+        initArguments = new ObjectInspector[]{
+                listOI,
+                PrimitiveObjectInspectorFactory.javaHiveVarcharObjectInspector
+        };
+
+        try {
+            assertThrows("should fail ", UDFArgumentException.class, (ThrowingRunnable) udf.initialize(initArguments));
+        } catch (UDFArgumentException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     @Test
     public void testSimpleIntegerAvg() {
@@ -96,6 +214,7 @@ public class TestArrayAvgUDF {
         }
     }
 
+    @Test
     public void testAvgLongTypes() throws HiveException {
         udf = new ArrayAvgUDF();
 
@@ -119,6 +238,7 @@ public class TestArrayAvgUDF {
         }
     }
 
+    @Test
     public void testSumsFloatTypes() throws HiveException {
         udf = new ArrayAvgUDF();
 
@@ -137,6 +257,25 @@ public class TestArrayAvgUDF {
 
         try {
             assertEquals("should avg float values", 2.5f, udf.evaluate(args));
+        } catch (HiveException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testNullList() {
+        List<Integer> list = new ArrayList<Integer>();
+        list.add(null);
+        list.add(null);
+        list.add(null);
+
+        GenericUDF.DeferredObject[] args = {
+                new GenericUDF.DeferredJavaObject(list),
+                new GenericUDF.DeferredJavaObject(-1)
+        };
+
+        try {
+            assertEquals("should avg the arguments", null, udf.evaluate(args));
         } catch (HiveException e) {
             e.printStackTrace();
         }
