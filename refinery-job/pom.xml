@@ -261,13 +261,6 @@
             <version>1.15</version>
         </dependency>
 
-        <!-- Getting this dependency in here for our cassandra loading jobs -->
-        <dependency>
-            <groupId>com.datastax.spark</groupId>
-            <artifactId>spark-cassandra-connector_2.12</artifactId>
-            <version>3.1.0</version>
-        </dependency>
-
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-hive-thriftserver_2.12</artifactId>
