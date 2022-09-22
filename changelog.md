@@ -1,5 +1,9 @@
+## v0.2.7
+* Remove spark-cassandra-connector dependency in refinery-job
+
 ## v0.2.6
 * Performance fixes for Array UDFs
+
 ## v0.2.5
 * Bump eventutilities to 1.2.0 and remove duplicate dependency
 * Repurpose refinery-tools to contain code reused across other modules
