@@ -271,7 +271,7 @@ object MediawikiHistoryDumper {
                         sourceDirectory = timeDirectory.getPath,
                         expectedFilenameEnding = "",
                         checkDone = false,
-                        doneFilePath = new Path(""),
+                        doneFilePath = new Path("dummy"),
                         archiveFile = destinationPath,
                         archiveParentUmask = "022",
                         archivePerms = "644"

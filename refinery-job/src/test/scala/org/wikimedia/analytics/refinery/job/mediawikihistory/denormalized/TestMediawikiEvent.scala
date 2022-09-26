@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
+import org.apache.spark.sql.Row
+
 import org.scalatest.{FlatSpec, Matchers}
 
 class TestMediawikiEvent extends FlatSpec with Matchers {
@@ -26,4 +28,12 @@ class TestMediawikiEvent extends FlatSpec with Matchers {
 
   }
 
+  "MediawikiEvent" should "be unmarshable from a Spark Row that contains null Seqs" in {
+    val seqOfNulls = Seq.fill(71)(null)
+    val row = Row.fromSeq(seqOfNulls)
+
+    val event = MediawikiEvent.fromRow(row)
+    event should not be null
+    event.userDetails.userBlocksHistorical should(equal(None))
+  }
 }
