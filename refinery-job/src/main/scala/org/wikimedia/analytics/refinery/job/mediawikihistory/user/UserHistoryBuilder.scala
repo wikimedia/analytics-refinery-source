@@ -294,12 +294,12 @@ class UserHistoryBuilder(
     */
   def updateAnonymousAndIsBotBy(states: List[UserState]): List[UserState] = {
     val anonymous = states.head.userId == 0
-    val isBotBy = UserEventBuilder.isBotBy(states.head.userText, states.head.userGroups)
+    val isBotBy = UserEventBuilder.isBotBy(Some(states.head.userText), states.head.userGroups)
     states.map(s => s.copy(
       // [[UserState]]
       anonymous = anonymous,
       isBotBy = isBotBy,
-      isBotByHistorical = UserEventBuilder.isBotBy(s.userTextHistorical, s.userGroupsHistorical)
+      isBotByHistorical = UserEventBuilder.isBotBy(Some(s.userTextHistorical), s.userGroupsHistorical)
     ))
   }
 

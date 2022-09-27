@@ -17,7 +17,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
       "noncapbot",
       "noncapbot2",
       "noncapbot3withend"
-    ).foreach(bot => isBotBy(bot, emptyGroups) should equal(Seq("name")))
+    ).foreach(bot => isBotBy(Option(bot), emptyGroups) should equal(Seq("name")))
   }
 
   it should "correctly identify no name bots" in {
@@ -27,21 +27,21 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
       "nonBotnameeither",
       "notEvenTricky",
       null
-    ).foreach(nonBot => isBotBy(nonBot, emptyGroups) should equal(Seq.empty[String]))
+    ).foreach(nonBot => isBotBy(Option(nonBot), emptyGroups) should equal(Seq.empty[String]))
   }
 
   it should "correctly identify group-bots" in {
     Seq(
       Seq("bot", "other_group"),
       Seq("bot")
-    ).foreach(groups => isBotBy("", groups) should equal(Seq("group")))
+    ).foreach(groups => isBotBy(Some(""), groups) should equal(Seq("group")))
   }
 
   it should "correctly identify non-group-bots" in {
     Seq(
       Seq("other_group"),
       Seq.empty
-    ).foreach(groups => isBotBy("", groups) should equal(Seq.empty))
+    ).foreach(groups => isBotBy(Some(""), groups) should equal(Seq.empty))
   }
 
   it should "correctly identify bot name and group bots" in {
@@ -53,7 +53,7 @@ class TestUserEventBuilder extends FlatSpec with Matchers {
       "noncapbot",
       "noncapbot2",
       "noncapbot3withend"
-    ).foreach(bot => isBotBy(bot, groups) should equal(Seq("name", "group")))
+    ).foreach(bot => isBotBy(Some(bot), groups) should equal(Seq("name", "group")))
   }
 
   "getOldAndNewUserTexts" should "parse userTexts from php blob" in {

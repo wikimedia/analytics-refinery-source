@@ -28,11 +28,9 @@ object UserEventBuilder extends Serializable {
   val botByName = "name"
   val botByGroup = "group"
 
-  def isBotBy(userText: String, userGroups: Seq[String]): Seq[String] = {
+  def isBotBy(userText: Option[String], userGroups: Seq[String]): Seq[String] = {
     val nameRegexBot = {
-      if (userText != null && botUsernamePattern.findFirstIn(userText).isDefined)
-        Some(botByName)
-      else None
+      userText.filter(t => botUsernamePattern.findFirstIn(t).isDefined).map(_ => botByName)
     }
     val groupBot = if (userGroups.contains("bot")) Some(botByGroup) else None
     Seq.empty ++ nameRegexBot ++ groupBot

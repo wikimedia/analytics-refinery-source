@@ -1,9 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import java.sql.Timestamp
-
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.wikimedia.analytics.refinery.job.mediawikihistory._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TimeBoundaries
 import org.wikimedia.analytics.refinery.spark.utils.Vertex
 
@@ -91,10 +91,10 @@ object PageState {
     */
   def fromRow(row: Row): PageState = PageState(
     wikiDb = row.getString(0),
-    pageId = if (row.isNullAt(1)) None else Some(row.getLong(1)),
-    pageArtificialId = Option(row.getString(2)),
-    pageCreationTimestamp = if (row.isNullAt(3)) None else Some(Timestamp.valueOf(row.getString(3))),
-    pageFirstEditTimestamp = if (row.isNullAt(4)) None else Some(Timestamp.valueOf(row.getString(4))),
+    pageId = getOptLong(row, 1),
+    pageArtificialId = getOptString(row, 2),
+    pageCreationTimestamp = getOptTimestamp(row, 3),
+    pageFirstEditTimestamp = getOptTimestamp(row, 4),
     //pageCreationTimestamp = if (row.isNullAt(3)) None else Some(row.getTimestamp(3)),
     //pageFirstEditTimestamp = if (row.isNullAt(4)) None else Some(row.getTimestamp(4)),
     titleHistorical = row.getString(5),
@@ -103,24 +103,24 @@ object PageState {
     namespaceIsContentHistorical = row.getBoolean(8),
     namespace = row.getInt(9),
     namespaceIsContent = row.getBoolean(10),
-    isRedirect = if (row.isNullAt(11)) None else Some(row.getBoolean(11)),
+    isRedirect = getOptBoolean(row, 11),
     isDeleted = row.getBoolean(12),
-    startTimestamp = if (row.isNullAt(13)) None else Some(Timestamp.valueOf(row.getString(13))),
+    startTimestamp = getOptTimestamp(row, 13),
     //startTimestamp = if (row.isNullAt(13)) None else Some(row.getTimestamp(13)),
-    endTimestamp = if (row.isNullAt(14)) None else Some(Timestamp.valueOf(row.getString(14))),
+    endTimestamp = getOptTimestamp(row, 14),
     //endTimestamp = if (row.isNullAt(14)) None else Some(row.getTimestamp(14)),
     causedByEventType = row.getString(15),
-    causedByUserId = if (row.isNullAt(16)) None else Some(row.getLong(16)),
-    causedByAnonymousUser = if (row.isNullAt(17)) None else Some(row.getBoolean(17)),
-    causedByUserText = Option(row.getString(18)),
-    inferredFrom = Option(row.getString(19)),
-    sourceLogId = if (row.isNullAt(20)) None else Some(row.getLong(20)),
-    sourceLogComment = Option(row.getString(21)),
-    sourceLogParams = Option(row.getMap[String, String](22)).map(_.toMap),
+    causedByUserId = getOptLong(row, 16),
+    causedByAnonymousUser = getOptBoolean(row, 17),
+    causedByUserText = getOptString(row, 18),
+    inferredFrom = getOptString(row, 19),
+    sourceLogId = getOptLong(row, 20),
+    sourceLogComment = getOptString(row, 21),
+    sourceLogParams = getOptMap[String, String](row, 22),
     pageFirstState = row.getBoolean(23)
   )
 
-  val schema = StructType(
+  val schema: StructType = StructType(
     Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("page_id", LongType, nullable = true),

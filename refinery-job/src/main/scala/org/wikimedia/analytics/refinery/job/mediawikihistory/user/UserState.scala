@@ -1,9 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import java.sql.Timestamp
-
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.wikimedia.analytics.refinery.job.mediawikihistory._
 import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.TimeBoundaries
 import org.wikimedia.analytics.refinery.spark.utils.Vertex
 
@@ -108,32 +108,32 @@ object UserState {
       userBlocks = row.getSeq(7),
       isBotByHistorical = row.getSeq(8),
       isBotBy = row.getSeq(9),
-      userRegistrationTimestamp = if (row.isNullAt(10)) None else Some(Timestamp.valueOf(row.getString(10))),
+      userRegistrationTimestamp = getOptTimestamp(row, 10),
       //userRegistrationTimestamp = if (row.isNullAt(10)) None else Some(row.getTimestamp(10)),
-      userCreationTimestamp = if (row.isNullAt(11)) None else Some(Timestamp.valueOf(row.getString(11))),
+      userCreationTimestamp = getOptTimestamp(row, 11),
       //userCreationTimestamp = if (row.isNullAt(11)) None else Some(row.getTimestamp(11)),
-      userFirstEditTimestamp = if (row.isNullAt(12)) None else Some(Timestamp.valueOf(row.getString(12))),
+      userFirstEditTimestamp = getOptTimestamp(row, 12),
       //userFirstEditTimestamp = if (row.isNullAt(12)) None else Some(row.getTimestamp(12)),
       createdBySelf = row.getBoolean(13),
       createdBySystem = row.getBoolean(14),
       createdByPeer = row.getBoolean(15),
       anonymous = row.getBoolean(16),
-      startTimestamp = if (row.isNullAt(17)) None else Some(Timestamp.valueOf(row.getString(17))),
+      startTimestamp = getOptTimestamp(row, 17),
       //startTimestamp = if (row.isNullAt(17)) None else Some(row.getTimestamp(17)),
-      endTimestamp = if (row.isNullAt(18)) None else Some(Timestamp.valueOf(row.getString(18))),
+      endTimestamp = getOptTimestamp(row, 18),
       //endTimestamp = if (row.isNullAt(18)) None else Some(row.getTimestamp(18)),
       causedByEventType = row.getString(19),
-      causedByUserId = if (row.isNullAt(20)) None else Some(row.getLong(20)),
-      causedByAnonymousUser = if (row.isNullAt(21)) None else Some(row.getBoolean(21)),
-      causedByUserText = Option(row.getString(22)),
-      causedByBlockExpiration = Option(row.getString(23)),
-      inferredFrom = Option(row.getString(24)),
-      sourceLogId = if (row.isNullAt(25)) None else Some(row.getLong(25)),
-      sourceLogComment = Option(row.getString(26)),
-      sourceLogParams = Option(row.getMap[String, String](27)).map(_.toMap)
+      causedByUserId = getOptLong(row, 20),
+      causedByAnonymousUser = getOptBoolean(row, 21),
+      causedByUserText = getOptString(row, 22),
+      causedByBlockExpiration = getOptString(row, 23),
+      inferredFrom = getOptString(row, 24),
+      sourceLogId = getOptLong(row, 25),
+      sourceLogComment = getOptString(row, 26),
+      sourceLogParams = getOptMap[String, String](row, 27)
   )
 
-  val schema = StructType(
+  val schema: StructType = StructType(
     Seq(
       StructField("wiki_db", StringType, nullable = false),
       StructField("user_id", LongType, nullable = false),
