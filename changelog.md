@@ -1,3 +1,8 @@
+## v0.2.8
+* Fix mediawiki-history-denormalize for spark 3.
+* Add unit test for MediaWikiEvent.
+* Fix empty path bug of MediawikiHistoryDumper.
+
 ## v0.2.7
 * Remove spark-cassandra-connector dependency in refinery-job
 
