@@ -441,13 +441,24 @@ class UserHistoryBuilder(
     states
       .groupBy(_.userId)
       .flatMap {
-        case (userId, userStates) =>
+        case (_, userStates) =>
           val sortedStates = userStates.toList.sortWith {
             case (a, b) =>
-              a.startTimestamp.isEmpty || (
-                  b.startTimestamp.isDefined &&
-                    a.startTimestamp.get.before(b.startTimestamp.get)
-              )
+              val (sta, stb) = (a.startTimestamp, b.startTimestamp)
+              // Same startTimestamp - Use endTimestamp
+              if (sta.equals(stb)) {
+                val (eta, etb) = (a.endTimestamp, b.endTimestamp)
+                // Same endTimestamp - Use sourceLogId
+                if (eta.equals(etb)) {
+                  val (ida, idb) = (a.sourceLogId, b.sourceLogId)
+                  // Same sourceLogId - Use hashcode to provide consistent results
+                  if (ida.equals(idb)) a.hashCode() < b. hashCode()
+                  // a < b if (None, Some) or (Some < Some)
+                  else (ida.isEmpty || (idb.isDefined && ida.get < idb.get))
+                // a < b if (some, None) or (Some < Some)
+                } else (etb.isEmpty || (eta.isDefined && eta.get.before(etb.get)))
+              // a < b if (None, Some) or (Some < Some)
+              } else (sta.isEmpty || (stb.isDefined && sta.get.before(stb.get)))
           }
           updateAnonymousAndIsBotBy(
             propagateUserCreationAndFirstEditAndCreatedBy(
@@ -493,22 +504,25 @@ class UserHistoryBuilder(
     val sortedEvents = events.toList.sortWith {
       case (a, b) => {
         a.timestamp.after(b.timestamp) ||
-          // Force create events to be processed first.
-          // This is needed if a rename event happens at the same time as a create
-          // one, with the rename from-name being the same as create name.
-          // By processing the create event first, currently processed user lineage
-          // is finished (doesn't exist before its create state), and the rename from-name
-          // doesn't conflict with existing user-name.
-          // Without the following sorting, we could process the rename event first. In that
-          // case the currently processed user conflicts on rename from-name, and a fake
-          // create-event is generated to mitigate the conflict. Then the rename is applied,
-          // to finally match the create event, closing the lineage of the newly renamed user.
-          // Incorrect!
+        (
+          a.timestamp.equals(b.timestamp) &&
           (
-            a.timestamp.equals(b.timestamp) &&
-              a.eventType == "create" &&
-              b.eventType != "create"
-            )
+            // Force create events to be processed first.
+            // This is needed if a rename event happens at the same time as a create
+            // one, with the rename from-name being the same as create name.
+            // By processing the create event first, currently processed user lineage
+            // is finished (doesn't exist before its create state), and the rename from-name
+            // doesn't conflict with existing user-name.
+            // Without the following sorting, we could process the rename event first. In that
+            // case the currently processed user conflicts on rename from-name, and a fake
+            // create-event is generated to mitigate the conflict. Then the rename is applied,
+            // to finally match the create event, closing the lineage of the newly renamed user.
+            // Incorrect!
+            (a.eventType == "create" && b.eventType != "create") ||
+            // If not in the case create/other events, use sourceLogId
+            (!(a.eventType != "create" && b.eventType == "create") && a.sourceLogId > b.sourceLogId)
+          )
+        )
       }
     }
     val (fStates: Seq[UserState], unmatchedEvents: Seq[UserEvent]) = {

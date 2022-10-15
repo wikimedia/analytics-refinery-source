@@ -70,7 +70,7 @@ FROM ${SQLHelper.ARCHIVE_VIEW} a
 WHERE ar_page_id IS NOT NULL
   AND ar_page_id > 0
 WINDOW by_page_window AS (
-  PARTITION BY wiki_db, ar_page_id ORDER BY ar_timestamp
+  PARTITION BY wiki_db, ar_page_id ORDER BY ar_timestamp, ar_rev_id
 )
     """
     ).repartition(numPartitions).createOrReplaceTempView(SQLHelper.DELETED_PAGE_VIEW)

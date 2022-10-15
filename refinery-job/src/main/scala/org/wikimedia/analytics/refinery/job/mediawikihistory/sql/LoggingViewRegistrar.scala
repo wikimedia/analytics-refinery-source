@@ -98,11 +98,13 @@ class LoggingViewRegistrar(
 WITH distinct_filtered_logging AS (
   SELECT DISTINCT
     wiki_db,
-    MIN(log_id) AS log_id,
+    -- We take the oldest possible log_id
+    FIRST_VALUE(log_id) OVER w AS log_id,
     log_type,
     log_action,
     log_timestamp,
-    log_page,
+    -- We take the page_id on the same row as log_id
+    FIRST_VALUE(log_page) OVER w as log_page,
     log_title,
     log_namespace,
     log_params,
@@ -117,17 +119,20 @@ WITH distinct_filtered_logging AS (
     AND SUBSTR(log_timestamp, 0, 4) >= '1990'
     -- Not dropping rows without page-links (can be user-oriented events)
     -- Not dropping rows without user-link
-  GROUP BY
-    wiki_db,
-    log_type,
-    log_action,
-    log_timestamp,
-    log_page,
-    log_title,
-    log_namespace,
-    log_params,
-    log_actor,
-    log_comment_id
+  WINDOW w AS (
+    PARTITION BY
+      wiki_db,
+      log_type,
+      log_action,
+      log_timestamp,
+      log_title,
+      log_namespace,
+      log_params,
+      log_actor,
+      log_comment_id
+    ORDER BY
+      log_id
+    )
 ),
 
 logging_actor_comment_splits AS (

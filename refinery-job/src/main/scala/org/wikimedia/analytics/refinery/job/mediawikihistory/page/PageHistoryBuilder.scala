@@ -860,12 +860,15 @@ class PageHistoryBuilder(
     val sortedEvents = events.toList.sortWith {
       case (a, b) =>
         a.timestamp.after(b.timestamp) ||
-        // Sort move events to be processed first,
-        // thus avoiding confusion around "move_redir" events.
         (
           a.timestamp.equals(b.timestamp) &&
-          a.eventType == "move" &&
-          b.eventType != "move"
+          (
+            // Sort move events to be processed first,
+            // thus avoiding confusion around "move_redir" events.
+            (a.eventType == "move" && b.eventType != "move") ||
+            // If not in the case move/other events, use sourceLogId
+            (!(a.eventType != "move" && b.eventType == "move") && a.sourceLogId > b.sourceLogId)
+          )
         )
     }
     val (fStates: Seq[PageState], unmatchedEvents: Seq[PageEvent]) = {
@@ -880,6 +883,12 @@ class PageHistoryBuilder(
         // Differenciate baseDeleted states from regular ones
         val nonDeletedStates = states.filter(!_.isDeleted)
         val deletedStates = states.filter(_.isDeleted)
+            // TODO: Update algorithm to use deleted-states having the same title
+            //       https://phabricator.wikimedia.org/T320860
+            //       As a mitigation, sort deleted states to provide consistent result
+            .toList.sortBy(s => {
+              (s.key, s.startTimestamp.map(_.getTime).getOrElse(0L), s.pageId)
+            })
 
         val initialStatus = new ProcessingStatus(
           potentialStatesByTitle = nonDeletedStates.map(s => s.key -> s).toMap,
