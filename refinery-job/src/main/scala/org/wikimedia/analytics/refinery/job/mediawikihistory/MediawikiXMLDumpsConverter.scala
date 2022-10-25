@@ -8,8 +8,8 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SaveMode, SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.wikimedia.analytics.refinery.job.mediawikihistory.mediawikidumps.MediawikiXMLRevisionToJSONInputFormat
 import org.wikimedia.analytics.refinery.tools.config._
-import org.wikimedia.wikihadoop.newapi.MediawikiXMLRevisionToJSONInputFormat
 
 import scala.collection.immutable.ListMap
 import scala.collection.parallel.ForkJoinTaskSupport
@@ -23,7 +23,7 @@ import org.json4s.jackson.JsonMethods._
 /**
  * Mediawiki XML Dumps converter to parquet or json.
  *
- * This job uses [[org.wikimedia.wikihadoop.newapi.MediawikiXMLRevisionToJSONInputFormat]]
+ * This job uses [[MediawikiXMLRevisionToJSONInputFormat]]
  * to make Spark parse parse XML-dumps revisions into JSON-strings. The JSON is then either
  * saved as-is or in parquet.
  *

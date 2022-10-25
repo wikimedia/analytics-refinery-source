@@ -224,12 +224,6 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.wikimedia.</groupId>
-            <artifactId>wikihadoop</artifactId>
-            <version>0.3-wmf1</version>
-        </dependency>
-
         <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-mllib -->
         <dependency>
             <groupId>org.apache.spark</groupId>
