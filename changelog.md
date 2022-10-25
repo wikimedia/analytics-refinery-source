@@ -1,3 +1,7 @@
+## v0.2.10
+* Put wikihadoop into refinery/source
+* Add HdfsXMLFsImageConverter to refinery-job
+
 ## v0.2.9
 * Update mediawiki-history page and user computation
 * Add Custom Authentication Configuration Class for Cassandra
