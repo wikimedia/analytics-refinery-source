@@ -204,6 +204,12 @@
             <artifactId>hadoop-annotations</artifactId>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>com.datastax.spark</groupId>
+            <artifactId>spark-cassandra-connector_2.12</artifactId>
+            <version>3.1.0</version>
+        </dependency>
     </dependencies>
 
     <build>
