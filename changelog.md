@@ -1,3 +1,7 @@
+## v0.2.9
+* Update mediawiki-history page and user computation
+* Add Custom Authentication Configuration Class for Cassandra
+
 ## v0.2.8
 * Fix mediawiki-history-denormalize for spark 3.
 * Add unit test for MediaWikiEvent.
