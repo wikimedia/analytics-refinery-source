@@ -16,7 +16,7 @@ package org.wikimedia.analytics.refinery.hive;
 
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDF;
-import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
+import org.wikimedia.analytics.refinery.core.referer.RefererClassifier;
 
 @Description(name = "get_referer_type",
         value = "_FUNC_(url) - Returns a string with a classification of a referer (unknown, internal, external)",
@@ -24,6 +24,6 @@ import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
 public class GetRefererTypeUDF extends UDF {
 
     public String evaluate(String referer) {
-        return SearchEngineClassifier.getInstance().getRefererClass(referer).getRefLabel();
+        return RefererClassifier.getInstance().classifyReferer(referer).getRefererClassLabel().getRefLabel();
     }
 }

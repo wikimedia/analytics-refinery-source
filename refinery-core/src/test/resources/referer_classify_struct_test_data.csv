@@ -1,0 +1,13 @@
+test_description,refererUrl,referer_class,referer_name
+Twitter,https://t.co/,external (media sites),Twitter
+Stackoverflow,https://math.stackexchange.com/,external (media sites),Stackoverflow
+Bing Search Engine Parameter,https://www.bing.com/search?q=google.com,external (search engine),Bing
+Baidu Search Engine,https://www.baidu.com/link?url=,external (search engine),Baidu
+Random External Site,https://presearch.com/,external,none
+Random External Link,http://www.cowboom.com/product/1617241,external,none
+Internal Search Engine Path,https://en.wikipedia.org/wiki/google.com,internal,none
+Random internal link,https://zh.wikipedia.org/zh-tw/%E6%96%B9%E6%9D%B1%E6%98%87,internal,none
+Random Unknown link,http://org,unknown,none
+Double dot wikipedia,http://en.wikipedia..org,unknown,none
+None Empty url class,,none,none
+None class 2,-,none,none

@@ -1,10 +1,34 @@
-test_description,refererClass,referer_class,is_external_search,search_engine
+test_description,referer,referer_class,is_external_search,referer_name
+Google 1,https://www.google.co.id/,external (search engine),TRUE,Google
+AU,https://search.auone.jp/?q=newspaper&client=kddi-auone&sr=0101&ie=UTF-8,external (search engine),TRUE,AU
+Youtube,https://youtube.com/,external (media sites),TRUE,Youtube
+Youtube,https://www.youtube.com/,external (media sites),TRUE,Youtube
+Twitter,https://t.co/,external (media sites),TRUE,Twitter
+Twitter,https://t.co:443/9ewps1znoe,external (media sites),TRUE,Twitter
+Reddit,https://www.reddit.com/,external (media sites),TRUE,Reddit
+Reddit,https://www.reddit.com/r/southafrica/comments/yxivvi/someone_has_changed_the_languages_of_south_africa/,external (media sites),TRUE,Reddit
+Facebook,https://lm.facebook.com/,external (media sites),TRUE,Facebook
+Facebook,http://m.facebook.com/,external (media sites),TRUE,Facebook
+Facebook,android-app://m.facebook.com,external (media sites),FALSE,Facebook
+Ycombinator,https://news.ycombinator.com/,external (media sites),TRUE,Ycombinator
+Facebook,https://l.messenger.com/,external (media sites),TRUE,Facebook
+Instagram,http://instagram.com/,external (media sites),TRUE,Instagram
+Instagram,http://ig.me,external (media sites),TRUE,Instagram
+Tiktok,https://www.tiktok.com,external (media sites),TRUE,Tiktok
+Tiktok,https://tiktok.com,external (media sites),TRUE,Tiktok
+Tiktok,https://www.bakertiktok.com,external,FALSE,none
+Github,https://janc-pxl.github.io/,external (media sites),TRUE,Github
+Quora,https://jp.quora.com/,external (media sites),TRUE,Quora
+LinkedIn,android-app://com.linkedin.android,external (media sites),TRUE,LinkedIn
+Pinterest,https://ru.pinterest.com/,external (media sites),TRUE,Pinterest
+Coursera,https://www.coursera.org/,external (media sites),TRUE,Coursera
+Medium,https://medium.com/,external (media sites),TRUE,Medium
+Stackoverflow,https://math.stackexchange.com/,external (media sites),TRUE,Stackoverflow
+Stackoverflow,https://stackoverflow.com/,external (media sites),TRUE,Stackoverflow
 Random internal link,https://zh.wikipedia.org/zh-tw/%E6%96%B9%E6%9D%B1%E6%98%87,internal,FALSE,none
-Nada,-,none,FALSE,none
 Google 1,https://www.google.co.id/,external (search engine),TRUE,Google
 Google 2,http://google.com/,external (search engine),TRUE,Google
 Google 3 (Android Search),android-app://com.google.android.googlequicksearchbox/,external (search engine),TRUE,Google
-Random Android Referer,android-app://m.facebook.com,external,FALSE,none
 Google Translate Search,https://translate.googleusercontent.com/translate_c?depth=1&hl=fi&prev=search&rurl=translate.google.fi&sl=en&sp=nmt4&u=https://en.m.wikipedia.org/wiki/The_Eagle_(novel),external (search engine),TRUE,Google Translate
 Google Translate Non-Search,https://translate.googleusercontent.com/,external,FALSE,none
 Yahoo,http://search.yahoo.co.jp/search?fr=slv1-necpc9&p=%E4%B8%89%E5%8F%88&ei=UTF-8,external (search engine),TRUE,Yahoo
@@ -41,3 +65,32 @@ Random Unclassified Search Engine 4,https://engine.presearch.org/search?q=ebay,e
 Random Unclassified Search Engine 5,https://www.securesearch.co/search/?q=california,external (search engine),TRUE,Predicted Other
 Random Non-Search Engine 1,https://www.researchgate.net/topic/WLAN,external,FALSE,none
 Random Non-Search Engine 2,https://cmt3.research.microsoft.com/User/Register,external,FALSE,none
+Empty link,,none,FALSE,none
+Nada,-,none,FALSE,none
+Foo url,foo,unknown,FALSE,none
+FooBar url,foo-bar,unknown,FALSE,none
+Org http,http://org,unknown,FALSE,none
+Wikipedia Org Without Protocol,en.wikipedia.org,unknown,FALSE,none
+Wikipedia Org Double Dot,http://en.wikipedia..org,unknown,FALSE,none
+No double Slash http,https:/foo/en.wikipedia.org,unknown,FALSE,none
+Wikipedia Org Https,https://en.wikipedia.org,internal,FALSE,none
+Google Https,https://www.google.com,external (search engine),TRUE,Google
+Wikipedia Org Http,http://en.wikipedia.org,internal,FALSE,none
+Wiktionary Org,http://en.wiktionary.org,internal,FALSE,none
+Wikibooks Org,http://en.wikibooks.org,internal,FALSE,none
+Wikinews Org,http://en.wikinews.org,internal,FALSE,none
+Wikiquote Org,http://en.wikiquote.org,internal,FALSE,none
+Wikisource Org,http://en.wikisource.org,internal,FALSE,none
+Wikiversity Org,http://en.wikiversity.org,internal,FALSE,none
+Wikivoyage Org,http://en.wikivoyage.org,internal,FALSE,none
+Wikidata Org,http://www.wikidata.org,internal,FALSE,none
+MediaWiki Org,http://www.mediawiki.org,internal,FALSE,none
+Wikimedia Org,http://www.mediawiki.org,internal,FALSE,none
+Wikimedia Foundation Org,http://wikimediafoundation.org,internal,FALSE,none
+Gigazine,https://gigazine.net/news/20221117-github-top-programming-languages-2022/,external,FALSE,none
+Fake Twitter,https://twitter.exploit/,external,FALSE,none
+Fake Facebook,http://m.facebook.getty/,external,FALSE,none
+Fake Coursera,https://www.coursera.metal/,external,FALSE,none
+Fake Twitter,https://t.co.exploit/,external,FALSE,none
+Fake Twitter,https://t.common-exploit/,external,FALSE,none
+Twitter no slash,https://t.co,external (media sites),TRUE,Twitter

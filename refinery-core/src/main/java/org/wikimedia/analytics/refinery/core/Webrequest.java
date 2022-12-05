@@ -312,58 +312,6 @@ public class Webrequest {
     }
 
     /**
-     * Classifies a referer
-     *
-     * @param url The referer url to classify
-     * @return RefererClassification
-     */
-    public RefererClass classifyReferer(String url) {
-        if (url == null || url.isEmpty() || url.equals("-")) {
-            return RefererClass.NONE;
-        }
-
-        String[] urlParts = StringUtils.splitPreserveAllTokens(url, '/');
-        if (urlParts == null || urlParts.length < 3) {
-            return RefererClass.UNKNOWN;
-        }
-
-        if (!urlParts[0].equals("http:") && !urlParts[0].equals("https:") && !urlParts[0].equals("android-app:")) {
-            return RefererClass.UNKNOWN;
-        }
-
-        if (!urlParts[1].isEmpty()) {
-            return RefererClass.UNKNOWN;
-        }
-
-        String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
-
-        if (domainParts == null || domainParts.length < 2) {
-            return RefererClass.UNKNOWN;
-        }
-
-        if (domainParts[domainParts.length - 1].equals("org")) {
-            switch (domainParts[domainParts.length - 2]) {
-            case "":
-                return RefererClass.UNKNOWN;
-            case "mediawiki":
-            case "wikibooks":
-            case "wikidata":
-            case "wikinews":
-            case "wikimedia":
-            case "wikimediafoundation":
-            case "wikipedia":
-            case "wikiquote":
-            case "wikisource":
-            case "wikiversity":
-            case "wikivoyage":
-            case "wiktionary":
-                return RefererClass.INTERNAL;
-            }
-        }
-        return RefererClass.EXTERNAL;
-    }
-
-    /**
      * Extract project information from host by lowering case, splitting
      * and assigning projectClass, project, qualifiers and tld parts based on splits
      * Example: normalizeHost("en.m.zero.wikipedia.org")<br/>

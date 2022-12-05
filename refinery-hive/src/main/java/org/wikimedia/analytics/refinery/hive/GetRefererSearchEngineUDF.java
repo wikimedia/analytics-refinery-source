@@ -20,7 +20,7 @@ import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 
-import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
+import org.wikimedia.analytics.refinery.core.referer.RefererClassifier;
 
 /**
  * A Hive UDF to identify requests that come via external search engines.
@@ -31,6 +31,6 @@ import org.wikimedia.analytics.refinery.core.SearchEngineClassifier;
         extended = "argument 0 is the referer url to analyze")
 public class GetRefererSearchEngineUDF extends UDF {
     public String evaluate(String referer) {
-        return SearchEngineClassifier.getInstance().identifySearchEngine(referer);
+        return RefererClassifier.getInstance().nameSearchEngine(referer);
     }
 }

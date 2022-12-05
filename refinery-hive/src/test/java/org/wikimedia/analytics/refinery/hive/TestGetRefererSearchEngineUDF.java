@@ -28,7 +28,7 @@ public class TestGetRefererSearchEngineUDF {
 
     @Test
     @FileParameters(
-        value = "../refinery-core/src/test/resources/referer_test_data.csv",
+        value = "../refinery-core/src/test/resources/search_engine_test_data.csv",
         mapper = CsvWithHeaderMapper.class
     )
     public void testRefererClassify(

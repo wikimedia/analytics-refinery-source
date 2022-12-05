@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wikimedia.analytics.refinery.core;
+package org.wikimedia.analytics.refinery.core.referer;
 
 /**
  * An enum for categorizing search engines in ExternalSearch, which should
@@ -22,7 +22,7 @@ package org.wikimedia.analytics.refinery.core;
  * since it iterates through all the entries. The name property allows user
  * to specify a string with spaces and symbols if needed.
  */
-public enum SearchEngine {
+public enum SearchEngineDefinition {
     GOOGLE("Google", "google\\.", ""),
     GOOGLE_TRANSLATE("Google Translate", "translate\\.googleusercontent\\.", "prev=search|client=srp"),
     YAHOO("Yahoo", "search\\.yahoo\\.", ""),
@@ -55,7 +55,7 @@ public enum SearchEngine {
     private final String hostPattern;
     private final String paramPattern;
 
-    SearchEngine(String name, String hostRegex, String paramRegex) {
+    SearchEngineDefinition(String name, String hostRegex, String paramRegex) {
         this.searchEngineName = name;
         this.hostPattern = hostRegex;
         this.paramPattern = paramRegex;

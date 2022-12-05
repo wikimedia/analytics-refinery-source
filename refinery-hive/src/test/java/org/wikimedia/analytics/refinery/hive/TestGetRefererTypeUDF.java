@@ -20,7 +20,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 
 import junit.framework.TestCase;
 
-import org.wikimedia.analytics.refinery.core.RefererClass;
+import org.wikimedia.analytics.refinery.core.referer.RefererClass;
 
 @Deprecated
 public class TestGetRefererTypeUDF extends TestCase {

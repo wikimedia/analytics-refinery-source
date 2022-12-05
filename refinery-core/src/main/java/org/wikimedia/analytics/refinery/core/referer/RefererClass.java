@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wikimedia.analytics.refinery.core;
+package org.wikimedia.analytics.refinery.core.referer;
 
 /**
  * An enum for categorizing referers.
@@ -24,6 +24,7 @@ public enum RefererClass {
     EXTERNAL("external"),
     UNKNOWN("unknown"),
     SEARCH_ENGINE("external (search engine)"),
+    MEDIA_SITE("external (media sites)"),
     NONE("none");
 
     private final String refLabel;
