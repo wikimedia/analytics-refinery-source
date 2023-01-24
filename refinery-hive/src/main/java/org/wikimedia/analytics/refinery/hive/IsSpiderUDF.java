@@ -24,12 +24,8 @@ import org.wikimedia.analytics.refinery.core.Webrequest;
  * which ua-parser misses (for obvious reasons)
  */
 public class IsSpiderUDF extends UDF {
-    public boolean evaluate(
-        String user_agent
-    ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.isSpider(
-                user_agent
-        );
+
+    public boolean evaluate(String userAgent) {
+        return Webrequest.getInstance().isSpider(userAgent);
     }
 }

@@ -26,6 +26,8 @@ import static org.junit.Assert.*;
 @RunWith(JUnitParamsRunner.class)
 public class TestPageview {
 
+    private PageviewDefinition pageviewDefinition = PageviewDefinition.getInstance();
+
     @Test
     @FileParameters(
         value = "src/test/resources/pageview_test_data.csv",
@@ -49,7 +51,6 @@ public class TestPageview {
         String user_agent,
         String x_analytics_header
     ) {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData webrequest = new WebrequestData(uri_host,
             uri_path,
@@ -62,7 +63,7 @@ public class TestPageview {
             assertEquals(
                 test_description,
                 is_pageview,
-                PageviewDefinitionInstance.isPageview(webrequest)
+                pageviewDefinition.isPageview(webrequest)
             );
     }
 
@@ -88,7 +89,6 @@ public class TestPageview {
             String user_agent,
             String x_analytics_header
     ) {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData webrequest = new WebrequestData(uri_host,
             uri_path,
@@ -101,7 +101,7 @@ public class TestPageview {
         assertEquals(
                 test_description,
                 is_pageview,
-                PageviewDefinitionInstance.isPageview(webrequest)
+                pageviewDefinition.isPageview(webrequest)
         );
     }
 
@@ -156,12 +156,11 @@ public class TestPageview {
             String user_agent,
             String x_analytics_header
     ) {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
         if (is_pageview) {
             assertEquals(
                     test_description,
                     dialect,
-                    PageviewDefinitionInstance.getLanguageVariantFromPath(uri_path)
+                    pageviewDefinition.getLanguageVariantFromPath(uri_path)
             );
         }
     }
@@ -188,19 +187,17 @@ public class TestPageview {
             String user_agent,
             String x_analytics_header
     ) {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
         if (is_pageview) {
             assertEquals(
                     test_description,
                     page_title,
-                    PageviewDefinitionInstance.getPageTitleFromUri(uri_path, uri_query)
+                    pageviewDefinition.getPageTitleFromUri(uri_path, uri_query)
             );
         }
     }
 
     @Test
     public void testIsRedirectToPageview() {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData webrequest = new WebrequestData("en.wikipedia.org",
             "/wiki/SomePage",
@@ -210,15 +207,14 @@ public class TestPageview {
             "some",
             "some") ;
 
-        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
-        assertEquals(true, PageviewDefinitionInstance.isRedirectToPageview(webrequest));
+        assertEquals(false, pageviewDefinition.isPageview(webrequest));
+        assertEquals(true, pageviewDefinition.isRedirectToPageview(webrequest));
 
 
     }
 
     @Test
     public void testIsRedirectToPageviewNoContentType() {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData webrequest = new WebrequestData("en.wikipedia.org",
             "/wiki/SomePage",
@@ -228,15 +224,14 @@ public class TestPageview {
             "some",
             "some") ;
 
-        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
-        assertEquals(true, PageviewDefinitionInstance.isRedirectToPageview(webrequest));
+        assertEquals(false, pageviewDefinition.isPageview(webrequest));
+        assertEquals(true, pageviewDefinition.isRedirectToPageview(webrequest));
 
 
     }
 
     @Test
     public void testWikipedia15IsNotPageview() {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData webrequest = new WebrequestData(
             "15.wikipedia.org",
@@ -247,12 +242,11 @@ public class TestPageview {
             "Mozilla/5.0...",
             "https=1");
 
-        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
+        assertEquals(false, pageviewDefinition.isPageview(webrequest));
     }
 
     @Test
     public void testWikidataQueryIsNotPageview() {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData webrequest = new WebrequestData(
             "query.wikidata.org",
@@ -263,85 +257,83 @@ public class TestPageview {
             "Mozilla/5.0...",
             "https=1");
 
-        assertEquals(false, PageviewDefinitionInstance.isPageview(webrequest));
+        assertEquals(false, pageviewDefinition.isPageview(webrequest));
     }
 
     @Test
     public void testPageTitlesWithSpecialCharacters() {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         assertEquals(
                 "Page title with \\n end-of-line in uri_path",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\ntitle", "")
+                pageviewDefinition.getPageTitleFromUri("/wiki/wrong\ntitle", "")
         );
 
         assertEquals(
                 "Page title with trailing \\n end-of-line in uri_path",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong-title\n", "")
+                pageviewDefinition.getPageTitleFromUri("/wiki/wrong-title\n", "")
         );
 
         assertEquals(
                 "Page title with \\r end-of-line in uri_path",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\rtitle", "")
+                pageviewDefinition.getPageTitleFromUri("/wiki/wrong\rtitle", "")
         );
 
         assertEquals(
                 "Page title with tabulation in uri_path",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/wiki/wrong\ttitle", "")
+                pageviewDefinition.getPageTitleFromUri("/wiki/wrong\ttitle", "")
         );
 
         assertEquals(
                 "Page title with \\n end-of-line in uri_query",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\ntitle")
+                pageviewDefinition.getPageTitleFromUri("/w/index.php", "?title=wrong\ntitle")
         );
 
         assertEquals(
                 "Page title with trailing \\n end-of-line in uri_query",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong-title\n")
+                pageviewDefinition.getPageTitleFromUri("/w/index.php", "?title=wrong-title\n")
         );
 
         assertEquals(
                 "Page title with \\r end-of-line in uri_query",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\rtitle")
+                pageviewDefinition.getPageTitleFromUri("/w/index.php", "?title=wrong\rtitle")
         );
 
         assertEquals(
                 "Page title with tabulation in uri_query",
                 PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE,
-                PageviewDefinitionInstance.getPageTitleFromUri("/w/index.php", "?title=wrong\ttitle")
+                pageviewDefinition.getPageTitleFromUri("/w/index.php", "?title=wrong\ttitle")
         );
 
     }
 
     @Test
     public void testPageTitleValidation() {
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         assertTrue(
                 "Regular Page title",
-                PageviewDefinitionInstance.isValidPageTitle("A_Valid_page_title")
+                pageviewDefinition.isValidPageTitle("A_Valid_page_title")
         );
 
         assertFalse(
                 "Page title with \\n end-of-line in the middle",
-                PageviewDefinitionInstance.isValidPageTitle("wrong\ntitle")
+                pageviewDefinition.isValidPageTitle("wrong\ntitle")
         );
 
         assertFalse(
                 "Page title with \\n end-of-line at the end",
-                PageviewDefinitionInstance.isValidPageTitle("wrong-title\n")
+                pageviewDefinition.isValidPageTitle("wrong-title\n")
         );
 
         assertFalse(
                 "Page title with \\n end-of-line in the front",
-                PageviewDefinitionInstance.isValidPageTitle("\nwrong-title")
+                pageviewDefinition.isValidPageTitle("\nwrong-title")
         );
 
     }

@@ -6,7 +6,6 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 import java.util.Set;
 
@@ -16,7 +15,6 @@ import java.util.Set;
  */
 @RunWith(JUnitParamsRunner.class)
 public class TestTagger extends TestCase {
-
 
     /*
     * Make sure chain was initialized
@@ -102,8 +100,6 @@ public class TestTagger extends TestCase {
         String user_agent,
         String x_analytics_header
     ) throws Exception {
-        //uses pageview data to see if a possible pageview tag is behaving as it should
-        PageviewDefinition PageviewDefinitionInstance = PageviewDefinition.getInstance();
 
         WebrequestData data = new WebrequestData(uri_host,
             uri_path,

@@ -307,6 +307,12 @@
         <version>3.5.0</version>
       </dependency>
 
+      <dependency>
+        <groupId>com.github.ben-manes.caffeine</groupId>
+        <artifactId>caffeine</artifactId>
+        <!-- For Java 11 or above, use 3.x otherwise use 2.x. -->
+        <version>2.9.3</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -607,7 +613,6 @@
       <scala.version>2.12.10</scala.version>
       <spark.version>3.1.2</spark.version>
       <spotbugs.version>4.1.2</spotbugs.version>
-      <guava.version>16.0.1</guava.version>
       <sonar.host.url>https://sonarcloud.io</sonar.host.url>
       <!--suppress UnresolvedMavenProperty -->
       <sonar.login>${env.SONAR_API_KEY}</sonar.login>

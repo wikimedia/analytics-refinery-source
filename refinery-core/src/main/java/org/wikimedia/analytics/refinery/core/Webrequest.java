@@ -20,15 +20,21 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.commons.lang3.StringUtils;
 
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Functions to work with Wikimedia webrequest data.
+ *
+ * Thread-safety: The singleton could be used in a multi-thread context. It doesn't hold mutable states. In the same
+ * time, the Caffeine caches are designed to be accessed concurrently and are conveniently shared between threads.
+ *
+ * TODO: Isolate all static methods into their own class.
  */
+@ThreadSafe
 public class Webrequest {
 
     /**
@@ -47,22 +53,25 @@ public class Webrequest {
      * Static values for project, dialect and article
      */
     public static final String UNKNOWN_PROJECT_VALUE = "-";
-    /*
-     * Meta-methods to enable eager instantiation in a singleton-based way.
-     * in non-Java terms: you get to only create one class instance, and only
-     * when you need it, instead of always having everything (static/eager instantiation)
-     * or always generating everything anew (!singletons). So we have:
-     * (1) an instance;
-     * (2) an empty constructor (to avoid people just calling the constructor);
-     * (3) an actual getInstance method to allow for instantiation.
-     */
-    private static final Webrequest instance = new Webrequest();
 
-    private Webrequest() {
+    /**
+     * Meta-methods to enable lazy instantiation in a singleton-based way.
+     * In non-Java terms: you get to only create one class instance, and only when you need it, instead of always having
+     * everything (eager instantiation) or always generating everything anew (!singletons). So we have:
+     * (1) an instance created in the helper when the helper class is requested;
+     * (2) a private constructor (to avoid people just calling the constructor);
+     * (3) an actual getInstance method to retrieve the instance through the helper
+     *
+     * https://codepumpkin.com/double-checked-locking-singleton/#InnerClassSingleton
+     */
+    private static class SingletonHelper {
+        private static final Webrequest INSTANCE = new Webrequest();
     }
 
+    private Webrequest() {}
+
     public static Webrequest getInstance() {
-        return instance;
+        return SingletonHelper.INSTANCE;
     }
 
     public static final Set<String> SUCCESS_HTTP_STATUSES = new HashSet<String>(Arrays.asList(
@@ -164,7 +173,7 @@ public class Webrequest {
      * @param hostname HTTP hostname to check
      * @return boolean
      */
-    public static boolean isWMFHostname(String hostname) {
+    public boolean isWMFHostname(String hostname) {
         if (hostname.length() > MAX_ADDRESS_LENGTH) {
             return false;
         }
@@ -173,27 +182,19 @@ public class Webrequest {
         hostname = StringUtils.stripEnd(hostname.toLowerCase(), ".");
 
         // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
-        return wmfHostnameCache.getUnchecked(hostname);
+        return wmfHostnameCache.get(hostname);
     }
 
     /**
-     * In an analysis of a days worth of webrequest data,
-     * there were under 5000 distinct HTTP hostnames.
-     * The isWMFHostname method of this class searches the above list of names
-     * for matching hostnames.
-     * Caching the result of a given hostname check in this Cache
-     * speeds the search.
+     * Initialization of the WMF Hostname cache
+     *
+     * In an analysis of a days worth of Webrequest data, there were under 5000 distinct HTTP hostnames. The
+     * isWMFHostname method of this class searches the above list of names for matching hostnames. Caching the result of
+     * a given hostname check in this Cache speeds the search.
      */
-    private static LoadingCache<String, Boolean> wmfHostnameCache = CacheBuilder.newBuilder()
-        .maximumSize(10_000)
-        .build(
-            new CacheLoader<String, Boolean>() {
-                @Override
-                public Boolean load(String hostname) {
-                    return computeIsWMFHostname(hostname);
-                }
-            }
-        );
+    private LoadingCache<String, Boolean> wmfHostnameCache = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .build(Webrequest::computeIsWMFHostname);
 
     public static boolean computeIsWMFHostname(String hostname) {
         // Split the hostname by .
@@ -258,25 +259,20 @@ public class Webrequest {
             return true;
         else {
             // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
-            return agentTypeCache.getUnchecked(userAgent);
+            return agentTypeCache.get(userAgent);
         }
     }
 
-    /*
-     * Spiders identification regexp takes a lot of computation power while there are only
-     * a relatively small number of recurrent user_agent values (less than a million).
-     * We use a cache to prevent recomputing agentType for frequently seen user agents.
+    /**
+     * Initialization of the Agent Type cache
+     *
+     * Spiders identification regexp takes a lot of computation power while there are only a relatively small number of
+     * recurrent user_agent values (less than a million). We use a cache to prevent recomputing agentType for frequently
+     * seen user agents.
      */
-    private LoadingCache<String, Boolean> agentTypeCache = CacheBuilder.newBuilder()
-        .maximumSize(10_000)
-        .build(
-            new CacheLoader<String, Boolean>() {
-                @Override
-                public Boolean load(String ua) {
-                    return spiderPattern.matcher(ua).find();
-                }
-            }
-        );
+    private LoadingCache<String, Boolean> agentTypeCache = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .build(userAgent -> spiderPattern.matcher(userAgent).find());
 
     /**
      * Kept for backward compatibility.
@@ -326,26 +322,21 @@ public class Webrequest {
      * @param uriHost The url's host
      * @return A NormalizedHostInfo object with projectFamily, project, qualifiers and tld values set.
      */
-    public static NormalizedHostInfo normalizeHost(String uriHost) {
+    public NormalizedHostInfo normalizeHost(String uriHost) {
         if ((uriHost == null) || (uriHost.trim().isEmpty())) return new NormalizedHostInfo();
         uriHost = uriHost.toLowerCase();
         // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
-        return normalizedHostCache.getUnchecked(uriHost);
+        return normalizedHostCache.get(uriHost);
     }
 
     /**
-     * Used to speed up "normalization of hosts"
+     * Initialization of the Normalized Host cache
+     *
+     * Used to speed up the "normalization of hosts".
      */
-    private static LoadingCache<String, NormalizedHostInfo> normalizedHostCache = CacheBuilder.newBuilder()
-        .maximumSize(5_000)
-        .build(
-            new CacheLoader<String, NormalizedHostInfo>() {
-                @Override
-                public NormalizedHostInfo load(String uriHost) {
-                    return computeNormalizeHost(uriHost);
-                }
-            }
-        );
+    private LoadingCache<String, NormalizedHostInfo> normalizedHostCache = Caffeine.newBuilder()
+            .maximumSize(5_000)
+            .build(Webrequest::computeNormalizeHost);
 
     public static NormalizedHostInfo computeNormalizeHost(String uriHost) {
         NormalizedHostInfo result = new NormalizedHostInfo();

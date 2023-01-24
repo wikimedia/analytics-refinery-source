@@ -2,7 +2,6 @@ package org.wikimedia.analytics.refinery.hive;
 
 import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
 
-import com.google.common.base.Joiner;
 import org.apache.hadoop.hive.ql.exec.MapredContext;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -205,8 +204,7 @@ public class StemmerUDF extends GenericUDF {
                 return text;
             }
 
-            return Joiner.on(" ").join(words);
-
+            return String.join(" ", words);
         }
 
         return EMPTY;

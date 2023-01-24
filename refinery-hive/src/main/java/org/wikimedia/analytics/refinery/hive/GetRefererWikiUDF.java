@@ -29,7 +29,7 @@ public class GetRefererWikiUDF extends UDF {
         referer = referer.replaceFirst("http[s]?://", "");
 
         String project = Webrequest.getProjectFromHost(referer);
-        if (Webrequest.isWMFHostname(project + ".org")) {
+        if (Webrequest.getInstance().isWMFHostname(project + ".org")) {
             return project;
         } else {
             return null;

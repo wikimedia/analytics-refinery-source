@@ -470,7 +470,7 @@ object add_is_wmf_domain extends LogHelper {
             if (hostname == null) {
                 false;
             } else {
-                Webrequest.isWMFHostname(hostname)
+                Webrequest.getInstance().isWMFHostname(hostname)
             }
         }
     )
@@ -523,7 +523,7 @@ object filter_allowed_domains extends LogHelper {
         (domain: String) => {
             if (domain == null || domain.isEmpty) true
             else if (includeList.findFirstMatchIn(domain.toLowerCase()).isDefined) true
-            else if (Webrequest.isWMFHostname(domain)) true
+            else if (Webrequest.getInstance().isWMFHostname(domain)) true
             else false
         }
     )

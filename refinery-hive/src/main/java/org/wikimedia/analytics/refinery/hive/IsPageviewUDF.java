@@ -75,10 +75,18 @@ public class IsPageviewUDF extends GenericUDF {
     protected PrimitiveCategory[] inputTypes = new PrimitiveCategory[maxArguments];
 
     /**
-     * Executed once per job, checks arguments size.
+     * The pageviewDefinition is marked as transient for Kryo. Kryo will serialize UDF instances without the need for
+     * `implements Serializable`. But we don't want to serialize the singleton pageviewDefinition and its caches.
+     * We initialize the variable from the singleton in the initialize method.
+     */
+    protected transient PageviewDefinition pageviewDefinition;
+
+    /**
+     * Each spark task has its own UDF object instance, and the initialize method is called for each of those instances
+     * at the beginning of the task before processing the data chunk.
      *
-     * Accepts variable number of arguments, last argument being the
-     * raw string that represents the xAnalytics map
+     * Checks arguments size. Accepts variable number of arguments, last argument being the raw string that represents
+     * the xAnalytics map.
      *
      * @param arguments
      * @return
@@ -100,11 +108,18 @@ public class IsPageviewUDF extends GenericUDF {
             obtainStringConverter(arguments, i, inputTypes, converters);
         }
 
+        // PageviewDefinition.getInstance() is thread safe and will return the uniq instance of JVM.
+        pageviewDefinition = PageviewDefinition.getInstance();
+
         return PrimitiveObjectInspectorFactory.javaBooleanObjectInspector;
     }
 
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException{
+        return pageviewDefinition.isPageview(buildWebrequestData(arguments));
+    }
+
+    protected WebrequestData buildWebrequestData(DeferredObject[] arguments) throws HiveException {
         String uriHost = getStringValue(arguments, 0, converters);
         String uriPath = getStringValue(arguments, 1, converters);
         String uriQuery = getStringValue(arguments, 2, converters);
@@ -118,16 +133,11 @@ public class IsPageviewUDF extends GenericUDF {
             rawXAnalyticsHeader = getStringValue(arguments, 6, converters);
         }
 
-        WebrequestData webrequestData = new WebrequestData(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
-        return PageviewDefinition.getInstance().isPageview(webrequestData);
-
+        return new WebrequestData(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
     }
 
     @Override
     public String getDisplayString(String[] arguments) {
         return "isPageView(" + arguments.toString() + ")";
     }
-
-
-
 }

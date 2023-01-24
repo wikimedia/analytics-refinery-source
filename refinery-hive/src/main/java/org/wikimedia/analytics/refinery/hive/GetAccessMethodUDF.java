@@ -24,14 +24,8 @@ import org.wikimedia.analytics.refinery.core.Webrequest;
  * which ua-parser misses (for obvious reasons)
  */
 public class GetAccessMethodUDF extends UDF {
-    public String evaluate(
-        String uri_host,
-        String user_agent
-    ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.getAccessMethod(
-            uri_host,
-            user_agent
-        );
+
+    public String evaluate(String uriHost, String userAgent) {
+        return Webrequest.getInstance().getAccessMethod(uriHost, userAgent);
     }
 }

@@ -14,6 +14,8 @@ import static org.junit.Assert.*;
 @RunWith(JUnitParamsRunner.class)
 public class TestWebrequest {
 
+    private final Webrequest webrequest = Webrequest.getInstance();
+
     @Deprecated
     @Test
     @FileParameters(
@@ -26,11 +28,10 @@ public class TestWebrequest {
         boolean is_crawler,
         String user_agent
     ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description,
             is_crawler,
-            webrequest_inst.isCrawler(
+            webrequest.isCrawler(
                 user_agent
             )
         );
@@ -47,11 +48,10 @@ public class TestWebrequest {
         boolean isSpider,
         String user_agent
     ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description,
             isSpider,
-            webrequest_inst.isSpider(
+            webrequest.isSpider(
                 user_agent
             )
         );
@@ -90,11 +90,10 @@ public class TestWebrequest {
         String uri_host,
         String user_agent
     ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description,
             expected_method,
-            webrequest_inst.getAccessMethod(
+            webrequest.getAccessMethod(
                 uri_host,
                 user_agent
             )
@@ -122,32 +121,30 @@ public class TestWebrequest {
         String expectedTld,
         String uriHost
     ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
         assertEquals(
             test_description + " - Project Class",
             expectedProjectClass,
-            webrequest_inst.normalizeHost(uriHost).getProjectFamily()
+            webrequest.normalizeHost(uriHost).getProjectFamily()
         );
         assertEquals(
             test_description + " - Project",
             expectedProject,
-            webrequest_inst.normalizeHost(uriHost).getProject()
+            webrequest.normalizeHost(uriHost).getProject()
         );
         assertEquals(
             test_description + " - Qualifiers",
             expectedQualifiers,
-            join(webrequest_inst.normalizeHost(uriHost).getQualifiers(), ";")
+            join(webrequest.normalizeHost(uriHost).getQualifiers(), ";")
         );
         assertEquals(
             test_description + " - TLD",
             expectedTld,
-            webrequest_inst.normalizeHost(uriHost).getTld()
+            webrequest.normalizeHost(uriHost).getTld()
         );
     }
 
     @Test
     public void testNormalizeHostEmpty() {
-        Webrequest webrequest_inst = Webrequest.getInstance();
 
         String testUriHost = null;
 
@@ -155,22 +152,22 @@ public class TestWebrequest {
         assertEquals(
             "Null - Project Class",
             NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-            webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
+            webrequest.normalizeHost(testUriHost).getProjectFamily()
         );
         assertEquals(
             "Null - Project",
             NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-            webrequest_inst.normalizeHost(testUriHost).getProject()
+            webrequest.normalizeHost(testUriHost).getProject()
         );
         assertEquals(
             "Null - Qualifiers",
             new ArrayList<String>(),
-            webrequest_inst.normalizeHost(testUriHost).getQualifiers()
+            webrequest.normalizeHost(testUriHost).getQualifiers()
         );
         assertEquals(
             "Null - TLD",
             NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-            webrequest_inst.normalizeHost(testUriHost).getTld()
+            webrequest.normalizeHost(testUriHost).getTld()
         );
 
         testUriHost = "";
@@ -179,52 +176,51 @@ public class TestWebrequest {
         assertEquals(
             "Empty - Project Class",
             NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-            webrequest_inst.normalizeHost(testUriHost).getProjectFamily()
+            webrequest.normalizeHost(testUriHost).getProjectFamily()
         );
         assertEquals(
             "Empty - Project",
             NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-            webrequest_inst.normalizeHost(testUriHost).getProject()
+            webrequest.normalizeHost(testUriHost).getProject()
         );
         assertEquals(
             "Empty - Qualifiers",
             new ArrayList<String>(),
-            webrequest_inst.normalizeHost(testUriHost).getQualifiers()
+            webrequest.normalizeHost(testUriHost).getQualifiers()
         );
         assertEquals(
             "Empty - TLD",
             NormalizedHostInfo.EMPTY_NORM_HOST_VALUE,
-            webrequest_inst.normalizeHost(testUriHost).getTld()
+            webrequest.normalizeHost(testUriHost).getTld()
         );
     }
 
     @Test
     public void testIsWMFHostname() {
-        Webrequest webrequest_inst = Webrequest.getInstance();
 
         assertTrue(
             "Should be WMF hostname",
-            webrequest_inst.isWMFHostname("en.wikipedia.org")
+            webrequest.isWMFHostname("en.wikipedia.org")
         );
 
         assertTrue(
             "Should be WMF hostname",
-            webrequest_inst.isWMFHostname("recommend.wmflabs.org")
+            webrequest.isWMFHostname("recommend.wmflabs.org")
         );
 
         assertTrue(
             "Should be WMF hostname",
-            webrequest_inst.isWMFHostname("recommend.wmcloud.org")
+            webrequest.isWMFHostname("recommend.wmcloud.org")
         );
 
         assertTrue(
             "Should be WMF hostname",
-            webrequest_inst.isWMFHostname("recommend.toolforge.org")
+            webrequest.isWMFHostname("recommend.toolforge.org")
         );
 
         assertFalse(
             "Should not be WMF hostname",
-            webrequest_inst.isWMFHostname("boogers.com")
+            webrequest.isWMFHostname("boogers.com")
         );
     }
 }

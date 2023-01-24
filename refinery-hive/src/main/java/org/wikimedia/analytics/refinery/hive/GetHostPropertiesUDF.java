@@ -2,6 +2,7 @@ package org.wikimedia.analytics.refinery.hive;
 
 import static org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping.STRING_GROUP;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -14,6 +15,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.Pr
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.wikimedia.analytics.refinery.core.*;
 
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.*;
 
 /**
@@ -40,13 +42,19 @@ import java.util.*;
 @Description(name = "get_host_properties", value = "_FUNC_(uri_host) - "
         + "Returns a map with project_family, project, qualifiers, tld keys and "
         + "the appropriate values for each of them")
+@NotThreadSafe  // Each instance of the UDF should not be shared between threads.
 public class GetHostPropertiesUDF extends GenericUDF {
     private Converter[] converters = new Converter[1];
     private PrimitiveCategory[] inputTypes = new PrimitiveCategory[1];
 
     private Object[] result;
 
-    private Webrequest webrequest;
+    /**
+     * The webrequest is marked as transient for Kryo. Kryo will serialize UDF instances without the need for
+     * `implements Serializable`. But we don't want to serialize the singleton webrequest and its caches.
+     * We initialize the variable from the singleton in the initialize method.
+     */
+    private transient Webrequest webrequest;
 
     private int IDX_PROJECT_CLASS;
     private int IDX_PROJECT_FAMILY;
@@ -56,7 +64,8 @@ public class GetHostPropertiesUDF extends GenericUDF {
 
 
     /**
-     * The initialize method is called only once during the lifetime of the UDF.
+     * Each spark task has its own UDF object instance, and the initialize method is called for each of those instances
+     * at the beginning of the task before processing the data chunk.
      * <p/>
      * Method checks for the validity (number, type, etc)
      * of the arguments being passed to the UDF.
@@ -129,12 +138,11 @@ public class GetHostPropertiesUDF extends GenericUDF {
      * @return
      * @throws HiveException
      */
+    @SuppressFBWarnings("UCC_UNRELATED_COLLECTION_CONTENTS")
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException {
-        assert result != null : "Result object has not yet been initialized, "
-                + "but evaluate called";
-        // result object has been initialized. So it's an array of objects of
-        // the right length.
+        assert result != null : "Result object has not yet been initialized, but evaluate called";
+        // result object has been initialized. So it's an array of objects of the right length.
 
         String uriHost = getStringValue(arguments, 0, converters);
 

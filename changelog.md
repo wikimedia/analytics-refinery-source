@@ -1,3 +1,7 @@
+## v0.2.13
+* Replace Guava with Caffeine
+* Prepare refine_webrequest UDFs for Spark (multi-thread environment)
+
 ## v0.2.12
 * Update MediasitesDefinition to remove github.io and thereby update GetRefererDataUDF
 

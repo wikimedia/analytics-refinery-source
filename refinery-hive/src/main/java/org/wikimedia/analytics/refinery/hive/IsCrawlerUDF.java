@@ -25,12 +25,8 @@ import org.wikimedia.analytics.refinery.core.Webrequest;
  */
 @Deprecated
 public class IsCrawlerUDF extends UDF {
-    public boolean evaluate(
-        String user_agent
-    ) {
-        Webrequest webrequest_inst = Webrequest.getInstance();
-        return webrequest_inst.isCrawler(
-                user_agent
-        );
+
+    public boolean evaluate(String user_agent) {
+        return Webrequest.getInstance().isCrawler(user_agent);
     }
 }

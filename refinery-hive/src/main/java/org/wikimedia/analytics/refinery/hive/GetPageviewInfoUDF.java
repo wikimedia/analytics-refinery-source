@@ -79,7 +79,6 @@ public class GetPageviewInfoUDF extends GenericUDF {
     public static final String PAGE_TITLE_KEY = "page_title";
 
     Map<String, String> result;
-    private PageviewDefinition pageviewDefinition;
 
     @Override
     public ObjectInspector initialize(ObjectInspector[] arguments)
@@ -95,7 +94,6 @@ public class GetPageviewInfoUDF extends GenericUDF {
         }
 
         result = new HashMap<>(3);
-        pageviewDefinition = PageviewDefinition.getInstance();
 
         return ObjectInspectorFactory.getStandardMapObjectInspector(
                 PrimitiveObjectInspectorFactory.javaStringObjectInspector,
@@ -107,9 +105,6 @@ public class GetPageviewInfoUDF extends GenericUDF {
         assert result != null : "Result object has not yet been initialized, "
                 + "but evaluate called";
         // result map has been initialized.
-        assert pageviewDefinition != null : "PageviewDefinition object has not yet been initialized, "
-                + "but evaluate called";
-        // pageviewDefinition has been initialized.
 
         result.clear();
 
@@ -118,8 +113,8 @@ public class GetPageviewInfoUDF extends GenericUDF {
         String uriQuery = getStringValue(arguments, 2, converters);
 
         result.put(PROJECT_KEY, Webrequest.getProjectFromHost(uriHost));
-        result.put(LANGUAGE_VARIANT_KEY, pageviewDefinition.getLanguageVariantFromPath(uriPath));
-        result.put(PAGE_TITLE_KEY, pageviewDefinition.getPageTitleFromUri(uriPath, uriQuery));
+        result.put(LANGUAGE_VARIANT_KEY, PageviewDefinition.getLanguageVariantFromPath(uriPath));
+        result.put(PAGE_TITLE_KEY, PageviewDefinition.getPageTitleFromUri(uriPath, uriQuery));
 
         return result;
 

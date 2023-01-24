@@ -19,8 +19,6 @@ package org.wikimedia.analytics.refinery.hive;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
-import org.wikimedia.analytics.refinery.core.PageviewDefinition;
-import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
 
 /**
@@ -61,25 +59,7 @@ public class IsRedirectToPageviewUDF extends IsPageviewUDF {
 
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException{
-
-        String uriHost = getStringValue(arguments, 0, converters);
-        String uriPath = getStringValue(arguments, 1, converters);
-        String uriQuery = getStringValue(arguments, 2, converters);
-        String httpStatus = getStringValue(arguments, 3, converters);
-        String contentType = getStringValue(arguments, 4, converters);
-        String userAgent = getStringValue(arguments, 5, converters);
-
-        String rawXAnalyticsHeader = "";
-
-        if (checkForXAnalytics) {
-            rawXAnalyticsHeader = getStringValue(arguments, 6, converters);
-        }
-
-        WebrequestData webrequestData = new WebrequestData(uriHost, uriPath,
-            uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
-
-
-        return PageviewDefinition.getInstance().isRedirectToPageview(webrequestData);
+        return pageviewDefinition.isRedirectToPageview(buildWebrequestData(arguments));
     }
 
 

@@ -16,39 +16,54 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.Collections;
 
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
- * Static functions to implement the Wikimedia pageview definition.
- * This class was orignally created while reading https://gist.github.com/Ironholds/96558613fe38dd4d1961
+ * Mostly static functions to implement the Wikimedia pageview definition.
+ * This class was originally created while reading https://gist.github.com/Ironholds/96558613fe38dd4d1961
+ *
+ * Thread-safety: The singleton could be used in a multi-thread context. It doesn't hold mutable states. In the same
+ * time, the Caffeine cache is designed to be accessed concurrently and is conveniently shared between threads.
+ *
+ * TODO: Isolate all static methods into their own class.
  */
+@ThreadSafe
 public class PageviewDefinition {
 
-    /*
-     * Meta-methods to enable eager instantiation in a singleton-based way.
-     * in non-Java terms: you get to only create one class instance, and only
-     * when you need it, instead of always having everything (static/eager instantiation)
-     * or always generating everything anew (!singletons). So we have:
-     * (1) an instance;
-     * (2) an empty constructor (to avoid people just calling the constructor);
-     * (3) an actual getInstance method to allow for instantiation.
+    /**
+     * Meta-methods to enable lazy instantiation in a singleton-based way.
+     * In non-Java terms: you get to only create one class instance, and only when you need it, instead of always having
+     * everything (eager instantiation) or always generating everything anew (!singletons). So we have:
+     *   1- an instance created in the helper when the helper class is requested;
+     *   2- a private constructor (to avoid people just calling the constructor);
+     *   3- an actual getInstance method to retrieve the instance through the helper
+     *
+     * https://codepumpkin.com/double-checked-locking-singleton/#InnerClassSingleton
      */
-    private static final PageviewDefinition instance = new PageviewDefinition();
+    private static class SingletonHelper {
+        private static final PageviewDefinition INSTANCE = new PageviewDefinition();
+    }
 
     private PageviewDefinition() {}
 
     public static PageviewDefinition getInstance(){
-        return instance;
+        return SingletonHelper.INSTANCE;
     }
+
+    // Avoid multiple calls to Webrequest.getInstance from `isPageview`.
+    private final Webrequest webrequest = Webrequest.getInstance();
 
     public static final String UNKNOWN_LANGUAGE_VARIANT_VALUE = "-";
     public static final String UNKNOWN_PAGE_TITLE_VALUE = "-";
@@ -62,11 +77,11 @@ public class PageviewDefinition {
 
 
     /** Most special pages do not denote content consumption **/
-    private static Set<String> SPECIAL_PAGES_ACCEPTED = new HashSet<String>(Arrays.asList(
-        "search",
-        "recentchanges",
-        "version"
-    ));
+    private static final Set<String> SPECIAL_PAGES_ACCEPTED = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "search",
+            "recentchanges",
+            "version"
+    )));
 
     private final static Pattern URI_PATH_PATTERN = Pattern.compile(
         "^(/sr(-(ec|el))?|/w(iki)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
@@ -119,7 +134,7 @@ public class PageviewDefinition {
      * Must be kept in sync with $wgLegalTitleChars.
      * See: https://www.mediawiki.org/wiki/Manual:$wgLegalTitleChars , https://phabricator.wikimedia.org/T245468
      */
-    private final Pattern titleValidPattern = Pattern.compile(
+    private static final Pattern TITLE_VALID_PATTERN = Pattern.compile(
         "\\A[^#<>\\[\\]{}\\|\\x00-\\x1F\\x7F]+\\z"
     );
     /**
@@ -128,7 +143,7 @@ public class PageviewDefinition {
      * because they include a title as a substring.  This comes from the magic
      * number hardcoded into MediaWikiTitleCodec::splitTitleString
      */
-    private final int titleMaxLength = 512;
+    private static final int TITLE_MAX_LENGTH = 512;
 
     /**
      * Given a webrequest URI path, query and user agent,
@@ -207,10 +222,10 @@ public class PageviewDefinition {
     private boolean isPageviewHostname(String hostname) {
         hostname = hostname.toLowerCase();
         // `getUnchecked` is used in place of `get` as the loading function is not throwing exceptions.
-        return pageviewHostnameCache.getUnchecked(hostname);
+        return pageviewHostnameCache.get(hostname);
     }
 
-    private boolean computeIsPreviewHostname(String hostname) {
+    private static boolean computeIsPreviewHostname(String hostname) {
         return (
                 Utilities.patternIsFound(URI_HOST_WIKIMEDIA_DOMAIN_PATTERN, hostname) ||
                         Utilities.patternIsFound(URI_HOST_OTHER_PROJECTS_PATTERN, hostname) ||
@@ -218,23 +233,14 @@ public class PageviewDefinition {
         );
     }
 
-    /**
-     * In an analysis of a days worth of webrequest data,
-     * there were under 5000 distinct HTTP hostnames.
-     * The isPageviewHostname method of this class uses the above regexes.
-     * Caching the result of a given hostname check in this Cache
-     * speeds up webrequest -> pageview processing.
-     */
-    private LoadingCache<String, Boolean> pageviewHostnameCache = CacheBuilder.newBuilder()
-        .maximumSize(10_000)
-        .build(
-            new CacheLoader<String, Boolean>() {
-                @Override
-                public Boolean load(String hostname) {
-                    return computeIsPreviewHostname(hostname);
-                }
-            }
-        );
+    // Initialization of the Pageview Hostname cache
+    //
+    // In an analysis of a days worth of webrequest data, there were under 5000 distinct HTTP hostnames. The
+    // isPageviewHostname method of this class uses the above regexes. Caching the result of a given hostname check in
+    // this Cache speeds up webrequest -> pageview processing.
+    private LoadingCache<String, Boolean> pageviewHostnameCache = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .build(PageviewDefinition::computeIsPreviewHostname);
 
     /**
      * Given a webrequest URI host, path, query user agent http status and content type,
@@ -267,7 +273,7 @@ public class PageviewDefinition {
     public boolean isPageview(WebrequestData data) {
         if (
             Webrequest.isSuccess(data.getHttpStatus()) &&
-            Webrequest.isWMFHostname(data.getUriHost()) &&
+            webrequest.isWMFHostname(data.getUriHost()) &&
             isPageviewHostname(data.getUriHost()) &&
             pageDenotesContentConsumption(data)
         ) {
@@ -318,7 +324,7 @@ public class PageviewDefinition {
      * @param uriPath The url's path
      * @return The normalized uriPath
      */
-    private String normalizeUriPath(String uriPath) {
+    private static String normalizeUriPath(String uriPath) {
         // Prevent null pointer exception
         String normPath = (uriPath == null) ? "" : uriPath;
 
@@ -347,7 +353,7 @@ public class PageviewDefinition {
      * @param uriPath The url's path
      * @return The language variant name (if any)
      */
-    public String getLanguageVariantFromPath(String uriPath) {
+    public static String getLanguageVariantFromPath(String uriPath) {
         // Normalize uriPath
         String normPath = normalizeUriPath(uriPath);
 
@@ -393,7 +399,7 @@ public class PageviewDefinition {
      * @param find if not found in `path`, return nothing
      * @return the title, or the empty string if not found
      */
-    private String getTitleAfter(String path, String find) {
+    private static String getTitleAfter(String path, String find) {
         int startIdx = path.indexOf(find);
         int len = find.length();
 
@@ -414,7 +420,7 @@ public class PageviewDefinition {
      * @param path The url's path
      * @return The page title name or UNKNOWN_PAGE_TITLE_VALUE
      */
-    private String getPageTitleFromPath(String path) {
+    private static String getPageTitleFromPath(String path) {
 
         if (path == null || path.isEmpty()) {
             return PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
@@ -469,7 +475,7 @@ public class PageviewDefinition {
      * @param uriQuery The url's query
      * @return The decoded page title name or UNKNOWN_PAGE_TITLE_VALUE
      */
-    public String getPageTitleFromUri(String uriPath, String uriQuery) {
+    public static String getPageTitleFromUri(String uriPath, String uriQuery) {
         // Normalize uriPath
         String normPath = normalizeUriPath(uriPath);
 
@@ -521,10 +527,9 @@ public class PageviewDefinition {
         // title parameter but ignore it without validation.  The title we see
         // here may be outdated or completely wrong, until T152628 is fixed.
         // We'll just catch the obvious stuff for now.
-        if (
-            pageTitle.getBytes().length > titleMaxLength
-            || !Utilities.patternIsFound(titleValidPattern, pageTitle)
-        ) {
+
+        int pageTitleLength = pageTitle.getBytes(StandardCharsets.UTF_8).length;
+        if (pageTitleLength > TITLE_MAX_LENGTH || !isValidPageTitle(pageTitle)) {
             return PageviewDefinition.UNKNOWN_PAGE_TITLE_VALUE;
         }
 
@@ -573,8 +578,7 @@ public class PageviewDefinition {
 
     }
 
-    public boolean isValidPageTitle(String pageTitle) {
-        return Utilities.patternIsFound(titleValidPattern, pageTitle);
+    public static boolean isValidPageTitle(String pageTitle) {
+        return Utilities.patternIsFound(TITLE_VALID_PATTERN, pageTitle);
     }
-
 }
