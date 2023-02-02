@@ -252,4 +252,22 @@ class TestHivePartition extends FlatSpec with Matchers {
             )
         result should equal(expected)
     }
+
+    it should "get snapshot condition for weekly snapshot" in {
+        val result = HivePartition.getSnapshotCondition(
+            new DateTime(2023, 5, 1, 0, 0),
+            new DateTime(2023, 5, 8, 0, 0)
+        )
+        val expected = "snapshot = '2023-05-01'"
+        assert(result == expected)
+    }
+
+    it should "get snapshot condition for monthly snapshot" in {
+        val result = HivePartition.getSnapshotCondition(
+            new DateTime(2023, 1, 1, 0, 0),
+            new DateTime(2023, 2, 1, 0, 0)
+        )
+        val expected = "snapshot = '2023-01'"
+        assert(result == expected)
+    }
 }

@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.core
 
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
+import org.joda.time.format.DateTimeFormat
 
 import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
@@ -507,5 +508,30 @@ object HivePartition {
             getThresholdCondition(thresholdMap.tail, comparison) +
             ")"
         }
+    }
+
+    /**
+      * Returns a string with a SparkSQL condition that can be inserted into
+      * a WHERE clause to timely slice a snapshot-based table at the given
+      * snapshot interval and cause partition pruning. Only weekly and monthly
+      * snapshot frequencies are supported. To deduce the frequency, the gap
+      * between since and until is used. For instance:
+      *   since="2023-01-01", until="2023-02-01" -> "snapshot = '2023-01'"
+      *   since="2023-05-01", until="2023-05-08" -> "snapshot = '2023-05-01'"
+      */
+    def getSnapshotCondition(
+        since: DateTime,
+        until: DateTime
+    ): String = {
+        val formatter = if (since.plusWeeks(1) == until) {
+            DateTimeFormat.forPattern("yyyy-MM-dd")
+        } else if (since.plusMonths(1) == until) {
+            DateTimeFormat.forPattern("yyyy-MM")
+        } else {
+            throw new IllegalArgumentException(
+                "The only supported snapshot frequencies are weekly and monthly."
+            )
+        }
+        s"snapshot = '${formatter.print(since)}'"
     }
 }
