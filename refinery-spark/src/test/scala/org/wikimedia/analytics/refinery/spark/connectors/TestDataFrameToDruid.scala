@@ -62,6 +62,7 @@ class TestDataFrameToDruid extends FlatSpec
             segmentGranularity = "hour",
             queryGranularity = "minute",
             numShards = 2,
+            mapMemory = "2048",
             reduceMemory = "8192",
             hadoopQueue = "default",
             druidHost = "test.druid.host",

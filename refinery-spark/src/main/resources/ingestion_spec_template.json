@@ -46,6 +46,7 @@
                 "numShards" : {{NUM_SHARDS}}
             },
             "jobProperties" : {
+                "mapreduce.map.memory.mb" : "{{MAP_MEMORY}}",
                 "mapreduce.reduce.memory.mb" : "{{REDUCE_MEMORY}}",
                 "mapreduce.output.fileoutputformat.compress":
                     "org.apache.hadoop.io.compress.GzipCodec",

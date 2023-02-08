@@ -4,6 +4,7 @@ import org.apache.hadoop.hive.conf.HiveConf
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.joda.time.DateTime
+import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.connectors.{DataFrameToDruid, IngestionStatus}
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
@@ -38,8 +39,10 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         segment_granularity : String         = "day",
         query_granularity   : String         = "hour",
         num_shards          : Int            = 2,
+        map_memory          : String         = "2048",
         reduce_memory       : String         = "8192",
         hadoop_queue        : String         = "default",
+        temp_directory      : Option[String] = None,
         druid_host          : String         = "druid1001.eqiad.wmnet",
         druid_port          : String         = "8090",
         dry_run             : Boolean        = false
@@ -118,11 +121,17 @@ object HiveToDruid extends LogHelper with ConfigHelper {
                    |Default: ${defaults.query_granularity}.""",
             "num_shards" ->
                 s"Number of shards for Druid ingestion. Default: ${defaults.num_shards}.",
+            "map_memory" ->
+                s"""Memory to be used by Hadoop for map operations.
+                   |Default: ${defaults.map_memory}.""",
             "reduce_memory" ->
                 s"""Memory to be used by Hadoop for reduce operations.
                    |Default: ${defaults.reduce_memory}.""",
             "hadoop_queue" ->
                 s"Hadoop queue where to execute the loading. Default: ${defaults.hadoop_queue}.",
+            "temp_directory" ->
+                """HDFS path where to remporarily store files to load.
+                   |Default set in refinery-spark DataFrameToDruid.scala.""",
             "druid_host" ->
                 s"Druid host to load the data to. Default: ${defaults.druid_host}.",
             "druid_port" ->
@@ -204,10 +213,12 @@ object HiveToDruid extends LogHelper with ConfigHelper {
                 segmentGranularity = config.segment_granularity,
                 queryGranularity = config.query_granularity,
                 numShards = config.num_shards,
+                mapMemory = config.map_memory,
                 reduceMemory = config.reduce_memory,
                 hadoopQueue = config.hadoop_queue,
                 druidHost = config.druid_host,
-                druidPort = config.druid_port
+                druidPort = config.druid_port,
+                tempFilePathOver = config.temp_directory.getOrElse(null.asInstanceOf[String])
             ).start().await()
 
             log.info("Done.")
@@ -219,6 +230,7 @@ object HiveToDruid extends LogHelper with ConfigHelper {
      * Returns a DataFrame for the given database and table
      * sliced by the given since and until DateTimes.
      * Uses the metaStore to obtain the partition keys.
+     * Treats snapshot-based tables differently.
      */
     def getDataFrameByTimeInterval(
         spark: SparkSession,
@@ -230,128 +242,16 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         val hiveConf = new HiveConf(spark.sparkContext.hadoopConfiguration, classOf[HiveConf])
         val metaStore = new HiveMetaStoreClient(hiveConf)
         val partitionKeys = metaStore.getTable(database, table).getPartitionKeys.map(_.getName).toSeq
-        val intervalCondition = getBetweenCondition(
-            getDateTimeMap(since, partitionKeys),
-            getDateTimeMap(until, partitionKeys)
-        )
+        val intervalCondition = if (partitionKeys.contains("snapshot")) {
+            HivePartition.getSnapshotCondition(since, until)
+        } else {
+            HivePartition.getBetweenCondition(since, until, partitionKeys)
+        }
         log.debug(s"Querying Hive for intervals: " + Seq((since, until)).toString())
         spark.sql(s"""
             SELECT *
             FROM ${database}.${table}
             WHERE $intervalCondition
         """)
-    }
-
-    /**
-     * Transforms a given DateTime (2019-01-01T00) into a ListMap like:
-     * ListMap("year" -> 2019, "month" -> 1, "day" -> 1, "hour" -> 0)
-     * These are used for getBetweenCondition and getThresholdCondition.
-     * The partitionKeys parameter should contain the names of all time
-     * partitions of the data set (not necessarily in order), like:
-     * Seq("year", "month", "day", "hour")
-     */
-    def getDateTimeMap(
-        dateTime: DateTime,
-        partitionKeys: Seq[String]
-    ): ListMap[String, Int] = {
-        // Assumes year will always be present.
-        ListMap("year" -> dateTime.year.get) ++
-        (if (partitionKeys.contains("month")) {
-            ListMap("month" -> dateTime.monthOfYear.get) ++
-            // Checks for presence of day only if month is present.
-            (if (partitionKeys.contains("day")) {
-                ListMap("day" -> dateTime.dayOfMonth.get) ++
-                // Checks for presence of hour only if month and day are present.
-                (if (partitionKeys.contains("hour")) {
-                    ListMap("hour" -> dateTime.hourOfDay.get)
-                } else ListMap.empty)
-            } else ListMap.empty)
-        } else ListMap.empty)
-    }
-
-    /**
-     * Returns a string with a SparkSQL condition that can be inserted into
-     * a WHERE clause to timely slice a table between two given datetimes,
-     * and cause partition pruning (condition can not use CONCAT to compare).
-     * The since and until datetimes are passed in the form of ListMaps:
-     * ListMap("year" -> 2019, "month" -> 1, "day" -> 1, "hour" -> 0)
-     */
-    def getBetweenCondition(
-        sinceMap: ListMap[String, Int],
-        untilMap: ListMap[String, Int]
-    ): String = {
-        // Check that partition keys of sinceMap and untilMap match.
-        val sincePartitionKeys = sinceMap.keysIterator.toList
-        val untilPartitionKeys = untilMap.keysIterator.toList
-        if (sincePartitionKeys != untilPartitionKeys) throw new IllegalArgumentException(
-            s"Since partition keys ($sincePartitionKeys) do not " +
-            s"match until partition keys ($untilPartitionKeys)."
-        )
-
-        // Get values for current partition.
-        val key = sinceMap.head._1
-        val since = sinceMap.head._2
-        val until = untilMap.head._2
-
-        // Check that since is smaller than until.
-        if (since > until) throw new IllegalArgumentException(
-            s"Since ($since) greater than until ($until) for partition key '$key'."
-        )
-
-        if (since == until) {
-            // Check that since does not equal until for last partition.
-            // Nothing would fulfill the condition, because until is exclusive.
-            if (sinceMap.size == 1) throw new IllegalArgumentException(
-                s"Since equal to until ($since) for last partition key '$key'."
-            )
-
-            // If since equals until for a given partition key, specify that
-            // in the condition and AND it with the recursive call to generate
-            // the between condition for further partitions.
-            s"$key = $since AND " + getBetweenCondition(sinceMap.tail, untilMap.tail)
-        } else {
-            // If since is smaller than until, AND two threshold conditions,
-            // one to specify greater than since, and another to specify
-            // smaller than until.
-            getThresholdCondition(sinceMap, ">") +
-            " AND " +
-            getThresholdCondition(untilMap, "<")
-        }
-    }
-
-    /**
-     * Returns a string with a SparkSQL condition that can be inserted into
-     * a WHERE clause to timely slice a table below or above a given datetime,
-     * and cause partition pruning (condition can not use CONCAT to compare).
-     * The threshold datetime is passed in the form of a ListMap:
-     * ListMap("year" -> 2019, "month" -> 1, "day" -> 1, "hour" -> 0)
-     * The order parameter determines whether the condition should accept
-     * values above (>) or below (<) the threshold.
-     */
-    def getThresholdCondition(
-        thresholdMap: ListMap[String, Int],
-        order: String
-    ): String = {
-        val key = thresholdMap.head._1
-        val threshold = thresholdMap.head._2
-
-        if (thresholdMap.size == 1) {
-            // If there's only one partition key to compare,
-            // output a simple comparison expression.
-            // Note: > becomes inclusive, while < remains exclusive.
-            if (order == ">") s"$key >= $threshold" else s"$key < $threshold"
-        } else {
-            // If there's more than one partition key to compare,
-            // output a condition that covers the following 2 cases:
-            // 1) The case where the value for the current partition is
-            //    exclusively smaller (or greater) than the threshold
-            //    (further partitions are irrelevant).
-            // 2) The case where the value for the current partition equals
-            //    the threshold, provided that further partitions fulfill the
-            //    condition created by the corresponding recursive call.
-            s"($key $order $threshold OR $key = $threshold AND " +
-            getThresholdCondition(thresholdMap.tail, order) +
-            ")"
-        }
     }
 }

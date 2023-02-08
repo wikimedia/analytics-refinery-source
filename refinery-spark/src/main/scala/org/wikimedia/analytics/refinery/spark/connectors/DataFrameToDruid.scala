@@ -124,7 +124,8 @@ object DataFrameToDruid {
  *     queryGranularity  A string indicating the granularity of Druid's queries
  *                       for the data to be loaded (week|day|hour|minute|second).
  *     numShards  Number of shards for Druid ingestion.
- *     reduceMemory  Memory to be used for Druid ingestion.
+ *     mapMemory  Memory to be used for Druid ingestion at map level.
+ *     reduceMemory  Memory to be used for Druid ingestion at reduce level.
  *     hadoopQueue  Name of Hadoop queue to launch the ingestion. Default: 'default'.
  *     druidHost  String with Druid host. Default: 'druid1001.eqiad.wmnet'.
  *     druidPort  String with Druid port. Default: '8090'.
@@ -150,7 +151,8 @@ class DataFrameToDruid(
                         segmentGranularity: String,
                         queryGranularity: String,
                         numShards: Int,
-                        reduceMemory: String,
+                        mapMemory: String = "2048",
+                        reduceMemory: String = "8192",
                         hadoopQueue: String = "default",
                         druidHost: String = "druid1001.eqiad.wmnet",
                         druidPort: String = "8090",
@@ -270,6 +272,7 @@ class DataFrameToDruid(
             .replace("{{TRANSFORMS}}", formatTransforms())
             .replace("{{FLATTENERS}}", formatFlatteners())
             .replace("{{NUM_SHARDS}}", numShards.toString)
+            .replace("{{MAP_MEMORY}}", mapMemory)
             .replace("{{REDUCE_MEMORY}}", reduceMemory)
             .replace("{{HADOOP_QUEUE}}", hadoopQueue)
     }
