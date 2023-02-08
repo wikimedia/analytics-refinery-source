@@ -1,3 +1,7 @@
+## v0.2.11
+* Support snapshot partitioning in HiveToDruid and DataFrameToDruid
+* Refactor and Expand External referer classification
+
 ## v0.2.10
 * Put wikihadoop into refinery/source
 * Add HdfsXMLFsImageConverter to refinery-job
