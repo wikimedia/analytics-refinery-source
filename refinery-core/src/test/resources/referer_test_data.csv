@@ -17,7 +17,8 @@ Instagram,http://ig.me,external (media sites),TRUE,Instagram
 Tiktok,https://www.tiktok.com,external (media sites),TRUE,Tiktok
 Tiktok,https://tiktok.com,external (media sites),TRUE,Tiktok
 Tiktok,https://www.bakertiktok.com,external,FALSE,none
-Github,https://janc-pxl.github.io/,external (media sites),TRUE,Github
+Github,https://janc-pxl.github.io/,external,FALSE,none
+Github,https://github.com/cheatsnake/backend-cheats,external (media sites),TRUE,Github
 Quora,https://jp.quora.com/,external (media sites),TRUE,Quora
 LinkedIn,android-app://com.linkedin.android,external (media sites),TRUE,LinkedIn
 Pinterest,https://ru.pinterest.com/,external (media sites),TRUE,Pinterest

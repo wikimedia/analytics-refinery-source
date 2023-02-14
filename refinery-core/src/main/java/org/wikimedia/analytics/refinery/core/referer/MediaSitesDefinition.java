@@ -30,7 +30,7 @@ public enum MediaSitesDefinition {
     INSTAGRAM("Instagram", "(ig\\.me)|[^\\?\\/]*?((instagram|cdninstagram)\\.com)"),
     YCOMBINATOR("Ycombinator", "[^\\?\\/]*?((startupschool\\.org)|(ycombinator\\.com))"),
     LINKEDIN("LinkedIn", "[^\\?\\/]*?((linkedin\\.(com|android))|lnkd\\.in)"),
-    GITHUB("Github", "[^\\?\\/]*?(github\\.(com|io)|(ghcr\\.io))"),
+    GITHUB("Github", "[^\\?\\/]*?(github\\.com)"),
     PINTEREST("Pinterest", "[^\\?\\/]*?((pin\\.it)|(pinimg\\.com)|\\.pinterest)|pinterest"),
     COURSERA("Coursera", "[^\\?\\/]*?(coursera\\.(org|com))"),
     MEDIUM("Medium", "[^\\?\\/]*?(medium\\.com)"),
