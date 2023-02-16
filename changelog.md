@@ -1,3 +1,6 @@
+## v0.2.12
+* Update MediasitesDefinition to remove github.io and thereby update GetRefererDataUDF
+
 ## v0.2.11
 * Support snapshot partitioning in HiveToDruid and DataFrameToDruid
 * Refactor and Expand External referer classification
