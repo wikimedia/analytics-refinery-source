@@ -1,9 +1,13 @@
 package org.wikimedia.analytics.refinery.job
 
 import java.net.URI
+
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
+import scala.util.Try
+
+import org.apache.http.client.config.RequestConfig
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.{EventSchemaLoader, EventStream, EventStreamConfig, EventStreamFactory, WikimediaDefaults}
@@ -11,10 +15,10 @@ import org.wikimedia.eventutilities.core.http.{BasicHttpClient, BasicHttpResult}
 import org.wikimedia.eventutilities.core.json.{JsonLoader, JsonSchemaLoader}
 import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.monitoring.CanaryEventProducer
-
-import scala.util.Try
+import org.wikimedia.utils.http.CustomRoutePlanner
 
 object ProduceCanaryEvents extends LogHelper with ConfigHelper {
+    val httpClientTimeoutInSeconds: Int = 10
 
     /**
       * Config class for use config files and args.
@@ -29,6 +33,8 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         event_stream_config_uri: String = "https://meta.wikimedia.org/w/api.php",
         event_service_config_uri: Option[String] = None,
         use_wikimedia_http_client: Boolean = true,
+        http_routes: Option[String] = None,
+        http_timeout: Option[Int] = None,
         dry_run: Boolean = true
     ) {
         // Call validate now so we can throw at instantiation if this Config is not valid.
@@ -81,11 +87,20 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
                |to which a canary event should be produced.
                |""".stripMargin,
             "use_wikimedia_http_client" ->
-                s"""If true, wikimedia-event-utilities WikimediaDefaults.WIKIMEDIA_HTTP_CLIENT
+                s"""(deprecated) If true, wikimedia-event-utilities WikimediaDefaults.WIKIMEDIA_HTTP_CLIENT
                |will be used when making http request to get event stream config and to post
                |canary events.  This should always be used in production to properly route
                |to internal production API endpoints.  Default: ${default.use_wikimedia_http_client}
                |""".stripMargin,
+            "http_routes" ->
+                s"""Set the list of http routes to use when making http requests.
+                   |Form is: source1=target1,source2=target2.
+                   |E.g. meta.wikimedia.org=https://api-ro.discovery.wmnet
+                   |""".stripMargin,
+            "http_timeout" ->
+                s"""Set the timeout in seconds for http requests.
+                   |Default is 10. Ignored if use_wikimedia_http_client is true.
+                   |""".stripMargin,
             "dry_run" -> s"""
                 |Don't actually produce any canary events, just
                 |output the events that would have been produced.
@@ -158,7 +173,20 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         val httpClient = if (config.use_wikimedia_http_client) {
             WikimediaDefaults.WIKIMEDIA_HTTP_CLIENT
         } else {
-            BasicHttpClient.builder().build()
+            val builder = BasicHttpClient.builder()
+            config.http_routes
+                .map {
+                    e => CustomRoutePlanner.createMapFromString(e)
+                }
+                .foreach(_.forEach((s, t) => builder.addRoute(s, t.toURI)))
+            config.http_timeout
+                .orElse(Option(httpClientTimeoutInSeconds))
+                .map(_ * 1000) // to millis
+                .map {
+                    timeout => RequestConfig.custom().setConnectTimeout(timeout).setConnectionRequestTimeout(timeout).setSocketTimeout(timeout).build()
+                }
+                .foreach(builder.httpClientBuilder().setDefaultRequestConfig(_))
+            builder.build()
         }
 
         // ResourceLoader that will be used to get stream config and JSONSchemas.
