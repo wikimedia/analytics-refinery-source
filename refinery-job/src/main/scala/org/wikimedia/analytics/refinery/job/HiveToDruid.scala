@@ -36,6 +36,7 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         metrics             : Seq[String]    = Seq.empty,
         time_measures       : Seq[String]    = Seq.empty,
         transforms          : String         = "",
+        count_metric_name   : String         = "count",
         segment_granularity : String         = "day",
         query_granularity   : String         = "hour",
         num_shards          : Int            = 2,
@@ -113,6 +114,9 @@ object HiveToDruid extends LogHelper with ConfigHelper {
                   |Where <expression> follows the spec in:
                   |http://druid.io/docs/latest/misc/math-expr.html
                   |and <name> will be the resulting field name.""",
+            "count_metric_name" ->
+                s"""Name of the metric of type count that is added by default.
+                   |Default: ${defaults.count_metric_name}.""",
             "segment_granularity" ->
                 s"""Granularity for Druid segments (quarter|month|week|day|hour).
                    |Default: ${defaults.segment_granularity}.""",
@@ -210,6 +214,7 @@ object HiveToDruid extends LogHelper with ConfigHelper {
                 timestampFormat = config.timestamp_format,
                 intervals = Seq((config.since, config.until)),
                 transforms = transformSeq,
+                countMetricName = config.count_metric_name,
                 segmentGranularity = config.segment_granularity,
                 queryGranularity = config.query_granularity,
                 numShards = config.num_shards,
@@ -230,7 +235,8 @@ object HiveToDruid extends LogHelper with ConfigHelper {
      * Returns a DataFrame for the given database and table
      * sliced by the given since and until DateTimes.
      * Uses the metaStore to obtain the partition keys.
-     * Treats snapshot-based tables differently.
+     * If the table is snapshot-based, selects the given snapshot.
+     * If the table has no partitions, selects everything in it.
      */
     def getDataFrameByTimeInterval(
         spark: SparkSession,
@@ -242,7 +248,9 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         val hiveConf = new HiveConf(spark.sparkContext.hadoopConfiguration, classOf[HiveConf])
         val metaStore = new HiveMetaStoreClient(hiveConf)
         val partitionKeys = metaStore.getTable(database, table).getPartitionKeys.map(_.getName).toSeq
-        val intervalCondition = if (partitionKeys.contains("snapshot")) {
+        val intervalCondition = if (partitionKeys.isEmpty) {
+            "true"
+        } else if (partitionKeys.contains("snapshot")) {
             HivePartition.getSnapshotCondition(since, until)
         } else {
             HivePartition.getBetweenCondition(since, until, partitionKeys)
