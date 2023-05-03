@@ -1,3 +1,6 @@
+## v0.2.14
+* Fix HiveToDruid to allow for non-partitioned source tables
+
 ## v0.2.13
 * Replace Guava with Caffeine
 * Prepare refine_webrequest UDFs for Spark (multi-thread environment)
