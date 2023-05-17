@@ -1,3 +1,7 @@
+## v0.2.15
+* ProduceCanaryEvents now uses a default 10 second http request timeout.
+  https://phabricator.wikimedia.org/T330236
+
 ## v0.2.14
 * Fix HiveToDruid to allow for non-partitioned source tables
 
