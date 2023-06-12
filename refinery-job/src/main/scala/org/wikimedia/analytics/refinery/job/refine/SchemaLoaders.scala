@@ -1,8 +1,6 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import java.net.URL
 import scala.collection.JavaConverters._
-import org.apache.hadoop.fs.FsUrlStreamHandlerFactory
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 import org.wikimedia.analytics.refinery.tools.LogHelper
@@ -88,7 +86,6 @@ object EventSparkSchemaLoader {
     // Make sure that EventSchemaLoader can handle hdfs:// URIs.
     // (This makes is possible for e.g. com.google.common.io.Resources
     // to load hdfs URIs.)
-    URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory)
 
     /**
       * Helper constructor to create a EventSparkSchemaLoader using EventSchemaLoader from a
