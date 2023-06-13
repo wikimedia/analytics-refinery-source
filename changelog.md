@@ -1,3 +1,8 @@
+## v0.2.16
+* Use eventutilites v1.2.9 shaded jar to fix conflicts with guava included in hadoop
+  classpath and that present in the refinery-job fat jar.
+* Update refine job to spark3 by fixing Factory already defined issue
+
 ## v0.2.15
 * ProduceCanaryEvents now uses a default 10 second http request timeout.
   https://phabricator.wikimedia.org/T330236
