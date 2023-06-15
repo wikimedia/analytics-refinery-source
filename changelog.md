@@ -1,3 +1,6 @@
+## v0.2.17
+* Add explicit snapshot to HiveToDruid
+
 ## v0.2.16
 * Use eventutilites v1.2.9 shaded jar to fix conflicts with guava included in hadoop
   classpath and that present in the refinery-job fat jar.
