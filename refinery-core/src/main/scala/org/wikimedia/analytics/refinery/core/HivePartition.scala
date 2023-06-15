@@ -534,4 +534,10 @@ object HivePartition {
         }
         s"snapshot = '${formatter.print(since)}'"
     }
+
+    def getSnapshotCondition(
+        snapshotValue: String
+    ): String = {
+        s"snapshot = '$snapshotValue'"
+    }
 }

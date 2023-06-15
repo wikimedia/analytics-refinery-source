@@ -270,4 +270,11 @@ class TestHivePartition extends FlatSpec with Matchers {
         val expected = "snapshot = '2023-01'"
         assert(result == expected)
     }
+
+    it should "get snapshot condition for value-defined snapshot" in {
+        val result = HivePartition.getSnapshotCondition("test_snapshot")
+        val expected = "snapshot = 'test_snapshot'"
+        assert(result == expected)
+    }
+
 }

@@ -29,6 +29,7 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         until               : DateTime       = new DateTime(0),
         database            : String         = "",
         table               : String         = "",
+        snapshot            : Option[String] = None,
         druid_datasource    : Option[String] = None,
         timestamp_column    : String         = "dt",
         timestamp_format    : String         = "auto",
@@ -80,6 +81,9 @@ object HiveToDruid extends LogHelper with ConfigHelper {
             "until" ->
                 """End date of the interval to load (YYYY-MM-DDTHH),
                   |or number of hours ago from now (both exclusive). Mandatory.""",
+            "snapshot" ->
+                """Value of the Hive snapshot to load in druid. If set, `since` and
+                  |`until` are used only to define druid interval, not hive snapshot.""",
             "database" ->
                 "Input Hive database name. Mandatory.",
             "table" ->
@@ -184,7 +188,8 @@ object HiveToDruid extends LogHelper with ConfigHelper {
             config.database,
             config.table,
             config.since,
-            config.until
+            config.until,
+            config.snapshot
         )
 
         // Parse the transforms string into a sequence of Transforms.
@@ -243,7 +248,8 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         database: String,
         table: String,
         since: DateTime,
-        until: DateTime
+        until: DateTime,
+        snapshot: Option[String]
     ): DataFrame = {
         val hiveConf = new HiveConf(spark.sparkContext.hadoopConfiguration, classOf[HiveConf])
         val metaStore = new HiveMetaStoreClient(hiveConf)
@@ -251,7 +257,11 @@ object HiveToDruid extends LogHelper with ConfigHelper {
         val intervalCondition = if (partitionKeys.isEmpty) {
             "true"
         } else if (partitionKeys.contains("snapshot")) {
-            HivePartition.getSnapshotCondition(since, until)
+            if (snapshot.isDefined) {
+                HivePartition.getSnapshotCondition(snapshot.get)
+            } else {
+                HivePartition.getSnapshotCondition(since, until)
+            }
         } else {
             HivePartition.getBetweenCondition(since, until, partitionKeys)
         }
