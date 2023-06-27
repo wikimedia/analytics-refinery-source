@@ -221,6 +221,19 @@ object JsonSchemaConverter extends LogHelper {
             throw new IllegalArgumentException("Schema root node shouldn't be null when building Spark Schema")
         if (!jsonSchema.isObject || !jsonSchema.has(propertiesField))
             throw new IllegalArgumentException("Schema root node should be an object with properties when building Spark Schema")
-        buildStructType(jsonSchema)
+        try {
+            buildStructType(jsonSchema)
+        } catch {
+            // If we encounter an exception, it will be useful to know the full schema that
+            // failed to be converted.  Log it here, and then re-raise the exception.
+            case e: Exception => {
+                log.error(
+                    "Caught exception while attempting to convert JSONSchema to " +
+                    "SparkSchema. JSONSchema was:\n" + jsonSchema,
+                    e
+                )
+                throw e
+            }
+        }
     }
 }
