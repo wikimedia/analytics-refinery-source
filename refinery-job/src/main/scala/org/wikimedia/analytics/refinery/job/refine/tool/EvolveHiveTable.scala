@@ -2,14 +2,15 @@ package org.wikimedia.analytics.refinery.job.refine.tool
 
 import java.net.URI
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.ObjectNode
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
 import org.wikimedia.analytics.refinery.job.refine.EventSparkSchemaLoader
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
-import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
+import org.wikimedia.eventutilities.spark.sql.JsonSchemaSparkConverter
 
 /**
   * A simple CLI tool to manually evolve (or create!) Hive tables from JSONSchemas.
@@ -25,7 +26,8 @@ object EvolveHiveTable extends ConfigHelper {
         table: String,
         schema_uri: String,
         schema_base_uris: Seq[String] = BASE_SCHEMA_URIS_DEFAULT,
-        dry_run: Boolean = true
+        dry_run: Boolean = true,
+        timestamps_as_strings: Boolean = true,
     )
 
     object Config {
@@ -51,6 +53,10 @@ object EvolveHiveTable extends ConfigHelper {
             |    --dry_run=<boolean> Only log Hive Table changes instead of executing them.
             |       Default: true
             |
+            |    --timestamps_as_strings=<boolean> If true, date-time fields will be converted
+            |       as StringTypes, instead of TimestampTypes.
+            |       See: https://phabricator.wikimedia.org/T278467
+            |       Default: true
             """.stripMargin
     }
 
@@ -65,7 +71,12 @@ object EvolveHiveTable extends ConfigHelper {
         spark.sparkContext.setLogLevel("WARN")
 
         val evolver = apply(config.schema_base_uris, spark)
-        evolver.evolveHiveTableWithSchema(config.table, URI.create(config.schema_uri), config.dry_run)
+        evolver.evolveHiveTableWithSchema(
+            config.table,
+            URI.create(config.schema_uri),
+            config.dry_run,
+            config.timestamps_as_strings,
+        )
     }
 
     /**
@@ -109,7 +120,7 @@ class EvolveHiveTable(
             // DDL statements will be logged by DataFrameToHive.
             val ddl = DataFrameToHive.getDDLStatements(spark, sparkSchema, table)
             if (ddl.nonEmpty) {
-                log.info(s"dryRun mode. Would have altered Hive table $table")
+                log.info(s"dryRun mode. Would have altered Hive table $table.\n${ddl.mkString("\n")}\n")
             }
             else {
                 log.info(s"dryRun mode.  No changes to Hive table $table were needed.")
@@ -132,14 +143,19 @@ class EvolveHiveTable(
       * @param table
       * @param jsonSchema
       * @param dryRun
+      * @param timestampsAsStrings
       * @return
       */
     def evolveHiveTableWithSchema(
         table: String,
-        jsonSchema: JsonNode,
-        dryRun: Boolean
+        jsonSchema: ObjectNode,
+        dryRun: Boolean,
+        timestampsAsStrings: Boolean,
     ): Boolean = {
-        val sparkSchema = JsonSchemaConverter.toSparkSchema(jsonSchema)
+        val sparkSchema = JsonSchemaSparkConverter.toDataType(
+            jsonSchema,
+            timestampsAsStrings
+        ).asInstanceOf[StructType]
         evolveHiveTableWithSchema(table, sparkSchema, dryRun)
     }
 
@@ -148,15 +164,18 @@ class EvolveHiveTable(
       * @param table
       * @param schemaUri
       * @param dryRun
+      * @param timestampsAsStrings
       * @return
       */
     def evolveHiveTableWithSchema(
         table: String,
         schemaUri: URI,
-        dryRun: Boolean
+        dryRun: Boolean,
+        timestampsAsStrings: Boolean,
     ): Boolean = {
-        val jsonSchema = schemaLoader.getSchema(schemaUri)
-        evolveHiveTableWithSchema(table, jsonSchema, dryRun)
+        // TODO: schemaLoader should return ObjectNodes
+        val jsonSchema = schemaLoader.getSchema(schemaUri).asInstanceOf[ObjectNode]
+        evolveHiveTableWithSchema(table, jsonSchema, dryRun, timestampsAsStrings)
     }
 
     /**
@@ -165,15 +184,18 @@ class EvolveHiveTable(
       * @param table
       * @param event
       * @param dryRun
+      * @param timestampsAsStrings
       * @return
       */
     def evolveHiveTableFromEvent(
         table: String,
         event: JsonNode,
-        dryRun: Boolean
+        dryRun: Boolean,
+        timestampsAsStrings: Boolean,
     ): Boolean = {
-        val jsonSchema = schemaLoader.getEventSchema(event)
-        evolveHiveTableWithSchema(table, jsonSchema, dryRun)
+        // TODO: schemaLoader should return ObjectNodes
+        val jsonSchema = schemaLoader.getEventSchema(event).asInstanceOf[ObjectNode]
+        evolveHiveTableWithSchema(table, jsonSchema, dryRun, timestampsAsStrings)
     }
 
     /**
@@ -182,14 +204,17 @@ class EvolveHiveTable(
       * @param table
       * @param eventString
       * @param dryRun
+      * @param timestampsAsStrings
       * @return
       */
     def evolveHiveTableFromEvent(
         table: String,
         eventString: String,
-        dryRun: Boolean
+        dryRun: Boolean,
+        timestampsAsStrings: Boolean,
     ): Boolean = {
-        val jsonSchema = schemaLoader.getEventSchema(eventString)
-        evolveHiveTableWithSchema(table, jsonSchema, dryRun)
+        // TODO: schemaLoader should return ObjectNodes
+        val jsonSchema = schemaLoader.getEventSchema(eventString).asInstanceOf[ObjectNode]
+        evolveHiveTableWithSchema(table, jsonSchema, dryRun, timestampsAsStrings)
     }
 }

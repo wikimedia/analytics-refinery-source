@@ -1,3 +1,8 @@
+## v0.2.25
+* Use eventutilities-spark JsonSchemaSparkConverter and remove
+  our custom spark JsonSchemaConverter since it is no longer needed.
+  https://phabricator.wikimedia.org/T321854
+
 ## v0.2.24
 * Update project namespace map view
 * Improve fidelity of dumps import

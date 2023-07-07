@@ -1,0 +1,1 @@
+{"$schema":"/test/event/1.0.0","meta":{"dt":"2019-01-01T00:00:00Z","stream":"test.event.example"},"test":"specific test value","test_map":{"key1":"val1","key2":"val2"}}

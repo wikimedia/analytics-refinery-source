@@ -2,10 +2,10 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat}
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.types.{MapType, StringType, StructType, TimestampType}
 import org.joda.time.DateTimeZone
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.util.matching.Regex
 
@@ -17,8 +17,6 @@ class TestRefineTarget extends FlatSpec
         greeting: Option[String] = Some("hi"),
         tags: Option[Array[String]] = Some(Array("tag1", "tag2"))
     )
-
-
 
     val since = new DateTime(
         2021, 3, 22, 10, 0, DateTimeZone.UTC
@@ -45,28 +43,81 @@ class TestRefineTarget extends FlatSpec
         RefineTarget.shouldInclude(s, None, Some("table_a".r)) should equal(false)
         RefineTarget.shouldInclude(s, Some("table_a".r), Some("table_a".r)) should equal(false)
     }
-//
-//    it should "get partition paths from filesystem" in {
-//        // TODO: This is not working as expected...can't get correct path to test resources???
-//        val resourcesPath = getClass.getResource("/")
-//        val paths = RefineTarget.getPartitionPathsFromFS(
-//            spark,
-//            new Path(s"$resourcesPath/data/raw/event"),
-//            DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
-//            new Regex(
-//                "(eqiad|codfw)_(table)/hourly/(\\d+)/(\\d+)/(\\d+)/(\\d+)",
-//                "datacenter", "table", "year", "month", "day", "hour"
-//            ),
-//            since,
-//            until
-//        )
-//
-//        val expected = Seq(
-//            s"$resourcesPath/data/raw/event/eqiad_table_a/hourly/2021/03/22/19",
-//            s"$resourcesPath/data/raw/event/eqiad_table_b/hourly/2021/03/22/19"
-//        ).map(new Path(_))
-//
-//        paths should equal(expected)
-//    }
 
+    it should "get partition paths from filesystem" in {
+        // NOTE: TIL that directories in test/resources will not be present if
+        // there are no actual files in those directories.
+        val resourcesPath = getClass.getResource("/")
+
+        val paths = RefineTarget.getPartitionPathsFromFS(
+            spark,
+            new Path(s"${resourcesPath}event_data/raw/event"),
+            DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
+            new Regex(
+                "(eqiad|codfw)_(table_.)/hourly/(\\d+)/(\\d+)/(\\d+)/(\\d+)",
+                "datacenter", "table", "year", "month", "day", "hour"
+            ),
+            since,
+            until
+        )
+
+        val expected = Seq(
+            s"${resourcesPath}event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19",
+            s"${resourcesPath}event_data/raw/event/eqiad_table_b/hourly/2021/03/22/19"
+        ).map(new Path(_))
+
+        paths should contain theSameElementsAs expected
+    }
+
+    it should "load schema of event with timestamps as strings" in {
+        val schemasBaseUris = Seq(getClass.getResource("/event_data/schemas").toString)
+
+        val inputPath = getClass.getResource("/event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19").toString
+        val outputPath = getClass.getResource("/event_data") + "refined/event/table_a/datacenter=eqiad/year=2021/month=03/day=22/hour=19"
+
+        val eventSparkSchemaLoader = EventSparkSchemaLoader(
+            schemasBaseUris,
+            loadLatest = false,
+            None
+        )
+        val rt = RefineTarget(
+            spark,
+            inputPath,
+            outputPath,
+            eventSparkSchemaLoader
+        )
+
+        val sparkSchema = rt.schema.get
+
+        val expectedTestMapDataType = MapType(StringType, StringType, valueContainsNull = true)
+        sparkSchema("test_map").dataType should equal(expectedTestMapDataType)
+
+        val dtField = sparkSchema("meta").dataType.asInstanceOf[StructType]("dt")
+        dtField.dataType should equal(StringType)
+    }
+
+    it should "load schema of event with timestamps as timestamps" in {
+        val schemasBaseUris = Seq(getClass.getResource("/event_data/schemas").toString)
+
+        val inputPath  = getClass.getResource("/event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19").toString
+        val outputPath = getClass.getResource("/event_data") + "refined/event/table_a/datacenter=eqiad/year=2021/month=03/day=22/hour=19"
+
+        val eventSparkSchemaLoader = EventSparkSchemaLoader(
+            schemasBaseUris,
+            loadLatest = false,
+            None,
+            timestampsAsStrings = false
+        )
+        val rt = RefineTarget(
+            spark,
+            inputPath,
+            outputPath,
+            eventSparkSchemaLoader
+        )
+
+        val sparkSchema = rt.schema.get
+
+        val dtField = sparkSchema("meta").dataType.asInstanceOf[StructType]("dt")
+        dtField.dataType should equal(TimestampType)
+    }
 }

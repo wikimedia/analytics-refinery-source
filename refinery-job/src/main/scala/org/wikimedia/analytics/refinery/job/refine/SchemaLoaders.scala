@@ -1,13 +1,15 @@
 package org.wikimedia.analytics.refinery.job.refine
 
+import com.fasterxml.jackson.databind.node.ObjectNode
+
 import scala.collection.JavaConverters._
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.spark.sql.JsonSchemaConverter
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 import org.wikimedia.eventutilities.core.json.JsonSchemaLoader
 import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.core.event.WikimediaDefaults
+import org.wikimedia.eventutilities.spark.sql.JsonSchemaSparkConverter
 
 /**
   * Implementations of SparkSchemaLoader
@@ -17,18 +19,24 @@ import org.wikimedia.eventutilities.core.event.WikimediaDefaults
   * A SparkSchemaLoader that uses org.wikimedia.eventutilities.core.event.EventSchemaLoader to load
   * schemas from example event data.  This class will get the first line out of a RefineTarget
   * and expect it to be a JSON event.  That event will be passed to the eventSchemaLoader
-  * to get a JsonSchema for it.  Then JsonSchemaConverter.toSparkSchema will convert that JSONSchema
-  * to a Spark (StructType) schema.
+  * to get a JsonSchema for it.  Then JsonSchemaSparkConverter.toDataType will convert that JSONSchema
+  * to a Spark (DataType) schema.
   *
   * This class should be instantiated and provided as RefineTarget's schemaLoader parameter.
   * @param eventSchemaLoader
   *     EventSchemaLoader implementation
   * @param loadLatest
   *     If true, will call eventSchemaLoader getLatestEventSchema instead of getEventSchema.
+  * @param timestampsAsStrings
+  *     If true, timestamp fields will be converted to StringType, instead of TimestampType.
+  *     Default: true.
+  *     See: https://phabricator.wikimedia.org/T278467
+  *
   */
 class EventSparkSchemaLoader(
     eventSchemaLoader: EventSchemaLoader,
-    loadLatest: Boolean = true
+    loadLatest: Boolean = true,
+    timestampsAsStrings: Boolean = true,
 ) extends SparkSchemaLoader with LogHelper {
 
     /**
@@ -66,12 +74,18 @@ class EventSparkSchemaLoader(
                 } else {
                     eventSchemaLoader.getEventSchema(eventString)
                 }
+
                 log.debug(
                     s"Loaded ${if (loadLatest) "latest" else ""} JSONSchema for event data in " +
                     s"${target.inputPath}:\n$jsonSchema"
                 )
 
-                val sparkSchema = JsonSchemaConverter.toSparkSchema(jsonSchema)
+                val sparkSchema = JsonSchemaSparkConverter.toDataType(
+                    // TODO: eventSchemaLoader should return ObjectNodes
+                    jsonSchema.asInstanceOf[ObjectNode],
+                    timestampsAsStrings
+                ).asInstanceOf[StructType]
+
                 log.debug(
                     s"Converted JSONSchema for event data in ${target.inputPath} " +
                     s"to Spark schema:\n${sparkSchema.treeString}"
@@ -98,9 +112,14 @@ object EventSparkSchemaLoader {
     def apply(
         schemaBaseUris: Seq[String],
         loadLatest: Boolean = true,
-        schemaField: Option[String] = None
+        schemaField: Option[String] = None,
+        timestampsAsStrings: Boolean = true,
     ): EventSparkSchemaLoader = {
-        new EventSparkSchemaLoader(buildEventSchemaLoader(schemaBaseUris, schemaField), loadLatest)
+        new EventSparkSchemaLoader(
+            buildEventSchemaLoader(schemaBaseUris, schemaField),
+            loadLatest,
+            timestampsAsStrings
+        )
     }
 
     /**
@@ -133,7 +152,14 @@ object WikimediaEventSparkSchemaLoader {
       * @param loadLatest
       * @return
       */
-    def apply(loadLatest: Boolean = true): EventSparkSchemaLoader = {
-        new EventSparkSchemaLoader(WikimediaDefaults.EVENT_SCHEMA_LOADER, loadLatest)
+    def apply(
+        loadLatest: Boolean = true,
+        timestampsAsStrings: Boolean = true
+    ): EventSparkSchemaLoader = {
+        new EventSparkSchemaLoader(
+            WikimediaDefaults.EVENT_SCHEMA_LOADER,
+            loadLatest,
+            timestampsAsStrings
+        )
     }
 }
