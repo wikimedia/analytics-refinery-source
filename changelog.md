@@ -1,3 +1,7 @@
+## v0.2.18
+* JsonSchemaConverter - log full JSONSchema when converting to Spark fails
+* Remove deprecated code for AppSessionMetrics
+
 ## v0.2.17
 * Add explicit snapshot to HiveToDruid
 
