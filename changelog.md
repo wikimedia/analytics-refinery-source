@@ -1,3 +1,6 @@
+## v0.2.19
+* Turn on pageviews for wikifunctions
+
 ## v0.2.18
 * JsonSchemaConverter - log full JSONSchema when converting to Spark fails
 * Remove deprecated code for AppSessionMetrics
