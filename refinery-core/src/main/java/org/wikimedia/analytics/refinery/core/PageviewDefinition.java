@@ -80,7 +80,8 @@ public class PageviewDefinition {
     private static final Set<String> SPECIAL_PAGES_ACCEPTED = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
             "search",
             "recentchanges",
-            "version"
+            "version",
+            "viewobject"
     )));
 
     private final static Pattern URI_PATH_PATTERN = Pattern.compile(
