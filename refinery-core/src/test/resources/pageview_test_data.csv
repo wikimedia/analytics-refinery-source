@@ -1,4 +1,8 @@
 test_description,project,dialect,page_title,is_pageview,is_legacy_pageview,ip_address,x_forwarded_for,uri_host,uri_path,uri_query,http_status,content_type,user_agent,x_analytics_header
+Is Pageview – Wikifunctions,wikifunctions,default,Z1,true,true,174.62.175.94,-,www.wikifunctions.org,/wiki/Z1,-,200,text/html,turnip/,
+Is Not Pageview – Wikifunctions,wikifunctions.bad,default,Z1,false,false,174.62.175.94,-,wikifunctions.bad.org,/wiki/Z1,-,200,text/html,turnip/,
+Is Pageview – Wikifunctions,wikifunctions,en,Z1,true,true,174.62.175.94,-,www.wikifunctions.org,/view/en/Z1,-,200,text/html,turnip/,
+Is Not Pageview – Wikifunctions,wikifunctions.bad,default,Z1,false,false,174.62.175.94,-,wikifunctions.bad.org,/view/en/Z1,-,200,text/html,turnip/,
 Is Not Pageview - Debug,en.wikipedia,default,Horseshoe_crab,false,true,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe%20crab#anchor,-,200,text/html, turnip/,debug=1
 Is Pageview - Desktop,en.wikipedia,default,Horseshoe_crab,true,true,174.62.175.82,-,en.wikipedia.org, /wiki/Horseshoe%20crab#anchor,-,200,text/html, turnip/,
 Is Pageview – Desktop – locally cached content,en.wikipedia,default,Horseshoe/crab,true,true,174.62.175.82,-,en.wikipedia.org,/wiki/Horseshoe/crab,-,304,text/html, turnip,

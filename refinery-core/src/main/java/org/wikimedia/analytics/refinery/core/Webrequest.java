@@ -112,6 +112,7 @@ public class Webrequest {
         "wikiversity.org",
         "wikivoyage.org",
         "wikidata.org",
+        "wikifunctions.org",
         "mediawiki.org",
         "wikimediafoundation.org",
         "wikiworkshop.org",

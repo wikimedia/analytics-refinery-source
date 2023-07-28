@@ -84,7 +84,7 @@ public class PageviewDefinition {
     )));
 
     private final static Pattern URI_PATH_PATTERN = Pattern.compile(
-        "^(/sr(-(ec|el))?|/w(iki)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
+        "^(/sr(-(ec|el))?|/w(iki)?|/v(iew)?|/zh(-(cn|hans|hant|hk|mo|my|sg|tw))?)/"
     );
 
     private final static Pattern PATTERN = Pattern.compile(
@@ -107,7 +107,7 @@ public class PageviewDefinition {
     );
     private final static Pattern URI_HOST_OTHER_PROJECTS_PATTERN = Pattern.compile(
         "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
-            + "(wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
+            + "(wikifunctions|wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
     );
 
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
@@ -367,6 +367,18 @@ public class PageviewDefinition {
                 || normPath.startsWith("/wiki/") || normPath.startsWith("/w/"))
             return PageviewDefinition.DEFAULT_LANGUAGE_VARIANT_VALUE;
 
+        // Wikifunctions style language variant in the path as in:
+        //   /view/<language-variant>/<page-title>
+        if (normPath.startsWith("/view/")) {
+            int langStartIdx = normPath.indexOf("/", 4);
+            int langStopIdx = normPath.indexOf("/", langStartIdx + 1);
+            if (langStartIdx > 0 && langStopIdx > langStartIdx) {
+                return normPath.substring(langStartIdx + 1, langStopIdx);
+            } else {
+                return PageviewDefinition.DEFAULT_LANGUAGE_VARIANT_VALUE;
+            }
+        }
+
         // Special language variant case
         // LanguageVariant examples are zh-hans, zh-hk, or sr-rc or sr-el
         // return  language variant value if it contains a "-"
@@ -452,6 +464,16 @@ public class PageviewDefinition {
         found = getTitleAfter(mainPath, "/w/");
         if(found.length() > 0) {
             return found;
+        }
+
+        found = getTitleAfter(mainPath, "/view/");
+        if (found.length() > 0) {
+            // Currently this is only wikifunctions and it looks like
+            //   /view/<language-variant>/<page-title>
+            int startIdx = found.lastIndexOf("/");
+            if (startIdx > 0) {
+                return found.substring(startIdx + 1);
+            }
         }
 
         // Else assume we are in /language_variant/Page_title case
