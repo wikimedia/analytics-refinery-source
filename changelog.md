@@ -1,3 +1,6 @@
+## v0.2.20
+* Add special=ViewObject to allowed pageviews
+
 ## v0.2.19
 * Turn on pageviews for wikifunctions
 
