@@ -57,6 +57,7 @@ class RevisionViewRegistrar(
     val revActorSplitsSql = SQLHelper.skewSplits(revisionUnprocessedView, "wiki_db, rev_actor", wikiClause, 4, 3)
     val revActorSplits = spark.sql(revActorSplitsSql)
       .rdd
+      .filter(row => !row.isNullAt(1))
       .map(row => ((row.getString(0), row.getLong(1)), row.getInt(2)))
       .collect
       .toMap
@@ -78,6 +79,7 @@ class RevisionViewRegistrar(
     val revCommentSplitsSql = SQLHelper.skewSplits(revisionUnprocessedView, "wiki_db, rev_comment_id", wikiClause, 4, 3)
     val revCommentSplits = spark.sql(revCommentSplitsSql)
       .rdd
+      .filter(row => !row.isNullAt(1))
       .map(row => ((row.getString(0), row.getLong(1)), row.getInt(2)))
       .collect
       .toMap
