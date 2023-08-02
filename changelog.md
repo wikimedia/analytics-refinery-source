@@ -1,3 +1,7 @@
+## v0.2.21
+* Adapt to nulls in rev_actor and rev_comment on RevisionViewRegistrar.scala
+  https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/944974
+
 ## v0.2.20
 * Add special=ViewObject to allowed pageviews
 
