@@ -175,18 +175,10 @@ public class PageviewDefinition {
      * @return  boolean
      */
     private boolean isAppPageview(WebrequestData data) {
-
         final String rawXAnalyticsHeader = data.getRawXAnalyticsHeader();
-        final String uriPath = data.getUriPath();
         final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
-        
-        // See analytics request for KAiOS pageviews to be turned into events here:
-        // https://phabricator.wikimedia.org/T244547
-        final boolean isKAiOSPageview = Utilities.stringContains(uriPath, PageviewDefinition.URI_PATH_REST_API)
-            && Utilities.stringContains(uriPath, "/page/mobile-sections/");
        
-        return (data.isAppUserAgent()) && (isTaggedPageview || isKAiOSPageview);
-        
+        return (data.isAppUserAgent() && isTaggedPageview);
     }
     
     
