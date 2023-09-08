@@ -33,10 +33,14 @@ class EventSparkSchemaLoader(
 
     /**
       * Reads the first event out of the RefineTarget and converts its JSONSchema to a SparkSchema.
+      *
+      * Note: This method is synchronized to prevent race-conditions when this class is used in a
+      *       multithreaded context, which is the case in the Refine class.
+      *
       * @param target RefineTarget to get the schema of
       * @return
       */
-    def loadSchema(target: RefineTarget): Option[StructType] = {
+    def loadSchema(target: RefineTarget): Option[StructType] = synchronized {
         log.info(
             s"Loading JSONSchema for event data in ${target.inputPath} using ${eventSchemaLoader}"
         )
