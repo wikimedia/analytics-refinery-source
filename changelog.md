@@ -1,3 +1,7 @@
+## v0.2.22
+* Make refine SchemaLoader main function thread safe
+* Remove special KaiOS App checks from pageview def
+
 ## v0.2.21
 * Adapt to nulls in rev_actor and rev_comment on RevisionViewRegistrar.scala
   https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/944974
