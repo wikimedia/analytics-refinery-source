@@ -1,3 +1,6 @@
+## v0.2.23
+* Remove unused cassandra module
+
 ## v0.2.22
 * Make refine SchemaLoader main function thread safe
 * Remove special KaiOS App checks from pageview def
