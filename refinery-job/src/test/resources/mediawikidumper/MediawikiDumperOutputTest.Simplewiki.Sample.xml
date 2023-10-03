@@ -1,0 +1,536 @@
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.10/ http://www.mediawiki.org/xml/export-0.10.xsd" version="0.10" xml:lang="en">
+  <siteinfo>
+    <sitename>Wikipedia</sitename>
+    <dbname>simplewiki</dbname>
+    <base>https://simple.wikipedia.org/wiki/Main_Page</base>
+    <generator>MediaWiki 1.41.0-wmf.24</generator>
+    <case>first-letter</case>
+    <namespaces>
+      <namespace key="-2" case="first-letter">Media</namespace>
+      <namespace key="-1" case="first-letter">Special</namespace>
+      <namespace key="0" case="first-letter" />
+      <namespace key="1" case="first-letter">Talk</namespace>
+      <namespace key="2" case="first-letter">User</namespace>
+      <namespace key="3" case="first-letter">User talk</namespace>
+      <namespace key="4" case="first-letter">Wikipedia</namespace>
+      <namespace key="5" case="first-letter">Wikipedia talk</namespace>
+      <namespace key="6" case="first-letter">File</namespace>
+      <namespace key="7" case="first-letter">File talk</namespace>
+      <namespace key="8" case="first-letter">MediaWiki</namespace>
+      <namespace key="9" case="first-letter">MediaWiki talk</namespace>
+      <namespace key="10" case="first-letter">Template</namespace>
+      <namespace key="11" case="first-letter">Template talk</namespace>
+      <namespace key="12" case="first-letter">Help</namespace>
+      <namespace key="13" case="first-letter">Help talk</namespace>
+      <namespace key="14" case="first-letter">Category</namespace>
+      <namespace key="15" case="first-letter">Category talk</namespace>
+      <namespace key="710" case="first-letter">TimedText</namespace>
+      <namespace key="711" case="first-letter">TimedText talk</namespace>
+      <namespace key="828" case="first-letter">Module</namespace>
+      <namespace key="829" case="first-letter">Module talk</namespace>
+      <namespace key="2300" case="case-sensitive">Gadget</namespace>
+      <namespace key="2301" case="case-sensitive">Gadget talk</namespace>
+      <namespace key="2302" case="case-sensitive">Gadget definition</namespace>
+      <namespace key="2303" case="case-sensitive">Gadget definition talk</namespace>
+    </namespaces>
+  </siteinfo>
+  <page>
+    <title>User:Ryulong</title>
+    <ns>2</ns>
+    <id>45046</id>
+    <revision>
+      <id>266092</id>
+      <timestamp>2006-12-13T03:07:14Z</timestamp>
+      <contributor>
+        <username>Ryulong</username>
+        <id>6629</id>
+      </contributor>
+      <comment>New page: {{babel|en}}</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+    </revision>
+    <revision>
+      <id>360821</id>
+      <parentid>266092</parentid>
+      <timestamp>2007-03-27T11:27:44Z</timestamp>
+      <contributor deleted="deleted" />
+      <comment>Removing all content from page</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="0" />
+      <sha1>phoiac9h4m842xq45sp7s6u21eteeq1</sha1>
+    </revision>
+    <revision>
+      <id>360840</id>
+      <parentid>360821</parentid>
+      <timestamp>2007-03-27T11:35:50Z</timestamp>
+      <contributor>
+        <username>Eptalon</username>
+        <id>2133</id>
+      </contributor>
+      <minor />
+      <comment>Reverted edits by [[Special:Contributions/! - JEWISH BOT 18 - !|! - JEWISH BOT 18 - !]] ([[User talk:! - JEWISH BOT 18 - !|talk]]) to last version by [[User:Ryulong|Ryulong]]</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+    </revision>
+    <revision>
+      <id>558764</id>
+      <parentid>360840</parentid>
+      <timestamp>2007-10-17T17:45:39Z</timestamp>
+      <contributor>
+        <username>^(bad username226)</username>
+        <id>12453</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="81" xml:space="preserve">Ryulong is a fascist bastard who deletes user pages of random users
+
+{{babel|en}}</text>
+      <sha1>6wlyylm6qw6mzovmepz2m8dotyr033z</sha1>
+    </revision>
+    <revision>
+      <id>558766</id>
+      <parentid>558764</parentid>
+      <timestamp>2007-10-17T17:47:50Z</timestamp>
+      <contributor>
+        <username>Vector</username>
+        <id>4767</id>
+      </contributor>
+      <minor />
+      <comment>Reverted edits by [[Special:Contributions/Ionas68224 is Encyclopedist's little brother|Ionas68224 is Encyclopedist's little brother]] ([[User talk:Ionas68224 is Encyclopedist's little brother|talk]]) to last version by Eptalon</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+    </revision>
+    <revision>
+      <id>857580</id>
+      <parentid>558766</parentid>
+      <timestamp>2008-05-17T23:57:19Z</timestamp>
+      <contributor>
+        <username>^(vandal101)</username>
+        <id>17877</id>
+      </contributor>
+      <comment>ffffffff</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="18" xml:space="preserve">{{babel|fuck you}}</text>
+      <sha1>26n91x3pjgm2wg0feil9m1q9nfudrza</sha1>
+    </revision>
+    <revision>
+      <id>857621</id>
+      <parentid>857580</parentid>
+      <timestamp>2008-05-18T00:18:58Z</timestamp>
+      <contributor>
+        <username>Fairfield</username>
+        <id>11980</id>
+      </contributor>
+      <minor />
+      <comment>Reverted changes by [[Special:Contributions/Ryulong is stupid|Ryulong is stupid]] ([[User talk:Ryulong is stupid|talk]]) to last version by Vector</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+    </revision>
+    <revision>
+      <id>1128090</id>
+      <parentid>857621</parentid>
+      <timestamp>2008-10-24T00:18:38Z</timestamp>
+      <contributor>
+        <ip>208.99.75.47</ip>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="18" xml:space="preserve">BOBABOBABO IS BACK</text>
+      <sha1>6zb5re0eucz7cxavev1yca10r9dk9e9</sha1>
+    </revision>
+    <revision>
+      <id>1128091</id>
+      <parentid>1128090</parentid>
+      <timestamp>2008-10-24T00:19:07Z</timestamp>
+      <contributor>
+        <username>PeterSymonds</username>
+        <id>19731</id>
+      </contributor>
+      <comment>Undid an earlier change by [[Special:Contributions/208.99.75.47|208.99.75.47]] ([[User talk:208.99.75.47|talk]]) (revision 1128090)</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+    </revision>
+    <revision>
+      <id>1552830</id>
+      <parentid>1128091</parentid>
+      <timestamp>2009-05-23T08:24:49Z</timestamp>
+      <contributor>
+        <username>Ryuulong</username>
+        <id>64846</id>
+      </contributor>
+      <minor />
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="128" xml:space="preserve">&lt;font size=5&gt;&lt;b&gt;FACE IT, YOU ARE ABOUT TO GET BANNED FROM WIKIPEDIA.  YOU ARE HOURS AWAY FROM BEING DE SYSOPPED TOO!!&lt;/B&gt;&lt;/FONT&gt;</text>
+      <sha1>3gjq5tf0nzlstu23he9cs3j6xxx152a</sha1>
+    </revision>
+    <revision>
+      <id>1552889</id>
+      <parentid>1552830</parentid>
+      <timestamp>2009-05-23T09:43:13Z</timestamp>
+      <contributor>
+        <username>Maxim</username>
+        <id>10246</id>
+      </contributor>
+      <minor />
+      <comment>Reverted changes by [[Special:Contributions/Ryuulong|Ryuulong]] ([[User talk:Ryuulong|talk]]) to last version by PeterSymonds</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+    </revision>
+    <revision>
+      <id>1643771</id>
+      <parentid>1552889</parentid>
+      <timestamp>2009-07-21T13:57:58Z</timestamp>
+      <contributor>
+        <username>Ryulong</username>
+        <id>6629</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="33" xml:space="preserve">{{babel|en}}
+
+[[en:User:Ryulong]]</text>
+      <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
+    </revision>
+    <revision>
+      <id>1714215</id>
+      <parentid>1643771</parentid>
+      <timestamp>2009-08-31T10:30:39Z</timestamp>
+      <contributor>
+        <ip>67.159.41.117</ip>
+      </contributor>
+      <comment deleted="deleted" />
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="26" deleted="deleted" />
+      <sha1 />
+    </revision>
+    <revision>
+      <id>1714216</id>
+      <parentid>1714215</parentid>
+      <timestamp>2009-08-31T10:30:49Z</timestamp>
+      <contributor>
+        <username>Pmlineditor</username>
+        <id>56710</id>
+      </contributor>
+      <minor />
+      <comment>Reverted changes by [[Special:Contributions/67.159.41.117|67.159.41.117]] ([[User talk:67.159.41.117|talk]]) to last version by Ryulong</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="33" xml:space="preserve">{{babel|en}}
+
+[[en:User:Ryulong]]</text>
+      <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
+    </revision>
+    <revision>
+      <id>1714226</id>
+      <parentid>1714216</parentid>
+      <timestamp>2009-08-31T10:32:40Z</timestamp>
+      <contributor>
+        <username>Mercy</username>
+        <id>18643</id>
+      </contributor>
+      <minor />
+      <comment>Protected &quot;[[User:Ryulong]]&quot;: Excessive [[WP:VANDALISM|vandalism]] ([edit=autoconfirmed] (expires 10:32, 1 September 2009 (UTC)) [move=autoconfirmed] (expires 10:32, 1 September 2009 (UTC)))</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="33" xml:space="preserve">{{babel|en}}
+
+[[en:User:Ryulong]]</text>
+      <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
+    </revision>
+    <revision>
+      <id>4997170</id>
+      <parentid>1714226</parentid>
+      <timestamp>2015-01-27T18:30:01Z</timestamp>
+      <contributor>
+        <ip>72.160.28.62</ip>
+      </contributor>
+      <comment>way to let us down asshole</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="60" deleted="deleted" />
+      <sha1 />
+    </revision>
+    <revision>
+      <id>4997179</id>
+      <parentid>4997170</parentid>
+      <timestamp>2015-01-27T18:38:51Z</timestamp>
+      <contributor>
+        <username>Grind24</username>
+        <id>382765</id>
+      </contributor>
+      <minor />
+      <comment>Reverted 1 edit by [[Special:Contributions/72.160.28.62|72.160.28.62]] ([[User talk:72.160.28.62|talk]]) identified as [[WP:VAND|vandalism]] to last revision by Mercy. ([[WP:TW|TW]])</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="33" xml:space="preserve">{{babel|en}}
+
+[[en:User:Ryulong]]</text>
+      <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
+    </revision>
+    <revision>
+      <id>5566832</id>
+      <parentid>4997179</parentid>
+      <timestamp>2017-01-12T02:07:18Z</timestamp>
+      <contributor>
+        <ip>206.255.40.218</ip>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="42" xml:space="preserve">Buddyroid{{babel|en}}
+
+[[en:User:Ryulong]]</text>
+      <sha1>ax8d5q1auq8g43zgenf90u0x02jco52</sha1>
+    </revision>
+  </page>
+  <page>
+    <title>Talk:Cristiano Ronaldo</title>
+    <ns>1</ns>
+    <id>279900</id>
+    <revision>
+      <id>2622350</id>
+      <timestamp>2011-01-24T16:37:27Z</timestamp>
+      <contributor>
+        <ip>93.167.153.229</ip>
+      </contributor>
+      <comment>Created page with 'HAN ER LÆKKER!!'</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="16" xml:space="preserve">HAN ER LÆKKER!!</text>
+      <sha1>lcv17x39mqr7cajs828j1xw7x57cfpx</sha1>
+    </revision>
+    <revision>
+      <id>2622673</id>
+      <parentid>2622350</parentid>
+      <timestamp>2011-01-24T20:15:28Z</timestamp>
+      <contributor>
+        <username>Wiooiw</username>
+        <id>124208</id>
+      </contributor>
+      <comment>{{talkpage}}</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{talkpage}}</text>
+      <sha1>g9i6v69vk0yls3vkoxf49buqqvh11a4</sha1>
+    </revision>
+    <revision>
+      <id>3846608</id>
+      <parentid>2622673</parentid>
+      <timestamp>2012-09-14T13:21:30Z</timestamp>
+      <contributor>
+        <ip>212.121.214.1</ip>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="6" xml:space="preserve">fuck u</text>
+      <sha1>8sovwbm62htgu6sp9ewh3x2q7g9tvok</sha1>
+    </revision>
+    <revision>
+      <id>3846747</id>
+      <parentid>3846608</parentid>
+      <timestamp>2012-09-14T15:19:39Z</timestamp>
+      <contributor>
+        <username>Savh</username>
+        <id>115351</id>
+      </contributor>
+      <minor />
+      <comment>[[Help:Revert a page|Reverted]] edits by [[Special:Contributions/212.121.214.1|212.121.214.1]] ([[User talk:212.121.214.1|talk]]) to last version by Wiooiw</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{talkpage}}</text>
+      <sha1>g9i6v69vk0yls3vkoxf49buqqvh11a4</sha1>
+    </revision>
+    <revision>
+      <id>4670942</id>
+      <parentid>3846747</parentid>
+      <timestamp>2013-12-21T19:46:49Z</timestamp>
+      <contributor deleted="deleted" />
+      <comment deleted="deleted" />
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="93" deleted="deleted" />
+      <sha1 />
+    </revision>
+    <revision>
+      <id>4670944</id>
+      <parentid>4670942</parentid>
+      <timestamp>2013-12-21T19:47:18Z</timestamp>
+      <contributor deleted="deleted" />
+      <comment deleted="deleted" />
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="165" deleted="deleted" />
+      <sha1 />
+    </revision>
+    <revision>
+      <id>4670945</id>
+      <parentid>4670944</parentid>
+      <timestamp>2013-12-21T19:47:38Z</timestamp>
+      <contributor>
+        <username>Razr Nation</username>
+        <id>250072</id>
+      </contributor>
+      <minor />
+      <comment>[[Help:Revert a page|Reverted]] edits by [[Special:Contributions/41.68.240.234|41.68.240.234]] ([[User talk:41.68.240.234|talk]]) to last version by 197.133.127.205</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="93" xml:space="preserve">{{talkI love Ronaldo and mysRonaldo myself a professional Mobile Ronaldoelf universes such as</text>
+      <sha1>twg7jhwcy1cdygwz91x9a8xvcqop9xg</sha1>
+    </revision>
+    <revision>
+      <id>4670988</id>
+      <parentid>4670945</parentid>
+      <timestamp>2013-12-21T20:09:11Z</timestamp>
+      <contributor>
+        <username>Peterdownunder</username>
+        <id>17988</id>
+      </contributor>
+      <comment>Reverted to revision 3846747 by Savh: last good version. ([[WP:TW|TW]])</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="12" xml:space="preserve">{{talkpage}}</text>
+      <sha1>g9i6v69vk0yls3vkoxf49buqqvh11a4</sha1>
+    </revision>
+    <revision>
+      <id>4698314</id>
+      <parentid>4670988</parentid>
+      <timestamp>2014-01-22T19:30:53Z</timestamp>
+      <contributor>
+        <username>Jim Michael</username>
+        <id>109566</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="20" xml:space="preserve">{{talkpage}}
+{{blp}}</text>
+      <sha1>he1cvkgbjhdzsrvxfvmdewv5congmfy</sha1>
+    </revision>
+    <revision>
+      <id>6187125</id>
+      <parentid>4698314</parentid>
+      <timestamp>2018-07-07T12:53:17Z</timestamp>
+      <contributor>
+        <username>BRPever</username>
+        <id>487619</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="483" xml:space="preserve">{{talkpage}}
+{{blp}}
+==Recent transfer==
+Please see:
+https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for official announcements and sources and I think we should also do the same. Is there a template that can used in the top of the page?-[[User:BRPever|&lt;font color=&quot;#FF00FF&quot;&gt;B&lt;/font&gt;&lt;font color=&quot;#FF7E00&quot;&gt;R&lt;/font&gt;&lt;font color=&quot;#00A300&quot;&gt;P&lt;/font&gt;]]'''&lt;sup&gt;&lt;small&gt;[[User talk:BRPever|&lt;font color=&quot;black&quot;&gt;'' ever''&lt;/font&gt;]]&lt;/small&gt;&lt;/sup&gt;'''  12:53, 7 July 2018 (UTC)</text>
+      <sha1>q4p9lcs49ic5om214q3j8ttwnf7x798</sha1>
+    </revision>
+    <revision>
+      <id>6187126</id>
+      <parentid>6187125</parentid>
+      <timestamp>2018-07-07T12:54:24Z</timestamp>
+      <contributor>
+        <username>BRPever</username>
+        <id>487619</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="483" xml:space="preserve">{{talkpage}}
+{{blp}}
+==Recent transfer==
+Please see:
+https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for official announcements and sources and I think we should also do the same. Is there a template that can used on the top of the page?-[[User:BRPever|&lt;font color=&quot;#FF00FF&quot;&gt;B&lt;/font&gt;&lt;font color=&quot;#FF7E00&quot;&gt;R&lt;/font&gt;&lt;font color=&quot;#00A300&quot;&gt;P&lt;/font&gt;]]'''&lt;sup&gt;&lt;small&gt;[[User talk:BRPever|&lt;font color=&quot;black&quot;&gt;'' ever''&lt;/font&gt;]]&lt;/small&gt;&lt;/sup&gt;'''  12:53, 7 July 2018 (UTC)</text>
+      <sha1>skw08d2t0ptebdduzpaoubkqzkghdw1</sha1>
+    </revision>
+    <revision>
+      <id>6187130</id>
+      <parentid>6187126</parentid>
+      <timestamp>2018-07-07T13:01:57Z</timestamp>
+      <contributor>
+        <username>BRPever</username>
+        <id>487619</id>
+      </contributor>
+      <comment>/* Recent transfer */ recent transfer</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="492" xml:space="preserve">{{talkpage}}
+{{blp}}
+==Recent transfer==
+Please see:
+https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for official announcements and reliable sources and I think we should also do the same. Is there a template that can used on the top of the page?-[[User:BRPever|&lt;font color=&quot;#FF00FF&quot;&gt;B&lt;/font&gt;&lt;font color=&quot;#FF7E00&quot;&gt;R&lt;/font&gt;&lt;font color=&quot;#00A300&quot;&gt;P&lt;/font&gt;]]'''&lt;sup&gt;&lt;small&gt;[[User talk:BRPever|&lt;font color=&quot;black&quot;&gt;'' ever''&lt;/font&gt;]]&lt;/small&gt;&lt;/sup&gt;'''  12:53, 7 July 2018 (UTC)</text>
+      <sha1>8nv3itsxp7x7nxlxz48rkeac1g5adky</sha1>
+    </revision>
+    <revision>
+      <id>7374525</id>
+      <parentid>6187130</parentid>
+      <timestamp>2021-02-11T20:56:51Z</timestamp>
+      <contributor>
+        <username>Matthewishere0</username>
+        <id>578820</id>
+      </contributor>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="879" xml:space="preserve">{{talkpage}}
+{{blp}}
+==Recent transfer==
+Please see:
+https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for official announcements and reliable sources and I think we should also do the same. Is there a template that can used on the top of the page?-[[User:BRPever|&lt;font color=&quot;#FF00FF&quot;&gt;B&lt;/font&gt;&lt;font color=&quot;#FF7E00&quot;&gt;R&lt;/font&gt;&lt;font color=&quot;#00A300&quot;&gt;P&lt;/font&gt;]]'''&lt;sup&gt;&lt;small&gt;[[User talk:BRPever|&lt;font color=&quot;black&quot;&gt;'' ever''&lt;/font&gt;]]&lt;/small&gt;&lt;/sup&gt;'''  12:53, 7 July 2018 (UTC)
+:{{ping|BRPever}} - I believe no template is needed. It is better to just wait for the official announcement next time he or any other player transfers and there is a dispute. If a user edits a page before an official announcement has been made, then their edit should be reverted. [[User:Matthewishere0|Matthewishere0]] ([[User talk:Matthewishere0|talk]]) 20:56, 11 February 2021 (UTC)</text>
+      <sha1>nmirjx0hb91eejaspn9wq7h0xngzovb</sha1>
+    </revision>
+    <revision>
+      <id>8458564</id>
+      <parentid>7374525</parentid>
+      <timestamp>2022-09-26T02:54:16Z</timestamp>
+      <contributor>
+        <ip>219.92.54.121</ip>
+      </contributor>
+      <comment>/* Recent transfer */ Reply</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="1025" xml:space="preserve">{{talkpage}}
+{{blp}}
+==Recent transfer==
+Please see:
+https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for official announcements and reliable sources and I think we should also do the same. Is there a template that can used on the top of the page?-[[User:BRPever|&lt;font color=&quot;#FF00FF&quot;&gt;B&lt;/font&gt;&lt;font color=&quot;#FF7E00&quot;&gt;R&lt;/font&gt;&lt;font color=&quot;#00A300&quot;&gt;P&lt;/font&gt;]]'''&lt;sup&gt;&lt;small&gt;[[User talk:BRPever|&lt;font color=&quot;black&quot;&gt;'' ever''&lt;/font&gt;]]&lt;/small&gt;&lt;/sup&gt;'''  12:53, 7 July 2018 (UTC)
+:{{ping|BRPever}} - I believe no template is needed. It is better to just wait for the official announcement next time he or any other player transfers and there is a dispute. If a user edits a page before an official announcement has been made, then their edit should be reverted. [[User:Matthewishere0|Matthewishere0]] ([[User talk:Matthewishere0|talk]]) 20:56, 11 February 2021 (UTC)
+::You are a bad person ok [[Special:Contributions/219.92.54.121|219.92.54.121]] ([[User talk:219.92.54.121|talk]]) 02:54, 26 September 2022 (UTC)</text>
+      <sha1>2mh2qrdloebgahg628p41qnyxbc9pwv</sha1>
+    </revision>
+    <revision>
+      <id>8750749</id>
+      <parentid>8458564</parentid>
+      <timestamp>2023-03-30T15:20:30Z</timestamp>
+      <contributor>
+        <ip>5.150.116.57</ip>
+      </contributor>
+      <comment>/* Ronaldo is ded */ new section</comment>
+      <model>wikitext</model>
+      <format>text/x-wiki</format>
+      <text bytes="1163" xml:space="preserve">{{talkpage}}
+{{blp}}
+==Recent transfer==
+Please see:
+https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for official announcements and reliable sources and I think we should also do the same. Is there a template that can used on the top of the page?-[[User:BRPever|&lt;font color=&quot;#FF00FF&quot;&gt;B&lt;/font&gt;&lt;font color=&quot;#FF7E00&quot;&gt;R&lt;/font&gt;&lt;font color=&quot;#00A300&quot;&gt;P&lt;/font&gt;]]'''&lt;sup&gt;&lt;small&gt;[[User talk:BRPever|&lt;font color=&quot;black&quot;&gt;'' ever''&lt;/font&gt;]]&lt;/small&gt;&lt;/sup&gt;'''  12:53, 7 July 2018 (UTC)
+:{{ping|BRPever}} - I believe no template is needed. It is better to just wait for the official announcement next time he or any other player transfers and there is a dispute. If a user edits a page before an official announcement has been made, then their edit should be reverted. [[User:Matthewishere0|Matthewishere0]] ([[User talk:Matthewishere0|talk]]) 20:56, 11 February 2021 (UTC)
+::You are a bad person ok [[Special:Contributions/219.92.54.121|219.92.54.121]] ([[User talk:219.92.54.121|talk]]) 02:54, 26 September 2022 (UTC)
+
+== Ronaldo is ded ==
+
+e [[Special:Contributions/5.150.116.57|5.150.116.57]] ([[User talk:5.150.116.57|talk]]) 15:20, 30 March 2023 (UTC)</text>
+      <sha1>2gxl3kxo8fq12sw0v7i9gqg7a0zneru</sha1>
+    </revision>
+  </page>
+</mediawiki>
