@@ -40,8 +40,9 @@ object MediawikiDumper extends LogHelper{
         log.info(s"Mediawiki Dumper: step 1/5: build base revisions dataframe")
         val revisionsDF: DataFrame = buildBaseRevisionsDF(params)
 
-        revisionsDF.cache()
-        log.info(s"Mediawiki Dumper:   ${revisionsDF.count()} revisions selected.")
+        // NOTE: the following would cause a lot of work for bigger wikis with many TB of content
+        // revisionsDF.cache()
+        // log.info(s"Mediawiki Dumper:   ${revisionsDF.count()} revisions selected.")
 
         log.info("Mediawiki Dumper: step 2/5: define page partitions")
         val partitionsDefiner = new PagesPartitionsDefiner(
@@ -147,7 +148,7 @@ object MediawikiDumper extends LogHelper{
                 // Add the partition information to the revisions
                 val pagePartition = broadcastDefiner.value.getPagesPartition(revision.pageId)
                 val revisionWithPartitionInfo = revision.addPartitionInfo(pagePartition)
-                // prepare the datastructure for the partitioner
+                // prepare the data structure for the partitioner
                 (revisionWithPartitionInfo.pagesPartitionKey, revisionWithPartitionInfo)
             })
             .rdd  // Convert to RDD to use custom partitioning
@@ -163,6 +164,32 @@ object MediawikiDumper extends LogHelper{
      * @return An RDD of XML fragments
      */
     def buildXMLFragments(sortedRevisions: RDD[Revision], params: Params): RDD[XMLProducer] = {
+        val siteInfoDF = spark.sql(
+            f"""|
+                | select language as languageCode,
+                |        sitename as siteName,
+                |        dbname as dbName,
+                |        home_page as homePage,
+                |        mw_version as mediaWikiVersion,
+                |        case_setting as caseSetting,
+                |        collect_list(named_struct(
+                |          'code', namespace,
+                |          'name', namespace_localized_name,
+                |          'caseSetting', namespace_case_setting,
+                |          'isContent', namespace_is_content = 1
+                |        )) as namespaces
+                |   from ${params.namespacesTable}
+                |  where snapshot = '${params.namespacesSnapshot}'
+                |    and dbname = '${params.wikiId}'
+                |  group by language, sitename, dbname, home_page, mw_version, case_setting
+                |;""".stripMargin)
+
+        val test = spark.sql(f"select * from ${params.namespacesTable} where dbname = 'simplewiki'")
+        val out = test.map(x => x.mkString(" ")).collect().mkString(" >>> ")
+        val si = siteInfoDF.as[SiteInfo]
+        si.count()
+        val siteInfo = si.first() // there should only ever be one row with the group by
+
         sortedRevisions
             .mapPartitions(revisions => {
                 var currentPageId = 0L
@@ -185,7 +212,7 @@ object MediawikiDumper extends LogHelper{
                         result.toList
                     }).toList
                 // Add the XML header and footer to the partition
-                Iterator(XMLFragment.xmlHeader(currentPartition.get, params.wikiId)) ++
+                Iterator(XMLFragment.xmlHeader(currentPartition.get, siteInfo)) ++
                     revisionAndPageFragments.toIterator ++
                     Iterator(XMLFragment.xmlFooter(currentPartition.get))
             })
@@ -273,7 +300,9 @@ object MediawikiDumper extends LogHelper{
     case class Params(
         wikiId: String = "",
         publishUntil: String = "",
-        sourceTable: String = "wmf_dumps.wikitext_raw_rc0",
+        sourceTable: String = "wmf_dumps.wikitext_raw_rc1",
+        namespacesTable: String = "wmf_raw.mediawiki_project_namespace_map",
+        namespacesSnapshot: String = "2023-09",
         outputFolder: String = "",
         pageSizeOverhead: Integer = 20, // in kB
         maxTargetFileSize: Integer = 100, // in MB
@@ -300,6 +329,14 @@ object MediawikiDumper extends LogHelper{
         opt[String]('i', "source_table") valueName "<source_table>" action { (x, p) =>
             p.copy(sourceTable = x)
         } text "The Iceberg table to read data from."
+
+        opt[String]('n', "namespaces_table") valueName "<namespaces_table>" action { (x, p) =>
+            p.copy(namespacesTable = x)
+        } text "A table with site info including namespace info."
+
+        opt[String]('d', "namespaces_snapshot") valueName "<namespaces_snapshot>" action { (x, p) =>
+            p.copy(namespacesSnapshot = x)
+        } text "Which snapshot of the namespaces table to use."
 
         opt[String]('o', "output_folder") required() valueName "<output_folder>" action { (x, p) =>
             p.copy(outputFolder = x)

@@ -5,7 +5,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types.{BooleanType, LongType, MapType, StringType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.types.{BooleanType, LongType, IntegerType, MapType, StringType, StructField, StructType, TimestampType}
 
 import scala.io.Source
 import java.io.File
@@ -38,18 +38,30 @@ class MediawikiDumperSpec
 
     val sourceDBName: String = "wmf_dumps"
     val sourceTableName: String = s"$sourceDBName.wikitext_raw_rc1"
+    val namespaceTableName: String = s"$sourceDBName.mediawiki_project_namespace_map"
+    val snapshot: String = "2023-09"
 
-    def createBaseTable(): Unit = {
+    def createBaseTables(): Unit = {
         spark.sql(s"CREATE DATABASE IF NOT EXISTS $sourceDBName LOCATION '${tmpDir.getAbsolutePath}';")
         spark.read
             .schema(wikitextSchema)
             .option("header", "true")
             .option("inferSchema", "false")
             .option("compression", "gzip")
-            .json(s"${testResourcesDir}/${sourceTableName.replace(".", "_")}.json.gz")
+            .json(s"${testResourcesDir}/wmf_dumps_wikitext_raw_rc1.json.gz")
             .write
             .option("compression", "none")
             .saveAsTable(sourceTableName)
+
+        spark.read
+            .schema(namespacesSchema)
+            .option("header", "true")
+            .option("inferSchema", "false")
+            .option("compression", "gzip")
+            .json(s"${testResourcesDir}/wmf_raw_mediawiki_project_namespace_map.json.gz")
+            .write
+            .option("compression", "none")
+            .saveAsTable(namespaceTableName)
     }
 
     val wikitextSchema = new StructType(Array(
@@ -78,14 +90,31 @@ class MediawikiDumperSpec
         StructField("wiki_db", StringType)
     ))
 
-    def dropTable(): Unit = {
+    val namespacesSchema = new StructType(Array(
+        StructField("hostname", StringType),
+        StructField("language", StringType),
+        StructField("sitename", StringType),
+        StructField("dbname", StringType),
+        StructField("home_page", StringType),
+        StructField("mw_version", StringType),
+        StructField("case_setting", StringType),
+        StructField("namespace", IntegerType),
+        StructField("namespace_canonical_name", StringType),
+        StructField("namespace_localized_name", StringType),
+        StructField("namespace_case_setting", StringType),
+        StructField("namespace_is_content", IntegerType),
+        StructField("snapshot", StringType),
+    ))
+
+    def dropTables(): Unit = {
         spark.sql(s"""DROP TABLE IF EXISTS $sourceTableName;""")
+        spark.sql(s"""DROP TABLE IF EXISTS $namespaceTableName;""")
         spark.sql(s"""DROP DATABASE IF EXISTS $sourceDBName;""")
     }
 
-    override def beforeEach(): Unit = createBaseTable()
+    override def beforeEach(): Unit = createBaseTables()
 
-    override def afterEach(): Unit = dropTable()
+    override def afterEach(): Unit = dropTables()
 
     val params: MediawikiDumper.Params = MediawikiDumper.Params(
         sourceTable = sourceTableName,
@@ -93,7 +122,9 @@ class MediawikiDumperSpec
         // Note: update those values to match the input data from resources, after change to input file.
         publishUntil = "2023-09-01",
         wikiId = "simplewiki",
-        outputFilesCompression = "uncompressed"
+        outputFilesCompression = "uncompressed",
+        namespacesTable = namespaceTableName,
+        namespacesSnapshot = snapshot
     )
 
     // Setup the baseDF through a function in order to use the same Spark Session as in the test beforeEach.

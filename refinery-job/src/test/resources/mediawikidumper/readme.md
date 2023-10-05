@@ -4,7 +4,7 @@ Mediawiki Dumper tests needs realistic data.
 
 Here is how wmf_dumps_wikitext_raw_rc1.json.gz was created.
 
-### Build archive on the cluster with spark-shell
+### 1/ Find a good set of pages
 ```roomsql
  -- get a couple of pages with a short-ish history and all the
  -- variety we need to test for (on analytics replicas - simplewiki)
@@ -36,8 +36,9 @@ Here is how wmf_dumps_wikitext_raw_rc1.json.gz was created.
 +----------+
 ```
 
+### 2/ Build archives on the cluster with spark-shell
 ```
-spark3-shell # no --master yarn to write locally
+spark3-shell --master yarn
 
 // TODO: select interesting examples that vary the XML output:
 //    * temp contributors
@@ -47,7 +48,6 @@ val simpleDF = spark.sql(
         |  WHERE wiki_db = 'simplewiki'
         |    AND page_id in (45046, 279900)
         |""".stripMargin)
-simpleDF.count()
 
 simpleDF
     .coalesce(1)
@@ -56,18 +56,31 @@ simpleDF
     .option("compression","gzip")
     .json("/tmp/wmf_dumps_wikitext_raw_rc1.json.gz")
     
+val namespacesDF = spark.sql(
+    s"""| SELECT * FROM milimetric.mediawiki_project_namespace_map
+        |  WHERE snapshot = '2023-09'
+        |""".stripMargin)
+
+namespacesDF
+    .coalesce(1)
+    .write
+    .mode("overwrite")
+    .option("compression","gzip")
+    .json("/tmp/wmf_raw_mediawiki_project_namespace_map.json.gz")
 ```
-### 2/ Move data to your local machine
+### 3/ Move data to your local machine
 
 ```bash
 cd refinery-job/src/test/resources/mediawikidumper/
 # this just wrote to hdfs at
 # /tmp/wmf_dumps_wikitext_raw_rc1.json.gz/part....json.gz
+# /tmp/wmf_raw_mediawiki_project_namespace_map.json.gz/part...json.gz
 # so adjust accordingly
-scp stat1004.eqiad.wmnet:/tmp/wmf_dumps_wikitext_raw_rc1.json.gz wmf_dumps_wikitext_raw_rc1.json.gz
+scp stat1004.eqiad.wmnet:/mnt/hdfs/tmp/...
+scp stat1004.eqiad.wmnet:/mnt/hdfs/tmp/...
 ```
 
-### 3/ Get XML sample from real dumps
+### 4/ Get XML sample from real dumps
 ``` bash
 cd refinery-job/src/test/resources/mediawikidumper/
 /bin/python filterDumps.py /path/to/dump.xml 45046,279900 > MediawikiDumperOutputTest.xml

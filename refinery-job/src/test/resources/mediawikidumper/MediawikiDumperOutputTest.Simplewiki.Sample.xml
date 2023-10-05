@@ -3,7 +3,7 @@
     <sitename>Wikipedia</sitename>
     <dbname>simplewiki</dbname>
     <base>https://simple.wikipedia.org/wiki/Main_Page</base>
-    <generator>MediaWiki 1.41.0-wmf.24</generator>
+    <generator>MediaWiki 1.41.0-wmf.29</generator>
     <case>first-letter</case>
     <namespaces>
       <namespace key="-2" case="first-letter">Media</namespace>
