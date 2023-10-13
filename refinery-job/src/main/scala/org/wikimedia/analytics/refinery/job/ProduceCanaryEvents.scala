@@ -1,12 +1,10 @@
 package org.wikimedia.analytics.refinery.job
 
 import java.net.URI
-
 import scala.collection.JavaConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.util.Try
-
 import org.apache.http.client.config.RequestConfig
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
@@ -16,6 +14,8 @@ import org.wikimedia.eventutilities.core.json.{JsonLoader, JsonSchemaLoader}
 import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.monitoring.CanaryEventProducer
 import org.wikimedia.utils.http.CustomRoutePlanner
+
+import scala.annotation.tailrec
 
 object ProduceCanaryEvents extends LogHelper with ConfigHelper {
     val httpClientTimeoutInSeconds: Int = 10
@@ -237,7 +237,10 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
             // See: https://phabricator.wikimedia.org/T270138
             val results: Seq[Try[Boolean]] = targetEventStreams.map { eventStream =>
                 Try(
-                    produceCanaryEvents(canaryEventProducer, Seq(eventStream), config.dry_run)
+                    // Since we often receive 500 from eventgates, let's mitigate the false alerts with some retries.
+                    retry(3, "Retrying produceCanaryEvents"){
+                        produceCanaryEvents(canaryEventProducer, Seq(eventStream), config.dry_run)
+                    }
                 )
             }
 
@@ -352,6 +355,19 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
             true
         }
 
+    }
+
+    @tailrec
+    private def retry[T](n: Int, msg: String)(fn: => T): T = {
+        try {
+            fn
+        } catch {
+            case e: Throwable =>
+                log.info(msg)
+                Thread.sleep(5000)  // 5 seconds
+                if (n > 1) retry(n - 1, msg)(fn)
+                else throw e
+        }
     }
 
 }
