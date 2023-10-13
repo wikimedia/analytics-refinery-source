@@ -33,16 +33,16 @@ import org.json4s.jackson.JsonMethods._
  *
  * Example launch command (using joal settings):
  *
- * spark2-submit \
+ * spark3-submit \
  *     --master yarn \
  *     --executor-memory 8G \
  *     --driver-memory 4G \
  *     --executor-cores 2 \
  *     --conf spark.dynamicAllocation.maxExecutors=64 \
  *     --class org.wikimedia.analytics.refinery.job.mediawikihistory.MediawikiXMLDumpsConverter \
- *     /home/joal/code/refinery-source/target/refinery-job-0.76-SNAPSHOT.jar \
- *     --xml_dumps_base_path  hdfs:///user/joal/wmf/data/raw/mediawiki/xmldumps/20180801/pages-meta-history \
- *     --output_base_path hdfs:///user/joal/wmf/data/wmf/mediawiki/wikitext/snapshot=2018-01
+ *     /home/joal/code/refinery-source/target/refinery-job-0.2.24-SNAPSHOT-shaded.jar \
+ *     --xml_dumps_base_path  hdfs:///user/joal/wmf/data/raw/mediawiki/dumps/20231001/pages-meta-history \
+ *     --output_base_path hdfs:///user/joal/wmf/data/wmf/mediawiki/wikitext/history/snapshot=2023-10
  */
 
 object MediawikiXMLDumpsConverter extends ConfigHelper {
@@ -71,11 +71,11 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
         StructField("page_redirect_title", StringType, nullable = false),
         StructField("page_restrictions", ArrayType(StringType, containsNull = false), nullable = false),
 
-        StructField("user_id", LongType, nullable = false),
+        StructField("user_id", LongType, nullable = true),
         StructField("user_text", StringType, nullable = false),
 
         StructField("revision_id", LongType, nullable = false),
-        StructField("revision_parent_id", LongType, nullable = false),
+        StructField("revision_parent_id", LongType, nullable = true),
         StructField("revision_timestamp", StringType, nullable = false),
         StructField("revision_minor_edit", BooleanType, nullable = false),
         StructField("revision_comment", StringType, nullable = false),
@@ -83,8 +83,48 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
         StructField("revision_text_sha1", StringType, nullable = false),
         StructField("revision_text", StringType, nullable = false),
         StructField("revision_content_model", StringType, nullable = false),
-        StructField("revision_content_format", StringType, nullable = false)
+        StructField("revision_content_format", StringType, nullable = false),
+
+        StructField("user_is_visible", BooleanType, nullable = false),
+        StructField("comment_is_visible", BooleanType, nullable = false),
+        StructField("content_is_visible", BooleanType, nullable = false),
     ))
+
+    def parseAndStructureRow(text: Text): (Long, Row) = {
+        val json = parse(text.toString)
+        val parentId = (json \ "parent_id").toOption
+        val userId = (json \ "user" \ "id").toOption
+        val revId = (json \ "id").values.asInstanceOf[BigInt].toLong
+        (revId, Row(
+            (json \ "page" \ "wiki").values.asInstanceOf[String],
+
+            (json \ "page" \ "id").values.asInstanceOf[BigInt].toLong,
+            (json \ "page" \ "namespace").values.asInstanceOf[BigInt].toInt,
+            (json \ "page" \ "title").values.asInstanceOf[String],
+            (json \ "page" \ "redirect").values.asInstanceOf[String],
+            (json \ "page" \ "restrictions").values.asInstanceOf[List[String]],
+
+            if (userId.isDefined) userId.get.values.asInstanceOf[BigInt].toLong
+            else null.asInstanceOf[BigInt],
+            (json \ "user" \ "text").values.asInstanceOf[String],
+
+            revId,
+            if (parentId.isDefined) parentId.get.values.asInstanceOf[BigInt].toLong
+            else null.asInstanceOf[BigInt],
+            (json \ "timestamp").values.asInstanceOf[String],
+            (json \ "minor").values.asInstanceOf[Boolean],
+            (json \ "comment").values.asInstanceOf[String],
+            (json \ "bytes").values.asInstanceOf[BigInt].toLong,
+            (json \ "sha1").values.asInstanceOf[String],
+            (json \ "text").values.asInstanceOf[String],
+            (json \ "model").values.asInstanceOf[String],
+            (json \ "format").values.asInstanceOf[String],
+
+            (json \ "user_is_visible").values.asInstanceOf[Boolean],
+            (json \ "comment_is_visible").values.asInstanceOf[Boolean],
+            (json \ "content_is_visible").values.asInstanceOf[Boolean],
+        ))
+    }
 
     /**
      * Conversion configuration for a job.
@@ -237,6 +277,10 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             // Setup XML-Dumps Hadoop InputFormat
             val wikiDumpJson = sc.newAPIHadoopFile(
                 config.xmlInputPath,
+                // NOTE: it is possible to optimize this by creating a new input format,
+                //   based on case classes (which need to be made writeable).  This would
+                //   eliminate one serialize and deserialize from the pipeline and save some
+                //   CPU.
                 classOf[MediawikiXMLRevisionToJSONInputFormat],
                 classOf[LongWritable],
                 classOf[Text],
@@ -244,33 +288,8 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
 
             // Extract a Spark-Row out of the parsed JSON
             // then remove collocated duplicate revisions
-            val wikitextRows = wikiDumpJson.map{
-                case (_, text) =>
-                    val json = parse(text.toString)
-                    val revId = (json \ "id").values.asInstanceOf[BigInt].toLong
-                    (revId, Row(
-                        (json \ "page" \ "wiki").values.asInstanceOf[String],
-
-                        (json \ "page" \ "id").values.asInstanceOf[BigInt].toLong,
-                        (json \ "page" \ "namespace").values.asInstanceOf[BigInt].toInt,
-                        (json \ "page" \ "title").values.asInstanceOf[String],
-                        (json \ "page" \ "redirect").values.asInstanceOf[String],
-                        (json \ "page" \ "restrictions").values.asInstanceOf[List[String]],
-
-                        (json \ "user" \ "id").values.asInstanceOf[BigInt].toLong,
-                        (json \ "user" \ "text").values.asInstanceOf[String],
-
-                        revId,
-                        (json \ "parent_id").values.asInstanceOf[BigInt].toLong,
-                        (json \ "timestamp").values.asInstanceOf[String],
-                        (json \ "minor").values.asInstanceOf[Boolean],
-                        (json \ "comment").values.asInstanceOf[String],
-                        (json \ "bytes").values.asInstanceOf[BigInt].toLong,
-                        (json \ "sha1").values.asInstanceOf[String],
-                        (json \ "text").values.asInstanceOf[String],
-                        (json \ "model").values.asInstanceOf[String],
-                        (json \ "format").values.asInstanceOf[String]
-                    ))
+            val wikitextRows = wikiDumpJson.map {
+                case (_, text) => parseAndStructureRow(text)
             }.mapPartitions(it => {
                 new Iterator[Row] {
                     var previousRevId: Option[Long] = None

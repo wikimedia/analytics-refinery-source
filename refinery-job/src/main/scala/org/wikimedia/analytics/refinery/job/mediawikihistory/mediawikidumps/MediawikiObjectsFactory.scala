@@ -32,17 +32,23 @@ trait MediawikiObjectsFactory {
     def getText: String
     def setSha1(sha1: String): MwRev
     def getSha1: String
-    def setParentId(parentId: Long): MwRev
-    def getParentId: Long
+    def setParentId(parentId: Option[Long]): MwRev
+    def getParentId: Option[Long]
     def setModel(model: String): MwRev
     def getModel: String
     def setFormat(format: String): MwRev
     def getFormat: String
+    def setUserIsVisible(userIsVisible: Boolean): MwRev
+    def getUserIsVisible: Boolean
+    def setCommentIsVisible(commentIsVisible: Boolean): MwRev
+    def getCommentIsVisible: Boolean
+    def setContentIsVisible(ContentIsVisible: Boolean): MwRev
+    def getContentIsVisible: Boolean
   }
 
   trait MediawikiUser {
-    def setId(id: Long): MwUser
-    def getId: Long
+    def setId(id: Option[Long]): MwUser
+    def getId: Option[Long]
     def setUserText(userText: String): MwUser
     def getUserText: String
   }

@@ -31,4 +31,46 @@
             <text>WHYD YOU LOCK PAGE??!!! i was editing that jerk</text>
         </revision>
     </page>
+    <page>
+        <title>User:Ryulong - inspired example with deleted parts</title>
+        <ns>2</ns>
+        <id>45046</id>
+        <revision>
+            <id>266092</id>
+            <timestamp>2006-12-13T03:07:14Z</timestamp>
+            <contributor>
+                <username>Ryulong</username>
+                <id>6629</id>
+            </contributor>
+            <comment>New page: {{babel|en}}</comment>
+            <model>wikitext</model>
+            <format>text/x-wiki</format>
+            <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+            <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
+        </revision>
+        <revision>
+            <id>360821</id>
+            <parentid>266092</parentid>
+            <timestamp>2007-03-27T11:27:44Z</timestamp>
+            <contributor deleted="deleted" />
+            <comment>Removing all content from page</comment>
+            <model>wikitext</model>
+            <format>text/x-wiki</format>
+            <text bytes="0" />
+            <sha1>phoiac9h4m842xq45sp7s6u21eteeq1</sha1>
+        </revision>
+        <revision>
+            <id>1714215</id>
+            <parentid>360821</parentid>
+            <timestamp>2009-08-31T10:30:39Z</timestamp>
+            <contributor>
+                <ip>67.159.41.117</ip>
+            </contributor>
+            <comment deleted="deleted" />
+            <model>wikitext</model>
+            <format>text/x-wiki</format>
+            <text bytes="26" deleted="deleted" />
+            <sha1 />
+        </revision>
+    </page>
 </mediawiki>

@@ -57,8 +57,9 @@ class MediawikiXMLParser[MwObjectsFactory <: MediawikiObjectsFactory](
       xmlStreamReader.next match {
         case XMLStreamConstants.START_ELEMENT =>
           xmlStreamReader.getName.toString match {
-            case "id" => user.setId(xmlStreamReader.getElementText.toLong)
-            case "username" | "ip" => user.setUserText(xmlStreamReader.getElementText)
+            case "id" => user.setId(Some(xmlStreamReader.getElementText.toLong))
+            case "username" => user.setUserText(xmlStreamReader.getElementText)
+            case "ip" => user.setId(None).setUserText(xmlStreamReader.getElementText)
             case _ => user
           }
         case XMLStreamConstants.END_ELEMENT =>
@@ -136,16 +137,35 @@ class MediawikiXMLParser[MwObjectsFactory <: MediawikiObjectsFactory](
           val elName = xmlStreamReader.getName.toString
           elName match {
             case "id" => revision.setId(xmlStreamReader.getElementText.toLong)
-            case "parentid" => revision.setParentId(xmlStreamReader.getElementText.toLong)
+            // when parentid is not present, the default of None means this is the first revision in the chain
+            case "parentid" => revision.setParentId(Some(xmlStreamReader.getElementText.toLong))
             case "timestamp" => revision.setTimestamp(xmlStreamReader.getElementText)
-            case "contributor" => revision.setUser(parseUser(xmlStreamReader))
+            case "contributor" =>
+              if (xmlStreamReader.getAttributeValue(null, "deleted") == "deleted") {
+                revision.setUserIsVisible(false)
+                // leave default user value
+              } else {
+                revision.setUser(parseUser(xmlStreamReader))
+              }
             case "minor" => revision.setMinor(true)
-            case "comment" => revision.setComment(xmlStreamReader.getElementText)
+            case "comment" =>
+              if (xmlStreamReader.getAttributeValue(null, "deleted") == "deleted") {
+                revision.setCommentIsVisible(false)
+              } else {
+                revision.setComment(xmlStreamReader.getElementText)
+              }
             case "model" => revision.setModel(xmlStreamReader.getElementText)
             case "format" => revision.setFormat(xmlStreamReader.getElementText)
             case "text" =>
-              val text = xmlStreamReader.getElementText
-              revision.setText(text).setBytes(text.getBytes("utf-8").length.toLong)
+              val bytesAttr = xmlStreamReader.getAttributeValue(null, "bytes")
+              val bytes = if (bytesAttr == null || bytesAttr.trim.isEmpty) None else Some(bytesAttr.toLong)
+              if (xmlStreamReader.getAttributeValue(null, "deleted") == "deleted") {
+                // bytes are set in the dumps even on deleted revisions, this is inconsistent with WikiReplicas on cloud
+                revision.setContentIsVisible(false).setBytes(bytes.getOrElse(0L))
+              } else {
+                val text = xmlStreamReader.getElementText
+                revision.setText(text).setBytes(bytes.getOrElse(text.getBytes("utf-8").length.toLong))
+              }
             case "sha1" => revision.setSha1(xmlStreamReader.getElementText)
             case _ => revision
           }

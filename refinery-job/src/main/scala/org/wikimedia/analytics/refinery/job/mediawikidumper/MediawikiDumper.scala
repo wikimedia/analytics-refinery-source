@@ -92,12 +92,12 @@ object MediawikiDumper extends LogHelper{
         "page_namespace as ns",
         "page_title as title",
         "user_text as contributor",
-        // TODO: once source data is updated to have null user_ids for IP editors
-        // "if(user_id = -1, null, user_id) as contributorId",
+        // user_id is null when this revision was done by an IP editor
+        // user_id = 0 when this revision was done by an old system user
+        // when backfilling from current dumps:
+        //   user_id = -1 either when the user is deleted via rev_deleted or something else went wrong
         "user_id as contributorId",
-        // TODO: example: simplewiki revision id 360821 has a redacted user but is not showing up as not visible here
-        // TODO: data: revision id 1714215 is not redacting the contributor
-        // "revision_id = 1714215 OR (user_is_visible AND NOT (user_id = -1 AND coalesce(user_text, '') = '')) as isEditorVisible",
+        // TODO: example: simplewiki revision id 360821 has a redacted user showing up as visible here
         "user_is_visible as isEditorVisible",
         "revision_id as revisionId",
         // XSD mandates this timestamp format (timestamps are in UTC by spark.conf above)
@@ -111,21 +111,13 @@ object MediawikiDumper extends LogHelper{
         // "revision_id <> 1714215 AND (revision_id = 360821 OR revision_comment_is_visible) as isCommentVisible",
         "revision_comment_is_visible as isCommentVisible",
         "revision_content_is_visible as isContentVisible",
-        // TODO: figure out why this is sometimes -1 and decide if to make it zero or null
-        // "if(revision_parent_id = -1, null, revision_parent_id) as parentId",
+        // revision_parent_id is null when the revision has no parent (the first revision or sometimes imported revisions)
+        // revision_parent_id = -1 when something went wrong with processing the import or backfill
         "revision_parent_id as parentId",
         "revision_is_minor_edit as isMinor",
         "content_slot.content_model as model",
         "content_slot.content_format as format",
         "content_slot.content_body as text",
-        // TODO: size seems wrong when importing deleted content
-        // "case" +
-        // " when revision_id = 1714215 then 26" +
-        // " when revision_id = 4997170 then 60" +
-        // " when revision_id = 4670942 then 93" +
-        // " when revision_id = 4670944 then 165" +
-        // " else content_slot.content_size" +
-        // " end as size",
         "content_slot.content_size as size",
         "content_slot.content_sha1 as sha1")
   }
