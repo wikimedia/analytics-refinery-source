@@ -64,17 +64,17 @@ class PageHistoryRunner(
     spark.sql("SET spark.sql.shuffle.partitions=" + 4 * numPartitions)
 
     val namespaces = spark
-      .sql(s"SELECT * FROM ${SQLHelper.NAMESPACES_VIEW}")
+      .sql(s"SELECT wiki_db, namespace, namespace_canonical_name, namespace_localized_name, is_content FROM ${SQLHelper.NAMESPACES_VIEW}")
       .rdd
       .map(r => {
-        val wikiDb = r.getString(1)
+        val wikiDb = r.getString(0)
         addOptionalStat(s"$wikiDb.$METRIC_LOCALIZED_NAMESPACES", 1)
         (
           wikiDb,
-          r.getInt(2),
+          r.getInt(1),
+          if (r.isNullAt(2)) "" else r.getString(2),
           if (r.isNullAt(3)) "" else r.getString(3),
-          if (r.isNullAt(4)) "" else r.getString(4),
-          r.getInt(5)
+          r.getInt(4)
         )
       }).collect()
 

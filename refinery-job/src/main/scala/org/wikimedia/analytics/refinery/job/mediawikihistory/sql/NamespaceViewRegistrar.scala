@@ -31,12 +31,20 @@ class NamespaceViewRegistrar(
     log.info(s"Registering Namespaces view")
 
     val namespacesCsvSchema = StructType(
-      Seq(StructField("domain", StringType, nullable = false),
+      Seq(
+        StructField("domain", StringType, nullable = false),
+        StructField("language", StringType, nullable = false),
+        StructField("sitename", StringType, nullable = false),
         StructField("wiki_db", StringType, nullable = false),
+        StructField("home_page", StringType, nullable = false),
+        StructField("mw_version", StringType, nullable = false),
+        StructField("case_setting", StringType, nullable = false),
         StructField("namespace", IntegerType, nullable = false),
         StructField("namespace_canonical_name", StringType, nullable = false),
         StructField("namespace_localized_name", StringType, nullable = false),
-        StructField("is_content", IntegerType, nullable = false)))
+        StructField("namespace_case_setting", StringType, nullable = false),
+        StructField("is_content", IntegerType, nullable = false)
+      ))
 
     spark.read
       .schema(namespacesCsvSchema)
