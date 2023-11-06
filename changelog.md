@@ -1,3 +1,9 @@
+## v0.2.24
+* Update project namespace map view
+* Improve fidelity of dumps import
+* Add siteinfo information to output XML
+* Create a job to dump XML/SQL MW history files to HDFS
+
 ## v0.2.23
 * Remove unused cassandra module
 
