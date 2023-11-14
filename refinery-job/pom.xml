@@ -37,8 +37,7 @@
 
         <dependency>
             <groupId>org.wikimedia</groupId>
-            <artifactId>eventutilities</artifactId>
-            <classifier>shaded</classifier>
+            <artifactId>eventutilities-shaded</artifactId>
         </dependency>
 
         <dependency>
