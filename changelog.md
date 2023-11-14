@@ -1,8 +1,11 @@
+## v0.2.26
+* Bump eventutilities version to 1.3.2 
+* ProduceCanaryEvents now will retry failed HTTP POSTs to event intake services.
+
 ## v0.2.25
 * Use eventutilities-spark JsonSchemaSparkConverter and remove
   our custom spark JsonSchemaConverter since it is no longer needed.
   https://phabricator.wikimedia.org/T321854
-* ProduceCanaryEvents now will retry failed HTTP POSTs to event intake services.
 
 ## v0.2.24
 * Update project namespace map view
