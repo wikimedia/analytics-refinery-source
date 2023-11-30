@@ -200,12 +200,7 @@ object WebrequestSubsetPartitioner extends ConfigHelper {
                 ("day" -> Some(f"${params.day}%02d")) +
                 ("hour" -> Some(f"${params.hour}%02d"))
         }
-        val webrequestSubsetPartition = new HivePartition(
-            subset_db,
-            subset_table,
-            params.webrequest_subset_base_path,
-            timePartition
-        )
+        val webrequestSubsetPartition = new HivePartition(subset_db, subset_table, Some(params.webrequest_subset_base_path), timePartition)
 
         // Build the PartitionedDataframe to process
         // It is a bit counter-intuitive, but this object needs to contain the

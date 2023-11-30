@@ -210,6 +210,13 @@
             <artifactId>spark-cassandra-connector_2.12</artifactId>
             <version>3.1.0</version>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/com.amazon.deequ/deequ -->
+        <dependency>
+            <groupId>com.amazon.deequ</groupId>
+            <artifactId>deequ</artifactId>
+            <version>2.0.4-spark-3.1</version>
+        </dependency>
     </dependencies>
 
     <build>

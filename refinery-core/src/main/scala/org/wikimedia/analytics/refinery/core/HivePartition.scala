@@ -14,13 +14,13 @@ import scala.util.matching.Regex
   *
   * @param database   Hive database
   * @param t          Hive table (this will be normalized as .table)
-  * @param location   Hive table LOCATION path
+  * @param location   Hive table LOCATION path.  Optional.
   * @param partitions ListMap of partition keys -> partition values.
   */
 case class HivePartition(
     database: String,
     private val t: String,
-    location: String,
+    location: Option[String] = None,
     partitions: ListMap[String, Option[String]] = ListMap()
 ) {
     val table: String = HivePartition.normalize(t)
@@ -46,6 +46,16 @@ case class HivePartition(
     }
 
     /**
+      * A predicate string suitable for use in Hive SQL WHERE clauses
+      * e.g. year=2017 AND month=7 and day=12 and hour=0
+      */
+    lazy val sqlPredicate: String = {
+        if (isDynamic)
+            throw new IllegalStateException("Cannot get SQL predicate for dynamic HivePartition")
+        HivePartition.mapToHiveQL(partitions, " AND ")
+    }
+
+    /**
       * DateTime of this HivePartition.
       * Only available if this HivePartition has date time keys for which
       * all have concrete values, i.e. none are 'dynamic partition' values.
@@ -61,7 +71,8 @@ case class HivePartition(
       * as relative-path is not defined as-is but depends on data
       */
     lazy val relativePath: String = {
-        if (isDynamic) throw new IllegalStateException("")
+        if (isDynamic)
+            throw new IllegalStateException("Cannot get path for dynamic HivePartition")
         partitions.map { case (k: String, v: Option[String]) =>
             // No need to match None as it is checked above
             v match {
@@ -77,7 +88,12 @@ case class HivePartition(
     /**
       * Absolute path to this Hive table partition.
       */
-    lazy val path: String = location + "/" + relativePath
+    lazy val path: String = {
+        if (location.isEmpty) {
+            throw new IllegalStateException("Cannot get absolute path for location-less HivePartition")
+        }
+        location.get + "/" + relativePath
+    }
 
     /**
       * A SQL statement to add this partition to tableName, either through explicit
@@ -85,7 +101,7 @@ case class HivePartition(
       * is dynamic (partition values are to discovered through folder since they were
       * depending on data at runtime)
       */
-    val addPartitionQL: String = {
+    lazy val addPartitionQL: String = {
         if (isDynamic)
             s"MSCK REPAIR TABLE $tableName"
         else
@@ -181,7 +197,7 @@ object HivePartition {
         // The partitions are any other key=value pairs groups captured by the regex.
         val partitions = capturedKeys - "table"
 
-        new HivePartition(database, table, location, partitions)
+        new HivePartition(database, table, Some(location), partitions)
     }
 
     /**
@@ -200,7 +216,7 @@ object HivePartition {
         partitionPath: String
     ): HivePartition = {
         val location = baseLocation + "/" + table
-        new HivePartition(database, table, location, pathToMap(partitionPath))
+        new HivePartition(database, table, Some(location), pathToMap(partitionPath))
     }
 
     /**
@@ -237,11 +253,32 @@ object HivePartition {
         apply(database, table, location, partitionPath)
     }
 
+
+    /**
+      * Constructs a LOCATION-less HivePartition
+      *
+      * @param tableName
+      *     fully qualified database.table
+      * @param partitions
+      *     ListMap of
+      */
+    def apply(
+        tableName : String,
+        partitions: ListMap[String, String]
+    ): HivePartition = {
+        if (!tableName.contains(".")) {
+            throw new IllegalArgumentException(s"tableName '$tableName' must be fully qualified as database_name.table.")
+        }
+
+        val Array(database, table) = tableName.split("\\.", 2)
+        new HivePartition(database, table, None, partitions.map { case (k, v) => (k, Some(v)) })
+    }
+
     /**
       * Converts a partition path in Hive format to a ListMap.
       * E.g.
       *   key1=val1/key2=val2 -> ListMap(key1 -> val1, key2 -> val2)
-      * @param partitionPath Partition location file path
+      * @param partitionPath Partition file path
       * @return
       */
     def pathToMap(partitionPath: String): ListMap[String, Option[String]] = {
