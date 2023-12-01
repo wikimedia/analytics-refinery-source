@@ -175,8 +175,6 @@ object SanitizeTransformation extends LogHelper {
         def apply(value: Any): Any
         // Merges this mask with another given one.
         def merge(other: MaskNode): MaskNode
-        // Returns whether this mask equals another given one.
-        def equals(other: MaskNode): Boolean
     }
 
     // ValueMaskNode corresponds to simple (non-nested) sanitizations.
@@ -196,13 +194,6 @@ object SanitizeTransformation extends LogHelper {
                     }
                 case _: StructMaskNode => other
                 case _: MapMaskNode => other
-            }
-        }
-        // For testing.
-        def equals(other: MaskNode): Boolean = {
-            other match {
-                case otherValue: ValueMaskNode => action == otherValue.action
-                case _ => false
             }
         }
     }
@@ -235,18 +226,7 @@ object SanitizeTransformation extends LogHelper {
                     )
             }
         }
-        // For testing.
-        def equals(other: MaskNode): Boolean = {
-            other match {
-                case otherStruct: StructMaskNode => (
-                    children.size == otherStruct.children.size &&
-                    children.zip(otherStruct.children).foldLeft(true) {
-                        case (result, pair) => result && pair._1.equals(pair._2)
-                    }
-                )
-                case _ => false
-            }
-        }
+        override def toString: String = s"StructMaskNode(${children.mkString(", ")}"
     }
 
     // MapMaskNode corresponds to nested sanitizations on top of Map values.
@@ -263,7 +243,8 @@ object SanitizeTransformation extends LogHelper {
                     if (allowlist.contains(lowerCaseKey)) {
                         Seq(
                             key -> (allowlist(lowerCaseKey) match {
-                                case childMask: MapMaskNode => childMask.apply(value)
+                                case childMapMask: MapMaskNode => childMapMask.apply(value)
+                                case childStructMask: StructMaskNode => childStructMask.apply(value)
                                 case action: SanitizationAction => action.apply(value)
                             })
                         )
@@ -291,13 +272,6 @@ object SanitizeTransformation extends LogHelper {
                             }
                         }.toMap
                     )
-            }
-        }
-        // For testing.
-        def equals(other: MaskNode): Boolean = {
-            other match {
-                case otherMap: MapMaskNode => allowlist == otherMap.allowlist
-                case _ => false
             }
         }
     }
@@ -597,15 +571,19 @@ object SanitizeTransformation extends LogHelper {
     ): MaskNode = {
         MapMaskNode(
             map.valueType match {
-                case MapType(_, _, _) => allowlist.map { case (key, value) =>
+                case StructType(_) | MapType(_, _, _) => allowlist.map { case (key, value) =>
                     // The allowlist for this field indicates the field is nested.
                     // Build the MaskNode accordingly. If necessary, call recursively.
                     value match {
                         case `keepAllTag` => key -> Identity()
-                        case childAllowlist: Allowlist =>
-                            key -> getMapMask(map.valueType.asInstanceOf[MapType], childAllowlist, salt)
+                        case childAllowlist: Allowlist => map.valueType match {
+                            case StructType(_) =>
+                                key -> getStructMask(map.valueType.asInstanceOf[StructType], childAllowlist, salt)
+                            case MapType(_, _, _) =>
+                                key -> getMapMask(map.valueType.asInstanceOf[MapType], childAllowlist, salt)
+                        }
                         case _ => throw new IllegalArgumentException(
-                            s"Invalid allowlist value for map key '${key}'."
+                            s"Invalid allowlist value for map key '${key}'. Value found '${value}'."
                         )
                     }
                 }
@@ -616,7 +594,7 @@ object SanitizeTransformation extends LogHelper {
                         case `keepTag` => key -> Identity()
                         case `hashTag` if map.valueType == StringType && salt.isDefined => key -> Hash(salt.get)
                         case _ => throw new IllegalArgumentException(
-                            s"Invalid salt or allowlist value for map key '${key}'."
+                            s"Invalid salt or allowlist value for map key '${key}'. Value found '${value}'."
                         )
                     }
                 }

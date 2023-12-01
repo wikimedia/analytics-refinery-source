@@ -20,6 +20,48 @@ class TestSanitizeTransformation extends FlatSpec
     val keepTag = SanitizeTransformation.keepTag
     val hashTag = SanitizeTransformation.hashTag
 
+    // Helper method for tests to see whether MaskNode Trees are equal
+    def maskNodeTreeEquals(a: Any, b: Any): Boolean = {
+        val res = a match {
+            // base cases
+            case aa: SanitizationAction =>
+                b match {
+                    case bb: SanitizationAction => aa == bb
+                    case _ => false
+                }
+            case aa: ValueMaskNode =>
+                b match {
+                    case bb: ValueMaskNode => aa.action == bb.action
+                    case _ => false
+                }
+            // recursion cases
+            case aa: StructMaskNode =>
+                b match {
+                    case bb: StructMaskNode =>
+                        aa.children.size == bb.children.size &&
+                          aa.children.zip(bb.children).foldLeft(true) {
+                              case (result, pair) => result && maskNodeTreeEquals(pair._1, pair._2)
+                          }
+                    case _ => false
+                }
+            case aa: MapMaskNode =>
+                b match {
+                    case bb: MapMaskNode =>
+                        val sortedAA = aa.allowlist.toSeq.sortBy(_._1)
+                        val sortedBB = bb.allowlist.toSeq.sortBy(_._1)
+                        sortedAA.size == sortedBB.size &&
+                          sortedAA.zip(sortedBB).foldLeft(true) {
+                              case (result, pair) =>
+                                  val r = result && pair._1._1 == pair._2._1
+                                  val rr = r && maskNodeTreeEquals(pair._1._2, pair._2._2)
+                                  rr
+                          }
+                    case _ => false
+                }
+        }
+        res
+    }
+
     it should "return an empty DataFrame" in {
         val schema = StructType(Seq(
             StructField("f1", IntegerType, nullable=true)
@@ -103,13 +145,13 @@ class TestSanitizeTransformation extends FlatSpec
         // simple field allowlisted with keep
         val result1 = getValueMask(field, keepTag)
         val expected1 = ValueMaskNode(Identity())
-        result1 should equal(expected1)
+        assert(maskNodeTreeEquals(result1, expected1))
 
         // string field allowlisted with hash
         val salt = "salt"
         val result2 = getValueMask(field, hashTag, Some(salt))
         val expected2 = ValueMaskNode(Hash(salt))
-        result2 should equal(expected2)
+        assert(maskNodeTreeEquals(result2, expected2))
 
         // simple field allowlisted with invalid label
         an[Exception] should be thrownBy getValueMask(field, keepAllTag)
@@ -123,12 +165,12 @@ class TestSanitizeTransformation extends FlatSpec
         // nested field allowlisted with keepall
         val result1 = getValueMask(field, keepAllTag)
         val expected1 = ValueMaskNode(Identity())
-        result1 should equal(expected1)
+        assert(maskNodeTreeEquals(result1, expected1))
 
         // nested struct field partially allowlisted
         val result2 = getValueMask(field, Map("subfield" -> keepTag))
         val expected2 = StructMaskNode(Array(ValueMaskNode(Identity())))
-        assert(result2.equals(expected2))
+        assert(maskNodeTreeEquals(result2, expected2))
 
         // nested field allowlisted with invalid label
         an[Exception] should be thrownBy getValueMask(field, keepTag)
@@ -150,13 +192,13 @@ class TestSanitizeTransformation extends FlatSpec
         // simple subfield allowlisted with keep
         val result1 = getMapMask(mapType, Map("subfield" -> keepTag))
         val expected1 = MapMaskNode(Map("subfield" -> Identity()))
-        result1 should equal(expected1)
+        assert(maskNodeTreeEquals(result1, expected1))
 
         // string field allowlisted with hash
         val salt = "salt"
         val result2 = getMapMask(mapType, Map("subfield" -> hashTag), Some(salt))
         val expected2 = MapMaskNode(Map("subfield" -> Hash(salt)))
-        result2 should equal(expected2)
+        assert(maskNodeTreeEquals(result2, expected2))
 
         // map subfield allowlisted with keep
         an[Exception] should be thrownBy getMapMask(mapType, Map("subfield" -> keepAllTag))
@@ -172,10 +214,47 @@ class TestSanitizeTransformation extends FlatSpec
         // map subfield allowlisted with keepall
         val result = getMapMask(mapOfMapsType, Map("subfield" -> keepAllTag))
         val expected = MapMaskNode(Map("subfield" -> Identity()))
-        result should equal(expected)
+        assert(maskNodeTreeEquals(result, expected))
 
         // map subfield allowlisted with keep
         an[Exception] should be thrownBy getMapMask(mapOfMapsType, Map("subfield" -> keepTag))
+    }
+
+    it should "create a map mask for a map with struct values" in {
+        // https://phabricator.wikimedia.org/T349121
+        // map<string,struct<data_type:string,value:string>>
+        val mapOfStructsType = MapType(
+            StringType,
+            StructType(Seq(
+                StructField("data_type", StringType, nullable=true),
+                StructField("value", StringType, nullable=true)
+            )),
+            false
+        )
+
+        // simple case: struct subfield allowlisted with keepAll
+        val simpleResult = getMapMask(mapOfStructsType, Map("subfield" -> keepAllTag))
+        val simpleExpected = MapMaskNode(Map("subfield" -> Identity()))
+        assert(maskNodeTreeEquals(simpleResult, simpleExpected))
+
+        // struct subfield allowlisted with keep
+        an[Exception] should be thrownBy getMapMask(mapOfStructsType, Map("subfield" -> keepTag))
+
+        // nested case: struct subfield with further fields allowlisted with keep
+        val nestedSubField = Map(
+            "subfield" -> Map(
+                "data_type" -> keepTag,
+                "value" -> keepTag
+            )
+        )
+        val expectedNestedResult = MapMaskNode(Map(
+            "subfield" -> StructMaskNode(Array(
+                ValueMaskNode(Identity()),
+                ValueMaskNode(Identity())
+            ))
+        ))
+        val nestedResult = getMapMask(mapOfStructsType, nestedSubField)
+        assert(maskNodeTreeEquals(nestedResult, expectedNestedResult))
     }
 
     it should "create a struct mask with nullified value" in {
@@ -184,7 +263,7 @@ class TestSanitizeTransformation extends FlatSpec
         ))
         val result = getStructMask(struct, Map())
         val expected = StructMaskNode(Array(ValueMaskNode(Nullify())))
-        assert(result.equals(expected))
+        assert(maskNodeTreeEquals(result, expected))
     }
 
     it should "raise and error when creating a struct mask with a non-nullable field" in {
@@ -220,6 +299,8 @@ class TestSanitizeTransformation extends FlatSpec
             )),
             ValueMaskNode(Nullify())
         ))
+
+        assert(maskNodeTreeEquals(result, expected))
     }
 
     it should "merge a value mask with a value mask correctly" in {
@@ -293,6 +374,18 @@ class TestSanitizeTransformation extends FlatSpec
         // null value
         val result2 = Hash(salt).apply(null)
         assert(result2 == null)
+    }
+
+    it should "Correctly apply a MapMaskNode value with a StructMaskNode child" in {
+        val expectedNestedResult = MapMaskNode(Map(
+            "subfield" -> StructMaskNode(Array(
+                ValueMaskNode(Identity()),
+                ValueMaskNode(Identity())
+            ))
+        ))
+        val row = Row("a", "b", "c")
+        val result = expectedNestedResult.apply(Map("subfield" -> row, "otherfield" -> row))
+        assert(result == Map("subfield" -> Row("a", "b")))
     }
 
     it should "return null when a sanitization action receives null" in {
