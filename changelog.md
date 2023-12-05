@@ -1,3 +1,6 @@
+## v0.2.27
+*  Fix recursion for Maps with Structs on SanitizeTransformation
+
 ## v0.2.26
 * Bump eventutilities version to 1.3.2 
 * ProduceCanaryEvents now will retry failed HTTP POSTs to event intake services.
