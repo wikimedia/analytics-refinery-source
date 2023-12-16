@@ -96,7 +96,7 @@
     <!-- Remove maven central to use archiva-mirrored repos only -->
     <pluginRepository>
       <id>central</id>
-      <url>http://repo1.maven.org/maven2</url>
+      <url>https://repo1.maven.org/maven2</url>
       <releases>
         <enabled>false</enabled>
       </releases>
