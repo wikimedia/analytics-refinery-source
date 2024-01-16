@@ -5,14 +5,12 @@ import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.scalatest.Matchers.be
-import org.scalatest.{FlatSpec, stats}
+import org.scalatest.FlatSpec
 import org.wikimedia.analytics.refinery.core.HivePartition
 
 import java.sql.Timestamp
 import java.time.{LocalDateTime, ZoneOffset}
 import scala.collection.immutable.ListMap
-import scala.util.Success
 
 class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFrameSuiteBase {
 
@@ -44,14 +42,12 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
           .run()
 
         val resultsForAllConstraints = verificationResult.checkResults
-          .flatMap { case (_, checkResult) => checkResult.constraintResults }.toSeq
 
         val tableName = "testDataset" // source table name
         val runId = "someId" // airflow (or other orchestrator) pipeline run id
 
         val partition = new HivePartition(
             "database_name", tableName, None, ListMap(
-                "source_key" -> Some("testDataset"),
                 "year" -> Some("2023"),
                 "month" -> Some("11"),
                 "day" -> Some("7"),
@@ -64,6 +60,7 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
         )
 
         val status = "Failure"
+        val severityLevel = "Error"
         val value = 5.0
         val constraintId = "SizeConstraint(Size(None))"
         val errorMessage = "Value: 5 does not meet the constraint requirement!"
@@ -75,6 +72,7 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
               partitionId,
               partitionTs,
               status,
+              severityLevel,
               value,
               constraintId,
               errorMessage,
@@ -86,6 +84,7 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
             s"""
                 |table=${partition.tableName}
                 |status=${status}
+                |severity_level=${severityLevel}
                 |partition=${partition.relativePath}
                 |constraint=${constraintId}
                 |value=${value}
@@ -93,10 +92,9 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
                 |run_id=${runId}""".stripMargin
 
         val alerts = DeequVerificationSuiteToDataQualityAlerts(spark)(resultsForAllConstraints, partition, runId)
-        val expectedAlertDataFrame = spark.createDataFrame( spark.sparkContext.parallelize(expectedAlertRows), alerts.outputSchema)
+        val expectedAlertDataFrame = spark.createDataFrame(spark.sparkContext.parallelize(expectedAlertRows), alerts.outputSchema)
 
         assertDataFrameEquals(expectedAlertDataFrame, alerts.getAsDataFrame)
-
         val writer = alerts.write.text.output(outputPath)
         assert(writer.output == outputPath)
         assert(alerts.getFailureAsText.mkString == expectedAlertText)

@@ -24,8 +24,9 @@ class DeequAnalyzersToDataQualityMetrics(spark: SparkSession)(
     partition: HivePartition,
     runId: String
 ){
-    // Default, system wide, iceberg table. Users can change this setting.
-    private val MetricsOutputTable: String = "wmf.dataquality_metrics"
+    // Default: store data in the user's database.
+    // In production the database is configured by the job orchestrator.
+    private val MetricsOutputTable: String = "dataquality_metrics"
 
     private object WikimediaColumns {
         val SourceTable = "source_table"
