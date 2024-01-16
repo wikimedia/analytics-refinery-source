@@ -28,9 +28,9 @@ case class PartitionedDataFrame(df: DataFrame, partition: HivePartition) {
       * @return
       */
     def applyPartitions: PartitionedDataFrame = {
-      val df = this.df
-      val partition = this.partition
-      this.copy(df = partition.partitions.foldLeft(df) {
+        val df = this.df
+        val partition = this.partition
+        this.copy(df = partition.partitions.foldLeft(df) {
         case (currentDf, (key: String, value: Option[String])) =>
             // Only apply defined-partitions (not dynamic ones)
             if (value.isDefined) {
@@ -41,7 +41,7 @@ case class PartitionedDataFrame(df: DataFrame, partition: HivePartition) {
             } else {
                 currentDf
             }
-      })
+        })
     }
 
 }
@@ -67,9 +67,7 @@ object PartitionedDataFrame {
     ): PartitionedDataFrame = {
         new PartitionedDataFrame(
             df,
-            new HivePartition(
-                database, table, location, partitions.map( { case (k, v) => (k,Some(v)) })
-            )
+            new HivePartition(database, table, Some(location), partitions.map({ case (k, v) => (k, Some(v)) }))
         )
     }
 }

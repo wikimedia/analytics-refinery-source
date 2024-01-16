@@ -118,7 +118,7 @@ object DataFrameToHive extends LogHelper {
                 spark,
                 partDf.df.schema,
                 partDf.partition.tableName,
-                partDf.partition.location,
+                partDf.partition.location.get,
                 partitionNames
             )
         } catch {
@@ -160,7 +160,7 @@ object DataFrameToHive extends LogHelper {
             log.info(
                 s"Writing dynamically-partitioned DataFrame to ${outputDf.partition.location} with schema:\n${outputDf.df.schema.treeString}"
             )
-            outputDf.df.write.partitionBy(outputDf.partition.keys:_*).mode(saveMode).parquet(outputDf.partition.location)
+            outputDf.df.write.partitionBy(outputDf.partition.keys:_*).mode(saveMode).parquet(outputDf.partition.location.get)
         } else {
             log.info(
                 s"Writing DataFrame to ${outputDf.partition.path} with schema:\n${outputDf.df.schema.treeString}"

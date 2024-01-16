@@ -14,7 +14,7 @@ import SanitizeTransformation._
 class TestSanitizeTransformation extends FlatSpec
     with Matchers with DataFrameSuiteBase {
 
-    val fakeHivePartition = new HivePartition(database = "database", t = "table", location = "/fake/location")
+    val fakeHivePartition = new HivePartition(database = "database", t = "table", location = Some("/fake/location"))
 
     val keepAllTag = SanitizeTransformation.keepAllTag
     val keepTag = SanitizeTransformation.keepTag
@@ -73,10 +73,7 @@ class TestSanitizeTransformation extends FlatSpec
 
     it should "get the start and end of year-month-day-hour partition" in {
         val partition = new HivePartition(
-            database = "database",
-            t = "table",
-            location = "/fake/location",
-            partitions = ListMap(
+            database = "database", t = "table", location = Some("/fake/location"), partitions = ListMap(
                 "year" -> Some("2019"),
                 "month" -> Some("2"),
                 "day" -> Some("28"),
@@ -90,10 +87,7 @@ class TestSanitizeTransformation extends FlatSpec
 
     it should "get the start and end of year-month partition" in {
         val partition = new HivePartition(
-            database = "database",
-            t = "table",
-            location = "/fake/location",
-            partitions = ListMap(
+            database = "database", t = "table", location = Some("/fake/location"), partitions = ListMap(
                 "year" -> Some("2018"),
                 "month" -> Some("12")
             )
@@ -105,10 +99,7 @@ class TestSanitizeTransformation extends FlatSpec
 
     it should "choose salt correctly" in {
         val partition = new HivePartition(
-            database = "database",
-            t = "table",
-            location = "/fake/location",
-            partitions = ListMap(
+            database = "database", t = "table", location = Some("/fake/location"), partitions = ListMap(
                 "year" -> Some("2018"),
                 "month" -> Some("12")
             )
@@ -123,10 +114,7 @@ class TestSanitizeTransformation extends FlatSpec
 
     it should "return None if there are no matching salts" in {
         val partition = new HivePartition(
-            database = "database",
-            t = "table",
-            location = "/fake/location",
-            partitions = ListMap(
+            database = "database", t = "table", location = Some("/fake/location"), partitions = ListMap(
                 "year" -> Some("2018"),
                 "month" -> Some("12")
             )
@@ -573,12 +561,7 @@ class TestSanitizeTransformation extends FlatSpec
                     StructField("f2", BooleanType, nullable=true)
                 ))
             ),
-            new HivePartition(
-                database = "database",
-                t = "table",
-                location = "/fake/location",
-                partitions = ListMap("f1" -> Some("1"))
-            )
+            new HivePartition(database = "database", t = "table", location = Some("/fake/location"), partitions = ListMap("f1" -> Some("1")))
         )
         val result = sanitizeTable(
             partDf,

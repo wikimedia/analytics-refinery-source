@@ -158,7 +158,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     )
 
 
-    val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = "/fake/location", ListMap("year" -> Some("2018")))
+    val fakeHivePartition = new HivePartition(database = "testDb", t = "testTable", location = Some("/fake/location"), ListMap("year" -> Some("2018")))
 
     it should "deduplicate based on `uuid`" in {
         val events = Seq(

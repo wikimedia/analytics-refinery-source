@@ -2,7 +2,6 @@ package org.wikimedia.analytics.refinery.core
 
 import org.scalatest.{FlatSpec, Matchers}
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeZone}
-import org.joda.time.DateTime
 
 import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
@@ -16,11 +15,8 @@ class TestHivePartition extends FlatSpec with Matchers {
     val partitions: ListMap[String, Option[String]] = ListMap(
         "datacenter" -> Some("dc1"), "year" -> Some("2017"), "month" -> Some("07")
     )
-    val partition = HivePartition(
-        database, table, location, partitions
-    )
-
-    val dynamicPartition = partition.copy(partitions = partitions + ("month" -> None))
+    val partition: HivePartition = HivePartition(database, table, Some(location), partitions)
+    val dynamicPartition: HivePartition  = partition.copy(partitions = partitions + ("month" -> None))
 
     it should "normalized fully qualified table name" in {
         partition.tableName should equal(s"`$database`.`${table.replace("-", "_").toLowerCase}`")
@@ -32,6 +28,10 @@ class TestHivePartition extends FlatSpec with Matchers {
 
     it should "have correct hive QL representation" in {
         partition.hiveQL should equal("""datacenter="dc1",year=2017,month=7""")
+    }
+
+    it should "have correct SQL predicate representation" in {
+        partition.sqlPredicate should equal("""datacenter="dc1" AND year=2017 AND month=7""")
     }
 
     it should "have correct hive QL representation for dynamic partitions" in {

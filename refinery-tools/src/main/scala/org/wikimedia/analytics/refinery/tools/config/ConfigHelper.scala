@@ -9,6 +9,7 @@ import org.joda.time.format.{DateTimeFormatter, ISODateTimeFormat}
 import profig._
 
 import scala.annotation.tailrec
+import scala.collection.immutable.ListMap
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.util.matching.Regex
@@ -109,16 +110,17 @@ trait ConfigHelper {
         )
     }
 
-    // implicit conversion from k1:v1,k2:v2 string to a Map
-    implicit val decodeMapString: Decoder[Map[String, String]] = Decoder.decodeString.emap { s =>
-        /**
-          * Converts a string of the form k1:v1,k2:v2 to a Map(k1 -> v1, k2 -> v2).
-          */
-        def stringToMap(str: String): Map[String, String] = {
+    /**
+      * Converts a string of the form k1:v1,k2:v2 to a ListMap(k1 -> v1, k2 -> v2).
+      */
+    // implicit conversion from k1:v1,k2:v2 string to a ListMap
+    implicit val decodeListMapString: Decoder[ListMap[String, String]] = Decoder.decodeString.emap { s =>
+
+        def stringToListMap(str: String): ListMap[String, String] = {
             val kvPairs = str.split(",")
-            kvPairs.toSeq.foldLeft[Map[String, String]](Map()) { (map, kvString) =>
+            kvPairs.toSeq.foldLeft[ListMap[String, String]](ListMap()) { (map, kvString) =>
                 kvString.split(":") match {
-                    case Array(key, value) => map ++ Map(key -> value)
+                    case Array(key, value) => map ++ ListMap(key -> value)
                     case _ => throw new RuntimeException(
                         s"Failed parsing '$kvString' into a Map entry. Should be of the form key:value."
                     )
@@ -126,12 +128,17 @@ trait ConfigHelper {
             }
         }
 
-        Either.catchNonFatal(stringToMap(s)).leftMap(t =>
+        Either.catchNonFatal(stringToListMap(s)).leftMap(t =>
              throw new RuntimeException(
                  s"Failed parsing '$s' into a Map. Must provide a comma separated list of key:value pairs.", t
              )
         )
     }
+
+    // implicit conversion from k1:v1,k2:v2 string to a Map.
+    // ListMap is a Map, so we just reuse decodeListMapString
+    implicit val decodeMapString: Decoder[Map[String, String]] =
+        decodeListMapString.asInstanceOf[Decoder[Map[String, String]]]
 
     // implicit conversion from string to Regex
     implicit val decodeRegex: Decoder[Regex] = Decoder.decodeString.emap { s =>
@@ -176,7 +183,6 @@ trait ConfigHelper {
              "or a yyyy-MM-dd'T'HH:mm:ssZ formatted string."
         ))
     }
-
 
     /**
       * Returns a nicely formatted help message string.

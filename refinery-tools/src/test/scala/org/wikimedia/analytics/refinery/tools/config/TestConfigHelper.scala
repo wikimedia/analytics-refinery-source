@@ -6,6 +6,7 @@ import org.scalactic.Equality
 import org.scalatest.{BeforeAndAfter, Inside}
 import org.scalatest.{FlatSpec, Matchers}
 
+import scala.collection.immutable.ListMap
 import scala.util.matching.Regex
 
 
@@ -24,7 +25,8 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         dtFormatter: DateTimeFormatter = DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
         pattern: Regex = "(.*)".r,
         patternOpt: Option[Regex] = None,
-        map: Map[String, String] = Map()
+        map: Map[String, String] = Map(),
+        listMap: ListMap[String, String] = ListMap()
     )
 
     implicit val regexEquality: Equality[Regex] = new Equality[Regex] {
@@ -44,7 +46,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
     }
 
     def assertParamsEqual(given: Params, expected: Params): Unit = {
-        inside(given) { case Params(str, strOpt, int, intOpt, double, doubleOpt, bool, groups, dt, dtFormatter, pattern, patternOpt, map) => {
+        inside(given) { case Params(str, strOpt, int, intOpt, double, doubleOpt, bool, groups, dt, dtFormatter, pattern, patternOpt, map, listMap) => {
             str should be(expected.str)
             assertOptionsEqual(strOpt, expected.strOpt)
             int should be(expected.int)
@@ -57,6 +59,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             dtFormatter should be (expected.dtFormatter)
             pattern should equal(expected.pattern)
             map should equal(expected.map)
+            listMap should equal(expected.listMap)
 
             // can't use assertOptionsEqual, need to compare against Regex .toString
             if (patternOpt.isDefined && expected.patternOpt.isDefined)
@@ -87,7 +90,8 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             DateTimeFormat.forPattern("yyyy-MM-dd'T'HH"),
             "(\\w+) (\\w+)".r,
             Some("\\d+".r),
-            Map("k1" -> "v1", "k2" -> "v2")
+            Map("k1" -> "v1", "k2" -> "v2"),
+            ListMap("k3" -> "v3", "k4" -> "v4")
         )
 
         val args = Array(
@@ -98,7 +102,8 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             "--pattern",        "(\\w+) (\\w+)",
             "--bool",           "true",
             "--patternOpt",     "\\d+",
-            "--map",            "k1:v1,k2:v2"
+            "--map",            "k1:v1,k2:v2",
+            "--listMap",        "k3:v3,k4:v4"
         )
         assertParamsEqual(configure[Params](Array.empty, args), expected)
     }
@@ -134,7 +139,9 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             Seq("joseph", "andrew"),
             new DateTime(2018, 4, 1, 0, 0, DateTimeZone.UTC),
             DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
-            "[abc]".r
+            "[abc]".r,
+            map=Map("k1" -> "v1", "k2" -> "v2"),
+            listMap=ListMap("k3" -> "v3", "k4" -> "v4")
         )
 
         val args = Array(
@@ -144,7 +151,9 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             "--int", "123",
             "--intOpt", "456",
             "--double", "3.3",
-            "--doubleOpt", "4.4"
+            "--doubleOpt", "4.4",
+            "--map=k1:v1,k2:v2",
+            "--listMap=k3:v3,k4:v4"
         )
 
         val propertiesFile: String = getClass.getResource("/test_config_helper.properties").getPath
