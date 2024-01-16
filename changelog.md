@@ -1,3 +1,12 @@
+## v0.2.28
+* Switch to jdk17 for sonar.
+* `refinery-job`: log data quality alert severity level.
+* `refinery-job`: add WebrequestMetrics AWS Deequ
+  data quality job.
+* `refinery-spark`: add APIs to export AWS Deequ
+  analysis and verification suite results to a Wikimedia metrics and alerting
+  data model.
+
 ## v0.2.27
 *  Fix recursion for Maps with Structs on SanitizeTransformation
 
