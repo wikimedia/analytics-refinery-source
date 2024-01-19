@@ -33,9 +33,8 @@ class PagesPartitionsDefiner(
     pageSizeOverhead: Integer,
     maxTargetFileSize: Integer,
     minChunkSize: Integer,
-    internalTargetNumberOfElementsInSparkPartitions: Integer = 100000,
-    log: Option[Logger] = None
-
+    internalTargetNumberOfElementsInSparkPartitions: Integer = 100000
+// Use org.apache.spark.internal.Logging since it is Serializable
 ) extends Logging with Serializable {
 
     assert(minChunkSize <= maxTargetFileSize, "minChunkSize must be smaller than maxTargetFileSize")
@@ -57,9 +56,8 @@ class PagesPartitionsDefiner(
         //     At ..... we have x elements in this list for enwiki / wikidata
         val collectedPagesPartitions = preMergedPagesPartitions.collect
 
-        if (log.isDefined) {
-            log.get.info(s"Mediawiki Dumper: Collecting ${collectedPagesPartitions.length} preMerged partitions to the driver")
-        }
+        log.info(s"Mediawiki Dumper: Collecting ${collectedPagesPartitions.length} preMerged partitions to the driver")
+
         val pagesPartitionsWithoutPartitionId: Iterator[PagesPartition] = mergeSequentiallyBySize(
             collectedPagesPartitions.toIterator,
             maxTargetFileSize * 1024 * 1024

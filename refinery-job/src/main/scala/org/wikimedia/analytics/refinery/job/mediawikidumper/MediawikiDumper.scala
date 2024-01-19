@@ -50,8 +50,7 @@ object MediawikiDumper extends LogHelper{
             revisionsDF,
             params.pageSizeOverhead,
             params.maxTargetFileSize,
-            params.minChunkSize,
-            log = Some(log)
+            params.minChunkSize
         )
         log.info(s"Mediawiki Dumper:   ${partitionsDefiner.pagesPartitions.length} partitions defined.")
 
