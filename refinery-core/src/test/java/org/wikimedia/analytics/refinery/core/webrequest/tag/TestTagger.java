@@ -6,7 +6,10 @@ import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.wikimedia.analytics.refinery.core.Utils;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
+
+import java.util.HashMap;
 import java.util.Set;
 
 /**
@@ -54,7 +57,7 @@ public class TestTagger extends TestCase {
 
         TaggerChain taggerChain = new TaggerChain();
         WebrequestData data = new WebrequestData("en.wikipedia","/", "", "200",
-            "text/html", "fake user agent", "");
+            "text/html", "fake user agent", new HashMap<>());
 
         // not tags thus far
         assertTrue("no tags returns empty set", taggerChain.getTags(data).isEmpty());
@@ -71,7 +74,7 @@ public class TestTagger extends TestCase {
 
         TaggerChain taggerChain = new TaggerChain();
         WebrequestData data = new WebrequestData("www.wikipedia.org","/", "", "200",
-            "text/html", "fake user agent", "");
+            "text/html", "fake user agent", new HashMap<>());
 
         assertTrue(taggerChain.getTags(data).size() == 1);
         assertTrue(taggerChain.getTags(data).contains("portal"));
@@ -101,20 +104,20 @@ public class TestTagger extends TestCase {
         String x_analytics_header
     ) throws Exception {
 
+
         WebrequestData data = new WebrequestData(uri_host,
             uri_path,
             uri_query,
             http_status,
             content_type,
             user_agent,
-            x_analytics_header) ;
+            Utils.parseXAnalyticsHeader(x_analytics_header)) ;
 
         TaggerChain taggerChain = new TaggerChain();
 
         Set<String> tags = taggerChain.getTags(data);
 
         // if this a pageview we should have at least 1 tag: 'pageview'
-
 
         if (is_pageview) {
             assertTrue(test_description, tags.contains("pageview"));
@@ -145,7 +148,7 @@ public class TestTagger extends TestCase {
                 http_status,
                 content_type,
                 "Test",
-                "") ;
+                new HashMap<>()) ;
 
             TaggerChain taggerChain = new TaggerChain();
 
@@ -173,7 +176,7 @@ public class TestTagger extends TestCase {
             "301",
             "",
             "",
-            "") ;
+            new HashMap<>()) ;
 
         TaggerChain taggerChain = new TaggerChain();
 
@@ -192,7 +195,7 @@ public class TestTagger extends TestCase {
             "301",
             "",
             "",
-            "") ;
+            new HashMap<>()) ;
 
         TaggerChain taggerChain = new TaggerChain();
 

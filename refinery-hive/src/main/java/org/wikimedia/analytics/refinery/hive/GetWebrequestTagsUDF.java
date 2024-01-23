@@ -4,6 +4,7 @@ import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
+import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
@@ -11,8 +12,10 @@ import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 import org.wikimedia.analytics.refinery.core.webrequest.tag.TaggerChain;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+
 
 @UDFType(deterministic = true)
 @Description(name = "tag", value = "_FUNC_(UA) - "
@@ -22,6 +25,7 @@ import java.util.Set;
 public class GetWebrequestTagsUDF extends IsPageviewUDF{
 
     private TaggerChain taggerChain;
+    private MapObjectInspector mapInspector;
 
     /**
      * Executed once per job, checks arguments size.
@@ -52,7 +56,7 @@ public class GetWebrequestTagsUDF extends IsPageviewUDF{
     @Override
     public Object evaluate(DeferredObject[] arguments) throws HiveException{
 
-        Set<String> tags = new HashSet<>();
+        Set<String> tags;
 
         String uriHost = getStringValue(arguments, 0, converters);
         String uriPath = getStringValue(arguments, 1, converters);
@@ -61,19 +65,26 @@ public class GetWebrequestTagsUDF extends IsPageviewUDF{
         String contentType = getStringValue(arguments, 4, converters);
         String userAgent = getStringValue(arguments, 5, converters);
 
-        String rawXAnalyticsHeader = "";
+        Map<String, String> xAnalyticsHeader;
 
-        if (checkForXAnalytics) {
-            rawXAnalyticsHeader = getStringValue(arguments, 6, converters);
+        mapInspector = ObjectInspectorFactory.getStandardMapObjectInspector(
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector
+        );
+        if (checkForXAnalytics && mapInspector.getMapSize(arguments[6].get()) > 0) {
+            @SuppressWarnings("unchecked") Map<Object, Object> map = (Map<Object, Object>) mapInspector.getMap(arguments[6].get());
+            xAnalyticsHeader = convertMapToStringOfMap(map);
+        } else {
+            xAnalyticsHeader = new HashMap<>();
         }
 
         WebrequestData webrequest = new WebrequestData(uriHost, uriPath, uriQuery,
-            httpStatus, contentType, userAgent, rawXAnalyticsHeader);
+            httpStatus, contentType, userAgent, xAnalyticsHeader);
 
         // converting set to a list
         tags = taggerChain.getTags(webrequest);
 
-        return new ArrayList<String>(tags);
+        return new ArrayList<>(tags);
     }
 
     @Override

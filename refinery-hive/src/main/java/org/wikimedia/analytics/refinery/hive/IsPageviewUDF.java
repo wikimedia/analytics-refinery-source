@@ -23,12 +23,18 @@ import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.UDFType;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
+import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
+import org.apache.hadoop.hive.serde2.objectinspector.StandardMapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * A Hive UDF to classify a Wikimedia webrequest as a 'pageview'.
@@ -73,6 +79,21 @@ public class IsPageviewUDF extends GenericUDF {
 
     protected Converter[] converters = new Converter[maxArguments];
     protected PrimitiveCategory[] inputTypes = new PrimitiveCategory[maxArguments];
+    protected StandardMapObjectInspector stringMapOI;
+    protected ObjectInspector keyOI;
+    protected PrimitiveObjectInspector valueOI;
+
+    private MapObjectInspector mapInspector;
+
+
+    protected Map<String, String> convertMapToStringOfMap(Map<Object, Object> strMap) {
+
+        Map<String, String> newMap = new HashMap<>();
+        for (Map.Entry entry : strMap.entrySet()) {
+            newMap.put(entry.getKey().toString(), entry.getValue().toString());
+        }
+        return newMap;
+    }
 
     /**
      * The pageviewDefinition is marked as transient for Kryo. Kryo will serialize UDF instances without the need for
@@ -100,9 +121,10 @@ public class IsPageviewUDF extends GenericUDF {
 
         if (arguments.length > minArguments){
             checkForXAnalytics = true;
+            mapInspector = (MapObjectInspector) arguments[6];
         }
 
-        for (int i = 0; i < arguments.length; i++) {
+        for (int i = 0; i < 6; i++) {
             checkArgPrimitive(arguments, i);
             checkArgGroups(arguments, i, inputTypes, STRING_GROUP);
             obtainStringConverter(arguments, i, inputTypes, converters);
@@ -127,13 +149,16 @@ public class IsPageviewUDF extends GenericUDF {
         String contentType = getStringValue(arguments, 4, converters);
         String userAgent = getStringValue(arguments, 5, converters);
 
-        String rawXAnalyticsHeader = "";
+        Map<String, String> xAnalyticsHeader;
 
-        if (checkForXAnalytics) {
-            rawXAnalyticsHeader = getStringValue(arguments, 6, converters);
+        if (checkForXAnalytics && mapInspector.getMapSize(arguments[6].get()) > 0) {
+            @SuppressWarnings("unchecked") Map<Object, Object> map = (Map<Object, Object>) mapInspector.getMap(arguments[6].get());
+            xAnalyticsHeader = convertMapToStringOfMap(map);
+        } else {
+            xAnalyticsHeader = new HashMap<>();
         }
 
-        return new WebrequestData(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, rawXAnalyticsHeader);
+        return new WebrequestData(uriHost, uriPath, uriQuery, httpStatus, contentType, userAgent, xAnalyticsHeader);
     }
 
     @Override

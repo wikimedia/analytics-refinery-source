@@ -21,12 +21,16 @@ import junitparams.mappers.CsvWithHeaderMapper;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
+import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -42,7 +46,11 @@ public class TestIsPageviewUDF {
         udf = new IsPageviewUDF();
 
         ObjectInspector valueOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
-        initArguments = new ObjectInspector[]{valueOI, valueOI, valueOI, valueOI, valueOI, valueOI, valueOI};
+        MapObjectInspector mapInspector = ObjectInspectorFactory.getStandardMapObjectInspector(
+            PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+            PrimitiveObjectInspectorFactory.writableStringObjectInspector
+        );
+        initArguments = new ObjectInspector[]{valueOI, valueOI, valueOI, valueOI, valueOI, valueOI, mapInspector};
         udf.initialize(initArguments);
     }
 
@@ -68,8 +76,8 @@ public class TestIsPageviewUDF {
         String http_status,
         String content_type,
         String user_agent,
-        String x_analytics_header
-    ){
+        String x_analytics_header_str
+    ) throws HiveException {
 
         GenericUDF.DeferredJavaObject uri_host_udf = new GenericUDF.DeferredJavaObject(uri_host);
         GenericUDF.DeferredJavaObject uri_path_udf = new GenericUDF.DeferredJavaObject(uri_path);
@@ -77,7 +85,9 @@ public class TestIsPageviewUDF {
         GenericUDF.DeferredJavaObject http_status_udf = new GenericUDF.DeferredJavaObject(http_status);
         GenericUDF.DeferredJavaObject content_type_udf = new GenericUDF.DeferredJavaObject(content_type);
         GenericUDF.DeferredJavaObject user_agent_udf = new GenericUDF.DeferredJavaObject(user_agent);
-        GenericUDF.DeferredJavaObject x_analytics_udf = new GenericUDF.DeferredJavaObject(x_analytics_header);
+        Map<String, String> x_analytics_map = x_analytics_header_str.isEmpty() ?
+                new HashMap<>() : Utils.parseXAnalyticsHeader(x_analytics_header_str);
+        GenericUDF.DeferredJavaObject x_analytics_udf = new GenericUDF.DeferredJavaObject(x_analytics_map);
 
         GenericUDF.DeferredObject[] args = {uri_host_udf, uri_path_udf, uri_query_udf,
             http_status_udf, content_type_udf, user_agent_udf, x_analytics_udf};
@@ -101,7 +111,7 @@ public class TestIsPageviewUDF {
         GenericUDF.DeferredJavaObject http_status = new GenericUDF.DeferredJavaObject("200");
         GenericUDF.DeferredJavaObject content_type = new GenericUDF.DeferredJavaObject("text/html");
         GenericUDF.DeferredJavaObject user_agent = new GenericUDF.DeferredJavaObject("turnip");
-        GenericUDF.DeferredJavaObject x_analytics = new GenericUDF.DeferredJavaObject("{'blah':1,'preview':1}");
+        GenericUDF.DeferredJavaObject x_analytics = new GenericUDF.DeferredJavaObject(new HashMap<>());
 
         GenericUDF.DeferredObject[] args = {uri_host, uri_path, uri_query, http_status, content_type, user_agent, x_analytics};
 
@@ -132,6 +142,7 @@ public class TestIsPageviewUDF {
     }
 
     // UDF should work with variable arguments
+    @Test
     public void testMinMaxNumberOfArguments() throws HiveException{
 
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;

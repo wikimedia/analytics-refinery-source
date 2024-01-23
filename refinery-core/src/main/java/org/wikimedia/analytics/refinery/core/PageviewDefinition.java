@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.Collections;
 
@@ -175,9 +176,11 @@ public class PageviewDefinition {
      * @return  boolean
      */
     private boolean isAppPageview(WebrequestData data) {
-        final String rawXAnalyticsHeader = data.getRawXAnalyticsHeader();
-        final boolean isTaggedPageview = Utilities.getValueForKey(rawXAnalyticsHeader, "pageview").trim().equalsIgnoreCase("1");
-       
+        final Map<String, String> xAnalyticsHeader = data.getXAnalyticsHeader();
+        final boolean isTaggedPageview = xAnalyticsHeader
+                .getOrDefault("pageview", "")
+                .trim()
+                .equalsIgnoreCase("1");
         return (data.isAppUserAgent() && isTaggedPageview);
     }
     
@@ -293,12 +296,13 @@ public class PageviewDefinition {
     private boolean pageDenotesContentConsumption(WebrequestData data){
 
         // if x-analytics header is empty just move on, we cannot infer anything
-        if (data.getRawXAnalyticsHeader().isEmpty())
+        if (data.getXAnalyticsHeader().isEmpty())
             return true;
 
-        String special = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "special").trim().toLowerCase();
-        String preview = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "preview").trim();
-        String debug = Utilities.getValueForKey(data.getRawXAnalyticsHeader(), "debug").trim();
+        final Map<String, String> xAnalyticsHeader = data.getXAnalyticsHeader();
+        String special = xAnalyticsHeader.getOrDefault("special", "").trim().toLowerCase();
+        String preview = xAnalyticsHeader.getOrDefault("preview", "").trim();
+        String debug = xAnalyticsHeader.getOrDefault("debug", "").trim();
 
         // in the absence of these tags, there is little we can infer about the request
         if (preview.isEmpty() && special.isEmpty() && debug.isEmpty()) {
@@ -579,11 +583,11 @@ public class PageviewDefinition {
             // if the criteria for redirect is met see if everything else
             // mets criteria for a pageview
             // we "swap" the contentType and http status code of the data passed
-            // in, we already stablished those are one of a redirect
+            // in, we already established those are one of a redirect
 
             WebrequestData fakeData = new WebrequestData(data.getUriHost(),
                 data.getUriPath(), data.getUriQuery(), "200",
-                "text/html", data.getUserAgent(), data.getRawXAnalyticsHeader());
+                "text/html", data.getUserAgent(), data.getXAnalyticsHeader());
 
             return isPageview(fakeData);
 

@@ -3,8 +3,10 @@ package org.wikimedia.analytics.refinery.core;
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,17 +67,18 @@ public class TestWebrequest {
     public void testGetXAnalyticsValues(
         String test_description,
         String expected_output,
-        String x_analytics,
+        String x_analytics_str,
         String param
-    ) {
+    ) throws HiveException {
+
+        WebrequestData data = new WebrequestData("uriHost", "uriPath", "uriQuery",
+                "httpStatus", "contentType", "userAgent",
+                Utils.parseXAnalyticsHeader(x_analytics_str));
 
         assertEquals(
             test_description,
             expected_output,
-            Utilities.getValueForKey(
-                x_analytics,
-                param
-            )
+            data.getXAnalyticsHeader().getOrDefault(param, "")
         );
     }
 

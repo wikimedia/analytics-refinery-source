@@ -17,9 +17,12 @@ package org.wikimedia.analytics.refinery.core;
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
+
+import java.util.HashMap;
 
 import static org.junit.Assert.*;
 
@@ -57,7 +60,8 @@ public class TestPageview {
             uri_query,
             http_status,
             content_type,
-            user_agent, "") ;
+            user_agent,
+            new HashMap<>()) ;
 
         if (x_analytics_header.isEmpty())
             assertEquals(
@@ -87,8 +91,8 @@ public class TestPageview {
             String http_status,
             String content_type,
             String user_agent,
-            String x_analytics_header
-    ) {
+            String x_analytics_header_str
+    ) throws HiveException {
 
         WebrequestData webrequest = new WebrequestData(uri_host,
             uri_path,
@@ -96,7 +100,7 @@ public class TestPageview {
             http_status,
             content_type,
             user_agent,
-            x_analytics_header) ;
+            Utils.parseXAnalyticsHeader(x_analytics_header_str)) ;
 
         assertEquals(
                 test_description,
@@ -205,7 +209,7 @@ public class TestPageview {
             "302",
             "text/html",
             "some",
-            "some") ;
+            new HashMap<>()) ;
 
         assertEquals(false, pageviewDefinition.isPageview(webrequest));
         assertEquals(true, pageviewDefinition.isRedirectToPageview(webrequest));
@@ -222,7 +226,7 @@ public class TestPageview {
             "302",
             "-",
             "some",
-            "some") ;
+            new HashMap<>()) ;
 
         assertEquals(false, pageviewDefinition.isPageview(webrequest));
         assertEquals(true, pageviewDefinition.isRedirectToPageview(webrequest));
@@ -231,7 +235,7 @@ public class TestPageview {
     }
 
     @Test
-    public void testWikipedia15IsNotPageview() {
+    public void testWikipedia15IsNotPageview() throws HiveException {
 
         WebrequestData webrequest = new WebrequestData(
             "15.wikipedia.org",
@@ -240,13 +244,13 @@ public class TestPageview {
             "200",
             "text/html",
             "Mozilla/5.0...",
-            "https=1");
+            Utils.parseXAnalyticsHeader("https=1"));
 
         assertEquals(false, pageviewDefinition.isPageview(webrequest));
     }
 
     @Test
-    public void testWikidataQueryIsNotPageview() {
+    public void testWikidataQueryIsNotPageview() throws HiveException {
 
         WebrequestData webrequest = new WebrequestData(
             "query.wikidata.org",
@@ -255,7 +259,7 @@ public class TestPageview {
             "200",
             "text/html",
             "Mozilla/5.0...",
-            "https=1");
+            Utils.parseXAnalyticsHeader("https=1"));
 
         assertEquals(false, pageviewDefinition.isPageview(webrequest));
     }

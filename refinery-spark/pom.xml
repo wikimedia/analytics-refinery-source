@@ -33,7 +33,7 @@
         <dependency>
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
-            <version>1.1.2.5</version>
+            <version>1.1.8.4</version><!-- Note 2024-01-23: 1.1.2.5 is not compatible with Mac M1 -->
              <scope>test</scope>
         </dependency>
         <dependency>

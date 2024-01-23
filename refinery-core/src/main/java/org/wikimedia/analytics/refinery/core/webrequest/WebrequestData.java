@@ -17,12 +17,12 @@ public class WebrequestData {
     private final String httpStatus;
     private final String contentType;
     private final String userAgent;
-    private final String rawXAnalyticsHeader;
+    private final Map<String, String> xAnalyticsHeader;
     private final boolean isAppUserAgent;
 
     public WebrequestData(String uriHost, String uriPath, String uriQuery,
                           String httpStatus, String contentType, String userAgent,
-                          String rawXAnalyticsHeader){
+                          Map<String, String> xAnalyticsHeader){
 
 
         if (uriHost != null) {
@@ -37,11 +37,11 @@ public class WebrequestData {
         this.contentType = contentType;
         this.userAgent = userAgent;
 
-        if (rawXAnalyticsHeader == null){
-            rawXAnalyticsHeader = "";
+        if (xAnalyticsHeader == null){
+            xAnalyticsHeader = new HashMap<>();
         }
 
-        this.rawXAnalyticsHeader = rawXAnalyticsHeader;
+        this.xAnalyticsHeader = xAnalyticsHeader;
 
         this.isAppUserAgent = Utilities.stringContains(userAgent, "WikipediaApp");
     
@@ -71,8 +71,8 @@ public class WebrequestData {
         return userAgent;
     }
 
-    public String getRawXAnalyticsHeader(){
-        return rawXAnalyticsHeader;
+    public Map<String, String> getXAnalyticsHeader(){
+        return this.xAnalyticsHeader;
     }
     
     public boolean isAppUserAgent(){ return isAppUserAgent; }
@@ -87,7 +87,7 @@ public class WebrequestData {
         webrequestMap.put("httpStatus", this.httpStatus);
         webrequestMap.put("contentType", this.contentType);
         webrequestMap.put("userAgent", this.userAgent);
-        webrequestMap.put("X-Analytics", this.rawXAnalyticsHeader);
+        webrequestMap.put("X-Analytics", this.xAnalyticsHeader.toString());
 
         return JSONObject.toJSONString(webrequestMap);
     }

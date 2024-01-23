@@ -127,6 +127,13 @@
             <version>${scala.version}</version>
         </dependency>
 
+        <!-- Needed when dealing with Hive GenericUDF objects menagerie -->
+        <dependency>
+            <groupId>org.apache.hive</groupId>
+            <artifactId>hive-exec</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
