@@ -1,3 +1,6 @@
+## v0.2.30
+* Second fix to webrequest x-analytics field parsing bug https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/992752
+
 ## v0.2.29
 * Switch to jdk17 for sonar: https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/991010
 * Fix code serialization for MediawikiDumper.scala job. https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/991795

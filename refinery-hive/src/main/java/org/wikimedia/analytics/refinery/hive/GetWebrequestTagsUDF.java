@@ -47,6 +47,11 @@ public class GetWebrequestTagsUDF extends IsPageviewUDF{
             e.printStackTrace();
         }
 
+        mapInspector = ObjectInspectorFactory.getStandardMapObjectInspector(
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+                PrimitiveObjectInspectorFactory.writableStringObjectInspector
+        );
+
         super.initialize(arguments);
         return ObjectInspectorFactory.getStandardListObjectInspector(
             PrimitiveObjectInspectorFactory.javaStringObjectInspector);
@@ -67,13 +72,9 @@ public class GetWebrequestTagsUDF extends IsPageviewUDF{
 
         Map<String, String> xAnalyticsHeader;
 
-        mapInspector = ObjectInspectorFactory.getStandardMapObjectInspector(
-                PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-                PrimitiveObjectInspectorFactory.writableStringObjectInspector
-        );
         if (checkForXAnalytics && mapInspector.getMapSize(arguments[6].get()) > 0) {
             @SuppressWarnings("unchecked") Map<Object, Object> map = (Map<Object, Object>) mapInspector.getMap(arguments[6].get());
-            xAnalyticsHeader = convertMapToStringOfMap(map);
+            xAnalyticsHeader = convertMapToMapOfStrings(map);
         } else {
             xAnalyticsHeader = new HashMap<>();
         }

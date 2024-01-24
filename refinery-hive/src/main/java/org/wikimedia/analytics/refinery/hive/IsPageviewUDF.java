@@ -26,9 +26,7 @@ import org.apache.hadoop.hive.ql.udf.generic.GenericUDF;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters.Converter;
-import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector.PrimitiveCategory;
-import org.apache.hadoop.hive.serde2.objectinspector.StandardMapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.wikimedia.analytics.refinery.core.PageviewDefinition;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
@@ -73,24 +71,30 @@ import java.util.Map;
         extended = "")
 @UDFType(deterministic = true)
 public class IsPageviewUDF extends GenericUDF {
-    protected boolean checkForXAnalytics = false;
+    public boolean checkForXAnalytics = false;
     protected int maxArguments = 7;
     protected int minArguments = 6;
 
     protected Converter[] converters = new Converter[maxArguments];
     protected PrimitiveCategory[] inputTypes = new PrimitiveCategory[maxArguments];
-    protected StandardMapObjectInspector stringMapOI;
-    protected ObjectInspector keyOI;
-    protected PrimitiveObjectInspector valueOI;
 
     private MapObjectInspector mapInspector;
 
 
-    protected Map<String, String> convertMapToStringOfMap(Map<Object, Object> strMap) {
-
+    /**
+     * Converts a map of objects to a map of strings.
+     * This is needed because the str_to_map UDF may return null values.
+     * @param strMap a map of objects (String or null)
+     * @return a map of strings
+     */
+    public Map<String, String> convertMapToMapOfStrings(Map<Object, Object> strMap) {
         Map<String, String> newMap = new HashMap<>();
-        for (Map.Entry entry : strMap.entrySet()) {
-            newMap.put(entry.getKey().toString(), entry.getValue().toString());
+        for (Map.Entry<Object, Object> entry : strMap.entrySet()) {
+            String key;
+            key = (entry == null || entry.getKey() == null) ? "" : entry.getKey().toString();
+            String value;
+            value = (entry == null || entry.getValue() == null) ? "" : entry.getValue().toString();
+            newMap.put(key, value);
         }
         return newMap;
     }
@@ -153,7 +157,7 @@ public class IsPageviewUDF extends GenericUDF {
 
         if (checkForXAnalytics && mapInspector.getMapSize(arguments[6].get()) > 0) {
             @SuppressWarnings("unchecked") Map<Object, Object> map = (Map<Object, Object>) mapInspector.getMap(arguments[6].get());
-            xAnalyticsHeader = convertMapToStringOfMap(map);
+            xAnalyticsHeader = convertMapToMapOfStrings(map);
         } else {
             xAnalyticsHeader = new HashMap<>();
         }

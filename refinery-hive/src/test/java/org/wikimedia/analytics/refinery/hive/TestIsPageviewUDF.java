@@ -85,7 +85,7 @@ public class TestIsPageviewUDF {
         GenericUDF.DeferredJavaObject http_status_udf = new GenericUDF.DeferredJavaObject(http_status);
         GenericUDF.DeferredJavaObject content_type_udf = new GenericUDF.DeferredJavaObject(content_type);
         GenericUDF.DeferredJavaObject user_agent_udf = new GenericUDF.DeferredJavaObject(user_agent);
-        Map<String, String> x_analytics_map = x_analytics_header_str.isEmpty() ?
+        Map<Object, Object> x_analytics_map = x_analytics_header_str.isEmpty() ?
                 new HashMap<>() : Utils.parseXAnalyticsHeader(x_analytics_header_str);
         GenericUDF.DeferredJavaObject x_analytics_udf = new GenericUDF.DeferredJavaObject(x_analytics_map);
 
@@ -143,7 +143,7 @@ public class TestIsPageviewUDF {
 
     // UDF should work with variable arguments
     @Test
-    public void testMinMaxNumberOfArguments() throws HiveException{
+    public void testMinMaxNumberOfArguments() throws HiveException {
 
         ObjectInspector value1 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         ObjectInspector value2 = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
@@ -161,9 +161,23 @@ public class TestIsPageviewUDF {
         );
 
         ObjectInspector[] initArgumentsMax = new ObjectInspector[]{value1, value2, value3, value4, value5, value6, value7};
+
         udf.initialize(initArgumentsMax);
 
+        assertEquals(udf.checkForXAnalytics, true);
+    }
 
+    @Test
+    public void testConvertMapToMapOfStrings() {
+        HashMap<Object, Object> in_map = new HashMap<Object, Object>();
+        in_map.put("k1", null);
+        in_map.put(null, "v2");
+
+        HashMap<String, String> out_map = new HashMap<String, String>();
+        out_map.put("k1", "");
+        out_map.put("", "v2");
+
+        assertEquals(out_map, udf.convertMapToMapOfStrings(in_map));
     }
 
 }
