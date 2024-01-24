@@ -1,3 +1,8 @@
+## v0.2.29
+* Switch to jdk17 for sonar: https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/991010
+* Fix code serialization for MediawikiDumper.scala job. https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/991795
+* Fix of webrequest x-analytics field parsing https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/992475
+
 ## v0.2.28
 * Switch to jdk17 for sonar.
 * `refinery-job`: log data quality alert severity level.
