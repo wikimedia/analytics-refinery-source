@@ -55,55 +55,39 @@ public class CountryDatabaseReader extends AbstractDatabaseReader {
     }
 
     /**
-     * Method returning the default COUNTRY database path (needed by superclass)
-     * @return the default COUNTRY database path
-     */
+      * Method returning the default COUNTRY database path (needed by superclass)
+      */
     public String getDefaultDatabasePath() {
         return DEFAULT_DATABASE_COUNTRY_PATH;
     }
 
     /**
-     * Mean to provide the superclass access to the logger
-     */
+      * Mean to provide the superclass access to the logger
+      */
     protected Logger getLogger() {
         return LOG;
     }
 
      /**
-     * Perform the geocoding
-     * @param ip the IP to geocode
-     * @return the Geocode response object
-     */
+      * Perform the geocoding.
+      *
+      * @param ip the IP to geocode
+      */
     public RefineryCountryDatabaseResponse getResponse(String ip) {
-
-        CountryResponse response;
-
-        RefineryCountryDatabaseResponse refineryResponse = new RefineryCountryDatabaseResponse();
-
         // Only get country for non-internal IPs
         if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-           return refineryResponse;
+           return RefineryCountryDatabaseResponse.UNKNOWN_COUNTRY;
         }
+
         try {
             InetAddress ipAddress = InetAddress.getByName(ip);
-            response = reader.country(ipAddress);
+            CountryResponse response = reader.country(ipAddress);
             Country country = response.getCountry();
 
-            String isoCode = country.getIsoCode();
-
-            if ( isoCode != null) {
-                refineryResponse.setCountryCode(isoCode);
-            }
-
-            String name = country.getName();
-            if ( name != null) {
-                refineryResponse.setCountryName(name);
-            }
-
+            return new RefineryCountryDatabaseResponse(country.getIsoCode(), country.getName());
         }  catch (IOException |GeoIp2Exception ex) {
             LOG.warn(ex);
+            return RefineryCountryDatabaseResponse.UNKNOWN_COUNTRY;
         }
-
-        return refineryResponse;
     }
 }

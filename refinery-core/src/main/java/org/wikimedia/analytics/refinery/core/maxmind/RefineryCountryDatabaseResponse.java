@@ -1,38 +1,38 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
+
+import javax.annotation.concurrent.Immutable;
+
 /**
  * MaxMind's GeoIP2-Country information that we query for given an IP
  */
 
+@Immutable
 public class RefineryCountryDatabaseResponse {
 
-    private static final String UNKNOWN_VALUE = "Unknown";
+    public static final String UNKNOWN_VALUE = "Unknown";
 
-    private static final String UNKNOWN_COUNTRY_CODE = "--";
+    public static final String UNKNOWN_COUNTRY_CODE = "--";
 
-    protected String countryCode;
+    public static final RefineryCountryDatabaseResponse UNKNOWN_COUNTRY = new RefineryCountryDatabaseResponse(UNKNOWN_COUNTRY_CODE, UNKNOWN_VALUE);
 
-    protected String countryName;
+    private final String countryCode;
 
-    public RefineryCountryDatabaseResponse(){
-        // default construction just uses "unknowns" for values;
-        this.countryCode = UNKNOWN_COUNTRY_CODE ;
-        this.countryName = UNKNOWN_VALUE;
+    private final String countryName;
+
+    public RefineryCountryDatabaseResponse(String countryCode, String countryName) {
+        if (countryCode == null) this.countryCode = UNKNOWN_COUNTRY_CODE;
+        else this.countryCode = countryCode;
+
+        if (countryName == null) this.countryName = UNKNOWN_VALUE;
+        else this.countryName = countryName;
     }
 
     public String getCountryName(){
         return countryName;
     }
 
-    public void setCountryName(String countryName){
-        this.countryName = countryName;
-    }
-
     public String getCountryCode(){
         return countryCode;
-    }
-
-    public void setCountryCode(String countryISOCode){
-        this.countryCode = countryISOCode;
     }
 
 }
