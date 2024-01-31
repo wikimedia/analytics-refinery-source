@@ -1,28 +1,22 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.google.common.base.Objects;
+import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.record.*;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import java.util.*;
+
+import static com.google.common.base.Objects.firstNonNull;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * MaxMind's GeoIP2-City information that we query for given an IP
  */
+@Immutable
 public class RefineryGeocodeDatabaseResponse {
-
-    private static final String UNKNOWN_VALUE = "Unknown";
-
-    private static final String UNKNOWN_COUNTRY_CODE = "--";
-
-    protected String continent;
-
-    protected String countryISOCode;
-
-    protected String country;
-
-    protected String subdivision;
-
-    protected String city;
-
-    protected String timezone;
 
     // Constants to hold the keys to use in data map
     public static final String CONTINENT = "continent";
@@ -33,63 +27,57 @@ public class RefineryGeocodeDatabaseResponse {
     public static final String TIMEZONE = "timezone";
 
 
-    public RefineryGeocodeDatabaseResponse(){
-        // default construction just uses "unknowns" for values;
-        this.continent = UNKNOWN_VALUE;
-        this.countryISOCode = UNKNOWN_COUNTRY_CODE;
-        this.country = UNKNOWN_VALUE;
-        this.subdivision = UNKNOWN_VALUE;
-        this.city = UNKNOWN_VALUE;
-        this.timezone = UNKNOWN_VALUE;
+    private static final String UNKNOWN_VALUE = "Unknown";
 
+    private static final String UNKNOWN_COUNTRY_CODE = "--";
+
+    public static final RefineryGeocodeDatabaseResponse UNKNOWN_GEOCODE = new RefineryGeocodeDatabaseResponse(
+            UNKNOWN_VALUE, UNKNOWN_COUNTRY_CODE, UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE);
+
+    @Nonnull private final String continent;
+    @Nonnull private final String countryISOCode;
+    @Nonnull private final String country;
+    @Nonnull private final String subdivision;
+    @Nonnull private final String city;
+    @Nonnull private final String timezone;
+
+    public RefineryGeocodeDatabaseResponse(
+            @Nullable String continent,
+            @Nullable String countryISOCode,
+            @Nullable String country,
+            @Nullable String subdivision,
+            @Nullable String city,
+            @Nullable String timezone) {
+        this.continent = firstNonNull(continent, UNKNOWN_VALUE);
+        this.countryISOCode = firstNonNull(countryISOCode, UNKNOWN_COUNTRY_CODE);
+        this.country = firstNonNull(country, UNKNOWN_VALUE);
+        this.subdivision = firstNonNull(subdivision, UNKNOWN_VALUE);
+        this.city = firstNonNull(city, UNKNOWN_VALUE);
+        this.timezone = firstNonNull(timezone, UNKNOWN_VALUE);
     }
 
     public String getContinent(){
         return continent;
     }
 
-    public void setContinent(String continent){
-        this.continent = continent;
-    }
-
     public String getIsoCode(){
         return countryISOCode;
-    }
-
-    public void setIsoCode(String isoCode){
-        this.countryISOCode = isoCode;
     }
 
     public String getCountry(){
         return country;
     }
 
-    public void setCountry(String country){
-        this.country = country;
-    }
-
     public String getSubdivision(){
         return subdivision;
-    }
-
-    public void setSubdivision(String subdivision){
-        this.subdivision = subdivision;
     }
 
     public String getCity(){
         return city;
     }
 
-    public void setCity(String city){
-        this.city = city;
-    }
-
     public String getTimezone(){
         return timezone;
-    }
-
-    public void setTimezone(String timezone){
-        this.timezone = timezone;
     }
 
     /**
@@ -105,6 +93,22 @@ public class RefineryGeocodeDatabaseResponse {
         defaultGeoData.put(CITY, this.city);
         defaultGeoData.put(TIMEZONE, this.timezone);
 
-        return defaultGeoData;
+        return unmodifiableMap(defaultGeoData);
+    }
+
+    @Nonnull
+    public static RefineryGeocodeDatabaseResponse from(@Nonnull CityResponse response) {
+        // direct properties of CityResponse are known to be non null, no need to check for nullity
+        Iterator<Subdivision> iterator = response.getSubdivisions().iterator();
+        String subdivision = iterator.hasNext() ? iterator.next().getName() : null;
+
+        return new RefineryGeocodeDatabaseResponse(
+                response.getContinent().getName(),
+                response.getCountry().getIsoCode(),
+                response.getCountry().getName(),
+                subdivision,
+                response.getCity().getName(),
+                response.getLocation().getTimeZone()
+        );
     }
 }

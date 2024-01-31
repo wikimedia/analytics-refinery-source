@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.List;
 
+import static org.wikimedia.analytics.refinery.core.maxmind.RefineryGeocodeDatabaseResponse.UNKNOWN_GEOCODE;
+
 /**
  * Contains a function finding geo information of an IP address using MaxMind's GeoIP2-City
  */
@@ -75,83 +77,22 @@ public class GeocodeDatabaseReader extends AbstractDatabaseReader {
      * @param ip the IP to geocode
      * @return the Geocode response object
      */
-    public RefineryGeocodeDatabaseResponse getResponse(final String ip) {
-
-        InetAddress ipAddress;
-
-        CityResponse cityResponse = null;
-
-        RefineryGeocodeDatabaseResponse response = new RefineryGeocodeDatabaseResponse();
-
+    public RefineryGeocodeDatabaseResponse getResponse(String ip) {
         // Only get geo-code data for non-internal IPs
         if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-                 return response;
+            return UNKNOWN_GEOCODE;
         }
 
         try {
-            ipAddress = InetAddress.getByName(ip);
-            cityResponse = reader.city(ipAddress);
-
+            InetAddress ipAddress = InetAddress.getByName(ip);
+            CityResponse cityResponse = reader.city(ipAddress);
+            return  RefineryGeocodeDatabaseResponse.from(cityResponse);
         } catch (IOException | GeoIp2Exception ex) {
             // Suppress useless messages about 127.0.0.1 not found in database.
             if (!ex.getMessage().contains("The address 127.0.0.1 is not in the database.")) {
                 LOG.warn(ex);
             }
+            return UNKNOWN_GEOCODE;
         }
-
-        if (cityResponse == null)     {
-            return response;
-
-        }
-        Continent continent = cityResponse.getContinent();
-
-        if (continent != null) {
-            String name = continent.getName();
-            if (name != null) {
-                response.setContinent(name);
-            }
-        }
-
-        Country country = cityResponse.getCountry();
-        if (country != null) {
-            String name = country.getName();
-            String isoCode = country.getIsoCode();
-            if (name != null && isoCode != null) {
-                response.setCountry(name);
-                response.setIsoCode(isoCode);
-            }
-        }
-
-        List<Subdivision> subdivisions = cityResponse.getSubdivisions();
-        if (subdivisions != null && subdivisions.size() > 0) {
-            Subdivision subdivision = subdivisions.get(0);
-            if (subdivision != null) {
-                String name = subdivision.getName();
-                if (name != null) {
-                    response.setSubdivision(name);
-                }
-            }
-        }
-
-        City city = cityResponse.getCity();
-        if (city != null) {
-            String name = city.getName();
-            if (name != null) {
-                response.setCity(name);
-            }
-        }
-
-        Location location = cityResponse.getLocation();
-        if (location != null) {
-            String timezone = location.getTimeZone();
-            if (timezone != null) {
-                response.setTimezone(timezone);
-            }
-        }
-
-        return response;
-
     }
-
-
 }
