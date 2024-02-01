@@ -265,14 +265,9 @@ object WebrequestMetrics extends LogHelper with ConfigHelper {
         val config = Config(args)
 
         // Call apply with spark and Config properties as parameters
-        // Exit with proper exit val if not running in YARN.
-        val exitCode = apply(spark)(config) match {
-            case Success(_) => 0
-            case Failure(_) => 1
-
-        }
-        if (!onYarn(spark)) {
-            sys.exit(exitCode)
+        apply(spark)(config) match {
+            case Success(_) => sys.exit(0)
+            case Failure(error) => throw error // Sets exit code to 1.
         }
     }
 

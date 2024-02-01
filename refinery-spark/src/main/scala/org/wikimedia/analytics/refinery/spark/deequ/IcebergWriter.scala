@@ -13,7 +13,7 @@ protected class IcebergWriter(table: String,
                               partitionColumnNames: Seq[String]) extends Writer {
     private val TableFormatVersion: String = "2"
     private var _outputTable = table
-
+    private var _createIfAbsent = false
     private def createTableDDL: String = {
         val partitionClause = partitionColumnNames match {
             case Seq() => "-- No partition provided"
@@ -42,19 +42,27 @@ protected class IcebergWriter(table: String,
      */
     def output: String = this._outputTable
 
+
+    /**
+     * Create the table and database if they do not exist.
+     * False by default.
+     *
+     * @return
+     */
+    def createIfAbsent: IcebergWriter = {
+        this._createIfAbsent = true
+        this
+    }
     /**
      * Append `dataFrame` to the target partition into
      * `table`.
      *
-     * Create `table` if it does not exist.
-     *
      */
     def save(): Unit = {
         val spark = dataFrame.sparkSession
-        if (!spark.catalog.tableExists(output)) {
+        if (!spark.catalog.tableExists(output) && _createIfAbsent) {
             spark.sql(createTableDDL)
         }
-
         dataFrame.writeTo(output).append()
     }
 }
