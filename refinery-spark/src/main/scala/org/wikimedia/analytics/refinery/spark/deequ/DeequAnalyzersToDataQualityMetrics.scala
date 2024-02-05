@@ -54,8 +54,9 @@ class DeequAnalyzersToDataQualityMetrics(spark: SparkSession)(
     val partitionColumnNames: Seq[String] = Seq(WikimediaColumns.PartitionTimestamp)
 
     /**
-      *  Wikimedia's Data Quality Metrics data model.
-      */
+     *  Wikimedia's Data Quality Metrics data model.
+     *  In production we expect this schema to have been created / migrated by refinery HQL.
+     */
     val outputSchema: StructType =
         StructType( // TODO: semantics. Fields should be non nullable?
             Seq(
@@ -73,7 +74,7 @@ class DeequAnalyzersToDataQualityMetrics(spark: SparkSession)(
                 StructField(DeequColumns.Instance, StringType, nullable = true)
                   .withComment("AWS Deequ repo: information about this instance of the metric." +
                     "For example this could be the column name the metric is" +
-                    "operating on."),
+                    "computed on."),
                 StructField(DeequColumns.Value, DoubleType, nullable = true)
                   .withComment("AWS Deequ repo: the value of the metric at a point in time."),
                 StructField(DeequColumns.Name, StringType, nullable = true)
