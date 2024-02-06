@@ -1,11 +1,17 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
+import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.google.common.base.Objects.firstNonNull;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * MaxMind's GeoIP2-ISP information that we query for given an IP
  */
+@Immutable
 public class RefineryISPDatabaseResponse {
     // Constants to hold the keys to use in data map
     public static final String ISP = "isp";
@@ -18,48 +24,35 @@ public class RefineryISPDatabaseResponse {
     private static final int UNKNOWN_AUTONOMOUS_SYSTEM_NUMBER = -1;
     private static final String UNKNOWN_VALUE = "Unknown";
 
-    private String isp = UNKNOWN_VALUE;
+    public static final RefineryISPDatabaseResponse UNKNOWN_ISP_DATABASE_RESPONSE =
+            new RefineryISPDatabaseResponse(UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_AUTONOMOUS_SYSTEM_NUMBER);
 
-    private String organization = UNKNOWN_VALUE;
+    @Nonnull private final String isp;
+    @Nonnull private final String organization;
+    @Nonnull private final String autonomousSystemOrg;
+    @Nonnull private final int autonomousSystemNumber;
 
-    private String autonomousSystemOrg = UNKNOWN_VALUE;
-
-    private int autonomousSystemNumber = UNKNOWN_AUTONOMOUS_SYSTEM_NUMBER;
-
-    public RefineryISPDatabaseResponse(){
-
+    public RefineryISPDatabaseResponse(String isp, String organization, String autonomousSystemOrg, int autonomousSystemNumber) {
+        this.isp = firstNonNull(isp, UNKNOWN_VALUE);
+        this.organization = firstNonNull(organization, UNKNOWN_VALUE);
+        this.autonomousSystemOrg = firstNonNull(autonomousSystemOrg, UNKNOWN_VALUE);
+        this.autonomousSystemNumber = firstNonNull(autonomousSystemNumber, UNKNOWN_AUTONOMOUS_SYSTEM_NUMBER);
     }
 
     public String getIsp(){
         return isp;
     }
 
-    public void setIsp(String isp){
-        this.isp = isp;
-    }
-
     public String getOrganization(){
         return organization;
-    }
-
-    public void setOrganization(String organization){
-        this.organization = organization;
     }
 
     public String getAutonomousSystemOrg(){
         return autonomousSystemOrg;
     }
 
-    public void setAutonomousSystemOrg(String autonomousSystemOrg){
-        this.autonomousSystemOrg = autonomousSystemOrg;
-    }
-
     public int getAutonomousSystemNumber(){
         return autonomousSystemNumber;
-    }
-
-    public void setAutonomousSystemNumber(int autonomousSystemNumber){
-        this.autonomousSystemNumber = autonomousSystemNumber;
     }
 
     /**
@@ -73,6 +66,6 @@ public class RefineryISPDatabaseResponse {
         defaultISPData.put(AUTONOMOUS_SYSTEM_ORGANIZATION, this.autonomousSystemOrg);
         defaultISPData.put(AUTONOMOUS_SYSTEM_NUMBER, Integer.toString(this.autonomousSystemNumber));
 
-        return defaultISPData;
+        return unmodifiableMap(defaultISPData);
     }
 }

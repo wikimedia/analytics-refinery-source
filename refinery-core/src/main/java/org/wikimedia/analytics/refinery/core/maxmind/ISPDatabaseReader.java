@@ -23,7 +23,8 @@ import org.wikimedia.analytics.refinery.core.IpUtil;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+
+import static org.wikimedia.analytics.refinery.core.maxmind.RefineryISPDatabaseResponse.UNKNOWN_ISP_DATABASE_RESPONSE;
 
 /**
  * Contains functions to find ISP information of an IP address using MaxMind's GeoIP2-ISP
@@ -75,55 +76,24 @@ public class ISPDatabaseReader extends AbstractDatabaseReader {
      * @return the Geocode response object
      */
     public RefineryISPDatabaseResponse getResponse(final String ip) {
-
-        InetAddress ipAddress;
-        IspResponse response = null;
-
-        RefineryISPDatabaseResponse ispResponse = new RefineryISPDatabaseResponse();
-
         try {
-            ipAddress = InetAddress.getByName(ip);
-        } catch (UnknownHostException hEx) {
-            LOG.warn(hEx);
-            return ispResponse;
-        }
+            InetAddress ipAddress = InetAddress.getByName(ip);
 
-        // Only get ISP value for non-internal IPs
-        if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-            return ispResponse;
-        }
+            // Only get ISP value for non-internal IPs
+            if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET)
+                return UNKNOWN_ISP_DATABASE_RESPONSE;
 
-        try {
-            response = reader.isp(ipAddress);
-        } catch (IOException|GeoIp2Exception ex ) {
+            IspResponse response = reader.isp(ipAddress);
+
+            return new RefineryISPDatabaseResponse(
+                    response.getIsp(),
+                    response.getOrganization(),
+                    response.getAutonomousSystemOrganization(),
+                    response.getAutonomousSystemNumber()
+            );
+        } catch (IOException | GeoIp2Exception ex) {
             LOG.warn(ex);
+            return UNKNOWN_ISP_DATABASE_RESPONSE;
         }
-
-        if (response == null) {
-            return ispResponse;
-        }
-        String isp = response.getIsp();
-        if (isp != null) {
-            ispResponse.setIsp(isp);
-        }
-
-        String organization = response.getOrganization();
-        if (organization != null) {
-            ispResponse.setOrganization(organization);
-        }
-
-        String autonomousSystemOrganization = response.getAutonomousSystemOrganization();
-        if (autonomousSystemOrganization != null) {
-            ispResponse.setAutonomousSystemOrg(autonomousSystemOrganization);
-        }
-
-        Integer autonomousSystemNumber = response.getAutonomousSystemNumber();
-        if (autonomousSystemNumber != null) {
-            ispResponse.setAutonomousSystemNumber(autonomousSystemNumber);
-        }
-
-        return ispResponse;
     }
-
-
 }
