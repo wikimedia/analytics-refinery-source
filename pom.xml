@@ -229,6 +229,67 @@
       </dependency>
 
       <dependency>
+        <groupId>joda-time</groupId>
+        <artifactId>joda-time</artifactId>
+        <version>2.10.8</version>
+      </dependency>
+
+      <dependency>
+        <groupId>log4j</groupId>
+        <artifactId>log4j</artifactId>
+        <version>1.2.17</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>com.chuusai</groupId>
+        <artifactId>shapeless_2.12</artifactId>
+        <version>2.3.3</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.circe</groupId>
+        <artifactId>circe-core_2.12</artifactId>
+        <version>0.13.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.circe</groupId>
+        <artifactId>circe-generic-extras_2.12</artifactId>
+        <version>0.13.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.scala-lang</groupId>
+        <artifactId>scala-reflect</artifactId>
+        <version>2.12.4</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.outr</groupId>
+        <artifactId>profig_2.12</artifactId>
+        <version>2.3.8</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.outr</groupId>
+        <artifactId>profig-macros_2.12</artifactId>
+        <version>2.3.8</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.typelevel</groupId>
+        <artifactId>cats-core_2.12</artifactId>
+        <version>2.1.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.circe</groupId>
+        <artifactId>circe-generic_2.12</artifactId>
+        <version>0.13.0</version>
+      </dependency>
+
+      <dependency>
           <groupId>org.springframework.security</groupId>
           <artifactId>spring-security-web</artifactId>
           <version>3.2.5.RELEASE</version>
@@ -286,12 +347,19 @@
         <scope>test</scope>
       </dependency>
 
+      <dependency>
+        <groupId>org.scalactic</groupId>
+        <artifactId>scalactic_2.12</artifactId>
+        <version>3.0.5</version>
+        <scope>test</scope>
+      </dependency>
 
-    <!--
-             adding explicit dep for snappy, otherwise
-             spark assumes is on the java.library.path
-             see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
-    -->
+
+      <!--
+               adding explicit dep for snappy, otherwise
+               spark assumes is on the java.library.path
+               see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
+      -->
     <!-- https://mvnrepository.com/artifact/org.xerial.snappy/snappy-java -->
     <dependency>
         <groupId>org.xerial.snappy</groupId>
