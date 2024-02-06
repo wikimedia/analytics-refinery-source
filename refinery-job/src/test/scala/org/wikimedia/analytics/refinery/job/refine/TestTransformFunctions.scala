@@ -2,8 +2,9 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.internal.StaticSQLConf.CATALOG_IMPLEMENTATION
-import org.apache.spark.sql.types.{ArrayType, BooleanType, StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
@@ -129,7 +130,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         Some("hello unmigrated"),
         Some(Array("unmigrated", "tag")),
         Some(LegacyUserAgentStruct(
-              Some("PreParsedUserAgent Browser")
+            Some("PreParsedUserAgent Browser")
         ))
     )
 
@@ -181,7 +182,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
 
     it should "deduplicate based on `meta.id`, not removing rows with null `meta.id`" in {
         val eventWithNullId = event2.copy(
-            meta=Some(MetaSubObject(None, Some("2020-01-01T00:00:00Z"), Some("test.wikipedia.org")))
+            meta = Some(MetaSubObject(None, Some("2020-01-01T00:00:00Z"), Some("test.wikipedia.org")))
         )
 
         val events = Seq(event1, event1, eventWithNullId, eventWithNullId, eventWithNullId)
@@ -211,7 +212,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
 
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  filter_allowed_domains(partDf)
+        val transformedDf = filter_allowed_domains(partDf)
         transformedDf.df.count should equal(2)
         transformedDf.df.select("webHost").collect.foreach(
             r => r.getString(0) should equal(internalDomain.get)
@@ -224,7 +225,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         )
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  filter_allowed_domains(partDf)
+        val transformedDf = filter_allowed_domains(partDf)
         transformedDf.df.count should equal(1)
     }
 
@@ -234,7 +235,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         )
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  filter_allowed_domains(partDf)
+        val transformedDf = filter_allowed_domains(partDf)
         transformedDf.df.count should equal(1)
     }
 
@@ -244,7 +245,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         )
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  filter_allowed_domains(partDf)
+        val transformedDf = filter_allowed_domains(partDf)
         transformedDf.df.count should equal(1)
     }
 
@@ -443,7 +444,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val events = Seq(event1)
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  parse_user_agent(partDf)
+        val transformedDf = parse_user_agent(partDf)
         transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
     }
 
@@ -451,7 +452,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val events = Seq(migratedLegacyEventLoggingEvent)
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  parse_user_agent(partDf)
+        val transformedDf = parse_user_agent(partDf)
         transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
         transformedDf.df.select("useragent.browser_family").take(1).head.getString(0) should equal("Firefox")
         transformedDf.df.select("useragent.is_mediawiki").take(1).head.getBoolean(0) should equal(false)
@@ -462,7 +463,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val events = Seq(migratedLegacyEventLoggingEvent, unmigratedLegacyEventLoggingEvent)
         val df = spark.createDataFrame(sc.parallelize(events))
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-        val transformedDf =  parse_user_agent(partDf)
+        val transformedDf = parse_user_agent(partDf)
 
         val uaMapBrowserFamily = transformedDf.df.select("user_agent_map.browser_family").collect()
         val uaStructBrowserFamily = transformedDf.df.select("useragent.browser_family").collect()
@@ -474,4 +475,61 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         uaStructBrowserFamily(1).getString(0) should equal("PreParsedUserAgent Browser")
     }
 
+    it should "normalizeFieldNamesAndWidenTypes" in {
+        val eventsSeq = Seq("""{"UPPER_CASE_FIELD": "fake_value", "number_field": 1}""")
+        import spark.implicits._
+        val inputSchema = StructType(Seq(
+            StructField("UPPER_CASE_FIELD", StringType, nullable = true),
+            StructField("number_field", IntegerType, nullable = true)
+        ))
+        val df = spark.read.schema(inputSchema).json(spark.createDataset[String](sc.parallelize(eventsSeq, 1)))
+        df.schema.fields(0) shouldEqual (StructField("UPPER_CASE_FIELD", StringType, nullable = true))
+        df.schema.fields(1) shouldEqual (StructField("number_field", IntegerType, nullable = true))
+
+        val resDf = normalizeFieldNamesAndWidenTypes(new PartitionedDataFrame(df, fakeHivePartition)).df
+
+        resDf.schema.fields(0) shouldEqual (StructField("upper_case_field", StringType, nullable = true))
+        resDf.schema.fields(1) shouldEqual (StructField("number_field", LongType, nullable = true))
+    }
+
+    it should "fail to parse timestamps in case of wrong config" in {
+        assertThrows[IllegalStateException] {
+            val eventsSeq = Seq("""{"dt": "2024-02-19T18:00:00Z", "client_dt": "2024-02-19T18:00:00Z", "meta": {"dt": "2024-02-19T19:00:00.000Z"}}""")
+            import spark.implicits._
+            val df = spark.read.json(spark.createDataset[String](sc.parallelize(eventsSeq, 1)))
+            val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+
+            val resDf = parseTimestampFields(partDf).df
+        }
+    }
+
+    it should "parse timestamps" in {
+        val eventsSeq = Seq("""{"dt": "2024-02-19T18:00:00Z", "client_dt": "2024-02-19T18:00:00Z", "meta": {"dt": "2024-02-19T19:00:00.000Z"}}""")
+        import spark.implicits._
+        spark.conf.set(parseTimestampFields.FieldsToParseParameterName, "dt,client_dt,meta.dt")
+        val df = spark.read.json(spark.createDataset[String](sc.parallelize(eventsSeq, 1)))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val expectedSchema = StructType(Seq(
+            StructField("dt", TimestampType, nullable = true),
+            StructField("client_dt", TimestampType, nullable = true),
+            StructField("meta", StructType(Seq(StructField("dt", TimestampType, nullable = true))), nullable = true)
+        ))
+
+
+        val resDf = parseTimestampFields(partDf).df
+        resDf.schema.equals(expectedSchema)
+        val resRow = resDf.collect().head
+        resRow.getTimestamp(0).getTime shouldEqual (1708365600000L)
+        resRow.getTimestamp(1).getTime shouldEqual (1708365600000L)
+        resRow.getStruct(2).getTimestamp(0).getTime shouldEqual (1708369200000L)
+    }
+
+    it should "extract datacenter from filename" in {
+
+        val df = spark.read.json(s"${getClass.getResource("/")}event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19")
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+
+        val resDf = extractDatacenterFromFilepath(partDf).df
+        resDf.select("datacenter").collect.head.getString(0) shouldEqual ("eqiad")
+    }
 }

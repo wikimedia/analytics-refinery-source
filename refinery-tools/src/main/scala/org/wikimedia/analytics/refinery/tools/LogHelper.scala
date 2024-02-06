@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.tools
 
 import org.apache.log4j._
+import org.apache.spark.sql.SparkSession
 
 /**
  * Helper class to get a logger with a property that can be set on the CLI,
@@ -43,5 +44,15 @@ trait LogHelper {
         log.addAppender(
             new ConsoleAppender(new PatternLayout(pattern), ConsoleAppender.SYSTEM_OUT)
         );
+    }
+
+    /**
+     * If not running in yarn, make spark log level quieter.
+     * @param spark
+     */
+    def adjustLoggingLevelToSparkMaster(spark: SparkSession): Unit = {
+        if (spark.conf.get("spark.master") != "yarn") {
+            spark.sparkContext.setLogLevel("WARN")
+        }
     }
 }

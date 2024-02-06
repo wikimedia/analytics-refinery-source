@@ -24,7 +24,8 @@ case class HivePartition(
     partitions: ListMap[String, Option[String]] = ListMap()
 ) {
     val table: String = HivePartition.normalize(t)
-    val tableName: String = s"`$database`.`$table`"
+    // Only add database in the name if it is defined
+    val tableName: String = if (database.nonEmpty) s"`$database`.`$table`" else s"`$table`"
 
     /**
       * Seq of partition keys

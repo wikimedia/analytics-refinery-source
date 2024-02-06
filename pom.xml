@@ -175,6 +175,23 @@
         <scope>provided</scope>
       </dependency>
 
+      <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-hdfs
+             Explicitly needed to use DataFrameSuiteBase (tests with SparkSession)
+        -->
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-hdfs</artifactId>
+        <version>${hadoop.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
+        <artifactId>hadoop-client</artifactId>
+        <version>${hadoop.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
       <dependency>
         <groupId>org.apache.hive</groupId>
         <artifactId>hive-cli</artifactId>
@@ -194,13 +211,6 @@
         <artifactId>hive-jdbc</artifactId>
         <version>${hive.version}</version>
         <scope>provided</scope>
-      </dependency>
-
-      <dependency>
-          <groupId>junit</groupId>
-          <artifactId>junit</artifactId>
-          <version>4.13.1</version>
-          <scope>test</scope>
       </dependency>
 
       <dependency>
@@ -326,6 +336,12 @@
       </dependency>
 
       <dependency>
+        <groupId>com.fasterxml.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-yaml</artifactId>
+        <version>2.10.0</version>
+      </dependency>
+
+      <dependency>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-annotations</artifactId>
         <version>${spotbugs.version}</version>
@@ -341,34 +357,6 @@
       </dependency>
 
       <dependency>
-        <groupId>org.scalatest</groupId>
-        <artifactId>scalatest_2.12</artifactId>
-        <version>3.0.5</version>
-        <scope>test</scope>
-      </dependency>
-
-      <dependency>
-        <groupId>org.scalactic</groupId>
-        <artifactId>scalactic_2.12</artifactId>
-        <version>3.0.5</version>
-        <scope>test</scope>
-      </dependency>
-
-
-      <!--
-               adding explicit dep for snappy, otherwise
-               spark assumes is on the java.library.path
-               see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
-      -->
-    <!-- https://mvnrepository.com/artifact/org.xerial.snappy/snappy-java -->
-    <dependency>
-        <groupId>org.xerial.snappy</groupId>
-        <artifactId>snappy-java</artifactId>
-        <version>1.1.2.5</version>
-        <scope>test</scope>
-    </dependency>
-
-    <dependency>
         <groupId>com.github.nscala-time</groupId>
         <artifactId>nscala-time_2.12</artifactId>
         <version>2.26.0</version>
@@ -385,6 +373,208 @@
         <artifactId>caffeine</artifactId>
         <!-- For Java 11 or above, use 3.x otherwise use 2.x. -->
         <version>2.9.3</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-core_2.12</artifactId>
+        <version>${spark.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-hive_2.12</artifactId>
+        <version>${spark.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-sql_2.12</artifactId>
+        <version>${spark.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-streaming_2.12</artifactId>
+        <version>${spark.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-hive-thriftserver_2.12</artifactId>
+        <version>${spark.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-avro_2.12</artifactId>
+        <version>${spark.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-graphx_2.12</artifactId>
+        <version>${spark.version}</version>
+      </dependency>
+
+      <!-- https://mvnrepository.com/artifact/graphframes/graphframes -->
+      <dependency>
+        <groupId>graphframes</groupId>
+        <artifactId>graphframes</artifactId>
+        <version>0.8.1-spark3.0-s_2.12</version>
+      </dependency>
+
+      <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-mllib -->
+      <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-mllib_2.12</artifactId>
+        <version>${spark.version}</version>
+      </dependency>
+
+      <!-- https://mvnrepository.com/artifact/com.amazon.deequ/deequ -->
+      <dependency>
+        <groupId>com.amazon.deequ</groupId>
+        <artifactId>deequ</artifactId>
+        <version>2.0.4-spark-3.1</version>
+      </dependency>
+
+      <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-spark-runtime-3.1 -->
+      <dependency>
+        <groupId>org.apache.iceberg</groupId>
+        <artifactId>iceberg-spark-runtime-3.1_2.12</artifactId>
+        <version>1.2.1</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>com.datastax.spark</groupId>
+        <artifactId>spark-cassandra-connector_2.12</artifactId>
+        <version>3.1.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.yaml</groupId>
+        <artifactId>snakeyaml</artifactId>
+        <version>1.20</version>
+      </dependency>
+
+      <!-- https://mvnrepository.com/artifact/com.criteo/rsvd -->
+      <dependency>
+        <groupId>com.criteo</groupId>
+        <artifactId>rsvd</artifactId>
+        <version>1.0-spark3</version>
+        <exclusions>
+          <!--
+            Excluded from here as this dependency is a snapshot
+            from sunset https://bintray.com/
+            Adding the actual release of the version just after
+           -->
+          <exclusion>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
+      <!-- Added to fix failing snapshot dependency from above -->
+      <dependency>
+        <groupId>commons-codec</groupId>
+        <artifactId>commons-codec</artifactId>
+        <version>1.15</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.lucene</groupId>
+        <artifactId>lucene-analyzers-common</artifactId>
+        <version>5.5.3</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.maxmind.geoip2</groupId>
+        <artifactId>geoip2</artifactId>
+        <version>2.5.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.reflections</groupId>
+        <artifactId>reflections</artifactId>
+        <version>0.9.7</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.sun.mail</groupId>
+        <artifactId>javax.mail</artifactId>
+        <version>1.6.2</version>
+      </dependency>
+
+      <dependency>
+        <groupId>javax.servlet</groupId>
+        <artifactId>javax.servlet-api</artifactId>
+        <version>3.0.1</version>
+        <scope>provided</scope>
+      </dependency>
+
+      <!-- Test libraries-->
+
+      <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>4.13.1</version>
+        <scope>test</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.scalatest</groupId>
+        <artifactId>scalatest_2.12</artifactId>
+        <version>3.0.5</version>
+        <scope>test</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.scalactic</groupId>
+        <artifactId>scalactic_2.12</artifactId>
+        <version>3.0.5</version>
+        <scope>test</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>com.holdenkarau</groupId>
+        <artifactId>spark-testing-base_2.12</artifactId>
+        <version>3.1.1_1.1.0</version>
+        <scope>test</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.scalamock</groupId>
+        <artifactId>scalamock-scalatest-support_2.12</artifactId>
+        <version>3.6.0</version>
+        <scope>test</scope>
+      </dependency>
+
+      <!--
+             adding explicit dep for snappy and netty otherwise
+             spark assumes is on the java.library.path
+             see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
+        -->
+      <!-- https://mvnrepository.com/artifact/org.xerial.snappy/snappy-java -->
+      <dependency>
+        <groupId>org.xerial.snappy</groupId>
+        <artifactId>snappy-java</artifactId>
+        <version>1.1.2.5</version>
+        <scope>test</scope>
+      </dependency>
+
+      <!-- Explicitely providing netty for test -->
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>4.1.56.Final</version>
+        <scope>test</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>

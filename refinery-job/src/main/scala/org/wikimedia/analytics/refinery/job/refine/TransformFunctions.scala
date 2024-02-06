@@ -22,7 +22,7 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import java.util.UUID.randomUUID
 import scala.util.matching.Regex
-import org.apache.spark.sql.functions.{coalesce, col, expr, udf}
+import org.apache.spark.sql.functions.{coalesce, col, expr, input_file_name, udf, unix_timestamp, when}
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.wikimedia.analytics.refinery.core.Webrequest
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive.TransformFunction
@@ -107,7 +107,7 @@ object deduplicate extends LogHelper {
             val tempColumnName = s"__temp__uuid__for_deduplicate"
             val tempDf = partDf.df.withColumn(tempColumnName, idColumn)
 
-            partDf.copy(df=tempDf
+            partDf.copy(df = tempDf
                 // Drop duplicate records based on the tempColumnName we added to the df.
                 .dropDuplicates(tempColumnName)
                 // And drop the tempColumnName column from the result.
@@ -115,9 +115,6 @@ object deduplicate extends LogHelper {
             )
         }
     }
-
-
-
 }
 
 /**
@@ -590,7 +587,7 @@ object remove_canary_events extends LogHelper {
                 s"Filtering for events where $sourceColumnName != '$canaryDomain' in ${partDf.partition}."
             )
             partDf.copy(
-                df=partDf.df.where(
+                df = partDf.df.where(
                     // I am not sure why we need this IS NULL check here.
                     // In my manual REPL tests, this is not needed (as expected),
                     // but the unit test fails (and removes a NULL meta.domain) if I don't add this.
@@ -627,6 +624,66 @@ object add_normalized_host extends LogHelper {
 
         partDf.copy(df = partDf.df.withColumn(
             normalizedHostColumnName, expr(s"get_host_properties(${expr(sourceColumnSql)})")
+        ))
+    }
+}
+
+/**
+  * Convert top-level fields to lower-case, changes dots and dashes to underscores,
+  * and changes types: Integer to Long and Float to Double.
+  */
+object normalizeFieldNamesAndWidenTypes extends LogHelper {
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+        // Normalize field names (toLower, etc.)
+        // and widen types that we can (e.g. Integer -> Long)
+        partDf.copy(df = partDf.df.normalizeAndWiden())
+    }
+}
+
+/**
+  * Parses config-set fields into timestamp. This will fail if the
+  * spark.refine.transformfunction.parsetimestampfields.timestampfields configuration key
+  * is empty, or if the field(s) define for this key are not present in the table.
+  */
+object parseTimestampFields extends LogHelper {
+
+    val FieldsToParseParameterName = "spark.refine.transformfunction.parsetimestampfields.timestampfields"
+
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+
+        val fieldsToParse = partDf.df.sparkSession.conf.getOption(FieldsToParseParameterName)
+        if (fieldsToParse.isEmpty || fieldsToParse.get.isEmpty) {
+            throw new IllegalStateException(
+                """The configuration defining fields to parse as timestamp for the parseTimestampFields
+                  |transform-function is not set.
+                  |Use spark.refine.transformfunction.parsetimestampfields.timestampfields spark configuration
+                  |to set them.
+                  |""".stripMargin)
+        }
+
+        val timestampColumnNames: Seq[String] = fieldsToParse.get.split(",").map(_.trim)
+
+        log.info(s"Parsing timestamp columns ${timestampColumnNames.mkString(",")} in ${partDf.partition}")
+        val transformers = timestampColumnNames.map(columnName => columnName -> s"TO_TIMESTAMP($columnName)").toMap
+        partDf.copy(df = partDf.df.transformFields(transformers))
+    }
+}
+
+/**
+  * Creates a datacenter column with either `eqiad` or `codfw` values
+  * if those strings are found in the file path of the source data.
+  * This is useful to extract the datacenter from kafka topic names that are gathered
+  * as folders by Gobblin.
+  * IMPORTANT: To work, this function should be applied FIRST in the transform-function list,
+  *            and the dataframe to which it is applied must not have been cached before.
+  */
+object extractDatacenterFromFilepath extends LogHelper {
+    // This is really hacky - we probably could do better
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
+        log.info(s"Extracting datacenter column from filepath in ${partDf.partition}")
+        partDf.copy(df = partDf.df.withColumn("datacenter",
+            when(input_file_name().contains("eqiad"), "eqiad").
+                when(input_file_name().contains("codfw"), "codfw")
         ))
     }
 }

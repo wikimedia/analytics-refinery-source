@@ -30,10 +30,10 @@
             <groupId>org.wikimedia.analytics.refinery.core</groupId>
             <artifactId>refinery-core</artifactId>
         </dependency>
+
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analyzers-common</artifactId>
-            <version>5.5.3</version>
         </dependency>
 
         <dependency>
@@ -45,7 +45,6 @@
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-client</artifactId>
-            <version>${hadoop.version}</version>
             <scope>provided</scope>
         </dependency>
 
