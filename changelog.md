@@ -1,3 +1,8 @@
+## v0.2.31
+* IcebergWriter: don't create missing tables if absent
+* Simplify GeocodeDatabaseReader.
+* Simplifies CountryDatabaseReader.
+
 ## v0.2.30
 * Second fix to webrequest x-analytics field parsing bug https://gerrit.wikimedia.org/r/c/analytics/refinery/source/+/992752
 
