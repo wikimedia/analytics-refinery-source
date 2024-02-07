@@ -1,3 +1,8 @@
+## v0.2.32
+* data-quality: rename source table column
+* Cleanup dependencies in refinery-tools module.
+* Cleanup of ISPDatabaseReader.
+
 ## v0.2.31
 * IcebergWriter: don't create missing tables if absent
 * Simplify GeocodeDatabaseReader.
