@@ -41,7 +41,7 @@ class DeequVerificationSuiteToDataQualityAlerts(spark: SparkSession)(verificatio
           checkResult.constraintResults.map(constraint => Constraint(check, constraint))
       }.toSeq
     private object ColumnNames {
-        val SourceTable = "table"
+        val SourceTable = "source_table"
         val PipelineRunId = "pipeline_run_id"
         val PartitionId = "partition_id"
         val PartitionTimestamp = "partition_ts"
@@ -59,6 +59,7 @@ class DeequVerificationSuiteToDataQualityAlerts(spark: SparkSession)(verificatio
 
     /**
      * Constraint result logging schema.
+     * In production we expect this schema to have been created / migrated by refinery HQL.
      */
     val outputSchema = StructType(Seq(
         StructField(ColumnNames.SourceTable, StringType)
