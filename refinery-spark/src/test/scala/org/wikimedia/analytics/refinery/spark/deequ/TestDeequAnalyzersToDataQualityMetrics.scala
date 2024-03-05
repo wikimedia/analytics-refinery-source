@@ -46,6 +46,53 @@ class TestDeequAnalyzersToDataQualityMetrics extends FlatSpec with DataFrameSuit
     )
     private val results: Seq[AnalysisResult] = Seq(analysisResult)
 
+    def getExpectedMetricRows(dataSetDate: Long,
+                              dataSetTags: Map[String, String],
+                              partition: HivePartition,
+                              runId: String,
+                              partitionTs: Timestamp
+                             ): Seq[Row] = {
+        val expectedMetricRows = Seq(
+            Row(
+                dataSetDate,
+                dataSetTags,
+                "Dataset",
+                "*",
+                100000.0,
+                "Size",
+                partition.tableName,
+                runId,
+                partition.relativePath,
+                partitionTs
+            ),
+            Row(
+                dataSetDate,
+                dataSetTags,
+                "Column",
+                "col1",
+                100000.0,
+                "ApproxCountDistinct",
+                partition.tableName,
+                runId,
+                partition.relativePath,
+                partitionTs
+            ),
+            Row(
+                dataSetDate,
+                dataSetTags,
+                "Column",
+                "col2",
+                111.0,
+                "ApproxCountDistinct",
+                partition.tableName,
+                runId,
+                partition.relativePath,
+                partitionTs
+            )
+        )
+        expectedMetricRows
+    }
+
     it should "be possible to export metrics to Wikimedia's Data Quality Metrics schema " in {
         val tableName = "testDataset" // source table name
         val runId = "someId" // airflow (or other orchestrator) pipeline run id
@@ -60,60 +107,58 @@ class TestDeequAnalyzersToDataQualityMetrics extends FlatSpec with DataFrameSuit
             )
         )
 
-        val partitionId = partition.relativePath
         val partitionTs = new Timestamp(
             LocalDateTime.of(2023, 11, 7, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli
         )
 
         val metrics = new DeequAnalyzersToDataQualityMetrics(spark)(results, partition, runId)
-        val expectedMetricRows = Seq(
-            Row(
-                dataSetDate,
-                dataSetTags,
-                "Dataset",
-                "*",
-                100000.0,
-                "Size",
-                partition.tableName,
-                runId,
-                partitionId,
-                partitionTs
-            ),
-            Row(
-                dataSetDate,
-                dataSetTags,
-                "Column",
-                "col1",
-                100000.0,
-                "ApproxCountDistinct",
-                partition.tableName,
-                runId,
-                partitionId,
-                partitionTs
-            ),
-            Row(
-                dataSetDate,
-                dataSetTags,
-                "Column",
-                "col2",
-                111.0,
-                "ApproxCountDistinct",
-                partition.tableName,
-                runId,
-                partitionId,
-                partitionTs
-            )
+        val expectedMetricRowsTest: Seq[Row] = getExpectedMetricRows(
+            dataSetDate,
+            dataSetTags,
+            partition,
+            runId,
+            partitionTs
         )
         val expectedMetricsDataFrame = spark.createDataFrame(
-            sc.parallelize(expectedMetricRows),
+            sc.parallelize(expectedMetricRowsTest),
             metrics.outputSchema
         )
         val metricsDataFrame = metrics.getAsDataFrame
 
         assertDataFrameEquals(expectedMetricsDataFrame, metricsDataFrame)
-
         val expectedOutputTable = "someOtherOutputTable"
         val writer = metrics.write.iceberg.output(expectedOutputTable)
         assert(writer.output == expectedOutputTable)
+    }
+
+    it should "return null partition_timestamps for unrecognized partition keys" in {
+        val snapshotTableName = "snapshot_table"
+        val snapshotRunId = "run1001"
+        val snapshotPartition = new HivePartition(
+            "database_name", snapshotTableName, None, ListMap(
+                "snapshot" -> Some("2023-11")
+            )
+        )
+
+        val nullPartitionTs = null
+
+        val metricsNull = new DeequAnalyzersToDataQualityMetrics(spark)(results, snapshotPartition, snapshotRunId)
+
+        val expectedSnapshotMetricRows: Seq[Row] = getExpectedMetricRows(
+            dataSetDate,
+            dataSetTags,
+            snapshotPartition,
+            snapshotRunId,
+            nullPartitionTs
+        )
+
+        val expectedMetricsDataFrame = spark.createDataFrame(
+            sc.parallelize(expectedSnapshotMetricRows),
+            metricsNull.outputSchema
+        )
+
+        val metricsDataFrame = metricsNull.getAsDataFrame
+
+        assertDataFrameEquals(expectedMetricsDataFrame, metricsDataFrame)
     }
 }

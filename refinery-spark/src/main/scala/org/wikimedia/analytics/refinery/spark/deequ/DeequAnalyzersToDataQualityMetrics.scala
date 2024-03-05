@@ -113,7 +113,7 @@ class DeequAnalyzersToDataQualityMetrics(spark: SparkSession)(
             partition.tableName,
             runId,
             partition.relativePath,
-            new Timestamp(partition.dt.get.getMillis)
+            partition.dt.map(dt => new Timestamp(dt.getMillis)).orNull
         )
     }
 

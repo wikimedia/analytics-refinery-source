@@ -92,7 +92,7 @@ class DeequVerificationSuiteToDataQualityAlerts(spark: SparkSession)(verificatio
         Row(
             partition.tableName,
             partition.relativePath,
-            new Timestamp(partition.dt.get.getMillis),
+            partition.dt.map(dt => new Timestamp(dt.getMillis)).orNull,
             constraint.result.status.toString,
             // Severity level of the Check. Can be "Warning" or "Error".
             // It will be set both for Success and Failure statuses.
