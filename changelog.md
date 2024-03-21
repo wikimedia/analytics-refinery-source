@@ -1,3 +1,7 @@
+## v0.2.33
+* Update ProduceCanaryEvents job
+* Add DataPivoter job
+
 ## v0.2.32
 * data-quality: rename source table column
 * Cleanup dependencies in refinery-tools module.
