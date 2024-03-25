@@ -1,3 +1,6 @@
+## v0.2.34
+* Update default from_email to noreply@wikimedia.org
+
 ## v0.2.33
 * Update ProduceCanaryEvents job
 * Add DataPivoter job

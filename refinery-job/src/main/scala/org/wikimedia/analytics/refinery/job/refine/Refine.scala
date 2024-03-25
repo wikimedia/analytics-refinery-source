@@ -53,7 +53,7 @@ object Refine extends LogHelper with ConfigHelper {
         dry_run                             : Boolean = false,
         should_email_report                 : Boolean = false,
         smtp_uri                            : String = "mx1001.wikimedia.org:25",
-        from_email                          : String = s"refine@${java.net.InetAddress.getLocalHost.getCanonicalHostName}",
+        from_email                          : String = "Refine <noreply@wikimedia.org>",
         to_emails                           : Seq[String] = Seq(),
         schema_base_uris                    : Seq[String] = Seq.empty,
         schema_field                        : String = "/$schema",
