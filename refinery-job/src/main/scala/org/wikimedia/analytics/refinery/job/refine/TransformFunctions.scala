@@ -22,12 +22,11 @@ package org.wikimedia.analytics.refinery.job.refine
 
 import java.util.UUID.randomUUID
 import scala.util.matching.Regex
-import org.apache.spark.sql.functions.{coalesce, col, expr, input_file_name, udf, unix_timestamp, when}
+import org.apache.spark.sql.functions.{coalesce, col, expr, input_file_name, udf, when}
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.wikimedia.analytics.refinery.core.Webrequest
-import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive.TransformFunction
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
-import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import scala.collection.immutable.ListMap
@@ -75,6 +74,7 @@ object event_transforms {
   * In this way records with null id values will never be removed as part of deduplication.
   */
 object deduplicate extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("meta.id", "uuid")
 
     /**
@@ -151,6 +151,7 @@ object deduplicate_eventbus extends LogHelper {
   * If none of these fields are present in the DataFrame schema, this is a no-op.
   */
 object geocode_ip extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("http.client_ip", "ip", "client_ip")
     val geocodedDataColumnName    = "geocoded_data"
 
@@ -270,6 +271,7 @@ object geocode_ip extends LogHelper {
 
 
 object parse_user_agent extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     // Only one possible source column currently, but we could add more.
     val possibleSourceColumnNames = Seq("http.request_headers.`user-agent`")
     val userAgentMapColumnName    = "user_agent_map"
@@ -459,6 +461,7 @@ object parse_user_agent extends LogHelper {
   * Adds an is_wmf_domain column based on the return value of Webrequest.isWMFDomain.
   */
 object add_is_wmf_domain extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("meta.domain", "webHost")
     val isWMFDomainColumnName = "is_wmf_domain"
 
@@ -511,6 +514,7 @@ object add_is_wmf_domain extends LogHelper {
   * If none of these fields exist in the input DataFrame schema, this is a no-op.
   */
 object filter_allowed_domains extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("meta.domain", "webHost")
 
     // translate.google ends up sending events we want, so add an exception to keep it.
@@ -570,6 +574,7 @@ object eventlogging_filter_is_allowed_hostname extends LogHelper {
   * org.wikimedia.analytics.refinery.job.ProduceCanaryEvents.
   */
 object remove_canary_events extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     // We only create canary events with meta.domain == 'canary'
     val sourceColumnName: String = "meta.domain"
     val canaryDomain: String = "canary"
@@ -603,6 +608,7 @@ object remove_canary_events extends LogHelper {
  * and add it as column normalized_host.
  */
 object add_normalized_host extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("meta.domain", "webHost")
     val normalizedHostColumnName = "normalized_host"
 
@@ -633,9 +639,23 @@ object add_normalized_host extends LogHelper {
   * and changes types: Integer to Long and Float to Double.
   */
 object normalizeFieldNamesAndWidenTypes extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         // Normalize field names (toLower, etc.)
         // and widen types that we can (e.g. Integer -> Long)
+        partDf.copy(df = partDf.df.normalizeAndWiden().emptyMetadata)
+    }
+}
+
+/**
+ * Convert top-level fields to lower-case, changes dots and dashes to underscores,
+ * and changes types: Integer to Long and Float to Double.
+ */
+object icebergNormalizeFieldNamesAndWidenTypes extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.IcebergExtensions._
+
+    def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         partDf.copy(df = partDf.df.normalizeAndWiden())
     }
 }
@@ -646,6 +666,7 @@ object normalizeFieldNamesAndWidenTypes extends LogHelper {
   * is empty, or if the field(s) define for this key are not present in the table.
   */
 object parseTimestampFields extends LogHelper {
+    import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
     val FieldsToParseParameterName = "spark.refine.transformfunction.parsetimestampfields.timestampfields"
 

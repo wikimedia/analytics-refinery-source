@@ -6,14 +6,13 @@ import scala.collection.parallel.ForkJoinTaskSupport
 import scala.concurrent.forkjoin.ForkJoinPool
 import scala.util.{Failure, Success, Try}
 import scala.util.matching.Regex
-import cats.syntax.either._
 import com.github.nscala_time.time.Imports._
-import io.circe.Decoder
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.PermissiveMode
 import org.joda.time.format.DateTimeFormatter
-import org.wikimedia.analytics.refinery.core.{ReflectUtils, Utilities}
+import org.wikimedia.analytics.refinery.core.Utilities
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
 import org.wikimedia.analytics.refinery.spark.connectors.DataFrameToHive
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
@@ -22,11 +21,10 @@ import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.WikimediaDefaults
 
 /**
-  * Looks for hourly input partition directories with data that need refinement,
-  * and refines them into Hive Parquet tables using DataFrameToHive.
-  */
-object Refine extends LogHelper with ConfigHelper {
-    type TransformFunction = DataFrameToHive.TransformFunction
+ * Looks for hourly input partition directories with data that need refinement,
+ * and refines them into Hive Parquet tables using DataFrameToHive.
+ */
+object Refine extends LogHelper with ConfigHelper with TransformFunctionsConfigHelper {
 
     /**
       * Config class for use config files and args.
@@ -251,7 +249,7 @@ object Refine extends LogHelper with ConfigHelper {
             "schema_field" ->
                 s"""Will be used to extract the schema URI from event data.  This is a JsonPath pointer.
                    |Default: ${default.schema_field}""",
-            "dataframereader_options" ->
+            "dataframe_reader_options" ->
                 s"""Comma separated list of key:value pairs to use as options to DataFrameReader
                    |when reading the input DataFrame.""",
             "merge_with_hive_schema_before_read" ->
@@ -304,28 +302,6 @@ object Refine extends LogHelper with ConfigHelper {
         }
     }
 
-
-    /**
-      * Convert from comma separated package.ObjectNames to Object callable apply() TransformFunctions.
-      */
-    implicit val decodeTransformFunctions: Decoder[Seq[TransformFunction]] = Decoder.decodeString.emap { s =>
-        Either.catchNonFatal(
-            s.split(",").map { objectName =>
-                val transformMirror = ReflectUtils.getStaticMethodMirror(objectName)
-                // Lookup the object's apply method as a reflect MethodMirror, and wrap
-                // it in a anonymous function that has the signature expected by
-                // DataFrameToHive's transformFunction parameter.
-                val wrapperFn: TransformFunction = {
-                    case (partDf) =>
-                        log.debug(s"Applying ${transformMirror.receiver} to ${partDf.partition}")
-                        transformMirror(partDf).asInstanceOf[PartitionedDataFrame]
-                }
-                wrapperFn
-            }.toSeq
-        ).leftMap(t =>
-            throw new RuntimeException(s"Failed parsing '$s' into transform functions.", t)
-        )
-    }
 
     def main(args: Array[String]): Unit = {
         if (args.contains("--help")) {
@@ -502,7 +478,7 @@ object Refine extends LogHelper with ConfigHelper {
 
             // Get a usable table_include_regex for rerunOptions.
             // We need to use the target.partition.table here, as the
-            // tableName keys in exceptionsByTable are fully qualified like `db`.`table`,
+            // table keys in exceptionsByTable are fully qualified like `db`.`table`,
             // and we need just table for the table_include_regex
             val tablesWithFailuresRegex = exceptionsByTable.collect {
                 case (_, rtes: Seq[RefineTargetException]) => rtes.head.target.partition.table

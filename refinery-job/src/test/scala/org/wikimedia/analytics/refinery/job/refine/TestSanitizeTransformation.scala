@@ -7,8 +7,10 @@ import org.joda.time.DateTime
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+
 import scala.collection.immutable.ListMap
 import SanitizeTransformation._
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
 
 
 class TestSanitizeTransformation extends FlatSpec
@@ -590,5 +592,13 @@ class TestSanitizeTransformation extends FlatSpec
         result.length should equal(2)
         result(0) should equal(Row(1, true))
         result(1) should equal(Row(2, false))
+    }
+
+    it should "apply should create a transform function" in {
+        val allowlist = Map("fa1" -> keepTag)
+        val salts = Seq((new DateTime(2024, 6, 1, 0, 0), new DateTime(2024, 6, 1, 0, 0), "salt1"))
+        val result =  SanitizeTransformation(allowlist, salts)
+        // Test that result is of type TransformFunction
+        assert(result.isInstanceOf[TransformFunction])
     }
 }

@@ -137,6 +137,11 @@ object EventSparkSchemaLoader {
     // (This makes is possible for e.g. com.google.common.io.Resources
     // to load hdfs URIs.)
 
+    val BASE_SCHEMA_URIS_DEFAULT: Seq[String] = Seq(
+        "https://schema.discovery.wmnet/repositories/primary/jsonschema",
+        "https://schema.discovery.wmnet/repositories/secondary/jsonschema"
+    )
+
     /**
       * Helper constructor to create a EventSparkSchemaLoader using EventSchemaLoader from a
       * list of schemaBaseUris.

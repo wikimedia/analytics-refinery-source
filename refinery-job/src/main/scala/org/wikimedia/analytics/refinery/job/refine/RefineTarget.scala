@@ -13,10 +13,10 @@ import org.joda.time.format.DateTimeFormatter
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
+import org.wikimedia.analytics.refinery.spark.sql.TableSchemaManager.tableExists
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import java.util.zip.GZIPInputStream
-import scala.util.control.Exception.allCatch
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
@@ -31,7 +31,7 @@ import scala.util.{Failure, Success, Try}
   * since the doneFlag was previously written.  If it has, shouldRefine will return true.
   *
   * Note: 'refine' is not a well defined term.  In general it means a an ETL type job,
-  * that takes data from one place, augements it, and outputs it elsewhere.  It usually
+  * that takes data from one place, augments it, and outputs it elsewhere.  It usually
   * is expected to be a 1 to 1 mapping of input and output paths, i.e. every input path
   * has an output path.  As such, this probably shouldn't be used for aggregation
   * type jobs, where multiple inputs are mapped to one output.
@@ -188,7 +188,7 @@ case class RefineTarget(
             case None => None
             case Some(s) => {
                 var workingSchema = s
-                if (useMergedSchemaForRead && tableExists) {
+                if (useMergedSchemaForRead && tableExists(spark, tableName)) {
                     // TODO: This is being deprecated as all new versioned schemas should
                     // be backwards compatible.  Once we can be sure they are, we can remove
                     // this conditional logic.  https://phabricator.wikimedia.org/T255818
@@ -209,10 +209,8 @@ case class RefineTarget(
                     // See also:
                     // - https://phabricator.wikimedia.org/T227088
                     // - https://phabricator.wikimedia.org/T226219
-                    workingSchema = spark.table(tableName).schema.merge(
-                        workingSchema,
-                        lowerCaseTopLevel = false
-                    )
+                    workingSchema = spark.table(tableName).schema
+                        .normalizeMerge(workingSchema, lowerCaseTopLevel = false)
                     log.debug(
                         s"Merged schema for $this with Hive table schema " +
                         s"for schema for read:\n${workingSchema.treeString}"
@@ -282,17 +280,6 @@ case class RefineTarget(
       * @return
       */
     def outputExists(): Boolean = fs.exists(outputPath)
-
-    /**
-      * True if the Hive table for this target exists
-      * @return
-      */
-    def tableExists(): Boolean = {
-        allCatch.opt(spark.table(tableName)) match {
-            case Some(_) => true
-            case _       => false
-        }
-    }
 
     /**
       * True if the outputPath/doneFlag exists

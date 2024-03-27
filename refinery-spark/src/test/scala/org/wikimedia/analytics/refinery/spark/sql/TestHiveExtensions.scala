@@ -3,18 +3,15 @@ package org.wikimedia.analytics.refinery.spark.sql
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
-import org.joda.time.DateTime
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
-
-import java.sql.Timestamp
 
 class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase {
 
     val tableName = "test.table"
     val tableLocation = "/tmp/test/table"
 
-    it should "normalize and widen a field" in {
+    "field.normalizeAndWiden" should "normalize and widen a field" in {
         val field = StructField("$Field-1.other", IntegerType, nullable = false)
 
         val normalizedField = field.normalize().widen()
@@ -23,7 +20,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         normalizedField.nullable should equal(true)
     }
 
-    it should "make all fields of a struct nullable" in {
+    "field.makeNullable" should "make all fields of a struct nullable" in {
         val schema1 = StructType(Seq(
             StructField("F1", IntegerType, nullable = false),
             StructField("f2", StructType(Seq(
@@ -41,7 +38,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         nulledSchema("f2").dataType.asInstanceOf[StructType]("S1").nullable should equal(true)
     }
 
-    it should "build a Hive DDL string representing a simple column" in {
+    "struct.hiveColumnDDL" should "build a Hive DDL string representing a simple column" in {
         val field = StructField("f1", LongType, nullable = false)
         val expected = s"`f1` BIGINT NOT NULL"
 
@@ -59,22 +56,23 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
 
     it should "build a Hive DDL string representing multiple columns" in {
-        val fields = Seq(
+        val struct = StructType(Seq(
             StructField("f1", StringType, nullable = false),
             StructField("f2", IntegerType, nullable = true),
             StructField("S1", StructType(Seq(
                 StructField("s1", StringType, nullable=true)
             )))
-        )
+        ))
+
         val expected =
             s"""`f1` STRING NOT NULL,
                |`f2` INT,
                |`S1` STRUCT<`s1`: STRING>""".stripMargin
 
-        StructType(fields).hiveColumnsDDL() should equal(expected)
+        struct.hiveColumnsDDL() should equal(expected)
     }
 
-    it should "merge and normalize 2 simple schemas" in {
+    "struct.merge" should "merge 2 simple normalized schemas" in {
         val schema1 = StructType(Seq(
             StructField("F1", IntegerType, nullable = true),
             StructField("f2", StringType, nullable = true)
@@ -96,11 +94,11 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             StructField("f3", DoubleType, nullable = true)
         ))
 
-        schema1.merge(schema2) should equal(expected)
+        schema1.normalizeMerge(schema2) should equal(expected)
     }
 
 
-    it should "merge and not normalize 2 simple schemas" in {
+    it should "merge 2 simple schemas" in {
         val schema1 = StructType(Seq(
             StructField("F1", IntegerType, nullable = true),
             StructField("f2", StringType, nullable = true)
@@ -113,7 +111,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         ))
 
-        // Unioned schema will be first ordred by schema1 fields, with any extra fields
+        // Union schema will be first ordered by schema1 fields, with any extra fields
         // from schema2 appended in the order they are found there.
         val expected = StructType(Seq(
             StructField("F1", LongType, nullable = true),
@@ -122,15 +120,15 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             StructField("f3", LongType, nullable = true)
         ))
 
-        schema1.merge(schema2, lowerCaseTopLevel=false) should equal(expected)
+        schema1.normalizeMerge(schema2, lowerCaseTopLevel=false) should equal(expected)
     }
 
-    it should "merge and not normalize 2 complex schemas" in {
+    it should "merge 2 complex normalized schemas" in {
         val schema1 = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("F1", IntegerType),
             StructField("f2", StructType(Seq(
-                StructField("S1", StringType, nullable = true),
-                StructField("s2", StringType, nullable = true),
+                StructField("S1", StringType),
+                StructField("s2", StringType),
                 StructField("A1", StructType(Seq(
                     StructField("c1", StringType, nullable=true)
                 )))
@@ -157,7 +155,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         // Merged schema will be first ordered by schema1 fields, with any extra fields
         // from schema2 appended in the order they are found there.
         val expected = StructType(Seq(
-            StructField("F1", LongType, nullable = true),
+            StructField("F1", IntegerType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s2", StringType, nullable = true),
@@ -169,18 +167,18 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             )), nullable = true),
             StructField("f3", StringType, nullable = true),
             StructField("F5", StructType(Seq(
-                StructField("b1", LongType, nullable=true))
+                StructField("b1", IntegerType, nullable=true))
             )),
             StructField("f4", LongType, nullable = true)
         ))
 
-        schema1.merge(schema2, lowerCaseTopLevel=false) should equal(expected)
+        schema1.merge(schema2) should equal(expected)
     }
 
 
-    it should "merge and normalize 2 complex schemas" in {
+    it should "merge 2 more complex normalized schemas" in {
         val schema1 = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", LongType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s2", StringType, nullable = true),
@@ -190,15 +188,15 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             )), nullable = true),
             StructField("f3", StringType, nullable = true),
             StructField("arr1", ArrayType(StructType(Seq(
-                StructField("e1", IntegerType, nullable=true)
+                StructField("e1", LongType, nullable=true)
             )), containsNull=true)),
             StructField("map1", MapType(StringType, StructType(Seq(
-                StructField("v1", IntegerType, nullable=true)
+                StructField("v1", LongType, nullable=true)
             )), valueContainsNull=true))
         ))
 
         val schema2 = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", LongType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s3", StringType, nullable = true),
@@ -207,8 +205,8 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
                     StructField("c2", StringType, nullable=true)
                 )))
             )), nullable = true),
-            StructField("F5", StructType(Seq(
-                StructField("b1", IntegerType, nullable=true))
+            StructField("f5", StructType(Seq(
+                StructField("b1", LongType, nullable=true))
             )),
             StructField("f4", LongType, nullable = true),
             StructField("arr1", ArrayType(StructType(Seq(
@@ -249,10 +247,28 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             StructField("f4", LongType, nullable = true)
         ))
 
-        schema1.merge(schema2, lowerCaseTopLevel=true) should equal(expected)
+        schema1.merge(schema2) should equal(expected)
     }
 
-    it should "build non external no partitions create DDL with single schema" in {
+    it should "merge to LongType from large Long, not StringType" in {
+        val events = sc.parallelize(Seq(
+            """{"id": 1, "event": {"num": 123}}""",
+            """{"id": 2, "event": {"num": 9223372036854776000}}"""
+        ))
+
+        val tableSchema = StructType(Seq(
+            StructField("id", LongType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("num", LongType, nullable = true)
+            )))
+        ))
+
+        import spark.implicits._
+        val df = spark.read.json(spark.createDataset[String](events))
+        tableSchema.merge(df.schema) should equal(tableSchema)
+    }
+
+    "struct.hiveCreateDDL" should "build non external no partitions create DDL with single schema" in {
         val schema = StructType(Seq(
             StructField("f2", LongType, nullable = true),
             StructField("f3", StringType, nullable = true),
@@ -263,7 +279,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             s"""CREATE TABLE $tableName (
                |`f2` BIGINT,
                |`f3` STRING,
-               |`f1` BIGINT
+               |`F1` INT
                |)
                |-- No partition provided
                |STORED AS PARQUET""".stripMargin
@@ -282,7 +298,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         val expected =
             s"""CREATE EXTERNAL TABLE $tableName (
-               |`f1` BIGINT,
+               |`F1` INT,
                |`f2` BIGINT,
                |`f3` STRING
                |)
@@ -306,7 +322,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
         val expected =
             s"""CREATE EXTERNAL TABLE $tableName (
-               |`f1` BIGINT,
+               |`F1` INT,
                |`f2` BIGINT
                |)
                |PARTITIONED BY (
@@ -321,16 +337,46 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         statement should equal(expected)
     }
 
-
-    it should "build alter DDL with single schema" in {
+    it should "create a DDL statement with Hive syntax" in {
         val schema = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("day", LongType),
+            StructField("not_widen_field", IntegerType, nullable = true),
+            StructField("f2", StructType(Seq(
+                StructField("s1", StringType, nullable = true),
+                StructField("s2", StringType, nullable = true).withComment("s2 comment"),
+                StructField("DoNotNORmaLize_me", StructType(Seq(
+                    StructField("c1", StringType, nullable=true)
+                )))
+            )), nullable = true),
+            StructField("f3", StringType, nullable = true)
+        ))
+
+        val expected =
+            s"""CREATE EXTERNAL TABLE $tableName (
+               |`not_widen_field` INT,
+               |`f2` STRUCT<`s1`: STRING, `s2`: STRING COMMENT 's2 comment', `DoNotNORmaLize_me`: STRUCT<`c1`: STRING>>,
+               |`f3` STRING
+               |)
+               |PARTITIONED BY (
+               |`day` BIGINT
+               |)
+               |STORED AS PARQUET
+               |LOCATION 'location'""".stripMargin
+
+        val statement = schema.hiveCreateDDL(tableName, "location", Seq("day"))
+
+        statement should equal(expected)
+    }
+
+    "struct.hiveAlterDDL" should "build alter DDL with simple schema" in {
+        val schema = StructType(Seq(
+            StructField("f1", IntegerType, nullable = true),
             StructField("f2", LongType, nullable = true),
             StructField("f3", StringType, nullable = true)
         ))
 
         val otherSchema = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", IntegerType, nullable = true),
             StructField("f3", StringType, nullable = true),
             StructField("f4", LongType, nullable = true)
         ))
@@ -347,10 +393,9 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         statements should equal(expected)
     }
 
-
     it should "build alter DDL with just modified merged structs" in {
         val schema = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", LongType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s2", StringType, nullable = true),
@@ -362,7 +407,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         ))
 
         val otherSchema = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", LongType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s3", StringType, nullable = true),
@@ -374,7 +419,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         ))
 
         val expected = Seq(
-            s"""ALTER TABLE $tableName
+            s"""ALTER TABLE test.table
                |CHANGE COLUMN `f2` `f2` STRUCT<`S1`: STRING, `s2`: STRING, `A1`: STRUCT<`c1`: STRING, `C2`: STRING>, `s3`: STRING>""".stripMargin
         )
 
@@ -385,7 +430,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
     it should "build alter DDL with new columns and modified merged structs" in {
         val schema = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", LongType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s2", StringType, nullable = true),
@@ -397,7 +442,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         ))
 
         val otherSchema = StructType(Seq(
-            StructField("F1", IntegerType, nullable = true),
+            StructField("f1", LongType, nullable = true),
             StructField("f2", StructType(Seq(
                 StructField("S1", StringType, nullable = true),
                 StructField("s3", StringType, nullable = true),
@@ -415,7 +460,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val expected = Seq(
             s"""ALTER TABLE $tableName
                |ADD COLUMNS (
-               |`f4` STRUCT<`b1`: BIGINT>,
+               |`f4` STRUCT<`b1`: INT>,
                |`f5` BIGINT
                |)""".stripMargin,
             s"""ALTER TABLE $tableName
@@ -467,9 +512,9 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         statements should equal(expected)
     }
 
-    it should "build alter DDL with arrays with elements of compatible primitive types" in {
+    it should "build alter DDL with arrays" in {
         val schema = StructType(Seq(
-            StructField("arr1", ArrayType(IntegerType, containsNull = true), nullable = true),
+            StructField("arr1", ArrayType(LongType, containsNull = false), nullable = false),
             StructField("f3", StringType, nullable = true)
         ))
 
@@ -490,18 +535,19 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
 
     it should "build alter DDL with map with values of compatible primitive types" in {
         val schema = StructType(Seq(
-            StructField("map1", MapType(StringType, IntegerType, valueContainsNull = true), nullable = true),
             StructField("f3", StringType, nullable = true)
         ))
 
         val otherSchema = StructType(Seq(
-            StructField("map1", MapType(StringType, LongType, valueContainsNull = true), nullable = true),
+            StructField("map1", MapType(StringType, LongType, valueContainsNull = false), nullable = false),
             StructField("f3", StringType, nullable = true)
         ))
 
         val expected = Seq(
             s"""ALTER TABLE $tableName
-               |CHANGE COLUMN `map1` `map1` MAP<STRING, BIGINT>""".stripMargin
+               |ADD COLUMNS (
+               |`map1` MAP<STRING, BIGINT>
+               |)""".stripMargin
         )
 
         val statements = schema.hiveAlterDDL(tableName, otherSchema)
@@ -541,7 +587,7 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         statements should equal(expected)
     }
 
-    it should "not fail to convert schema of an empty DataFrame" in {
+    "df.convetToSchema" should "not fail to convert schema of an empty DataFrame" in {
         val fromSchema = StructType(Seq(StructField("a", IntegerType, nullable = true)))
 
         val rdd = sc.emptyRDD[Row]
@@ -581,8 +627,6 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         )
         val df = spark.createDataFrame(rdd, smallerSchema)
         val newDf = df.convertToSchema(biggerSchema)
-
-        //newDf.foreach(println)
 
         newDf.count should equal(3)
         newDf.schema should equal(biggerSchema)
@@ -658,8 +702,6 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         )
         val df = spark.createDataFrame(rdd, smallerSchema)
         val newDf = df.convertToSchema(biggerSchema)
-
-        //newDf.foreach(println)
 
         newDf.count should equal(3)
         newDf.schema should equal(biggerSchema)
@@ -750,26 +792,6 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
             r.isNullAt(2) should equal(true)
         })
     }
-
-    it should "merge to LongType from large Long, not StringType" in {
-        val events = sc.parallelize(Seq(
-            """{"id": 1, "event": {"num": 123}}""",
-            """{"id": 2, "event": {"num": 9223372036854776000}}"""
-        ))
-
-        val tableSchema = StructType(Seq(
-            StructField("id", LongType, nullable = true),
-            StructField("event", StructType(Seq(
-                StructField("num", LongType, nullable = true)
-            )))
-        ))
-
-        import spark.implicits._
-        val df = spark.read.json(spark.createDataset[String](events))
-        tableSchema.merge(df.schema) should equal(tableSchema)
-    }
-
-
 
     it should "convert DataFrame with inferred StringType to LongType, nullifying only bad field" in {
         val events = sc.parallelize(Seq(
@@ -869,6 +891,26 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         spark.sql("SELECT event.numField FROM newDf").rdd.collect.foreach(r => r.getLong(0) should equal(456L))
     }
 
+    "struct.normalizeAndWiden" should "normalise recursively the fields" in {
+        val struct = StructType(Seq(
+            StructField("id", IntegerType, nullable = true),
+            StructField("myField", LongType, nullable = true),
+            StructField("event", StructType(Seq(
+                StructField("numField", IntegerType, nullable = true)
+            )))
+        ))
+
+        struct.normalizeAndWiden() should equal(
+            StructType(Seq(
+                StructField("id", LongType),
+                StructField("myfield", LongType),  // Only root fields are lowered.
+                StructField("event", StructType(Seq(
+                    StructField("numField", LongType)  // Only root fields are lowered.
+                )))
+            ))
+        )
+    }
+
     it should "repartition a non-empty dataframe" in {
         val eventsSeq = Seq("""{"id": 1, "myField": 0}""", """{"id": 1, "myField": 5}""")
         import spark.implicits._
@@ -909,6 +951,20 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val resRow = resDf.collect().head
         resRow.getTimestamp(0).getTime shouldEqual(1708365600000L)
         resRow.getStruct(1).getTimestamp(0).getTime shouldEqual(1708369200000L)
+    }
+
+    "struct.addPartitionColumns" should "add partition columns" in {
+        val struct = StructType(Seq(
+            StructField("dt", TimestampType)
+        ))
+
+        struct.addPartitionColumns() should equal(StructType(Seq(
+            StructField("dt", TimestampType),
+            StructField("year", LongType),
+            StructField("month", LongType),
+            StructField("day", LongType),
+            StructField("hour", LongType),
+        )))
     }
 }
 
