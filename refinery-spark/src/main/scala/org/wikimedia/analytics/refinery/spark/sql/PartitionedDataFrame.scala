@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.spark.sql
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 
 import scala.collection.immutable.ListMap
 import scala.util.control.Exception._
@@ -28,20 +29,7 @@ case class PartitionedDataFrame(df: DataFrame, partition: HivePartition) {
       * @return
       */
     def applyPartitions: PartitionedDataFrame = {
-        val df = this.df
-        val partition = this.partition
-        this.copy(df = partition.partitions.foldLeft(df) {
-        case (currentDf, (key: String, value: Option[String])) =>
-            // Only apply defined-partitions (not dynamic ones)
-            if (value.isDefined) {
-                // If the partition value looks like an Int, convert it,
-                // else just use as a String.  lit() will convert the Scala
-                // value (Int or String here) into a Spark Column type.
-                currentDf.withColumn(key, lit(allCatch.opt(value.get.toLong).getOrElse(value.get)))
-            } else {
-                currentDf
-            }
-        })
+        this.copy(df = df.addPartitionColumnValues(partition.partitions))
     }
 
 }

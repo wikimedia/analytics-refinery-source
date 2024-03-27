@@ -131,7 +131,7 @@ case class HivePartition(
     }
 
     override def toString: String = {
-        s"$tableName $path"
+        s"$tableName $hiveQL" + (if (location.isDefined) s" at $path" else "")
     }
 }
 
@@ -221,7 +221,7 @@ object HivePartition {
     }
 
     /**
-      * Helper that assumes that fullPartitonPath contains enough information to
+      * Helper that assumes that fullPartitionPath contains enough information to
       * create a Hive partition.  The partition path part will start at the first
       * directory that contains an '='.  The table name will be that directory's parent dir,
       * and the database name will be the table name directory's parent dir.

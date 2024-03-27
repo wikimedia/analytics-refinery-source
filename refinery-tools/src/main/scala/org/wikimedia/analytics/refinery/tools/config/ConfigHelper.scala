@@ -3,10 +3,11 @@ package org.wikimedia.analytics.refinery.tools.config
 import cats.syntax.either._
 import com.github.nscala_time.time.Imports._
 import io.circe.CursorOp.DownField
-import io.circe.{Decoder, DecodingFailure}
+import io.circe.{Decoder, DecodingFailure, Json}
 import org.apache.hadoop.fs.Path
 import org.joda.time.format.{DateTimeFormatter, ISODateTimeFormat}
 import profig._
+import profig.JsonParser
 
 import scala.annotation.tailrec
 import scala.collection.immutable.ListMap
@@ -69,9 +70,19 @@ trait ConfigHelper {
     }
 
     implicit val decodeSeqString: Decoder[Seq[String]] = Decoder.decodeString.emap { s =>
-        Either.catchNonFatal(s.split(",").toSeq).leftMap(t =>
-            throw new RuntimeException(s"Failed parsing '$s' into a seq string.", t)
-        )
+        // If the string begins with a [ and ends with a ], then we assume it is a JSON array and we parse it as such.
+        // Otherwise, we assume it is a comma separated list of strings.
+        if (s.startsWith("[") && s.endsWith("]")) {
+            Either.catchNonFatal(
+                JsonParser.parse(s).getOrElse(Json.Null).asArray.get.map(_.asString.get).asInstanceOf[Seq[String]]
+            ).leftMap(t =>
+                throw new RuntimeException(s"Failed parsing '$s' into a seq string as JSON.", t)
+            )
+        } else {
+            Either.catchNonFatal(s.split(",").toSeq).leftMap(t =>
+                throw new RuntimeException(s"Failed parsing '$s' into a seq string.", t)
+            )
+        }
     }
 
     implicit val decodeInt: Decoder[Int] = Decoder.decodeString.emap { s =>

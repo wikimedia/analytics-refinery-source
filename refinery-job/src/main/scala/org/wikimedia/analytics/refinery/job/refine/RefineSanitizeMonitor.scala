@@ -5,6 +5,7 @@ import org.apache.spark.sql.SparkSession
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
+// TODO: Move this into org.wikimedia.analytics.refinery.job.refine.cli
 /**
   * A RefineMonitor job that uses the RefineSanitize allowlist_path property
   * to calculate the default table_whitelist_regex to use when looking for

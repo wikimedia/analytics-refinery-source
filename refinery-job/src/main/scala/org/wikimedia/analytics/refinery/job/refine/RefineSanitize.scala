@@ -8,6 +8,8 @@ import org.wikimedia.analytics.refinery.tools.config._
 import scala.util.matching.Regex
 import scala.collection.immutable.ListMap
 
+// TODO: Move this into org.wikimedia.analytics.refinery.job.refine.cli
+
 /**
   * A Refine job that applies a specially configured transform function
   * that will sanitize input dataset fields based on a sanitization

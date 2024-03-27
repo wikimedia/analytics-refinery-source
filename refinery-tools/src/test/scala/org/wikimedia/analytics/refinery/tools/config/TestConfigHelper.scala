@@ -228,6 +228,14 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         assertParamsEqual(configureArgs[Params](args), expected)
     }
 
+    it should "load Params with Seq formatted as JSON" in {
+        val array = Seq[String]("a.b", "c.D")
+//        val args = Array("--groups", """["a.b", "c.D"]""")
+                val args = Array("--groups", profig.JsonUtil.toJsonString(array))
+
+        configureArgs[Params](args).groups should equal(array)
+    }
+
 
     it should "fail converting bad int" in {
         a [RuntimeException] should be thrownBy configure[Params](Array.empty, Array("--int", "not 1 an 2 int"))
@@ -265,5 +273,4 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         files should equal(expectedFiles)
         remainingArgs should equal(expectedArgs)
     }
-
 }

@@ -1,15 +1,14 @@
 package org.wikimedia.analytics.refinery.spark.sql
 
-import java.util.UUID
-import scala.util.matching.Regex
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.analysis.TypeCoercion
 import org.apache.spark.sql.catalyst.expressions.Cast
+import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types._
-import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
-import scala.util.Try
+import scala.collection.immutable.ListMap
+import scala.util.control.Exception.allCatch
 
 /**
   * Implicit method extensions to Spark's StructType and StructField.
@@ -33,28 +32,11 @@ import scala.util.Try
 object HiveExtensions extends LogHelper {
 
     /**
-     * This regex will be used to replace characters in field names that
-     * are likely not compatible in most SQL contexts.
-     * This regex uses the Avro rules. https://avro.apache.org/docs/1.8.0/spec.html#names
-     */
-    val sanitizeFieldPattern: Regex = "(^[^A-Za-z_]|[^A-Za-z0-9_])".r
-
-    /**
-      * Normalizes a Hive table or field name using HivePartition.normalize.
-      * @param name name to normalize
-      * @param lowerCase whether to convert the name to lower case.
-      * @return
-      */
-    def normalizeName(name: String, lowerCase: Boolean = true): String = {
-        HivePartition.normalize(name, lowerCase)
-    }
-
-    /**
       * Implicit methods extensions for Spark StructField.
       *
       * @param field
       */
-    implicit class StructFieldExtensions(field: StructField) {
+    implicit class StructFieldExtensions(field: StructField) extends SparkSqlExtensions.StructFieldExtensions(field) {
 
         /**
           * Returns a copy of this StructField with a name toLowerCase.
@@ -62,64 +44,6 @@ object HiveExtensions extends LogHelper {
           */
         def toLowerCase: StructField = {
             Option(field.name).map(n => field.copy(name=n.toLowerCase)).getOrElse(field)
-        }
-
-        /**
-          * Returns a nullable or non nullable copy of this StructField.
-          * @param nullable
-          * @return
-          */
-        def makeNullable(nullable: Boolean = true): StructField =
-            field.copy(nullable=nullable)
-
-        /**
-         * Returns copy of this StructField with empty metadata
-         * @return
-         */
-        def emptyMetadata: StructField =
-            field.copy(metadata=Metadata.empty)
-
-        /**
-          * If possible, widens the field's type.  This currently only
-          * widens integers to longs and floats to doubles.
-          * @return
-          */
-        def widen(): StructField = {
-            field.dataType match {
-                case IntegerType    => field.copy(dataType=LongType)
-                case FloatType      => field.copy(dataType=DoubleType)
-                case _              => field
-            }
-        }
-
-        /**
-          * Normalizes a copy of this StructField.
-          * Here, normalizing means:
-          * - conditionally convert field name to lower case
-          * - Convert bad characters in field names to underscores.
-          * - makeNullable true
-          *
-          * Ints are converted to Longs, Floats are converted to Doubles.
-          * Longs and Doubles will handle more cases where field values
-          * look like an int or float during one iteration, and a long or double later.
-          *
-          * @param lowerCase if true, the field name will be lower cases.  Default: true
-          * @return
-          */
-        def normalize(lowerCase: Boolean = true): StructField = {
-            field
-                // convert bad chars to underscores
-                .copy(name=normalizeName(field.name, lowerCase))
-                // make nullable
-                .makeNullable()
-        }
-
-        /**
-         * Normalizes the fields and widen some types (ints -> longs, floats -> doubles).
-         * @return
-         */
-        def normalizeAndWiden(): StructField = {
-            field.normalize().widen()
         }
 
         /**
@@ -233,56 +157,7 @@ object HiveExtensions extends LogHelper {
       *
       * @param struct
       */
-    implicit class StructTypeExtensions(struct: StructType) {
-
-        /**
-          * Returns a copy of this struct with all fields 'normalized'.
-          * If lowerCaseTopLevel is true, then top level field names will be lower cased.
-          * This function recurses on sub structs, and normalizes them
-          * with lowerCase = false, keeping the cases on sub struct field names.
-          *
-          * @param lowerCaseTopLevel Default: true
-          * @return
-          */
-        def normalize(lowerCaseTopLevel: Boolean = true): StructType = {
-            struct.convert((field, depth) => {
-                if (depth == 0) field.normalize(lowerCase=lowerCaseTopLevel)
-                else field.normalize(lowerCase=false)
-            })
-        }
-
-        /**
-          * All ints will be converted to longs, and all floats will be
-          * * converted to doubles.  A field value that may
-          * at one time look like an int, may during a later iteration
-          * look like a long.  We choose to always use the wider data type.
-          *
-          * @return
-          */
-        def widen(): StructType = {
-            struct.convert((field, depth) => field.widen())
-        }
-
-        def normalizeAndWiden(): StructType = {
-            struct.normalize().widen()
-        }
-
-        /**
-          * Recursively sets nullablity on every field in this schema and returns the new schema.
-          * @param nullable
-          * @return
-          */
-        def makeNullable(nullable: Boolean = true): StructType = {
-            struct.convert((field, _) => field.makeNullable(nullable))
-        }
-
-        /**
-         * Recursively empty metadata on every field in this schema and returns the new schema.
-         * @return
-         */
-        def emptyMetadata: StructType = {
-            struct.convert((field, _) => field.emptyMetadata)
-        }
+    implicit class StructTypeExtensions(struct: StructType) extends SparkSqlExtensions.StructTypeExtensions(struct) {
 
         /**
           * Like StructType.find, but compares by name instead of StructField
@@ -305,30 +180,6 @@ object HiveExtensions extends LogHelper {
             })
         }
 
-        /**
-          * Recursively applies fn to each StructField in this schema and
-          * replaces the field with the result of fn.
-          *
-          * @param fn convert a given field to a new field.
-          * @param depth current depth of recursion
-          *
-          * @return The converted StructType schema
-          */
-        def convert(fn: (StructField, Int) => StructField, depth: Int = 0): StructType = {
-            StructType(struct.foldLeft(Seq.empty[StructField])(
-                (convertedFields: Seq[StructField], field: StructField) => {
-                    val convertedField = fn(field, depth)
-                    convertedField.dataType match {
-                        case StructType(_) => convertedFields :+ convertedField.copy(
-                            dataType=convertedField.dataType.asInstanceOf[StructType].convert(fn, depth + 1)
-                        )
-                        case _ => convertedFields :+ convertedField
-                    }
-                }
-            ))
-        }
-
-
         // NOTE: Fully recursive normalize and denormalize was implemented at
         // https://gist.github.com/jobar/91c552321efbedba03c8215284726f88#gistcomment-2077149,
         // but we have decided not to include this functionality.  Sub StructType field names
@@ -342,37 +193,53 @@ object HiveExtensions extends LogHelper {
 
 
         /**
-          * Returns a new StructType with otherStruct merged into this.  Any identical duplicate
-          * fields shared by both will be reduced to one field.  Non StructType Fields with the
+          * Returns a new StructType with otherStruct merged into this. Any identical duplicate
+          * fields shared by both will be reduced to one field. Non StructType Fields with the
           * same name but different incompatible types will result in an IllegalStateException.
           * StructType fields with the same name will be recursively merged.  All fields will
-          * be made nullable.  Comparison of top level field names is done case insensitively,
+          * be made nullable. Comparison of top level field names is done case insensitively,
           * i.e. myField is equivalent to myfield.
           *
-          * @param otherStruct  Spark StructType schema
+          * `merge` is case sensitive. So if the two schemas have columns with same name but
+          * different casing, the merged schema will include both columns.
           *
-          * @param lowerCaseTopLevel    If false, the returned schema will contain the original
-          *                             (non lowercased) top level field names. If true (default)
-          *                             top level field names will be lower cased.  All fields
-          *                             in the merged schema will be 'normalized', in that they
-          *                             will be made nullable and have certain types widened.
-          *                             Comparison of fields between schemas will always be done
-          *                             case insensitive.
-          *
-          * @return
+          * @param otherStruct Spark StructType schema
+          * @return Merged schema
           */
-        def merge(otherStruct: StructType, lowerCaseTopLevel: Boolean = true): StructType = {
+        def merge(otherStruct: StructType): StructType = {
             val combined = StructType(struct ++ otherStruct)
-            val combinedNormalized = combined.normalizeAndWiden()
+            mergeByFieldNameLowerCase(lowerCaseTopLevel = false, combined)
+        }
 
+        /**
+         * Returns a new StructType with otherStruct merged into this. Any identical duplicate
+         * fields shared by both will be reduced to one field. Non StructType Fields with the
+         * same name but different incompatible types will result in an IllegalStateException.
+         * StructType fields with the same name will be recursively merged.  All fields will
+         * be made nullable. Comparison of top level field names is done case insensitively,
+         * i.e. myField is equivalent to myfield.
+         * @param lowerCaseTopLevel If false, the returned schema will contain the original
+         *                          (non lowercased) top level field names. If true (default)
+         *                          top level field names will be lower cased.  All fields
+         *                          in the merged schema will be 'normalized', in that they
+         *                          will be made nullable and have certain types widened.
+         *                          Comparison of fields between schemas will always be done
+         *                          case insensitive.
+         * @param combined StructType schema with otherStruct merged into this.
+         * @return
+         */
+        private def mergeByFieldNameLowerCase(lowerCaseTopLevel: Boolean, combined: StructType) = {
             // Distinct using case insensitive and types.
             // Result will be sorted by n1 fields first, with n2 fields at the end.
-            val distinctNames: Seq[String] = combinedNormalized.fieldNames.distinct
+            val distinctNames: Seq[String] = if (lowerCaseTopLevel) combined.fieldNames.map(_.toLowerCase).distinct
+            else combined.fieldNames.distinct
 
             // Store a map of fields by name.  We will iterate through the fields and
             // resolve the cases where there are more than one field (type) for a given name
             // as best we can.
-            val fieldsByName: Map[String, Seq[StructField]] = combinedNormalized.distinct.groupBy(_.name)
+            val fieldsByName: Map[String, Seq[StructField]] = if (lowerCaseTopLevel) {
+                combined.distinct.groupBy(_.name.toLowerCase)
+            } else combined.distinct.groupBy(_.name)
 
 
             val mergedStruct = StructType(
@@ -420,6 +287,34 @@ object HiveExtensions extends LogHelper {
                     }
                 }
             )
+            mergedStruct
+        }
+
+        /**
+         * Returns a new StructType with otherStruct merged into this. Any identical duplicate
+         * fields shared by both will be reduced to one field.  Non StructType Fields with the
+         * same name but different incompatible types will result in an IllegalStateException.
+         * StructType fields with the same name will be recursively merged. All fields will
+         * be made nullable. Comparison of top level field names is done case insensitively,
+         * i.e. myField is equivalent to myfield.
+         *
+         * This is a legacy method that do normalize and widen the schema.
+         *
+         * @param otherStruct       Spark StructType schema
+         * @param lowerCaseTopLevel If false, the returned schema will contain the original
+         *                          (non lowercased) top level field names. If true (default)
+         *                          top level field names will be lower cased.  All fields
+         *                          in the merged schema will be 'normalized', in that they
+         *                          will be made nullable and have certain types widened.
+         *                          Comparison of fields between schemas will always be done
+         *                          case insensitive.
+         * @return
+         */
+        def normalizeMerge(otherStruct: StructType, lowerCaseTopLevel: Boolean = true): StructType = {
+            val combined = StructType(struct ++ otherStruct)
+            val combinedNormalized = combined.normalizeAndWiden()
+
+            val mergedStruct: StructType = mergeByFieldNameLowerCase(lowerCaseTopLevel, combinedNormalized)
 
             // If we want the normalized (lower cased) field names, return mergedStruct now.
             if (lowerCaseTopLevel) {
@@ -454,7 +349,7 @@ object HiveExtensions extends LogHelper {
                 // If we did normalize, then we'd have to recursively
                 // un-normalize if the original caller passed normalize=false.
                 .foldLeft(StructType(Seq.empty))((merged, current) => {
-                    merged.merge(current, lowerCaseTopLevel = false)
+                    merged.merge(current)
                 })
             // Convert the StructType back into a StructField with this field name.
             StructField(name, mergedStruct, nullable = true)
@@ -554,12 +449,12 @@ object HiveExtensions extends LogHelper {
 
         /**
           * Builds a Hive CREATE statement DDL string from this StructType schema.
-          * Since Hive is case insensitive, the top level field names will lowercased.
-          * To ease integration with missing fields in data, all fields are made nullable.
+          *
+          * This method makes sure that all partition columns are in the schema and are lowercased.
           *
           * @param tableName        Fully qualified Hive database.table name.
-          * @param locationPath     HDFS path to external Hive table.
-          * @param partitionNames   List of partition column names.
+          * @param locationPath     HDFS path to external Hive table (optional).
+          * @param partitions       List of partition column names.
           * @param storageFormat    Hive storage format string to use in `STORED AS ` clause.
           *                         See: https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-StorageFormatsStorageFormatsRowFormat,StorageFormat,andSerDe
           *
@@ -567,24 +462,24 @@ object HiveExtensions extends LogHelper {
           */
         def hiveCreateDDL(
             tableName: String,
-            locationPath: String = "",
-            partitionNames: Seq[String] = Seq.empty,
+            locationPath: Option[String],
+            partitions: Seq[String] = Seq.empty[String],
             storageFormat: String = "PARQUET"
         ): String = {
-            val schemaNormalized = struct.normalizeAndWiden()
-            val partitionNamesNormalized = partitionNames.map(_.toLowerCase)
+            val partitionNamesNormalized: Seq[String] = partitions.map(_.toLowerCase)
 
             // Validate that all partitions are in the schema.
-            if (partitionNamesNormalized.diff(schemaNormalized.fieldNames).nonEmpty) {
+            if (partitionNamesNormalized.diff(struct.fieldNames).nonEmpty) {
                 throw new IllegalStateException(
-                    s"""At least one partition field is not the Spark StructType schema.
+                    s"""At least one partition field is not in the Spark schema.
                        |partitions: [${partitionNamesNormalized.mkString(",")}]""".stripMargin
                 )
             }
 
-            val externalClause = if (locationPath.nonEmpty) " EXTERNAL" else ""
+            val locationIsPresent = locationPath.getOrElse("").nonEmpty
+            val externalClause = if (locationIsPresent) " EXTERNAL" else ""
 
-            val columnsClause = StructType(schemaNormalized
+            val columnsClause = StructType(struct
                 .filterNot(f => partitionNamesNormalized.contains(f.name))
             ).hiveColumnsDDL()
 
@@ -594,13 +489,13 @@ object HiveExtensions extends LogHelper {
                 else {
                     s"""PARTITIONED BY (
                        |${StructType(partitionNamesNormalized.map(
-                            p => schemaNormalized(schemaNormalized.fieldIndex(p))
-                        )).hiveColumnsDDL()}
+                        p => struct(struct.fieldIndex(p))
+                    )).hiveColumnsDDL()}
                        |)""".stripMargin
                 }
             }
 
-            val locationClause = if (locationPath.nonEmpty) s"\nLOCATION '$locationPath'" else ""
+            val locationClause = if (locationIsPresent) s"\nLOCATION '${locationPath.get}'" else ""
 
             s"""CREATE$externalClause TABLE $tableName (
                |$columnsClause
@@ -613,35 +508,28 @@ object HiveExtensions extends LogHelper {
         /**
           * Merges otherSchema into this struct StructType, and builds Hive
           * ALTER DDL statements to add any new fields to or change struct definitions
-          * of an existing Hive table.  Each DDL statement returned should be executed in order
+          * of an existing Hive table. Each DDL statement returned should be executed in order
           * to alter the target Hive table to match the merged schemas.
           *
-          * Type changes for non-struct fields are not supported and will result in an
-          * IllegalStateException.
+          * Some type changes are not supported by Hive and will result in an IllegalStateException.
+          * See more details here:
+          * https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-ChangeColumnName/Type/Position/Comment
           *
           * Notice: The updates for the schema don't include schema comments.
           *
-          * Field names will be lower cased, and all fields are made nullable.
-          *
           * @param tableName    Hive table name
           * @param otherSchema  Spark schema
-          *
           * @return             Iterable of ALTER statement DDL strings
           */
         def hiveAlterDDL(
             tableName: String,
             otherSchema: StructType
         ): Iterable[String] = {
-            // Apply emptyMetadata on schemas to prevent schema-comment differences
-            // when we are only interested in name/type equivalence.
-            val schemaNormalized = struct.normalizeAndWiden().emptyMetadata
-            val otherSchemaNormalized = otherSchema.normalizeAndWiden().emptyMetadata
-
             // Merge the base schema with otherSchema to ensure there are no non struct type changes.
             // (merge() will throw an exception if it encounters any)
-            val mergedSchemaNormalized = schemaNormalized.merge(otherSchemaNormalized)
+            val mergedSchema = struct.merge(otherSchema)
             // diffSchema contains fields that differ in name or type from the original schema.
-            val diffSchema = mergedSchemaNormalized.diff(schemaNormalized)
+            val diffSchema = mergedSchema.diff(struct)
 
 
             // If there are no new fields at all, then return empty Seq now.
@@ -658,18 +546,19 @@ object HiveExtensions extends LogHelper {
                     // we know that it must be a StructType.  merge() wouldn't let
                     // us have have fields with the same name and different types unless
                     // it is a StructType.
-                    if (schemaNormalized.fieldNames.contains(f.name)) "change"
+                    if (struct.fieldNames.contains(f.name)) "change"
                     else "add"
                 )
-                // To be 100% sure we keep ordering, sort the grouped fields by name.
-                .map { case (group, fields) => (group, fields.sortBy(f => f.name)) }
+                    // To be 100% sure we keep ordering, sort the grouped fields by name.
+                    .map { case (group, fields) => (group, fields.sortBy(f => f.name)) }
 
                 // Generate the ADD COLUMNS statement to add all new COLUMNS
                 val addStatements: Option[String] = if (tableModifications.contains("add")) {
-                    Option(s"""ALTER TABLE $tableName
-                       |ADD COLUMNS (
-                       |${StructType(tableModifications("add")).hiveColumnsDDL()}
-                       |)""".stripMargin
+                    Option(
+                        s"""|ALTER TABLE $tableName
+                            |ADD COLUMNS (
+                            |${StructType(tableModifications("add")).hiveColumnsDDL()}
+                            |)""".stripMargin
                     )
                 }
                 else
@@ -680,156 +569,39 @@ object HiveExtensions extends LogHelper {
                 val changeStatements: Seq[String] = tableModifications
                     .getOrElse("change", Seq.empty[StructField])
                     .map { f =>
-                        s"""ALTER TABLE $tableName
+                        s"""|ALTER TABLE $tableName
                             |CHANGE COLUMN `${f.name}` ${f.hiveColumnDDL}""".stripMargin
                     }
 
                 // Return a Seq of all statements to run to update the Hive table
-                // to match mergedSchemaNormalized.
+                // to match mergedSchema.
                 addStatements ++ changeStatements
             }
         }
     }
 
-    implicit class DataFrameExtensions(df: DataFrame) {
+    implicit class DataFrameExtensions(df: DataFrame) extends SparkSqlExtensions.DataFrameExtensions(df) {
         /**
-          * Converts a DataFrame to schema.
-          * The schema is expected to be an unordered superset of df's schema, i.e.
-          * all fields from df.schema must exist in schema with compatible types
-          * and similar nullableness.  Fields that exist in schema but not
-          * in df.schema will be set to NULL (and as such must be nullable).  If this
-          * condition does not match, this will throw an AssertionError.
-          *
-          * @param schema   schema to convert this df to
-          *
-          * @return         a DataFrame abiding to this struct (reordered fields and NULL new fields)
-          */
-        def convertToSchema(
-            schema: StructType,
-        ): DataFrame = {
-
-            def buildSQLFieldsRec(srcSchema: StructType, dstSchema: StructType, depth: Int = 0, prefix: String = ""): String = {
-                dstSchema.fields.map(dstField => {
-                    val prefixedFieldName = if (depth == 0) dstField.name else s"$prefix.${dstField.name}"
-
-                    def namedValue(value: String): String = {
-                        if (depth == 0) s"$value AS ${dstField.name}" // Not in struct, aliases ok
-                        else s"'${dstField.name}', $value"            // In named_struct, quoted-name then value
+         * Returns a new DataFrame with constant Hive partitions added as columns.  If any
+         * column values are convertible to Ints, they will be added as an Int, otherwise String.
+         *
+         * If any of the partition values are None, those columns will not be added.
+         *
+         * @return
+         */
+        def addPartitionColumnValues(partitionValues: ListMap[String, Option[String]]): DataFrame = {
+            partitionValues.foldLeft(df) {
+                case (currentDf, (key: String, value: Option[String])) =>
+                    // Only apply defined-partitions (not dynamic ones)
+                    if (value.isDefined) {
+                        // If the partition value looks like an Int, convert it,
+                        // else just use as a String.  lit() will convert the Scala
+                        // value (Int or String here) into a Spark Column type.
+                        currentDf.withColumn(key, lit(allCatch.opt(value.get.toLong).getOrElse(value.get)))
+                    } else {
+                        currentDf
                     }
-
-                    val idx = srcSchema.fieldNames.indexOf(dstField.name)
-                    // No field in source, setting to NULL, casted for schema coherence
-                    if (idx == -1) namedValue(s"CAST(NULL AS ${dstField.dataType.sql})")
-                    else dstField.dataType match {
-                        case dstChildFieldType: StructType =>
-                            val srcChildFieldType = srcSchema(idx).dataType.asInstanceOf[StructType]
-                            val childSQL = buildSQLFieldsRec(srcChildFieldType, dstChildFieldType, depth + 1, prefixedFieldName)
-                            namedValue(s"NAMED_STRUCT($childSQL)")
-                        case _ =>
-                            // Same types, no cast
-                            if (srcSchema(idx).dataType == dstField.dataType) {
-                                namedValue(s"$prefixedFieldName")
-                            } else { // Different types, cast needed
-                                namedValue(s"CAST($prefixedFieldName AS ${dstField.dataType.sql})")
-                            }
-                    }
-                }).mkString(", ")
             }
-
-            // Enforce single-usage temporary table name, starting with a letter
-            val tableName = "t_" + UUID.randomUUID.toString.replaceAll("[^a-zA-Z0-9]", "")
-            // Keep partition number to reset it after SQL transformation
-            val partitionNumber = df.rdd.getNumPartitions
-
-            // Convert using generated SQL over registered temporary table
-            // Warning: SQL Generated schema needs to be made nullable
-            df.createOrReplaceTempView(tableName)
-            val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema, schema)} FROM $tableName"
-            log.debug(s"Converting DataFrame using SQL query:\n$sqlQuery")
-            df.sqlContext.sql(sqlQuery).makeNullable().repartitionAs(df)
-        }
-
-        def makeNullable(): DataFrame = {
-            df.sparkSession.createDataFrame(df.rdd, df.schema.makeNullable())
-        }
-
-        def normalize(): DataFrame = {
-            df.sparkSession.createDataFrame(df.rdd, df.schema.normalize())
-        }
-
-        def widen(): DataFrame = {
-            df.convertToSchema(df.schema.widen())
-        }
-
-        def normalizeAndWiden(): DataFrame = {
-            df.normalize().widen()
-        }
-
-        def hasColumn(columnName: String): Boolean = {
-            Try(df(columnName)).isSuccess
-        }
-
-        def findColumnNames(columnNames: Seq[String]): Seq[String] = {
-            columnNames.flatMap(c => {
-                Try({
-                    df(c)
-                    c
-                }).toOption
-            })
-        }
-
-        def findColumns(columnNames: Seq[String]): Seq[Column] = {
-            columnNames.flatMap(c => Try(df(c)).toOption)
-        }
-
-        def repartitionAs(originalDf: DataFrame): DataFrame = {
-            val partitionNumber = originalDf.rdd.getNumPartitions
-            if (partitionNumber > 0) {
-                df.repartition(partitionNumber)
-            } else {
-                df
-            }
-        }
-
-        /**
-          * Transform DataFrame fields.
-          * This applies SQL transformation given per field-name to the source dataframe.
-          *
-          * @param fieldTransformers The transformers to apply: a map with field-name key and the
-          *                          transformation to be applied for the given field as value (in SQL)
-          *
-          * @return the transformed DataFrame
-          */
-        def transformFields(fieldTransformers: Map[String, String]): DataFrame = {
-            def buildSQLFieldsRec(schema: StructType, depth: Int = 0, prefix: String = ""): String = {
-                schema.fields.map(field => {
-                    val prefixedFieldName = if (depth == 0) s"${field.name}" else s"$prefix.${field.name}"
-
-                    def namedValue(value: String): String = {
-                        if (depth == 0) s"$value AS ${field.name}" // Not in struct, aliases ok
-                        else s"'${field.name}', $value"            // In named_struct, quoted-name then value
-                    }
-
-                    field.dataType match {
-                        case childFieldType: StructType =>
-                            val childSQL = buildSQLFieldsRec(childFieldType, depth + 1, prefixedFieldName)
-                            namedValue(s"NAMED_STRUCT($childSQL)")
-                        case _ =>
-                            namedValue(fieldTransformers.getOrElse(prefixedFieldName, prefixedFieldName))
-                    }
-                }).mkString(", ")
-            }
-
-            // Enforce single-usage temporary table name, starting with a letter
-            val tableName = "t_" + UUID.randomUUID.toString.replaceAll("[^a-zA-Z0-9]", "")
-            // Keep partition number to reset it after SQL transformation
-            val partitionNumber = df.rdd.getNumPartitions
-
-            // Convert using generated SQL over registered temporary table
-            df.createOrReplaceTempView(tableName)
-            val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema)} FROM $tableName"
-            log.debug(s"Converting DataFrame using SQL query:\n$sqlQuery")
-            df.sqlContext.sql(sqlQuery).repartitionAs(df)
         }
     }
 

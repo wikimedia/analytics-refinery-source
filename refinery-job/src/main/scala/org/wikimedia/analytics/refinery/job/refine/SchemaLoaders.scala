@@ -12,6 +12,7 @@ import org.wikimedia.eventutilities.core.event.WikimediaDefaults
 import org.wikimedia.eventutilities.spark.sql.JsonSchemaSparkConverter
 
 import java.net.URI
+//import java.util
 
 /**
   * Implementations of SparkSchemaLoader
@@ -177,6 +178,9 @@ object EventSparkSchemaLoader {
 
 
 object WikimediaEventSparkSchemaLoader {
+
+     val BASE_SCHEMA_URIS_DEFAULT: Seq[String] = WikimediaDefaults.EVENT_SCHEMA_BASE_URIS.asScala
+
     /**
       * Returns an instance of EventSparkSchemaLoader using WMF's
       * remote event schema repository URLs.

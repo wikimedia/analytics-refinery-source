@@ -4,6 +4,7 @@ import org.apache.spark.sql.SparkSession
 import org.wikimedia.analytics.refinery.core.Utilities
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
+// TODO: Move this into org.wikimedia.analytics.refinery.job.refine.cli
 object RefineMonitor extends LogHelper {
     val usage = """
         |Find missing refine targets and print or email a report.

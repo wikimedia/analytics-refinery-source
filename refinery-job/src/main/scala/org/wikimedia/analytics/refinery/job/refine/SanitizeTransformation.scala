@@ -11,7 +11,7 @@ import org.apache.spark.sql.types.{MapType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.joda.time.DateTime
 import org.wikimedia.analytics.refinery.core.HivePartition
-import org.wikimedia.analytics.refinery.spark.sql.{HiveExtensions, PartitionedDataFrame}
+import org.wikimedia.analytics.refinery.spark.sql.{PartitionedDataFrame, SparkSqlExtensions}
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.yaml.snakeyaml.Yaml
 
@@ -22,9 +22,9 @@ import scala.collection.JavaConverters._
   * This module returns a transform function that can be applied
   * to the Refine process to sanitize a given PartitionedDataFrame.
   *
-  * Note that this is not a Refine.TransformFunction on its own,
+  * Note that this is not a TransformFunction on its own,
   * but that SanitizeTransformation.apply creates and returns
-  * a Refine.TransformFunction based on on the input allowlist and salts.
+  * a TransformFunction based on on the input allowlist and salts.
   *
   * The sanitization is done using a allowlist to determine which tables
   * and fields should be purged and which ones should be kept. The allowlist
@@ -318,7 +318,7 @@ object SanitizeTransformation extends LogHelper {
      *                     used to securely hash specified fields depending on time.
      *                     Required only when the allowlist contains the tag 'hash'.
      *
-     * @return Refine.TransformFunction  See more details in Refine.scala.
+     * @return TransformFunction  See more details in Refine.scala.
      */
     def apply(
         allowlist: Allowlist,
@@ -390,7 +390,7 @@ object SanitizeTransformation extends LogHelper {
             }
 
             // Allowlist keys are either Hive table or field names. Normalize them.
-            HiveExtensions.normalizeName(key) -> newValue
+            SparkSqlExtensions.normalizeName(key) -> newValue
         }
     }
 

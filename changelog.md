@@ -1,3 +1,6 @@
+## v0.2.50
+* Refactor Refine to make it work atomically from Airflow
+
 ## v0.2.49
 * Make deduplication TransformFunction deterministic.
 

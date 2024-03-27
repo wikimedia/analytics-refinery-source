@@ -540,13 +540,4 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         resRow.getTimestamp(1).getTime shouldEqual (1708365600000L)
         resRow.getStruct(2).getTimestamp(0).getTime shouldEqual (1708369200000L)
     }
-
-    it should "extract datacenter from filename" in {
-
-        val df = spark.read.json(s"${getClass.getResource("/")}event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19")
-        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
-
-        val resDf = extractDatacenterFromFilepath(partDf).df
-        resDf.select("datacenter").collect.head.getString(0) shouldEqual ("eqiad")
-    }
 }
