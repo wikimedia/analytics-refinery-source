@@ -163,7 +163,7 @@ protected object QueryStringAnalyzer extends MultipartValueSplitter {
 /**
   * Generate data quality metrics for wmf.webrequest.
   */
-object WebrequestMetrics extends LogHelper with ConfigHelper {
+object WebrequestMetrics extends DataQualityHelper with LogHelper with ConfigHelper {
     private final val WebrequestSequenceValidation: String =
         "WebrequestSequenceValidation"
 
@@ -238,11 +238,6 @@ object WebrequestMetrics extends LogHelper with ConfigHelper {
         }
     }
 
-    private def onYarn(spark: SparkSession): Boolean = spark.conf.get("spark.master") == "yarn"
-
-    private def mkResultKey(metricType: String): ResultKey = {
-        ResultKey(System.currentTimeMillis(), Map("metric_type" -> metricType))
-    }
     // https://phabricator.wikimedia.org/T351909
     private val parseXAnalyticsUdf = udf((string: String) => QueryStringAnalyzer(string))
 
@@ -367,6 +362,16 @@ object WebrequestMetrics extends LogHelper with ConfigHelper {
           .useRepository(repository)
           .saveOrAppendResult(countsResultKey)
           .run()
+
+        // Count requests per hostname. This metrics is used to
+        // track host specific (potential) issues. It was added to support
+        // the Varnish -> HAProxy transition.
+        // Bug: T351117
+        val byHostname = webrequestDf
+          .groupBy($"hostname").count().alias("requests_per_hostname")
+
+        AnalysisRunner.onData(byHostname)
+          .addAnalyzer(Maximum("requests_per_hostname"))
 
         // Sequence number validation data prep.
         AnalysisRunner
