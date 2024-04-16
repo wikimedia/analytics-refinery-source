@@ -98,6 +98,12 @@
             <groupId>com.github.nscala-time</groupId>
             <artifactId>nscala-time_2.12</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_2.12</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

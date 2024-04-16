@@ -3,8 +3,11 @@ package org.wikimedia.analytics.refinery.spark.sql
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
+import org.joda.time.DateTime
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+
+import java.sql.Timestamp
 
 class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase {
 
@@ -886,6 +889,26 @@ class TestHiveExtensions extends FlatSpec with Matchers with DataFrameSuiteBase 
         val df = dfTest.repartitionAs(dfTarget)
 
         df.rdd.getNumPartitions should equal(0)
+    }
+
+    it should "convert fields of a dataframe" in {
+        val eventsSeq = Seq("""{"dt": "2024-02-19T18:00:00Z", "meta": {"dt": "2024-02-19T19:00:00.000Z"}}""")
+        import spark.implicits._
+        val df = spark.read.json(spark.createDataset[String](sc.parallelize(eventsSeq, 1)))
+        val expectedSchema = StructType(Seq(
+            StructField("dt", TimestampType, nullable = true),
+            StructField("meta", StructType(Seq(StructField("dt", TimestampType, nullable = true))), nullable = true)
+        ))
+
+        val fieldTransformers = Map(
+            "dt" -> "TO_TIMESTAMP(dt)",
+            "meta.dt" -> "TO_TIMESTAMP(meta.dt)",
+        )
+        val resDf = df.transformFields(fieldTransformers)
+        resDf.schema.equals(expectedSchema)
+        val resRow = resDf.collect().head
+        resRow.getTimestamp(0).getTime shouldEqual(1708365600000L)
+        resRow.getStruct(1).getTimestamp(0).getTime shouldEqual(1708369200000L)
     }
 }
 

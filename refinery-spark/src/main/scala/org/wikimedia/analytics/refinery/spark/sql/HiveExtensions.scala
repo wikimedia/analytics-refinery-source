@@ -704,7 +704,9 @@ object HiveExtensions extends LogHelper {
           *
           * @return         a DataFrame abiding to this struct (reordered fields and NULL new fields)
           */
-        def convertToSchema(schema: StructType): DataFrame = {
+        def convertToSchema(
+            schema: StructType,
+        ): DataFrame = {
 
             def buildSQLFieldsRec(srcSchema: StructType, dstSchema: StructType, depth: Int = 0, prefix: String = ""): String = {
                 dstSchema.fields.map(dstField => {
@@ -726,7 +728,7 @@ object HiveExtensions extends LogHelper {
                         case _ =>
                             // Same types, no cast
                             if (srcSchema(idx).dataType == dstField.dataType) {
-                                namedValue(prefixedFieldName)
+                                namedValue(s"$prefixedFieldName")
                             } else { // Different types, cast needed
                                 namedValue(s"CAST($prefixedFieldName AS ${dstField.dataType.sql})")
                             }
@@ -788,6 +790,47 @@ object HiveExtensions extends LogHelper {
                 df
             }
         }
+
+        /**
+          * Transform DataFrame fields.
+          * This applies SQL transformation given per field-name to the source dataframe.
+          *
+          * @param fieldTransformers The transformers to apply: a map with field-name key and the
+          *                          transformation to be applied for the given field as value (in SQL)
+          *
+          * @return the transformed DataFrame
+          */
+        def transformFields(fieldTransformers: Map[String, String]): DataFrame = {
+            def buildSQLFieldsRec(schema: StructType, depth: Int = 0, prefix: String = ""): String = {
+                schema.fields.map(field => {
+                    val prefixedFieldName = if (depth == 0) s"${field.name}" else s"$prefix.${field.name}"
+
+                    def namedValue(value: String): String = {
+                        if (depth == 0) s"$value AS ${field.name}" // Not in struct, aliases ok
+                        else s"'${field.name}', $value"            // In named_struct, quoted-name then value
+                    }
+
+                    field.dataType match {
+                        case childFieldType: StructType =>
+                            val childSQL = buildSQLFieldsRec(childFieldType, depth + 1, prefixedFieldName)
+                            namedValue(s"NAMED_STRUCT($childSQL)")
+                        case _ =>
+                            namedValue(fieldTransformers.getOrElse(prefixedFieldName, prefixedFieldName))
+                    }
+                }).mkString(", ")
+            }
+
+            // Enforce single-usage temporary table name, starting with a letter
+            val tableName = "t_" + UUID.randomUUID.toString.replaceAll("[^a-zA-Z0-9]", "")
+            // Keep partition number to reset it after SQL transformation
+            val partitionNumber = df.rdd.getNumPartitions
+
+            // Convert using generated SQL over registered temporary table
+            df.createOrReplaceTempView(tableName)
+            val sqlQuery = s"SELECT ${buildSQLFieldsRec(df.schema)} FROM $tableName"
+            log.debug(s"Converting DataFrame using SQL query:\n$sqlQuery")
+            df.sqlContext.sql(sqlQuery).repartitionAs(df)
+        }
     }
 
     /**
@@ -808,5 +851,4 @@ object HiveExtensions extends LogHelper {
             )(Encoders.STRING))
         }
     }
-
 }

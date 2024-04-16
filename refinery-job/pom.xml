@@ -54,7 +54,6 @@
         <dependency>
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
-            <version>1.1.2.5</version>
              <scope>test</scope>
         </dependency>
 
@@ -62,7 +61,6 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
-            <version>4.1.56.Final</version>
             <scope>test</scope>
         </dependency>
 
@@ -85,7 +83,6 @@
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-hdfs</artifactId>
-            <version>${hadoop.version}</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>
@@ -108,28 +105,24 @@
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-core_2.12</artifactId>
-            <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-hive_2.12</artifactId>
-            <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_2.12</artifactId>
-            <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-streaming_2.12</artifactId>
-            <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -176,39 +169,33 @@
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-avro_2.12</artifactId>
-            <version>${spark.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-graphx_2.12</artifactId>
-            <version>${spark.version}</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/graphframes/graphframes -->
         <dependency>
             <groupId>graphframes</groupId>
             <artifactId>graphframes</artifactId>
-            <version>0.8.1-spark3.0-s_2.12</version>
         </dependency>
 
         <dependency>
             <groupId>com.holdenkarau</groupId>
             <artifactId>spark-testing-base_2.12</artifactId>
-            <version>3.1.1_1.1.0</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
           <groupId>org.yaml</groupId>
           <artifactId>snakeyaml</artifactId>
-          <version>1.20</version>
         </dependency>
 
         <dependency>
             <groupId>org.scalamock</groupId>
             <artifactId>scalamock-scalatest-support_2.12</artifactId>
-            <version>3.6.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -233,14 +220,12 @@
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-mllib_2.12</artifactId>
-            <version>${spark.version}</version>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/com.criteo/rsvd -->
         <dependency>
             <groupId>com.criteo</groupId>
             <artifactId>rsvd</artifactId>
-            <version>1.0-spark3</version>
             <exclusions>
                 <!--
                   Excluded from here as this dependency is a snapshot
@@ -253,17 +238,16 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
         <!-- Added to fix failing snapshot dependency from above -->
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
-            <version>1.15</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-hive-thriftserver_2.12</artifactId>
-            <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -283,7 +267,13 @@
         <dependency>
             <groupId>com.amazon.deequ</groupId>
             <artifactId>deequ</artifactId>
-            <version>2.0.4-spark-3.1</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.iceberg/iceberg-spark-runtime-3.1 -->
+        <dependency>
+            <groupId>org.apache.iceberg</groupId>
+            <artifactId>iceberg-spark-runtime-3.1_2.12</artifactId>
+            <scope>provided</scope>
         </dependency>
 
 

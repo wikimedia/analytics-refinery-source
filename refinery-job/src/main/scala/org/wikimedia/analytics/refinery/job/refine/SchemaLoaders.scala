@@ -11,6 +11,8 @@ import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.core.event.WikimediaDefaults
 import org.wikimedia.eventutilities.spark.sql.JsonSchemaSparkConverter
 
+import java.net.URI
+
 /**
   * Implementations of SparkSchemaLoader
   */
@@ -93,6 +95,36 @@ class EventSparkSchemaLoader(
                 Some(sparkSchema)
             }
         }
+    }
+
+    def loadSchema(schemaUri: String): Option[StructType] = synchronized {
+        log.info(
+            s"Loading JSONSchema for schemaUri $schemaUri using ${eventSchemaLoader}"
+        )
+
+        // Pass it to EventSchemaLoader to parse it into JsonNode event,
+        // and to look up that event's schema.
+        val jsonSchema = if (loadLatest) {
+            eventSchemaLoader.getLatestSchema(URI.create(schemaUri))
+        } else {
+            eventSchemaLoader.getSchema(URI.create(schemaUri))
+        }
+
+        log.debug(
+            s"Loaded ${if (loadLatest) "latest" else ""} JSONSchema for URI $schemaUri:\n$jsonSchema"
+        )
+
+        val sparkSchema = JsonSchemaSparkConverter.toDataType(
+            // TODO: eventSchemaLoader should return ObjectNodes
+            jsonSchema.asInstanceOf[ObjectNode],
+            timestampsAsStrings
+        ).asInstanceOf[StructType]
+
+        log.debug(
+            s"Converted JSONSchema for URI $schemaUri" +
+                s"to Spark schema:\n${sparkSchema.treeString}"
+        )
+        Some(sparkSchema)
     }
 }
 
