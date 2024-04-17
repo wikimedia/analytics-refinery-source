@@ -1,3 +1,6 @@
+## v0.2.36
+* Add CommonsCategoryGraphBuilder for Commons Impact Metrics
+
 ## v0.2.35
 * Extract RefineDataset
 
