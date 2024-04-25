@@ -1,8 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.reduced
 
-import org.apache.log4j.Logger
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 
 /**
@@ -18,17 +19,14 @@ class ReducedHistoryChecker(
   val minEventsGrowthThreshold: Double,
   val maxEventsGrowthThreshold: Double,
   val wrongRowsRatioThreshold: Double
-) extends Serializable {
-
-  @transient
-  lazy val log: Logger = Logger.getLogger(this.getClass)
+) extends LogHelper with Serializable with DeequColumnAnalysis{
 
   /**
-   * Path instanciation at creation
+   * Path instantiation at creation
    */
   val outputPath = s"$mediawikiHistoryBasePath/history_reduced_check_errors/snapshot=$newSnapshot"
-  val previousReducedHistoryPath = s"$mediawikiHistoryBasePath/history_reduced/snapshot=$previousSnapshot"
-  val newReducedHistoryPath = s"$mediawikiHistoryBasePath/history_reduced/snapshot=$newSnapshot"
+  private val previousReducedHistoryPath = s"$mediawikiHistoryBasePath/history_reduced/snapshot=$previousSnapshot"
+  private val newReducedHistoryPath = s"$mediawikiHistoryBasePath/history_reduced/snapshot=$newSnapshot"
 
   /**
    * Reduced metrics for a snapshot (works for both previous and new)
@@ -261,6 +259,58 @@ class ReducedHistoryChecker(
       """.stripMargin).cache()
   }
 
+  /**
+   *
+   * @param userMetricsGrowth
+   * @return User growth error ratio
+   */
+  def getReducedGrowthErrorsRatio(reducedMetricsGrowth: DataFrame): Double = {
+    val compliancePredicate: String =
+      s"""growths['growth_count_reduced_event'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_reduced_event'] > $maxEventsGrowthThreshold
+         |OR (event_entity = 'user' AND(
+         |    growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_name_bot'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_name_bot'] < $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_user'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_user'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_revisions'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_revisions'] > $maxEventsGrowthThreshold
+         |    OR growths['variability_sum_text_bytes_diff'] < -$maxEventsGrowthThreshold
+         |    OR growths['variability_sum_text_bytes_diff'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_sum_text_bytes_diff_abs'] < $minEventsGrowthThreshold
+         |    OR growths['growth_sum_text_bytes_diff_abs'] > $maxEventsGrowthThreshold))
+         |OR (event_entity = 'page' AND (
+         |    growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_page_content'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_page_content'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_page_non_content'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_page_non_content'] > $maxEventsGrowthThreshold
+         |    OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
+         |    OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_revisions'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_revisions'] > $maxEventsGrowthThreshold
+         |    OR growths['variability_sum_text_bytes_diff'] < -$maxEventsGrowthThreshold
+         |    OR growths['variability_sum_text_bytes_diff'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_sum_text_bytes_diff_abs'] < $minEventsGrowthThreshold
+         |    OR growths['growth_sum_text_bytes_diff_abs'] > $maxEventsGrowthThreshold))
+         |OR (event_entity = 'revision' AND (
+         |    growths['growth_count_revision_deleted'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_revision_deleted'] > $maxEventsGrowthThreshold))""".stripMargin.replaceAll("\n", " ")
+
+    columnComplianceAnalysis(reducedMetricsGrowth, compliancePredicate, "Check Reduced ErrorRatio Metric")
+  }
+
   def checkReducedHistory(): Unit = {
     val previousReducedHistory = spark.read.parquet(previousReducedHistoryPath)
     val newReducedHistory = spark.read.parquet(newReducedHistoryPath)
@@ -275,17 +325,14 @@ class ReducedHistoryChecker(
       newReducedMetrics.where(col("project").isin(projectsToCheck:_*))
     )
 
-    val reducedMetricsGrowthErrors = getReducedMetricsGrowthErrors(reducedMetricsGrowth)
+    val errorRowsRatio = getReducedGrowthErrorsRatio(reducedMetricsGrowth)
 
-    val nbMetricsGrowthRows = reducedMetricsGrowth.count()
-    val nbMetricsGrowthErrors = reducedMetricsGrowthErrors.count()
-    val errorRowsRatio = nbMetricsGrowthErrors / nbMetricsGrowthRows.toDouble
-
-    log.info(s"ReducedMetricsGrowthErrors ratio: ($nbMetricsGrowthErrors / $nbMetricsGrowthRows) = $errorRowsRatio")
+    log.info(s"ReducedMetricsGrowthErrors ratio: $errorRowsRatio")
 
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"ReducedMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+      val reducedMetricsGrowthErrors = getReducedMetricsGrowthErrors(reducedMetricsGrowth)
       reducedMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Overwrite).json(outputPath)
     }
 
