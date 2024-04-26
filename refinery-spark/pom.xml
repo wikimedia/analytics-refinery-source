@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -9,11 +10,11 @@
 
     <groupId>org.wikimedia.analytics.refinery.spark</groupId>
     <artifactId>refinery-spark</artifactId>
-    <name>Wikimedia Analytics Refinery Spark</name>
     <packaging>jar</packaging>
+    <name>Wikimedia Analytics Refinery Spark</name>
 
     <dependencies>
-
+        <?SORTPOM IGNORE?>
         <dependency>
             <groupId>org.wikimedia.analytics.refinery.core</groupId>
             <artifactId>refinery-core</artifactId>
@@ -205,10 +206,16 @@
             <groupId>com.amazon.deequ</groupId>
             <artifactId>deequ</artifactId>
         </dependency>
+        <?SORTPOM RESUME?>
     </dependencies>
 
     <build>
         <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.scala-tools</groupId>
                 <artifactId>maven-scala-plugin</artifactId>
@@ -223,21 +230,16 @@
             </plugin>
 
             <plugin>
-              <groupId>org.scalatest</groupId>
-              <artifactId>scalatest-maven-plugin</artifactId>
-              <executions>
-                <execution>
-                  <id>test</id>
-                  <goals>
-                    <goal>test</goal>
-                  </goals>
-                </execution>
-              </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>test</id>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

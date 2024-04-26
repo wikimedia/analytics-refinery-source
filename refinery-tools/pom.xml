@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -9,10 +10,66 @@
 
     <groupId>org.wikimedia.analytics.refinery.tools</groupId>
     <artifactId>refinery-tools</artifactId>
-    <name>Wikimedia Analytics Refinery Tools</name>
     <packaging>jar</packaging>
+    <name>Wikimedia Analytics Refinery Tools</name>
 
     <dependencies>
+
+        <dependency>
+            <groupId>com.chuusai</groupId>
+            <artifactId>shapeless_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.nscala-time</groupId>
+            <artifactId>nscala-time_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.outr</groupId>
+            <artifactId>profig-macros_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.outr</groupId>
+            <artifactId>profig_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-core_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-generic-extras_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-generic_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-reflect</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.typelevel</groupId>
+            <artifactId>cats-core_2.12</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
@@ -26,49 +83,9 @@
         </dependency>
 
         <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_2.12</artifactId>
             <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.chuusai</groupId>
-            <artifactId>shapeless_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.circe</groupId>
-            <artifactId>circe-core_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.outr</groupId>
-            <artifactId>profig_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.outr</groupId>
-            <artifactId>profig-macros_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.typelevel</groupId>
-            <artifactId>cats-core_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.circe</groupId>
-            <artifactId>circe-generic_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.circe</groupId>
-            <artifactId>circe-generic-extras_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.scala-lang</groupId>
-            <artifactId>scala-reflect</artifactId>
         </dependency>
 
         <dependency>
@@ -78,36 +95,25 @@
         </dependency>
 
         <dependency>
-            <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.12</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
             <groupId>org.scalactic</groupId>
             <artifactId>scalactic_2.12</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>joda-time</groupId>
-            <artifactId>joda-time</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.github.nscala-time</groupId>
-            <artifactId>nscala-time_2.12</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.12</artifactId>
-            <scope>provided</scope>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_2.12</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
 
             <plugin>
                 <groupId>org.scala-tools</groupId>
@@ -133,11 +139,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
 
         </plugins>

@@ -1,136 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
+    <modelVersion>4.0.0</modelVersion>
 
-  <name>Wikimedia Analytics Refinery</name>
-  <description>Wikimedia Analytics utilities for processing data.</description>
-  <url>https://github.com/wikimedia/analytics-refinery-source</url>
+    <groupId>org.wikimedia.analytics.refinery</groupId>
+    <artifactId>refinery</artifactId>
+    <version>0.2.37-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
-  <groupId>org.wikimedia.analytics.refinery</groupId>
-  <artifactId>refinery</artifactId>
-  <version>0.2.37-SNAPSHOT</version>
-  <packaging>pom</packaging>
+    <name>Wikimedia Analytics Refinery</name>
+    <description>Wikimedia Analytics utilities for processing data.</description>
+    <url>https://github.com/wikimedia/analytics-refinery-source</url>
 
+    <organization>
+        <name>Wikimedia Foundation</name>
+        <url>http://www.wikimediafoundation.org</url>
+    </organization>
 
-  <modules>
-    <module>refinery-tools</module>
-    <module>refinery-core</module>
-    <module>refinery-spark</module>
-    <module>refinery-hive</module>
-    <module>refinery-job</module>
-  </modules>
+    <licenses>
+        <license>
+            <name>Apache License 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+        </license>
+    </licenses>
 
-  <scm>
-    <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
-    <connection>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</connection>
-    <!--
+    <mailingLists>
+        <mailingList>
+            <name>Analytics Mailinglist</name>
+            <subscribe>https://lists.wikimedia.org/mailman/listinfo/analytics</subscribe>
+            <unsubscribe>https://lists.wikimedia.org/mailman/listinfo/analytics</unsubscribe>
+            <post>analytics@lists.wikimedia.org</post>
+            <archive>http://lists.wikimedia.org/pipermail/analytics/</archive>
+        </mailingList>
+    </mailingLists>
+
+    <modules>
+        <module>refinery-tools</module>
+        <module>refinery-core</module>
+        <module>refinery-spark</module>
+        <module>refinery-hive</module>
+        <module>refinery-job</module>
+    </modules>
+
+    <scm>
+        <connection>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</connection>
+        <!--
         We point to an user property to make it possible to override the remote
         SCM in CI. Namely CI pushes over https when developers typically use ssh.
     -->
-    <developerConnection>${developerConnection}</developerConnection>
-    <tag>HEAD</tag>
-  </scm>
+        <developerConnection>${developerConnection}</developerConnection>
+        <tag>HEAD</tag>
+        <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
+    </scm>
 
-  <organization>
-    <name>Wikimedia Foundation</name>
-    <url>http://www.wikimediafoundation.org</url>
-  </organization>
+    <distributionManagement>
+        <repository>
+            <id>archiva.releases</id>
+            <name>Internal Release Repository</name>
+            <url>https://archiva.wikimedia.org/repository/releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>archiva.snapshots</id>
+            <name>Internal Snapshot Repository</name>
+            <url>https://archiva.wikimedia.org/repository/snapshots/</url>
+        </snapshotRepository>
+        <site>
+            <id>analytics-refinery-site</id>
+            <url>https://doc.wikimedia.org/analytics-refinery</url>
+        </site>
+    </distributionManagement>
 
-  <licenses>
-    <license>
-      <name>Apache License 2.0</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
-    </license>
-  </licenses>
+    <properties>
+        <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
+        <discovery-maven-tool-configs.version>1.16</discovery-maven-tool-configs.version>
+        <eventutilities.version>1.3.4</eventutilities.version>
+        <!--
+        Those number reference jar-versions to be used as dependencies.
+        We should try to keep them in sync with our hadoop/hive/spark versions.
+      -->
+        <hadoop.version>2.10.1</hadoop.version>
+        <hive.version>2.3.6</hive.version>
+        <java.version>1.8</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <scala.version>2.12.10</scala.version>
+        <skip.tests>false</skip.tests>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.java.checkstyle.reportPaths>target/checkstyle-result.xml</sonar.java.checkstyle.reportPaths>
+        <sonar.java.spotbugs.reportPaths>target/spotbugsXml.xml</sonar.java.spotbugs.reportPaths>
+        <!--suppress UnresolvedMavenProperty -->
+        <sonar.login>${env.SONAR_API_KEY}</sonar.login>
+        <sonar.organization>wmftest</sonar.organization>
+        <spark.version>3.1.2</spark.version>
+        <spotbugs.version>4.1.2</spotbugs.version>
+    </properties>
 
-  <mailingLists>
-    <mailingList>
-      <name>Analytics Mailinglist</name>
-      <subscribe>https://lists.wikimedia.org/mailman/listinfo/analytics</subscribe>
-      <unsubscribe>https://lists.wikimedia.org/mailman/listinfo/analytics</unsubscribe>
-      <post>analytics@lists.wikimedia.org</post>
-      <archive>http://lists.wikimedia.org/pipermail/analytics/</archive>
-    </mailingList>
-  </mailingLists>
-
-  <repositories>
-    <!-- Remove maven central to use archiva-mirrored repos only -->
-    <repository>
-      <id>central</id>
-      <url>https://repo1.maven.org/maven2</url>
-      <releases>
-        <enabled>false</enabled>
-      </releases>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-    </repository>
-
-    <!-- Needed archiva-mirrored repos -->
-    <repository>
-      <id>wmf-mirror-maven-central</id>
-      <url>https://archiva.wikimedia.org/repository/mirror-maven-central/</url>
-    </repository>
-    <repository>
-      <id>wmf-mirror-spark</id>
-      <url>https://archiva.wikimedia.org/repository/mirror-spark/</url>
-    </repository>
-    <repository>
-      <id>wmf-mirror-cloudera</id>
-      <url>https://archiva.wikimedia.org/repository/mirror-cloudera/</url>
-    </repository>
-
-    <!-- Manually uploaded artifacts for analytics -->
-    <repository>
-      <id>wmf-analytics-old-uploads</id>
-      <url>https://archiva.wikimedia.org/repository/analytics-old-uploads/</url>
-    </repository>
-
-    <!-- WMF released artifacts -->
-    <repository>
-      <id>wmf-releases</id>
-      <url>https://archiva.wikimedia.org/repository/releases/</url>
-    </repository>
-  </repositories>
-
-  <pluginRepositories>
-    <!-- Remove maven central to use archiva-mirrored repos only -->
-    <pluginRepository>
-      <id>central</id>
-      <url>http://repo1.maven.org/maven2</url>
-      <releases>
-        <enabled>false</enabled>
-      </releases>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-    </pluginRepository>
-    <!-- Needed archiva-mirrored repos -->
-    <pluginRepository>
-      <id>wmf-mirror-maven-central</id>
-      <url>https://archiva.wikimedia.org/repository/mirror-maven-central/</url>
-    </pluginRepository>
-  </pluginRepositories>
-
-  <distributionManagement>
-    <repository>
-      <id>archiva.releases</id>
-      <name>Internal Release Repository</name>
-      <url>https://archiva.wikimedia.org/repository/releases/</url>
-    </repository>
-    <snapshotRepository>
-      <id>archiva.snapshots</id>
-      <name>Internal Snapshot Repository</name>
-      <url>https://archiva.wikimedia.org/repository/snapshots/</url>
-    </snapshotRepository>
-    <site>
-      <id>analytics-refinery-site</id>
-      <url>https://doc.wikimedia.org/analytics-refinery</url>
-    </site>
-  </distributionManagement>
-
-  <dependencyManagement>
-    <dependencies>
-
+    <dependencyManagement>
+        <dependencies>
+            <?SORTPOM IGNORE?>
       <dependency>
         <groupId>org.wikimedia.analytics.refinery.tools</groupId>
         <artifactId>refinery-tools</artifactId>
@@ -576,323 +541,357 @@
         <version>4.1.56.Final</version>
         <scope>test</scope>
       </dependency>
-    </dependencies>
-  </dependencyManagement>
+      <?SORTPOM RESUME?>
+        </dependencies>
+    </dependencyManagement>
 
-  <build>
-    <pluginManagement>
-      <plugins>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-checkstyle-plugin</artifactId>
-          <version>3.1.1</version>
-          <configuration>
-            <configLocation>org/wikimedia/discovery/build/tools/checkstyle/checkstyle.xml</configLocation>
-            <suppressionsLocation>org/wikimedia/discovery/build/tools/checkstyle/suppressions.xml</suppressionsLocation>
-            <includeTestSourceDirectory>true</includeTestSourceDirectory>
-            <consoleOutput>true</consoleOutput>
-            <failsOnError>false</failsOnError>
-            <failOnViolation>false</failOnViolation>
-          </configuration>
-          <dependencies>
-            <dependency>
-              <groupId>com.puppycrawl.tools</groupId>
-              <artifactId>checkstyle</artifactId>
-              <version>8.40</version>
-            </dependency>
-            <dependency>
-              <groupId>org.wikimedia.discovery</groupId>
-              <artifactId>discovery-maven-tool-configs</artifactId>
-              <version>${discovery-maven-tool-configs.version}</version>
-            </dependency>
-          </dependencies>
-          <executions>
-            <execution>
-              <id>checkstyle</id>
-              <goals>
-                <goal>check</goal>
-              </goals>
-              <phase>test</phase>
-            </execution>
-          </executions>
-        </plugin>
+    <repositories>
+        <!-- Remove maven central to use archiva-mirrored repos only -->
+        <repository>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>https://repo1.maven.org/maven2</url>
+        </repository>
 
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-shade-plugin</artifactId>
-          <version>3.2.4</version>
-          <configuration>
-            <createDependencyReducedPom>false</createDependencyReducedPom>
-            <shadedArtifactAttached>true</shadedArtifactAttached>
-            <shadedClassifierName>shaded</shadedClassifierName>
-            <filters>
-              <filter>
-                <artifact>*:*</artifact>
-                <excludes>
-                  <exclude>META-INF/*.SF</exclude>
-                  <exclude>META-INF/*.DSA</exclude>
-                  <exclude>META-INF/*.RSA</exclude>
-                </excludes>
-              </filter>
-            </filters>
-          </configuration>
-          <executions>
-            <execution>
-              <goals>
-                <goal>shade</goal>
-              </goals>
-              <phase>package</phase>
-            </execution>
-          </executions>
-        </plugin>
+        <!-- Needed archiva-mirrored repos -->
+        <repository>
+            <id>wmf-mirror-maven-central</id>
+            <url>https://archiva.wikimedia.org/repository/mirror-maven-central/</url>
+        </repository>
+        <repository>
+            <id>wmf-mirror-spark</id>
+            <url>https://archiva.wikimedia.org/repository/mirror-spark/</url>
+        </repository>
+        <repository>
+            <id>wmf-mirror-cloudera</id>
+            <url>https://archiva.wikimedia.org/repository/mirror-cloudera/</url>
+        </repository>
 
-        <plugin>
-          <!--
+        <!-- Manually uploaded artifacts for analytics -->
+        <repository>
+            <id>wmf-analytics-old-uploads</id>
+            <url>https://archiva.wikimedia.org/repository/analytics-old-uploads/</url>
+        </repository>
+
+        <!-- WMF released artifacts -->
+        <repository>
+            <id>wmf-releases</id>
+            <url>https://archiva.wikimedia.org/repository/releases/</url>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <!-- Remove maven central to use archiva-mirrored repos only -->
+        <pluginRepository>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>central</id>
+            <url>http://repo1.maven.org/maven2</url>
+        </pluginRepository>
+        <!-- Needed archiva-mirrored repos -->
+        <pluginRepository>
+            <id>wmf-mirror-maven-central</id>
+            <url>https://archiva.wikimedia.org/repository/mirror-maven-central/</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-checkstyle-plugin</artifactId>
+                    <version>3.1.1</version>
+                    <configuration>
+                        <configLocation>org/wikimedia/discovery/build/tools/checkstyle/checkstyle.xml</configLocation>
+                        <suppressionsLocation>org/wikimedia/discovery/build/tools/checkstyle/suppressions.xml</suppressionsLocation>
+                        <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                        <consoleOutput>true</consoleOutput>
+                        <failsOnError>false</failsOnError>
+                        <failOnViolation>false</failOnViolation>
+                    </configuration>
+                    <dependencies>
+                        <dependency>
+                            <groupId>com.puppycrawl.tools</groupId>
+                            <artifactId>checkstyle</artifactId>
+                            <version>8.40</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.wikimedia.discovery</groupId>
+                            <artifactId>discovery-maven-tool-configs</artifactId>
+                            <version>${discovery-maven-tool-configs.version}</version>
+                        </dependency>
+                    </dependencies>
+                    <executions>
+                        <execution>
+                            <id>checkstyle</id>
+                            <goals>
+                                <goal>check</goal>
+                            </goals>
+                            <phase>test</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>3.2.4</version>
+                    <configuration>
+                        <createDependencyReducedPom>false</createDependencyReducedPom>
+                        <shadedArtifactAttached>true</shadedArtifactAttached>
+                        <shadedClassifierName>shaded</shadedClassifierName>
+                        <filters>
+                            <filter>
+                                <artifact>*:*</artifact>
+                                <excludes>
+                                    <exclude>META-INF/*.SF</exclude>
+                                    <exclude>META-INF/*.DSA</exclude>
+                                    <exclude>META-INF/*.RSA</exclude>
+                                </excludes>
+                            </filter>
+                        </filters>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>shade</goal>
+                            </goals>
+                            <phase>package</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>0.8.6</version>
+                    <executions>
+                        <execution>
+                            <id>default-prepare-agent</id>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                        </execution>
+                        <execution>
+                            <id>default-report</id>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                            <phase>prepare-package</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <plugin>
+                    <!--
             The sonar plugin is not meant to be used locally, but is used as
             part of CI to publish static analysis results to
             https://sonarcloud.io/organizations/wmftest/projects. This analysis
             is also reported to users as bot-comments directly on gerrit CRs.
             A similar local analysis can be run with https://www.sonarlint.org/.
           -->
-          <groupId>org.sonarsource.scanner.maven</groupId>
-          <artifactId>sonar-maven-plugin</artifactId>
-          <version>3.8.0.2131</version>
-        </plugin>
-        <plugin>
-          <groupId>org.jacoco</groupId>
-          <artifactId>jacoco-maven-plugin</artifactId>
-          <version>0.8.6</version>
-          <executions>
-            <execution>
-              <id>default-prepare-agent</id>
-              <goals>
-                <goal>prepare-agent</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>default-report</id>
-              <goals>
-                <goal>report</goal>
-              </goals>
-              <phase>prepare-package</phase>
-            </execution>
-          </executions>
-        </plugin>
-      </plugins>
-    </pluginManagement>
-    <plugins>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.8.1</version>
-        <configuration>
-          <source>${java.version}</source>
-          <target>${java.version}</target>
-          <compilerArgument />
-        </configuration>
-      </plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>3.8.0.2131</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <plugins>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-javadoc-plugin</artifactId>
-        <version>3.2.0</version>
-        <configuration>
-          <linksource>true</linksource>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>com.github.spotbugs</groupId>
-        <artifactId>spotbugs-maven-plugin</artifactId>
-        <version>4.0.4</version>
-        <configuration>
-          <effort>high</effort>
-          <threshold>low</threshold>
-          <excludeFilterFile>org/wikimedia/discovery/build/tools/spotbugs/spotbugs-excludes.xml</excludeFilterFile>
-          <failOnError>false</failOnError>
-          <plugins>
             <plugin>
-              <groupId>com.mebigfatguy.sb-contrib</groupId>
-              <artifactId>sb-contrib</artifactId>
-              <version>7.4.7</version>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.0.4</version>
+                <configuration>
+                    <effort>high</effort>
+                    <threshold>low</threshold>
+                    <excludeFilterFile>org/wikimedia/discovery/build/tools/spotbugs/spotbugs-excludes.xml</excludeFilterFile>
+                    <failOnError>false</failOnError>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.mebigfatguy.sb-contrib</groupId>
+                            <artifactId>sb-contrib</artifactId>
+                            <version>7.4.7</version>
+                        </plugin>
+                        <plugin>
+                            <groupId>jp.skypencil.findbugs.slf4j</groupId>
+                            <artifactId>bug-pattern</artifactId>
+                            <version>1.5.0</version>
+                        </plugin>
+                    </plugins>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs</artifactId>
+                        <version>${spotbugs.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.wikimedia.discovery</groupId>
+                        <artifactId>discovery-maven-tool-configs</artifactId>
+                        <version>${discovery-maven-tool-configs.version}</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>spotbugs-check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <phase>verify</phase>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
             </plugin>
             <plugin>
-              <groupId>jp.skypencil.findbugs.slf4j</groupId>
-              <artifactId>bug-pattern</artifactId>
-              <version>1.5.0</version>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <compilerArgument/>
+                </configuration>
             </plugin>
-          </plugins>
-        </configuration>
-        <dependencies>
-          <dependency>
-            <groupId>com.github.spotbugs</groupId>
-            <artifactId>spotbugs</artifactId>
-            <version>${spotbugs.version}</version>
-          </dependency>
-          <dependency>
-            <groupId>org.wikimedia.discovery</groupId>
-            <artifactId>discovery-maven-tool-configs</artifactId>
-            <version>${discovery-maven-tool-configs.version}</version>
-          </dependency>
-        </dependencies>
-        <executions>
-          <execution>
-            <id>spotbugs-check</id>
-            <goals>
-              <goal>check</goal>
-            </goals>
-            <phase>verify</phase>
-          </execution>
-        </executions>
-      </plugin>
 
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-site-plugin</artifactId>
-        <version>3.9.1</version>
-        <dependencies>
-          <dependency>
-            <groupId>org.apache.maven.wagon</groupId>
-            <artifactId>wagon-ssh-external</artifactId>
-            <version>2.2</version>
-          </dependency>
-        </dependencies>
-      </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>1.4.1</version>
+                <executions>
+                    <execution>
+                        <id>enforce-maven</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>(,2.1.0),(2.1.0,2.2.0),(2.2.0,)(3.0.0,)</version>
+                                    <message>Maven 2.1.0 and 2.2.0 produce incorrect GPG signatures and checksums respectively.</message>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
 
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-enforcer-plugin</artifactId>
-          <version>1.4.1</version>
-          <executions>
-            <execution>
-              <id>enforce-maven</id>
-              <goals>
-                <goal>enforce</goal>
-              </goals>
-              <configuration>
-                <rules>
-                  <requireMavenVersion>
-                    <version>(,2.1.0),(2.1.0,2.2.0),(2.2.0,)(3.0.0,)</version>
-                    <message>
-                      Maven 2.1.0 and 2.2.0 produce incorrect GPG signatures and checksums respectively.
-                    </message>
-                  </requireMavenVersion>
-                </rules>
-              </configuration>
-            </execution>
-          </executions>
-        </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <linksource>true</linksource>
+                </configuration>
+            </plugin>
 
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-release-plugin</artifactId>
-          <version>2.5.3</version>
-          <configuration>
-            <tagNameFormat>v@{project.version}</tagNameFormat>
-            <autoVersionSubmodules>true</autoVersionSubmodules>
-            <!--
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>2.5.3</version>
+                <configuration>
+                    <tagNameFormat>v@{project.version}</tagNameFormat>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <!--
               Only deploy code, but not site, it gets deployed via the
               -maven-java8-docker-site-publish jenkins job instead.
             -->
-            <goals>deploy</goals>
-          </configuration>
-        </plugin>
+                    <goals>deploy</goals>
+                </configuration>
+            </plugin>
 
-        <plugin>
-          <!-- Global surefire setup -->
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.2</version>
-          <configuration>
-            <!-- Needed to overcome URLClassLoader issue with java update -->
-            <useSystemClassLoader>false</useSystemClassLoader>
-            <forkCount>1</forkCount>
-            <includes>
-              <include>**/Test*.java</include>
-            </includes>
-            <!-- argLine is forwarded from JaCoCo, and the file encoding given to avoid problems when building. -->
-            <!--suppress UnresolvedMavenProperty -->
-            <argLine>${argLine} -Dfile.encoding=UTF-8</argLine>
-          </configuration>
-        </plugin>
-        <plugin>
-          <groupId>org.scala-tools</groupId>
-          <artifactId>maven-scala-plugin</artifactId>
-          <version>2.15.2</version>
-          <configuration>
-            <args>
-              <arg>-deprecation</arg>
-              <arg>-feature</arg>
-            </args>
-          </configuration>
-        </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <version>3.9.1</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.wagon</groupId>
+                        <artifactId>wagon-ssh-external</artifactId>
+                        <version>2.2</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
 
-        <plugin>
-          <groupId>org.scalatest</groupId>
-          <artifactId>scalatest-maven-plugin</artifactId>
-          <version>1.0</version>
-        </plugin>
+            <plugin>
+                <!-- Global surefire setup -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.22.2</version>
+                <configuration>
+                    <!-- Needed to overcome URLClassLoader issue with java update -->
+                    <useSystemClassLoader>false</useSystemClassLoader>
+                    <forkCount>1</forkCount>
+                    <includes>
+                        <include>**/Test*.java</include>
+                    </includes>
+                    <!-- argLine is forwarded from JaCoCo, and the file encoding given to avoid problems when building. -->
+                    <!--suppress UnresolvedMavenProperty -->
+                    <argLine>${argLine} -Dfile.encoding=UTF-8</argLine>
+                </configuration>
+            </plugin>
 
-        <plugin>
-          <groupId>org.jacoco</groupId>
-          <artifactId>jacoco-maven-plugin</artifactId>
-        </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.scala-tools</groupId>
+                <artifactId>maven-scala-plugin</artifactId>
+                <version>2.15.2</version>
+                <configuration>
+                    <args>
+                        <arg>-deprecation</arg>
+                        <arg>-feature</arg>
+                    </args>
+                </configuration>
+            </plugin>
 
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-checkstyle-plugin</artifactId>
-        </plugin>
-      </plugins>
+            <plugin>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+                <version>1.0</version>
+            </plugin>
+        </plugins>
     </build>
 
     <reporting>
-      <plugins>
-        <plugin>
-          <groupId>org.jacoco</groupId>
-          <artifactId>jacoco-maven-plugin</artifactId>
-          <reportSets>
-            <reportSet>
-              <reports>
-                <!-- select non-aggregate reports -->
-                <report>report</report>
-              </reports>
-            </reportSet>
-          </reportSets>
-        </plugin>
-      </plugins>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <reportSets>
+                    <reportSet>
+                        <reports>
+                            <!-- select non-aggregate reports -->
+                            <report>report</report>
+                        </reports>
+                    </reportSet>
+                </reportSets>
+            </plugin>
+        </plugins>
     </reporting>
 
-    <properties>
-      <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
-      <discovery-maven-tool-configs.version>1.16</discovery-maven-tool-configs.version>
-      <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-      <skip.tests>false</skip.tests>
-      <java.version>1.8</java.version>
-      <!--
-        Those number reference jar-versions to be used as dependencies.
-        We should try to keep them in sync with our hadoop/hive/spark versions.
-      -->
-      <hadoop.version>2.10.1</hadoop.version>
-      <hive.version>2.3.6</hive.version>
-      <scala.version>2.12.10</scala.version>
-      <spark.version>3.1.2</spark.version>
-      <eventutilities.version>1.3.4</eventutilities.version>
-      <spotbugs.version>4.1.2</spotbugs.version>
-      <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-      <!--suppress UnresolvedMavenProperty -->
-      <sonar.login>${env.SONAR_API_KEY}</sonar.login>
-      <sonar.organization>wmftest</sonar.organization>
-      <sonar.java.checkstyle.reportPaths>target/checkstyle-result.xml</sonar.java.checkstyle.reportPaths>
-      <sonar.java.spotbugs.reportPaths>target/spotbugsXml.xml</sonar.java.spotbugs.reportPaths>
-    </properties>
-
-  <profiles>
-    <profile>
-      <id>jdk17</id>
-      <activation>
-        <jdk>17</jdk>
-      </activation>
-      <dependencyManagement>
-        <!--
+    <profiles>
+        <profile>
+            <id>jdk17</id>
+            <activation>
+                <jdk>17</jdk>
+            </activation>
+            <dependencyManagement>
+                <!--
           excludes jdk.tools when building on JDK17
 
           JDK17 is used to run sonar analysis and fails as
@@ -902,74 +901,74 @@
           hive versions) will be required before doing a proper
           migration to JDK17.
         -->
-        <dependencies>
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-            <version>${hadoop.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-              <exclusion>
-                <groupId>jdk.tools</groupId>
-                <artifactId>jdk.tools</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
+                <dependencies>
 
-          <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-annotations</artifactId>
-            <version>${hadoop.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-              <exclusion>
-                <groupId>jdk.tools</groupId>
-                <artifactId>jdk.tools</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
+                    <dependency>
+                        <groupId>org.apache.hadoop</groupId>
+                        <artifactId>hadoop-annotations</artifactId>
+                        <version>${hadoop.version}</version>
+                        <scope>provided</scope>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>jdk.tools</groupId>
+                                <artifactId>jdk.tools</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.apache.hadoop</groupId>
+                        <artifactId>hadoop-common</artifactId>
+                        <version>${hadoop.version}</version>
+                        <scope>provided</scope>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>jdk.tools</groupId>
+                                <artifactId>jdk.tools</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
 
-          <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-jdbc</artifactId>
-            <version>${hive.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-              <exclusion>
-                <groupId>jdk.tools</groupId>
-                <artifactId>jdk.tools</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
+                    <dependency>
+                        <groupId>org.apache.hive</groupId>
+                        <artifactId>hive-cli</artifactId>
+                        <version>${hive.version}</version>
+                        <scope>provided</scope>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>jdk.tools</groupId>
+                                <artifactId>jdk.tools</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
 
-          <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-exec</artifactId>
-            <version>${hive.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-              <exclusion>
-                <groupId>jdk.tools</groupId>
-                <artifactId>jdk.tools</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
+                    <dependency>
+                        <groupId>org.apache.hive</groupId>
+                        <artifactId>hive-exec</artifactId>
+                        <version>${hive.version}</version>
+                        <scope>provided</scope>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>jdk.tools</groupId>
+                                <artifactId>jdk.tools</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
 
-          <dependency>
-            <groupId>org.apache.hive</groupId>
-            <artifactId>hive-cli</artifactId>
-            <version>${hive.version}</version>
-            <scope>provided</scope>
-            <exclusions>
-              <exclusion>
-                <groupId>jdk.tools</groupId>
-                <artifactId>jdk.tools</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
-        </dependencies>
-      </dependencyManagement>
-    </profile>
-  </profiles>
+                    <dependency>
+                        <groupId>org.apache.hive</groupId>
+                        <artifactId>hive-jdbc</artifactId>
+                        <version>${hive.version}</version>
+                        <scope>provided</scope>
+                        <exclusions>
+                            <exclusion>
+                                <groupId>jdk.tools</groupId>
+                                <artifactId>jdk.tools</artifactId>
+                            </exclusion>
+                        </exclusions>
+                    </dependency>
+                </dependencies>
+            </dependencyManagement>
+        </profile>
+    </profiles>
 
-  </project>
+</project>
