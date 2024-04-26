@@ -19,31 +19,25 @@
             <groupId>org.wikimedia.analytics.refinery.core</groupId>
             <artifactId>refinery-core</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.wikimedia.analytics.refinery.tools</groupId>
             <artifactId>refinery-tools</artifactId>
         </dependency>
-
-        <!--
-             adding explicit dep for snappy and netty otherwise
-             spark assumes is on the java.library.path
-             see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
-        -->
-        <!-- https://mvnrepository.com/artifact/org.xerial.snappy/snappy-java -->
         <dependency>
+            <!--
+                 adding explicit dep for snappy and netty otherwise
+                 spark assumes is on the java.library.path
+                 see: https://github.com/rvs/snappy-java/blob/master/src/main/resources/org/xerial/snappy/SnappyNativeLoader.java#L47
+            -->
             <groupId>org.xerial.snappy</groupId>
             <artifactId>snappy-java</artifactId>
-            <version>1.1.8.4</version><!-- Note 2024-01-23: 1.1.2.5 is not compatible with Mac M1 -->
-             <scope>test</scope>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
-            <version>4.1.56.Final</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
@@ -56,11 +50,8 @@
                 </exclusion>
             </exclusions>
         </dependency>
-
-        <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-hdfs
-             Explicitly needed to use DataFrameSuiteBase (tests with SparkSession)
-        -->
         <dependency>
+            <!-- Explicitly needed to use DataFrameSuiteBase (tests with SparkSession) -->
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-hdfs</artifactId>
             <scope>provided</scope>
@@ -72,7 +63,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-
         <dependency>
             <!--
                 Explicit dependency before any spark related dependency
@@ -81,127 +71,103 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.12</artifactId>
+            <artifactId>spark-core_${scala.compat.version}</artifactId>
             <scope>provided</scope>
         </dependency>
 
-        <!--
-            Order is important here !
-            The CompressionCodecName class is defined in multiple
-            dependencies and the spark-sql one should be used.
-        -->
-
-        <!--
-        Force commons-lang3 version to prevent a bug in JSON date parsing in Spark
-        -->
         <dependency>
+            <!--
+                Order is important here !
+                The CompressionCodecName class is defined in multiple
+                dependencies and the spark-sql one should be used.
+            -->
+            <!--
+            Force commons-lang3 version to prevent a bug in JSON date parsing in Spark
+            -->
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-hive_2.12</artifactId>
+            <artifactId>spark-hive_${scala.compat.version}</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-sql_2.12</artifactId>
+            <artifactId>spark-sql_${scala.compat.version}</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>com.netaporter</groupId>
-            <artifactId>scala-uri_2.12</artifactId>
-            <version>0.4.16</version>
+            <artifactId>scala-uri_${scala.compat.version}</artifactId>
         </dependency>
-
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.12</artifactId>
+            <artifactId>scalatest_${scala.compat.version}</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>com.github.nscala-time</groupId>
-            <artifactId>nscala-time_2.12</artifactId>
+            <artifactId>nscala-time_${scala.compat.version}</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-avro_2.12</artifactId>
+            <artifactId>spark-avro_${scala.compat.version}</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-graphx_2.12</artifactId>
+            <artifactId>spark-graphx_${scala.compat.version}</artifactId>
         </dependency>
-
-        <!-- https://mvnrepository.com/artifact/graphframes/graphframes -->
         <dependency>
             <groupId>graphframes</groupId>
             <artifactId>graphframes</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.holdenkarau</groupId>
-            <artifactId>spark-testing-base_2.12</artifactId>
+            <artifactId>spark-testing-base_${scala.compat.version}</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
           <groupId>org.yaml</groupId>
           <artifactId>snakeyaml</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.scalamock</groupId>
-            <artifactId>scalamock-scalatest-support_2.12</artifactId>
+            <artifactId>scalamock-scalatest-support_${scala.compat.version}</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
         </dependency>
-
-        <!-- Needed to query Hive instead of Spark for ALTER TABLE in Refine job -->
         <dependency>
+            <!-- Needed to query Hive instead of Spark for ALTER TABLE in Refine job -->
             <groupId>org.apache.hive</groupId>
             <artifactId>hive-jdbc</artifactId>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Needed to prevent warnings from hive-jdbc at test time -->
         <dependency>
+            <!-- Needed to prevent warnings from hive-jdbc at test time -->
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-annotations</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>com.datastax.spark</groupId>
-            <artifactId>spark-cassandra-connector_2.12</artifactId>
+            <artifactId>spark-cassandra-connector_${scala.compat.version}</artifactId>
         </dependency>
-
-        <!-- https://mvnrepository.com/artifact/com.amazon.deequ/deequ -->
         <dependency>
             <groupId>com.amazon.deequ</groupId>
             <artifactId>deequ</artifactId>

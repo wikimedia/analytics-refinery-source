@@ -14,122 +14,98 @@
     <name>Wikimedia Analytics Refinery Core</name>
 
     <dependencies>
-
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.github.nscala-time</groupId>
-            <artifactId>nscala-time_2.12</artifactId>
+            <artifactId>nscala-time_${scala.compat.version}</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.github.ua-parser</groupId>
             <artifactId>uap-java</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
             <artifactId>json-simple</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.maxmind.geoip2</groupId>
             <artifactId>geoip2</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.sun.mail</groupId>
             <artifactId>javax.mail</artifactId>
         </dependency>
-
         <dependency>
             <groupId>commons-validator</groupId>
             <artifactId>commons-validator</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.reflections</groupId>
             <artifactId>reflections</artifactId>
         </dependency>
-
-        <!-- https://mvnrepository.com/artifact/org.scala-lang/scala-reflect -->
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-reflect</artifactId>
-            <version>${scala.version}</version>
         </dependency>
-
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-web</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.wikimedia.analytics.refinery.tools</groupId>
             <artifactId>refinery-tools</artifactId>
         </dependency>
-
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>javax.servlet-api</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- Needed when dealing with Hive GenericUDF objects menagerie -->
         <dependency>
+            <!-- Needed when dealing with Hive GenericUDF objects menagerie -->
             <groupId>org.apache.hive</groupId>
             <artifactId>hive-exec</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_2.12</artifactId>
+            <artifactId>scalatest_${scala.compat.version}</artifactId>
             <scope>test</scope>
         </dependency>
-
         <dependency>
             <groupId>pl.pragmatists</groupId>
             <artifactId>JUnitParams</artifactId>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 
     <build>

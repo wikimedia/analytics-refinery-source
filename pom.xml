@@ -75,7 +75,7 @@
         <hadoop.version>2.10.1</hadoop.version>
         <hive.version>2.3.6</hive.version>
         <scala.compat.version>2.12</scala.compat.version>
-        <scala.version>2.12.10</scala.version>
+        <scala.version>${scala.compat.version}.10</scala.version>
         <spark.version>3.1.2</spark.version>
     </properties>
 
@@ -93,7 +93,7 @@
             </dependency>
             <dependency>
                 <groupId>com.chuusai</groupId>
-                <artifactId>shapeless_2.12</artifactId>
+                <artifactId>shapeless_${scala.compat.version}</artifactId>
                 <version>2.3.3</version>
             </dependency>
             <dependency>
@@ -114,7 +114,7 @@
             </dependency>
             <dependency>
                 <groupId>com.datastax.spark</groupId>
-                <artifactId>spark-cassandra-connector_2.12</artifactId>
+                <artifactId>spark-cassandra-connector_${scala.compat.version}</artifactId>
                 <version>3.1.0</version>
             </dependency>
             <dependency>
@@ -135,12 +135,12 @@
             </dependency>
             <dependency>
                 <groupId>com.github.nscala-time</groupId>
-                <artifactId>nscala-time_2.12</artifactId>
+                <artifactId>nscala-time_${scala.compat.version}</artifactId>
                 <version>2.26.0</version>
             </dependency>
             <dependency>
                 <groupId>com.github.scopt</groupId>
-                <artifactId>scopt_2.12</artifactId>
+                <artifactId>scopt_${scala.compat.version}</artifactId>
                 <version>3.5.0</version>
             </dependency>
             <dependency>
@@ -159,19 +159,29 @@
                 <version>2.5.0</version>
             </dependency>
             <dependency>
+                <groupId>com.netaporter</groupId>
+                <artifactId>scala-uri_${scala.compat.version}</artifactId>
+                <version>0.4.16</version>
+            </dependency>
+            <dependency>
                 <groupId>com.outr</groupId>
-                <artifactId>profig-macros_2.12</artifactId>
+                <artifactId>profig-macros_${scala.compat.version}</artifactId>
                 <version>2.3.8</version>
             </dependency>
             <dependency>
                 <groupId>com.outr</groupId>
-                <artifactId>profig_2.12</artifactId>
+                <artifactId>profig_${scala.compat.version}</artifactId>
                 <version>2.3.8</version>
             </dependency>
             <dependency>
                 <groupId>com.sun.mail</groupId>
                 <artifactId>javax.mail</artifactId>
                 <version>1.6.2</version>
+            </dependency>
+            <dependency>
+                <groupId>com.twitter</groupId>
+                <artifactId>algebird-core_${scala.compat.version}</artifactId>
+                <version>0.13.7</version>
             </dependency>
             <!-- Added to fix failing snapshot dependency from above -->
             <dependency>
@@ -187,21 +197,21 @@
             <dependency>
                 <groupId>graphframes</groupId>
                 <artifactId>graphframes</artifactId>
-                <version>0.8.1-spark3.0-s_2.12</version>
+                <version>0.8.1-spark3.0-s_${scala.compat.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.circe</groupId>
-                <artifactId>circe-core_2.12</artifactId>
+                <artifactId>circe-core_${scala.compat.version}</artifactId>
                 <version>0.13.0</version>
             </dependency>
             <dependency>
                 <groupId>io.circe</groupId>
-                <artifactId>circe-generic-extras_2.12</artifactId>
+                <artifactId>circe-generic-extras_${scala.compat.version}</artifactId>
                 <version>0.13.0</version>
             </dependency>
             <dependency>
                 <groupId>io.circe</groupId>
-                <artifactId>circe-generic_2.12</artifactId>
+                <artifactId>circe-generic_${scala.compat.version}</artifactId>
                 <version>0.13.0</version>
             </dependency>
             <dependency>
@@ -231,17 +241,17 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-avro_2.12</artifactId>
+                <artifactId>spark-avro_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-graphx_2.12</artifactId>
+                <artifactId>spark-graphx_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-mllib_2.12</artifactId>
+                <artifactId>spark-mllib_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
             </dependency>
             <dependency>
@@ -261,7 +271,7 @@
             </dependency>
             <dependency>
                 <groupId>org.typelevel</groupId>
-                <artifactId>cats-core_2.12</artifactId>
+                <artifactId>cats-core_${scala.compat.version}</artifactId>
                 <version>2.1.0</version>
             </dependency>
             <dependency>
@@ -277,6 +287,11 @@
             <dependency>
                 <groupId>org.wikimedia.analytics.refinery.core</groupId>
                 <artifactId>refinery-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.wikimedia.analytics.refinery.hive</groupId>
+                <artifactId>refinery-hive</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -358,37 +373,37 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.iceberg</groupId>
-                <artifactId>iceberg-spark-runtime-3.1_2.12</artifactId>
+                <artifactId>iceberg-spark-runtime-3.1_${scala.compat.version}</artifactId>
                 <version>1.2.1</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-core_2.12</artifactId>
+                <artifactId>spark-core_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-hive-thriftserver_2.12</artifactId>
+                <artifactId>spark-hive-thriftserver_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-hive_2.12</artifactId>
+                <artifactId>spark-hive_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-sql_2.12</artifactId>
+                <artifactId>spark-sql_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.spark</groupId>
-                <artifactId>spark-streaming_2.12</artifactId>
+                <artifactId>spark-streaming_${scala.compat.version}</artifactId>
                 <version>${spark.version}</version>
                 <scope>provided</scope>
             </dependency>
@@ -400,7 +415,7 @@
             </dependency>
             <dependency>
                 <groupId>com.holdenkarau</groupId>
-                <artifactId>spark-testing-base_2.12</artifactId>
+                <artifactId>spark-testing-base_${scala.compat.version}</artifactId>
                 <version>3.1.1_1.1.0</version>
                 <scope>test</scope>
             </dependency>
@@ -419,19 +434,19 @@
             </dependency>
             <dependency>
                 <groupId>org.scalactic</groupId>
-                <artifactId>scalactic_2.12</artifactId>
+                <artifactId>scalactic_${scala.compat.version}</artifactId>
                 <version>3.0.5</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.scalamock</groupId>
-                <artifactId>scalamock-scalatest-support_2.12</artifactId>
+                <artifactId>scalamock-scalatest-support_${scala.compat.version}</artifactId>
                 <version>3.6.0</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.scalatest</groupId>
-                <artifactId>scalatest_2.12</artifactId>
+                <artifactId>scalatest_${scala.compat.version}</artifactId>
                 <version>3.0.5</version>
                 <scope>test</scope>
             </dependency>
@@ -443,7 +458,8 @@
                 -->
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
-                <version>1.1.2.5</version>
+                <version>1.1.8.4</version>
+                <!-- Note 2024-01-23: 1.1.2.5 is not compatible with Mac M1 -->
                 <scope>test</scope>
             </dependency>
             <dependency>
