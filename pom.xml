@@ -2,6 +2,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.wikimedia</groupId>
+        <artifactId>wmf-jvm-parent-pom</artifactId>
+        <version>1.74</version>
+    </parent>
+
     <groupId>org.wikimedia.analytics.refinery</groupId>
     <artifactId>refinery</artifactId>
     <version>0.2.37-SNAPSHOT</version>
@@ -81,6 +87,7 @@
         <hive.version>2.3.6</hive.version>
         <java.version>1.8</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <scala.compat.version>2.12</scala.compat.version>
         <scala.version>2.12.10</scala.version>
         <skip.tests>false</skip.tests>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
@@ -608,6 +615,22 @@
         <pluginManagement>
             <plugins>
                 <plugin>
+                    <!-- Deactivate forbidden API until we fix violations -->
+                    <!-- TODO: reactivate once violations are fixed -->
+                    <groupId>de.thetaphi</groupId>
+                    <artifactId>forbiddenapis</artifactId>
+                    <executions>
+                        <execution>
+                            <id>check-forbidden-apis</id>
+                            <phase>none</phase>
+                        </execution>
+                        <execution>
+                            <id>check-forbidden-test-apis</id>
+                            <phase>none</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
                     <version>3.1.1</version>
@@ -641,7 +664,12 @@
                         </execution>
                     </executions>
                 </plugin>
-
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <!-- 2.7 is the latest version that supports symlinks the way we need to -->
+                    <version>2.7</version>
+                </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
@@ -690,7 +718,11 @@
                         </execution>
                     </executions>
                 </plugin>
-
+                <plugin>
+                    <groupId>org.scalatest</groupId>
+                    <artifactId>scalatest-maven-plugin</artifactId>
+                    <version>1.0</version>
+                </plugin>
                 <plugin>
                     <!--
             The sonar plugin is not meant to be used locally, but is used as
@@ -857,12 +889,6 @@
                         <arg>-feature</arg>
                     </args>
                 </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.scalatest</groupId>
-                <artifactId>scalatest-maven-plugin</artifactId>
-                <version>1.0</version>
             </plugin>
         </plugins>
     </build>
