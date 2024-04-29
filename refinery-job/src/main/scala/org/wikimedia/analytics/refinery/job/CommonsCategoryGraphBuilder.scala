@@ -41,7 +41,7 @@ import org.apache.spark.graphx._
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 import scala.io.Source
-import scala.math.min
+import scala.math.max
 import scopt.OptionParser
 
 object CommonsCategoryGraphBuilder {
@@ -53,13 +53,44 @@ object CommonsCategoryGraphBuilder {
         clType: String,
     )
 
+    // Case class to store info about all the primary categories of a subcategory vertex.
+    case class PrimaryCategoryInfo(
+        distanceToPrimary: Int,
+        ancestorCategories: Set[Long],
+    ) {
+        // Combines two PrimaryCategoryInfo into one.
+        def combine(other: PrimaryCategoryInfo) = PrimaryCategoryInfo(
+            // If there's more than one path to the primary category,
+            // the distance is defined by the longest path.
+            distanceToPrimary = max(this.distanceToPrimary, other.distanceToPrimary),
+            ancestorCategories = this.ancestorCategories ++ other.ancestorCategories,
+        )
+    }
+
     // Message case class for the Pregel graph algorithm.
     case class Message(
         parentCategories: Set[Long],
-        primaryCategories: Set[Long],
-        ancestorCategories: Set[Long],
-        distanceToPrimary: Option[Int],
-    )
+        primaryCategories: Map[Long, PrimaryCategoryInfo],
+    ) {
+        // Combines two Messages into one.
+        def combine(other: Message) = Message(
+            parentCategories = this.parentCategories ++ other.parentCategories,
+            // Merge primary category maps first, and then correctly combine collisions.
+            primaryCategories = (this.primaryCategories ++ other.primaryCategories).map{case (k, v) => 
+                if (this.primaryCategories.contains(k) && other.primaryCategories.contains(k)) {
+                    k -> this.primaryCategories(k).combine(v)
+                } else k -> v
+            }
+        )
+
+        // Returns the set of all combined ancestor categories.
+        def combinedAncestorCategories() = {
+            this.primaryCategories.values.map(_.ancestorCategories).fold(Set[Long]()){case (acc, a) => acc ++ a}
+        }
+
+        // Returns the maximum distance to any primary category.
+        def maxDistanceToPrimary() = this.primaryCategories.values.map(_.distanceToPrimary).reduceLeft(_ max _)
+    }
 
     // Data case class to output the results of this calculation.
     // The snake_case is because the output table will be schema'd after this.
@@ -150,48 +181,27 @@ object CommonsCategoryGraphBuilder {
             .map(row => row.getLong(0))
             .collect()
 
-        // Function called by the Pregel algorithm to merges all messages for a given vertex.
-        def mergeMessage (msg1: Message, msg2: Message): Message = {
-            Message(
-                // All category lists are the unioned.
-                parentCategories = msg1.parentCategories ++ msg2.parentCategories,
-                primaryCategories = msg1.primaryCategories ++ msg2.primaryCategories,
-                ancestorCategories = msg1.ancestorCategories ++ msg2.ancestorCategories,
-                // The distance to primary is considered to be the minimum of both messages.
-                // We don't need to check whether any of the distances are defined,
-                // because mergeMessage will only be called for messages coming from
-                // initialized vertices, which always have a distanceToPrimary defined.
-                distanceToPrimary = Some(min(msg1.distanceToPrimary.get, msg2.distanceToPrimary.get)),
-            )
-        }
+        // Function called by the Pregel algorithm to merge all messages for a given vertex.
+        def mergeMessage (msg1: Message, msg2: Message): Message = msg1.combine(msg2)
 
         // Function called by the Pregel algorithm to assign a new vertex state given the received message.
         def setMessage (id: VertexId, value: Message, message: Message): Message = {
-            if (message.primaryCategories == Set[Long]()) {
+            if (message.primaryCategories.isEmpty) {
                 // Default message received by all vertices.
                 val isPrimaryCategory = categoryAllowList.contains(id)
                 Message(
                     parentCategories = Set[Long](),
-                    primaryCategories = if (isPrimaryCategory) Set(id) else Set[Long](),
-                    ancestorCategories = Set[Long](),
-                    distanceToPrimary = if (isPrimaryCategory) Some(0) else None,
+                    primaryCategories = if (isPrimaryCategory) {
+                        Map(id -> PrimaryCategoryInfo(
+                            distanceToPrimary = 0,
+                            ancestorCategories = Set[Long](),
+                        ))
+                    } else {
+                        Map[Long, PrimaryCategoryInfo]()
+                    },
                 )
             } else { // Regular message during graph traversal.
-                Message(
-                    // The parent categories are unioned.
-                    parentCategories = value.parentCategories ++ message.parentCategories,
-                    // We remove the current category id from the primary categories list, just in case
-                    // the current category was an allow-listed category that just received a message.
-                    // This can happen if the allow-list contains two categories that are related.
-                    // Also, we remove all the primary categories that appear as ancestors of the message.
-                    // To finally add the message's primary categories.
-                    primaryCategories = value.primaryCategories - id -- message.ancestorCategories ++ message.primaryCategories,
-                    // The ancestor categories are unioned.
-                    ancestorCategories = value.ancestorCategories ++ message.ancestorCategories,
-                    // Once the distance is set, it stays like that, since the first message to
-                    // reach a vertex carries the shortest distance to a primary category.
-                    distanceToPrimary = value.distanceToPrimary.orElse(message.distanceToPrimary),
-                )
+                value.combine(message)
             }
         }
 
@@ -207,22 +217,25 @@ object CommonsCategoryGraphBuilder {
             if (origin.primaryCategories.isEmpty) return Iterator.empty
 
             // Only continue if the destination does not create a cycle.
-            if (originId == destinationId || origin.ancestorCategories.contains(destinationId)) return Iterator.empty
+            if (originId == destinationId || origin.combinedAncestorCategories.contains(destinationId))
+                return Iterator.empty
 
-            // Only continue if the distance to primary is smaller than the maximum.
-            if (origin.distanceToPrimary.get >= params.maxDistanceToPrimary) return Iterator.empty
+            // Only continue if the distance the latest primary category is smaller than the maximum.
+            if (origin.maxDistanceToPrimary >= params.maxDistanceToPrimary) return Iterator.empty
 
-            // Build the message to send to the destination vertex.
-            Iterator((destinationId, Message(
-                // The parent category of this message is the category that sends it.
+            // Create the message to send to the destination.
+            val messageToSend = Message(
                 parentCategories = Set(originId),
-                // Primary categories of the child are the same as the parent.
-                primaryCategories = origin.primaryCategories,
-                // Add this category to the ancestor categories.
-                ancestorCategories = origin.ancestorCategories + originId,
-                // Increment the distance to primary by one.
-                distanceToPrimary = Some(origin.distanceToPrimary.get + 1),
-            )))
+                primaryCategories = origin.primaryCategories
+                    .map{case (k, v) => k -> PrimaryCategoryInfo(
+                        distanceToPrimary = v.distanceToPrimary + 1,
+                        ancestorCategories = v.ancestorCategories + originId,
+                    )
+                },
+            )
+
+            // Return the message.
+            Iterator((destinationId, messageToSend))
         }
 
         // Get all commons category links potentially involved.
@@ -255,12 +268,15 @@ object CommonsCategoryGraphBuilder {
 
         // Execute the Pregel algorithm to get the subgraph of allow-listed category trees.
         // https://spark.apache.org/docs/latest/graphx-programming-guide.html#pregel-api
-        val defaultMessage = Message(Set[Long](), Set[Long](), Set[Long](), None)
+        val defaultMessage = Message(
+            parentCategories = Set[Long](),
+            primaryCategories = Map[Long, PrimaryCategoryInfo](),
+        )
         val categoryGraphRdd = Graph
             .fromEdges(categoryEdgesRdd, defaultMessage)
             .pregel(defaultMessage, 100, EdgeDirection.Out)(setMessage, sendMessage, mergeMessage)
             // Keep only categories that belong to allow-listed category trees.
-            .vertices.filter(v => v._2.distanceToPrimary.isDefined)
+            .vertices.filter(v => !v._2.primaryCategories.isEmpty)
             .map(v => (v._1.toLong, v._2)) // (category page id, message)
 
         // Get the media file categorylinks ready for joining with the category graph.
@@ -277,41 +293,37 @@ object CommonsCategoryGraphBuilder {
                 mediaFileId, // Key by media file id to group by media file.
                 Message(
                     // Calculate the media file properties from the parent category.
-                    Set(categoryId),
-                    categoryInfo.primaryCategories,
-                    categoryInfo.ancestorCategories + categoryId,
-                    Some(categoryInfo.distanceToPrimary.get + 1),
+                    parentCategories = Set(categoryId),
+                    primaryCategories = categoryInfo.primaryCategories.map{case (k, v) =>
+                        k -> PrimaryCategoryInfo(
+                            distanceToPrimary = v.distanceToPrimary + 1,
+                            ancestorCategories = v.ancestorCategories + categoryId,
+                        )
+                    },
                 )
             )}
             .groupByKey()
             .map{case (pageId: Long, categoryInfo: Iterable[Message]) =>
-                // Merge the information of all of the media file's paren categories.
-                val mergedMessage = categoryInfo.fold(defaultMessage)((acc, m) => Message(
-                    parentCategories = acc.parentCategories ++ m.parentCategories,
-                    primaryCategories = acc.primaryCategories ++ m.primaryCategories,
-                    ancestorCategories = acc.ancestorCategories ++ m.ancestorCategories,
-                    distanceToPrimary = if (acc.distanceToPrimary.isDefined)
-                        Some(min(acc.distanceToPrimary.get, m.distanceToPrimary.get))
-                    else m.distanceToPrimary,
-                ))
+                // Merge the information of all of the media file's parent categories.
+                val mergedMessage = categoryInfo.fold(defaultMessage)((acc, m) => acc.combine(m))
                 // Transform the result into an output record.
                 OutputRecord(
                     page_id = pageId,
                     page_type = "file",
                     parent_categories = mergedMessage.parentCategories.toList,
-                    primary_categories = mergedMessage.primaryCategories.toList,
-                    ancestor_categories = mergedMessage.ancestorCategories.toList,
+                    primary_categories = mergedMessage.primaryCategories.keys.toList,
+                    ancestor_categories = mergedMessage.combinedAncestorCategories.toList,
                 )
             }
 
         // Final transformations and write the results.
         categoryGraphRdd
-            .map{ case (pageId: Long, message: Message) => OutputRecord(
+            .map{case (pageId: Long, message: Message) => OutputRecord(
                 page_id = pageId,
                 page_type = "subcat",
                 parent_categories = message.parentCategories.toList,
-                primary_categories = message.primaryCategories.toList,
-                ancestor_categories = message.ancestorCategories.toList,
+                primary_categories = message.primaryCategories.keys.toList,
+                ancestor_categories = message.combinedAncestorCategories.toList,
             )}
             .union(decoratedMediaFilesRdd)
             .toDF
