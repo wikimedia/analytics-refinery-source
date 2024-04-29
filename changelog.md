@@ -1,3 +1,11 @@
+## v0.2.37
+* Correctly apply distanceToPrimary in CommonsCategoryGraphBuilder
+* Move version configuration of dependencies to main pom
+* Sort the dependencyManagement section according to sortPom
+* Remove duplication from parent pom
+* Start using wmf-jvm-parent-pom
+* Sort pom.xml according to standard sortpom order
+
 ## v0.2.36
 * Add CommonsCategoryGraphBuilder for Commons Impact Metrics
 
