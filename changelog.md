@@ -1,3 +1,6 @@
+## v0.2.38
+* Modify ClickStreamBuilder pipeline to cope with pagelinks schema changes https://phabricator.wikimedia.org/T355588
+
 ## v0.2.37
 * Correctly apply distanceToPrimary in CommonsCategoryGraphBuilder
 * Move version configuration of dependencies to main pom
