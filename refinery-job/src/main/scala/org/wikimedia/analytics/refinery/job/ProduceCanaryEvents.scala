@@ -16,8 +16,6 @@ import org.wikimedia.eventutilities.core.util.ResourceLoader
 import org.wikimedia.eventutilities.monitoring.CanaryEventProducer
 import org.wikimedia.utils.http.CustomRoutePlanner
 
-import scala.annotation.tailrec
-
 object ProduceCanaryEvents extends LogHelper with ConfigHelper {
     val httpClientTimeoutInSeconds: Int = 10
 
@@ -140,11 +138,6 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
             sys.exit(0)
         }
 
-        // If log4j is not configured with any appenders,
-        // add a ConsoleAppender so logs are printed to the console.
-        if (!log.getAllAppenders.hasMoreElements) {
-            addConsoleLogAppender()
-        }
         val config = Config(args)
 
         val result = apply(config)
@@ -223,11 +216,7 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
                 throw new IllegalArgumentException(s"No event stream match the provided stream_name ${config.stream_name}.")
             } else {
                 val canaryEventProducer = new CanaryEventProducer(eventStreamFactory, httpClient)
-
-                // Since we often receive 500 from eventgates, let's mitigate the false alerts with some retries.
-                retry(3, "Retrying produceCanaryEvents"){
-                    produceCanaryEvents(canaryEventProducer, targetEventStream, config.timestamp, config.dry_run)
-                }
+                produceCanaryEvents(canaryEventProducer, targetEventStream, config.timestamp, config.dry_run)
             }
         )
     }
@@ -240,7 +229,7 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
         eventStream: EventStream,
         timestamp: DateTime,
         dryRun: Boolean = false
-    ): Boolean = {
+    ): Unit = {
         // Map of event service URI -> List of canary events to produce to that event service.
         val uriToCanaryEvents = canaryEventProducer.getCanaryEventsToPostForStreams(Seq(eventStream).asJava, timestamp)
 
@@ -263,33 +252,15 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
 
             val failures = results.filter({ case (_, httpResult) => !httpResult.getSuccess})
             if (failures.isEmpty) {
-                log.info("All canary events successfully produced.");
+                log.info("All canary events successfully produced.")
             } else {
-                val failuresDescription = failures.map({
+                val failuresDescription = "Some canary events failed to be produced:\n" + failures.map({
                     case (uri, httpResult) =>
                         s"POST $uri => $httpResult. Response body:\n  ${httpResult.getBodyAsString}"
                 }).mkString("\n\n")
-                log.error("Some canary events failed to be produced:\n" + failuresDescription);
+                log.error(failuresDescription)
+                throw new IllegalStateException(failuresDescription)
             }
-
-            failures.isEmpty
-        } else {
-            true
-        }
-
-    }
-
-    @tailrec
-    private def retry[T](n: Int, msg: String)(fn: => T): T = {
-        try {
-            fn
-        } catch {
-            case e: Throwable =>
-                log.info(msg)
-                Thread.sleep(5000)  // 5 seconds
-                if (n > 1) retry(n - 1, msg)(fn)
-                else throw e
         }
     }
-
 }
