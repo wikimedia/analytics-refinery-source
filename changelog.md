@@ -1,3 +1,6 @@
+## v0.2.39
+* Update a ProduceCanaryEvents job
+
 ## v0.2.38
 * Modify ClickStreamBuilder pipeline to cope with pagelinks schema changes https://phabricator.wikimedia.org/T355588
 
