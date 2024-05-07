@@ -259,7 +259,7 @@ object ProduceCanaryEvents extends LogHelper with ConfigHelper {
                         s"POST $uri => $httpResult. Response body:\n  ${httpResult.getBodyAsString}"
                 }).mkString("\n\n")
                 log.error(failuresDescription)
-                throw new IllegalStateException(failuresDescription)
+                throw new RuntimeException(failuresDescription)
             }
         }
     }
