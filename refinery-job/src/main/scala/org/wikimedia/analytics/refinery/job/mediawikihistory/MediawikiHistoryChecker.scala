@@ -65,7 +65,7 @@ object MediawikiHistoryChecker {
     */
   case class Params(mediawikiHistoryBasePath: String = "hdfs://analytics-hadoop/wmf/data/wmf/mediawiki",
                     previousSnapshot: String = "",  // Mandatory parameter, will be overwritten
-                    newSnapshot: String = "",       // Mandatory parameter, will be overwritten
+                    newSnapshot: String = "",
                     wikisToCheck: Int = 50,                      // Number of wikis to check
                     numPartitions: Int = 1024,                   // Number of partitions to use
                     minEventsGrowthThreshold: Double = -0.01d,   // Set to -1% by default

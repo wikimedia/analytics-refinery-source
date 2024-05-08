@@ -1,9 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
-import org.apache.log4j.Logger
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-
+import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
   * Class checking a mediawiki-user-history snapshot versus a previously generated one (expected correct).
@@ -18,17 +18,14 @@ class UserHistoryChecker(
   val minEventsGrowthThreshold: Double,
   val maxEventsGrowthThreshold: Double,
   val wrongRowsRatioThreshold: Double
-) extends Serializable {
-
-  @transient
-  lazy val log: Logger = Logger.getLogger(this.getClass)
+) extends LogHelper with Serializable with DeequColumnAnalysis {
 
   /**
-   * Path instanciation at creation
+   * Path instantiation at creation
    */
   val outputPath = s"$mediawikiHistoryBasePath/history_check_errors/snapshot=$newSnapshot"
-  val previousUserHistoryPath = s"$mediawikiHistoryBasePath/user_history/snapshot=$previousSnapshot"
-  val newUserHistoryPath = s"$mediawikiHistoryBasePath/user_history/snapshot=$newSnapshot"
+  private val previousUserHistoryPath = s"$mediawikiHistoryBasePath/user_history/snapshot=$previousSnapshot"
+  private val newUserHistoryPath = s"$mediawikiHistoryBasePath/user_history/snapshot=$newSnapshot"
 
   /**
    * User metrics for a snapshot (works for both previous and new)
@@ -142,6 +139,29 @@ class UserHistoryChecker(
       """.stripMargin).cache()
   }
 
+  /**
+   *
+   * @param userMetricsGrowth
+   * @return User growth error ratio
+   */
+  def getUserGrowthErrorsRatio(userMetricsGrowth: DataFrame):Double = {
+    val compliancePredicate:String =
+      s"""growths['growth_count_user_event'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_user_event'] > $maxEventsGrowthThreshold
+         |OR growths['growth_distinct_user_id'] < $minEventsGrowthThreshold
+         |OR growths['growth_distinct_user_id'] > $maxEventsGrowthThreshold
+         |OR growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
+         |OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
+         |OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
+         |OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
+         |OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold""".stripMargin.replaceAll("\n", " ")
+
+    columnComplianceAnalysis(userMetricsGrowth, compliancePredicate, "Check User ErrorRatio metric")
+  }
+
   def checkUserHistory(): Unit = {
 
     val previousUserHistory = spark.read.parquet(previousUserHistoryPath)
@@ -157,17 +177,14 @@ class UserHistoryChecker(
       newUserMetrics.where(col("wiki_db").isin(wikisToCheck:_*))
     )
 
-    val userMetricsGrowthErrors = getUserMetricsGrowthErrors(userMetricsGrowth)
-
-    val nbMetricsGrowthRows = userMetricsGrowth.count()
-    val nbMetricsGrowthErrors = userMetricsGrowthErrors.count()
-    val errorRowsRatio = nbMetricsGrowthErrors / nbMetricsGrowthRows.toDouble
-    log.info(s"UserMetricsGrowthErrors ratio: ($nbMetricsGrowthErrors / $nbMetricsGrowthRows) = $errorRowsRatio")
-
+    val errorRowsRatio = getUserGrowthErrorsRatio(userMetricsGrowth)
+    log.info(s"UserMetricsGrowthErrors ratio: $errorRowsRatio")
 
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"UserMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+      // TODO: Write user metrics growth errors to Error path using RowLevelSchemaValidator
+      val userMetricsGrowthErrors = getUserMetricsGrowthErrors(userMetricsGrowth)
       userMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }
 

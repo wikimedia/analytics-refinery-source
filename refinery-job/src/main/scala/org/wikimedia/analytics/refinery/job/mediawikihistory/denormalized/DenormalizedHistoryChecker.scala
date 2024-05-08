@@ -1,8 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 
-import org.apache.log4j.Logger
+import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 
 /**
@@ -18,17 +19,14 @@ class DenormalizedHistoryChecker(
   val minEventsGrowthThreshold: Double,
   val maxEventsGrowthThreshold: Double,
   val wrongRowsRatioThreshold: Double
-) extends Serializable {
-
-  @transient
-  lazy val log: Logger = Logger.getLogger(this.getClass)
+) extends LogHelper with Serializable with DeequColumnAnalysis {
 
   /**
-   * Path instanciation at creation
+   * Path instantiation at creation
    */
   val outputPath = s"$mediawikiHistoryBasePath/history_check_errors/snapshot=$newSnapshot"
-  val previousDenormHistoryPath = s"$mediawikiHistoryBasePath/history/snapshot=$previousSnapshot"
-  val newDenormHistoryPath = s"$mediawikiHistoryBasePath/history/snapshot=$newSnapshot"
+  private val previousDenormHistoryPath = s"$mediawikiHistoryBasePath/history/snapshot=$previousSnapshot"
+  private val newDenormHistoryPath = s"$mediawikiHistoryBasePath/history/snapshot=$newSnapshot"
 
   /**
    * Denormalized metrics for a snapshot (works for both previous and new)
@@ -217,6 +215,42 @@ class DenormalizedHistoryChecker(
       """.stripMargin).cache()
   }
 
+  /**
+   *
+   * @param denormMetricsGrowth
+   * @return Denormalized History growth error ratio
+   */
+  def getDenormGrowthErrorsRatio(denormMetricsGrowth: DataFrame): Double = {
+    val compliancePredicate: String =
+      s"""growths['growth_count_denorm_event'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_denorm_event'] > $maxEventsGrowthThreshold
+         |OR (event_entity = 'user' AND
+         |    (growths['growth_distinct_user_id'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_user_id'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold))
+         |OR (event_entity = 'page' AND
+         |    (growths['growth_distinct_page_id'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_id'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
+         |    OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
+         |    OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
+         |    OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold))
+         |OR (event_entity = 'revision' AND
+         |    (growths['growth_count_revision_deleted'] < $minEventsGrowthThreshold
+         |    OR growths['growth_count_revision_deleted'] > $maxEventsGrowthThreshold))""".stripMargin.replaceAll("\n", " ")
+
+    columnComplianceAnalysis(denormMetricsGrowth, compliancePredicate, "Check Denorm ErrorRatio Metric")
+  }
+
   def checkDenormHistory(): Unit = {
     val previousDenormHistory = spark.read.parquet(previousDenormHistoryPath)
     val newDenormHistory = spark.read.parquet(newDenormHistoryPath)
@@ -231,17 +265,15 @@ class DenormalizedHistoryChecker(
       newDenormMetrics.where(col("wiki_db").isin(wikisToCheck:_*))
     )
 
-    val denormMetricsGrowthErrors = getDenormMetricsGrowthErrors(denormMetricsGrowth)
+    val errorRowsRatio = getDenormGrowthErrorsRatio(denormMetricsGrowth)
 
-    val nbMetricsGrowthRows = denormMetricsGrowth.count()
-    val nbMetricsGrowthErrors = denormMetricsGrowthErrors.count()
-    val errorRowsRatio = nbMetricsGrowthErrors / nbMetricsGrowthRows.toDouble
-
-    log.info(s"DenormMetricsGrowthErrors ratio: ($nbMetricsGrowthErrors / $nbMetricsGrowthRows) = $errorRowsRatio")
+    log.info(s"DenormMetricsGrowthErrors ratio: $errorRowsRatio")
 
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"DenormMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+      // TODO: Write denormalized history metrics growth errors to Error path using RowLevelSchemaValidator
+      val denormMetricsGrowthErrors = getDenormMetricsGrowthErrors(denormMetricsGrowth)
       denormMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }
 

@@ -1,8 +1,9 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
-import org.apache.log4j.Logger
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
+import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
+import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
  * Class checking a mediawiki-page-history snapshot versus a previously generated one (expected correct).
@@ -17,17 +18,14 @@ class PageHistoryChecker(
   val minEventsGrowthThreshold: Double,
   val maxEventsGrowthThreshold: Double,
   val wrongRowsRatioThreshold: Double
-) extends Serializable {
-
-  @transient
-  lazy val log: Logger = Logger.getLogger(this.getClass)
+) extends LogHelper with Serializable with DeequColumnAnalysis {
 
   /**
-   * Path instanciation at creation
+   * Path instantiation at creation
    */
   val outputPath = s"$mediawikiHistoryBasePath/history_check_errors/snapshot=$newSnapshot"
-  val previousPageHistoryPath = s"$mediawikiHistoryBasePath/page_history/snapshot=$previousSnapshot"
-  val newPageHistoryPath = s"$mediawikiHistoryBasePath/page_history/snapshot=$newSnapshot"
+  private val previousPageHistoryPath = s"$mediawikiHistoryBasePath/page_history/snapshot=$previousSnapshot"
+  private val newPageHistoryPath = s"$mediawikiHistoryBasePath/page_history/snapshot=$newSnapshot"
 
   /**
    * Page metrics for a snapshot (works for both previous and new)
@@ -147,6 +145,29 @@ class PageHistoryChecker(
       """.stripMargin).cache()
   }
 
+  /**
+   *
+   * @param pageMetricsGrowth
+   * @return Page History growth error ratio
+   */
+  def getPageGrowthErrorsRatio(pageMetricsGrowth: DataFrame): Double = {
+    val compliancePredicate: String =
+      s"""
+        |growths['growth_count_page_event'] < $minEventsGrowthThreshold
+        |OR growths['growth_count_page_event'] > $maxEventsGrowthThreshold
+        |OR growths['growth_distinct_all_page_id'] < $minEventsGrowthThreshold
+        |OR growths['growth_distinct_all_page_id'] > $maxEventsGrowthThreshold
+        |OR growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
+        |OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
+        |OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
+        |OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
+        |OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
+        |OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold
+        |""".stripMargin.replaceAll("\n", " ")
+
+    columnComplianceAnalysis(pageMetricsGrowth, compliancePredicate, "Check Page ErrorRatio Metric")
+  }
+
   def checkPageHistory(): Unit = {
     val previousPageHistory = spark.read.parquet(previousPageHistoryPath)
     val newPageHistory = spark.read.parquet(newPageHistoryPath)
@@ -161,18 +182,16 @@ class PageHistoryChecker(
       newPageMetrics.where(col("wiki_db").isin(wikisToCheck:_*))
     )
 
-    val pageMetricsGrowthErrors = getPageMetricsGrowthErrors(pageMetricsGrowth)
     //val pageFalsePositives = getPageFalsePositives(pageMetricsGrowth)
 
-    val nbMetricsGrowthRows = pageMetricsGrowth.count()
-    val nbMetricsGrowthErrors = pageMetricsGrowthErrors.count()
-    val errorRowsRatio = nbMetricsGrowthErrors / nbMetricsGrowthRows.toDouble
-
-    log.info(s"PageMetricsGrowthErrors ratio: ($nbMetricsGrowthErrors / $nbMetricsGrowthRows) = $errorRowsRatio")
+    val errorRowsRatio = getPageGrowthErrorsRatio(pageMetricsGrowth)
+    log.info(s"PageMetricsGrowthErrors ratio: $errorRowsRatio")
 
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"PageMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+      // TODO: Write page metrics growth errors to Error path using RowLevelSchemaValidator
+      val pageMetricsGrowthErrors = getPageMetricsGrowthErrors(pageMetricsGrowth)
       pageMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }
 
