@@ -2,13 +2,17 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import com.amazon.deequ.analyzers.Compliance
 import com.amazon.deequ.analyzers.runners.AnalysisRunner
+import com.amazon.deequ.metrics.Metric
 import org.apache.spark.sql.DataFrame
+import org.wikimedia.analytics.refinery.tools.LogHelper
+
+import scala.util.{Failure, Success}
 
 /**
  * trait defining a methods for performing
  * analysis on the column of a dataframe
  */
-trait DeequColumnAnalysis {
+trait DeequColumnAnalysis extends LogHelper{
 
     /**
      *
@@ -39,12 +43,17 @@ trait DeequColumnAnalysis {
           .addAnalyzer(compliance)
           .run()
 
-        // flatten to get metric as Double
-        userErrorAnalysisResult
+        // asInstanceOf is use to cast the metric value
+        // to double since compliance analyzer will always return double value.
+        val metric = userErrorAnalysisResult
           .metricMap(compliance)
-          .flatten()
-          .map(_.value.get)
-          .head
+          .asInstanceOf[Metric[Double]]
+          .value
+
+        metric match {
+            case Failure(exception) => throw exception
+            case Success(metric) => metric
+        }
     }
 
 }
