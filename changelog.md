@@ -1,5 +1,8 @@
+## v0.2.40
+* Upgrade MediawikiHistory Checker to use AWS Deequ
+
 ## v0.2.39
-* Update a ProduceCanaryEvents job
+* Update the ProduceCanaryEvents job
 
 ## v0.2.38
 * Modify ClickStreamBuilder pipeline to cope with pagelinks schema changes https://phabricator.wikimedia.org/T355588
