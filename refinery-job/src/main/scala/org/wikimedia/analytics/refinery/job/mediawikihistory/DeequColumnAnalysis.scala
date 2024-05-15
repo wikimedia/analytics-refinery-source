@@ -2,11 +2,11 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory
 
 import com.amazon.deequ.analyzers.Compliance
 import com.amazon.deequ.analyzers.runners.AnalysisRunner
-import com.amazon.deequ.metrics.Metric
+import com.amazon.deequ.metrics.DoubleMetric
 import org.apache.spark.sql.DataFrame
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 /**
  * trait defining a methods for performing
@@ -43,17 +43,24 @@ trait DeequColumnAnalysis extends LogHelper{
           .addAnalyzer(compliance)
           .run()
 
-        // asInstanceOf is use to cast the metric value
-        // to double since compliance analyzer will always return double value.
-        val metric = userErrorAnalysisResult
-          .metricMap(compliance)
-          .asInstanceOf[Metric[Double]]
-          .value
+        // Deequ is a bit loose with types.
+        // userErrorAnalysisResult.metric(compliance) returns an instance of Metric[_],
+        // which in case of Compliance analyzers is expected to be a DoubleMetric.
+        // collect() the metric and type check to guard against runtime errors.
+        // The nested Try[Try[Double]] is a bit verbose, so we flatten it to simplify
+        // pattern matching
+        val metric: Try[Double] = Try {
+            userErrorAnalysisResult
+              .metric(compliance)
+              .collect {
+                  case doubleMetric: DoubleMetric => doubleMetric.value // Not exhaustive, but we only support DoubleMetric instances.
+              }
+              .getOrElse(throw new NoSuchElementException("Metric not found or not a DoubleMetric for Compliance analyzer"))
+        }.flatten
 
         metric match {
-            case Failure(exception) => throw exception
-            case Success(metric) => metric
+            case Success(value) => value
+            case Failure(err) => throw new RuntimeException(s"Error occurred while fetching metric: ${err.getMessage}", err)
         }
     }
-
 }
