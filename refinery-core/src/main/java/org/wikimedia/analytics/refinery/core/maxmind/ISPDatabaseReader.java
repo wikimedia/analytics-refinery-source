@@ -17,7 +17,6 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
 import com.maxmind.geoip2.exception.GeoIp2Exception;
-import com.maxmind.geoip2.model.IspResponse;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.IpUtil;
 
@@ -83,17 +82,11 @@ public class ISPDatabaseReader extends AbstractDatabaseReader {
             if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET)
                 return UNKNOWN_ISP_DATABASE_RESPONSE;
 
-            IspResponse response = reader.isp(ipAddress);
-
-            return new RefineryISPDatabaseResponse(
-                    response.getIsp(),
-                    response.getOrganization(),
-                    response.getAutonomousSystemOrganization(),
-                    response.getAutonomousSystemNumber()
-            );
+            return RefineryISPDatabaseResponse.from(reader.isp(ipAddress));
         } catch (IOException | GeoIp2Exception ex) {
             LOG.warn(ex);
             return UNKNOWN_ISP_DATABASE_RESPONSE;
         }
     }
+
 }

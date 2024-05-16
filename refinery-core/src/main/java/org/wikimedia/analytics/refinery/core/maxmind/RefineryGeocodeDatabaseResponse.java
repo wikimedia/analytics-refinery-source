@@ -107,7 +107,9 @@ public class RefineryGeocodeDatabaseResponse {
     }
 
     @Nonnull
-    public static RefineryGeocodeDatabaseResponse from(@Nonnull CityResponse response) {
+    public static RefineryGeocodeDatabaseResponse from(@Nullable CityResponse response) {
+        if (response == null) return UNKNOWN_GEOCODE;
+
         // direct properties of CityResponse are known to be non null, no need to check for nullity
         Iterator<Subdivision> iterator = response.getSubdivisions().iterator();
         Subdivision subdivision = iterator.hasNext() ? iterator.next() : null;

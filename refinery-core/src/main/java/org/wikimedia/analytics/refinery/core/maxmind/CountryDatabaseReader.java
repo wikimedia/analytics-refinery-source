@@ -17,8 +17,6 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
 import com.maxmind.geoip2.exception.GeoIp2Exception;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.record.Country;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.IpUtil;
 
@@ -81,10 +79,7 @@ public class CountryDatabaseReader extends AbstractDatabaseReader {
 
         try {
             InetAddress ipAddress = InetAddress.getByName(ip);
-            CountryResponse response = reader.country(ipAddress);
-            Country country = response.getCountry();
-
-            return new RefineryCountryDatabaseResponse(country.getIsoCode(), country.getName());
+            return RefineryCountryDatabaseResponse.from(reader.country(ipAddress));
         }  catch (IOException |GeoIp2Exception ex) {
             LOG.warn(ex);
             return RefineryCountryDatabaseResponse.UNKNOWN_COUNTRY;

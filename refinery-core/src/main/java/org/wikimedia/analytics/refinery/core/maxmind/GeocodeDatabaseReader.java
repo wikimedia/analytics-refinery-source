@@ -17,14 +17,11 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
 import com.maxmind.geoip2.exception.GeoIp2Exception;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.record.*;
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.IpUtil;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.List;
 
 import static org.wikimedia.analytics.refinery.core.maxmind.RefineryGeocodeDatabaseResponse.UNKNOWN_GEOCODE;
 
@@ -85,8 +82,7 @@ public class GeocodeDatabaseReader extends AbstractDatabaseReader {
 
         try {
             InetAddress ipAddress = InetAddress.getByName(ip);
-            CityResponse cityResponse = reader.city(ipAddress);
-            return  RefineryGeocodeDatabaseResponse.from(cityResponse);
+            return  RefineryGeocodeDatabaseResponse.from(reader.city(ipAddress));
         } catch (IOException | GeoIp2Exception ex) {
             // Suppress useless messages about 127.0.0.1 not found in database.
             if (!ex.getMessage().contains("The address 127.0.0.1 is not in the database.")) {

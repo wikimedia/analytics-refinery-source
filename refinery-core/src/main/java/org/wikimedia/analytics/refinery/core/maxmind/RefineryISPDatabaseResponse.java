@@ -1,9 +1,13 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import javax.annotation.Nonnull;
-import javax.annotation.concurrent.Immutable;
+import com.maxmind.geoip2.model.IspResponse;
+
 import java.util.HashMap;
 import java.util.Map;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import static com.google.common.base.Objects.firstNonNull;
 import static java.util.Collections.unmodifiableMap;
@@ -37,6 +41,18 @@ public class RefineryISPDatabaseResponse {
         this.organization = firstNonNull(organization, UNKNOWN_VALUE);
         this.autonomousSystemOrg = firstNonNull(autonomousSystemOrg, UNKNOWN_VALUE);
         this.autonomousSystemNumber = firstNonNull(autonomousSystemNumber, UNKNOWN_AUTONOMOUS_SYSTEM_NUMBER);
+    }
+
+    @Nonnull
+    public static RefineryISPDatabaseResponse from(@Nullable IspResponse response) {
+        if (response == null) return UNKNOWN_ISP_DATABASE_RESPONSE;
+
+        return new RefineryISPDatabaseResponse(
+                response.getIsp(),
+                response.getOrganization(),
+                response.getAutonomousSystemOrganization(),
+                response.getAutonomousSystemNumber()
+        );
     }
 
     public String getIsp(){

@@ -1,6 +1,13 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+
+import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.record.Country;
+
+import static com.google.common.base.Objects.firstNonNull;
 
 /**
  * MaxMind's GeoIP2-Country information that we query for given an IP
@@ -20,11 +27,8 @@ public class RefineryCountryDatabaseResponse {
     private final String countryName;
 
     public RefineryCountryDatabaseResponse(String countryCode, String countryName) {
-        if (countryCode == null) this.countryCode = UNKNOWN_COUNTRY_CODE;
-        else this.countryCode = countryCode;
-
-        if (countryName == null) this.countryName = UNKNOWN_VALUE;
-        else this.countryName = countryName;
+        this.countryCode = firstNonNull(countryCode, UNKNOWN_COUNTRY_CODE);
+        this.countryName = firstNonNull(countryName, UNKNOWN_VALUE);
     }
 
     public String getCountryName(){
@@ -33,6 +37,14 @@ public class RefineryCountryDatabaseResponse {
 
     public String getCountryCode(){
         return countryCode;
+    }
+
+    @Nonnull
+    public static RefineryCountryDatabaseResponse from(@Nullable CountryResponse response) {
+        if (response == null) return UNKNOWN_COUNTRY;
+
+        Country country = response.getCountry();
+        return new RefineryCountryDatabaseResponse(country.getIsoCode(), country.getName());
     }
 
 }
