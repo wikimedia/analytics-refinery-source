@@ -23,21 +23,24 @@ public class RefineryGeocodeDatabaseResponse {
     public static final String COUNTRY_CODE = "country_code";
     public static final String COUNTRY = "country";
     public static final String SUBDIVISION = "subdivision";
+    public static final String SUBDIVISION_CODE = "subdivision_code";
     public static final String CITY = "city";
     public static final String TIMEZONE = "timezone";
 
 
     private static final String UNKNOWN_VALUE = "Unknown";
 
-    private static final String UNKNOWN_COUNTRY_CODE = "--";
+    private static final String UNKNOWN_COUNTRY_OR_SUBDIVISION_CODE = "--";
 
     public static final RefineryGeocodeDatabaseResponse UNKNOWN_GEOCODE = new RefineryGeocodeDatabaseResponse(
-            UNKNOWN_VALUE, UNKNOWN_COUNTRY_CODE, UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE, UNKNOWN_VALUE);
+            UNKNOWN_VALUE, UNKNOWN_COUNTRY_OR_SUBDIVISION_CODE, UNKNOWN_VALUE, UNKNOWN_VALUE,
+            UNKNOWN_COUNTRY_OR_SUBDIVISION_CODE, UNKNOWN_VALUE, UNKNOWN_VALUE);
 
     @Nonnull private final String continent;
     @Nonnull private final String countryISOCode;
     @Nonnull private final String country;
     @Nonnull private final String subdivision;
+    @Nonnull private final String subdivisionISOCode;
     @Nonnull private final String city;
     @Nonnull private final String timezone;
 
@@ -46,12 +49,14 @@ public class RefineryGeocodeDatabaseResponse {
             @Nullable String countryISOCode,
             @Nullable String country,
             @Nullable String subdivision,
+            @Nullable String subdivisionISOCode,
             @Nullable String city,
             @Nullable String timezone) {
         this.continent = firstNonNull(continent, UNKNOWN_VALUE);
-        this.countryISOCode = firstNonNull(countryISOCode, UNKNOWN_COUNTRY_CODE);
+        this.countryISOCode = firstNonNull(countryISOCode, UNKNOWN_COUNTRY_OR_SUBDIVISION_CODE);
         this.country = firstNonNull(country, UNKNOWN_VALUE);
         this.subdivision = firstNonNull(subdivision, UNKNOWN_VALUE);
+        this.subdivisionISOCode = firstNonNull(subdivisionISOCode, UNKNOWN_COUNTRY_OR_SUBDIVISION_CODE);
         this.city = firstNonNull(city, UNKNOWN_VALUE);
         this.timezone = firstNonNull(timezone, UNKNOWN_VALUE);
     }
@@ -72,6 +77,10 @@ public class RefineryGeocodeDatabaseResponse {
         return subdivision;
     }
 
+    public String getSubdivisionISOCode(){
+        return subdivisionISOCode;
+    }
+
     public String getCity(){
         return city;
     }
@@ -90,6 +99,7 @@ public class RefineryGeocodeDatabaseResponse {
         defaultGeoData.put(COUNTRY_CODE, this.countryISOCode);
         defaultGeoData.put(COUNTRY, this.country);
         defaultGeoData.put(SUBDIVISION, this.subdivision);
+        defaultGeoData.put(SUBDIVISION_CODE, this.subdivisionISOCode);
         defaultGeoData.put(CITY, this.city);
         defaultGeoData.put(TIMEZONE, this.timezone);
 
@@ -100,13 +110,14 @@ public class RefineryGeocodeDatabaseResponse {
     public static RefineryGeocodeDatabaseResponse from(@Nonnull CityResponse response) {
         // direct properties of CityResponse are known to be non null, no need to check for nullity
         Iterator<Subdivision> iterator = response.getSubdivisions().iterator();
-        String subdivision = iterator.hasNext() ? iterator.next().getName() : null;
+        Subdivision subdivision = iterator.hasNext() ? iterator.next() : null;
 
         return new RefineryGeocodeDatabaseResponse(
                 response.getContinent().getName(),
                 response.getCountry().getIsoCode(),
                 response.getCountry().getName(),
-                subdivision,
+                (subdivision != null) ? subdivision.getName() : null,
+                (subdivision != null) ? subdivision.getIsoCode() : null,
                 response.getCity().getName(),
                 response.getLocation().getTimeZone()
         );
