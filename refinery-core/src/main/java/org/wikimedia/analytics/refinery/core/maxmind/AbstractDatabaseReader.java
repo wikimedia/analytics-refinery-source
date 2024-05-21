@@ -17,14 +17,15 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.db.NodeCache;
-import com.maxmind.geoip2.DatabaseReader;
-import org.apache.log4j.Logger;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
+
+import org.apache.log4j.Logger;
+
+import com.maxmind.db.NodeCache;
+import com.maxmind.geoip2.DatabaseReader;
 
 public abstract class AbstractDatabaseReader implements Serializable {
 
@@ -38,12 +39,9 @@ public abstract class AbstractDatabaseReader implements Serializable {
 
     protected transient DatabaseReader reader;
     protected String databasePath;
-    protected NodeCache cache;
+    protected transient NodeCache cache;
 
-    /**
-     * Method initializing the maxmind reader
-     * @throws IOException
-     */
+    /** Method initializing the maxmind reader. */
     public void initializeReader() throws IOException {
 
         String checkedDatabasePath = this.databasePath;
@@ -60,14 +58,11 @@ public abstract class AbstractDatabaseReader implements Serializable {
         this.reader = new DatabaseReader.Builder(new File(checkedDatabasePath)).withCache(cache).build();
     }
 
-    /**
-     * Provide the Serialize readObject method to enforce MaxmindReader initialization at deserialization
-     */
+    /** Provide the Serialize readObject method to enforce MaxmindReader initialization at deserialization. */
     private void readObject(ObjectInputStream aInputStream) throws ClassNotFoundException, IOException {
         // Use the default deserialize method
         aInputStream.defaultReadObject();
         // Initialize the reader as it is transient
         initializeReader();
     }
-
 }

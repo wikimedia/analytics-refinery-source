@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.geoip2.model.IspResponse;
+import static com.google.common.base.Objects.firstNonNull;
+import static java.util.Collections.unmodifiableMap;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -9,12 +10,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import static com.google.common.base.Objects.firstNonNull;
-import static java.util.Collections.unmodifiableMap;
+import com.maxmind.geoip2.model.IspResponse;
 
-/**
- * MaxMind's GeoIP2-ISP information that we query for given an IP
- */
+/** MaxMind's GeoIP2-ISP information that we query for given an IP. */
 @Immutable
 public class RefineryISPDatabaseResponse {
     // Constants to hold the keys to use in data map
@@ -55,26 +53,23 @@ public class RefineryISPDatabaseResponse {
         );
     }
 
-    public String getIsp(){
+    public String getIsp() {
         return isp;
     }
 
-    public String getOrganization(){
+    public String getOrganization() {
         return organization;
     }
 
-    public String getAutonomousSystemOrg(){
+    public String getAutonomousSystemOrg() {
         return autonomousSystemOrg;
     }
 
-    public int getAutonomousSystemNumber(){
+    public int getAutonomousSystemNumber() {
         return autonomousSystemNumber;
     }
 
-    /**
-     * Creates a new ISP map with default values for all fields
-     * @return Map the map of default ISP information (unknown)
-     */
+    /** Creates a new ISP map with default values for all fields. */
     public Map<String, String> getMap() {
         Map<String, String> defaultISPData = new HashMap<>();
         defaultISPData.put(ISP, this.isp);

@@ -16,18 +16,17 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.geoip2.exception.GeoIp2Exception;
-import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.IpUtil;
+import static org.wikimedia.analytics.refinery.core.maxmind.RefineryGeocodeDatabaseResponse.UNKNOWN_GEOCODE;
 
 import java.io.IOException;
 import java.net.InetAddress;
 
-import static org.wikimedia.analytics.refinery.core.maxmind.RefineryGeocodeDatabaseResponse.UNKNOWN_GEOCODE;
+import org.apache.log4j.Logger;
+import org.wikimedia.analytics.refinery.core.IpUtil;
 
-/**
- * Contains a function finding geo information of an IP address using MaxMind's GeoIP2-City
- */
+import com.maxmind.geoip2.exception.GeoIp2Exception;
+
+/** Contains a function finding geo information of an IP address using MaxMind's GeoIP2-City. */
 public class GeocodeDatabaseReader extends AbstractDatabaseReader {
 
     public static final String DEFAULT_DATABASE_CITY_PATH = "/usr/share/GeoIP/GeoIP2-City.mmdb";
@@ -35,7 +34,8 @@ public class GeocodeDatabaseReader extends AbstractDatabaseReader {
 
     private static final Logger LOG = Logger.getLogger(GeocodeDatabaseReader.class.getName());
 
-    private final static IpUtil ipUtil = new IpUtil();
+    // FIXME: this should be a singleton (small "s") and constructor injected
+    private static final IpUtil IP_UTIL = new IpUtil();
 
     public GeocodeDatabaseReader(String databasePath) throws IOException {
         this.databasePath = databasePath;
@@ -46,37 +46,30 @@ public class GeocodeDatabaseReader extends AbstractDatabaseReader {
         this(null);
     }
 
-    /**
-     * Method returning the default CITY database path property name (needed by superclass)
-     * @return the default CITY database path property name
-     */
+    /** Method returning the default CITY database path property name (needed by superclass). */
     public String getDefaultDatabasePathPropertyName() {
         return DEFAULT_DATABASE_CITY_PROP;
     }
 
-    /**
-     * Method returning the default CITY database path (needed by superclass)
-     * @return the default CITY database path
-     */
+    /** Method returning the default CITY database path (needed by superclass). */
     public String getDefaultDatabasePath() {
         return DEFAULT_DATABASE_CITY_PATH;
     }
 
-    /**
-     * Mean to provide the superclass access to the logger
-     */
+    /** Mean to provide the superclass access to the logger. */
     protected Logger getLogger() {
         return LOG;
     }
 
     /**
-     * Perform the geocoding
+     * Perform the geocoding.
+     *
      * @param ip the IP to geocode
      * @return the Geocode response object
      */
     public RefineryGeocodeDatabaseResponse getResponse(String ip) {
         // Only get geo-code data for non-internal IPs
-        if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
+        if (IP_UTIL.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
             return UNKNOWN_GEOCODE;
         }
 

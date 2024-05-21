@@ -16,18 +16,17 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.geoip2.exception.GeoIp2Exception;
-import org.apache.log4j.Logger;
-import org.wikimedia.analytics.refinery.core.IpUtil;
+import static org.wikimedia.analytics.refinery.core.maxmind.RefineryISPDatabaseResponse.UNKNOWN_ISP_DATABASE_RESPONSE;
 
 import java.io.IOException;
 import java.net.InetAddress;
 
-import static org.wikimedia.analytics.refinery.core.maxmind.RefineryISPDatabaseResponse.UNKNOWN_ISP_DATABASE_RESPONSE;
+import org.apache.log4j.Logger;
+import org.wikimedia.analytics.refinery.core.IpUtil;
 
-/**
- * Contains functions to find ISP information of an IP address using MaxMind's GeoIP2-ISP
- */
+import com.maxmind.geoip2.exception.GeoIp2Exception;
+
+/** Contains functions to find ISP information of an IP address using MaxMind's GeoIP2-ISP. */
 public class ISPDatabaseReader extends AbstractDatabaseReader {
 
     public static final String DEFAULT_DATABASE_ISP_PATH = "/usr/share/GeoIP/GeoIP2-ISP.mmdb";
@@ -35,7 +34,8 @@ public class ISPDatabaseReader extends AbstractDatabaseReader {
 
     private static final Logger LOG = Logger.getLogger(ISPDatabaseReader.class.getName());
 
-    private final IpUtil ipUtil = new IpUtil();
+    // FIXME: this should be a singleton (small "s") and constructor injected
+    private static final IpUtil IP_UTIL = new IpUtil();
 
     public ISPDatabaseReader(String databasePath) throws IOException {
         this.databasePath = databasePath;
@@ -46,31 +46,24 @@ public class ISPDatabaseReader extends AbstractDatabaseReader {
         this(null);
     }
 
-    /**
-     * Method returning the default ISP database path property name (needed by superclass)
-     * @return the default ISP database path property name
-     */
+    /** Method returning the default ISP database path property name (needed by superclass). */
     public String getDefaultDatabasePathPropertyName() {
         return DEFAULT_DATABASE_ISP_PROP;
     }
 
-    /**
-     * Method returning the default ISP database path (needed by superclass)
-     * @return the default ISP database path
-     */
+    /** Method returning the default ISP database path (needed by superclass). */
     public String getDefaultDatabasePath() {
         return DEFAULT_DATABASE_ISP_PATH;
     }
 
-    /**
-     * Mean to provide the superclass access to the logger
-     */
+    /** Mean to provide the superclass access to the logger. */
     protected Logger getLogger() {
         return LOG;
     }
 
      /**
-     * Perform the geocoding
+     * Perform the geocoding.
+      *
      * @param ip the IP to geocode
      * @return the Geocode response object
      */
@@ -79,7 +72,7 @@ public class ISPDatabaseReader extends AbstractDatabaseReader {
             InetAddress ipAddress = InetAddress.getByName(ip);
 
             // Only get ISP value for non-internal IPs
-            if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET)
+            if (IP_UTIL.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET)
                 return UNKNOWN_ISP_DATABASE_RESPONSE;
 
             return RefineryISPDatabaseResponse.from(reader.isp(ipAddress));

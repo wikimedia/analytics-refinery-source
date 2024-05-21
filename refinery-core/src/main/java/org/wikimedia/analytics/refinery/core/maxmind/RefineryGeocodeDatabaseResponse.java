@@ -1,20 +1,20 @@
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.google.common.base.Objects;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.record.*;
+import static com.google.common.base.Objects.firstNonNull;
+import static java.util.Collections.unmodifiableMap;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-import java.util.*;
 
-import static com.google.common.base.Objects.firstNonNull;
-import static java.util.Collections.unmodifiableMap;
+import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.record.Subdivision;
 
-/**
- * MaxMind's GeoIP2-City information that we query for given an IP
- */
+/** MaxMind's GeoIP2-City information that we query for given an IP. */
 @Immutable
 public class RefineryGeocodeDatabaseResponse {
 
@@ -61,39 +61,36 @@ public class RefineryGeocodeDatabaseResponse {
         this.timezone = firstNonNull(timezone, UNKNOWN_VALUE);
     }
 
-    public String getContinent(){
+    public String getContinent() {
         return continent;
     }
 
-    public String getIsoCode(){
+    public String getIsoCode() {
         return countryISOCode;
     }
 
-    public String getCountry(){
+    public String getCountry() {
         return country;
     }
 
-    public String getSubdivision(){
+    public String getSubdivision() {
         return subdivision;
     }
 
-    public String getSubdivisionISOCode(){
+    public String getSubdivisionISOCode() {
         return subdivisionISOCode;
     }
 
-    public String getCity(){
+    public String getCity() {
         return city;
     }
 
-    public String getTimezone(){
+    public String getTimezone() {
         return timezone;
     }
 
-    /**
-     * Converts POJO to a Map
-     * @return  Map
-     */
-    public Map<String, String> getMap(){
+    /** Converts POJO to a Map. */
+    public Map<String, String> getMap() {
         Map<String, String> defaultGeoData = new HashMap<>();
         defaultGeoData.put(CONTINENT, this.continent);
         defaultGeoData.put(COUNTRY_CODE, this.countryISOCode);

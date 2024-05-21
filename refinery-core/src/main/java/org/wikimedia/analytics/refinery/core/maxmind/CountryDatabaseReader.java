@@ -16,12 +16,13 @@
 
 package org.wikimedia.analytics.refinery.core.maxmind;
 
-import com.maxmind.geoip2.exception.GeoIp2Exception;
+import java.io.IOException;
+import java.net.InetAddress;
+
 import org.apache.log4j.Logger;
 import org.wikimedia.analytics.refinery.core.IpUtil;
 
-import java.io.IOException;
-import java.net.InetAddress;
+import com.maxmind.geoip2.exception.GeoIp2Exception;
 
 /*
 Contains functions to find country information of an IP address using MaxMind's GeoIP2-Country
@@ -31,7 +32,8 @@ public class CountryDatabaseReader extends AbstractDatabaseReader {
     public static final String DEFAULT_DATABASE_COUNTRY_PATH = "/usr/share/GeoIP/GeoIP2-Country.mmdb";
     public static final String DEFAULT_DATABASE_COUNTRY_PROP = "maxmind.database.country";
 
-    private final IpUtil ipUtil = new IpUtil();
+    // FIXME: this should be a singleton (small "s") and constructor injected
+    private static final IpUtil IP_UTIL = new IpUtil();
 
     private static final Logger LOG = Logger.getLogger(CountryDatabaseReader.class.getName());
 
@@ -45,23 +47,20 @@ public class CountryDatabaseReader extends AbstractDatabaseReader {
     }
 
     /**
-     * Method returning the default COUNTRY database path property name (needed by superclass)
+     * Method returning the default COUNTRY database path property name (needed by superclass).
+     *
      * @return the default COUNTRY database path property name
      */
     public String getDefaultDatabasePathPropertyName() {
         return DEFAULT_DATABASE_COUNTRY_PROP;
     }
 
-    /**
-      * Method returning the default COUNTRY database path (needed by superclass)
-      */
+    /** Method returning the default COUNTRY database path (needed by superclass). */
     public String getDefaultDatabasePath() {
         return DEFAULT_DATABASE_COUNTRY_PATH;
     }
 
-    /**
-      * Mean to provide the superclass access to the logger
-      */
+    /** Mean to provide the superclass access to the logger. */
     protected Logger getLogger() {
         return LOG;
     }
@@ -73,14 +72,14 @@ public class CountryDatabaseReader extends AbstractDatabaseReader {
       */
     public RefineryCountryDatabaseResponse getResponse(String ip) {
         // Only get country for non-internal IPs
-        if (ipUtil.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
-           return RefineryCountryDatabaseResponse.UNKNOWN_COUNTRY;
+        if (IP_UTIL.getNetworkOrigin(ip) != IpUtil.NetworkOrigin.INTERNET) {
+            return RefineryCountryDatabaseResponse.UNKNOWN_COUNTRY;
         }
 
         try {
             InetAddress ipAddress = InetAddress.getByName(ip);
             return RefineryCountryDatabaseResponse.from(reader.country(ipAddress));
-        }  catch (IOException |GeoIp2Exception ex) {
+        }  catch (IOException | GeoIp2Exception ex) {
             LOG.warn(ex);
             return RefineryCountryDatabaseResponse.UNKNOWN_COUNTRY;
         }

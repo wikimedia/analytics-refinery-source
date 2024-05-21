@@ -24,12 +24,12 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Cache;
 
 public class DatabaseReaderCache implements NodeCache {
-    private Cache<Integer, JsonNode> cache;
+    private final Cache<Integer, JsonNode> cache;
 
     /**
      * This initializer adds a Caffeine cache to the MaxMind DB reader.
-     * This cache is limited in size.
-     * [[https://github.com/ben-manes/caffeine]]
+     *
+     * This cache is limited in size. [[https://github.com/ben-manes/caffeine]]
      *
      * @param cacheSize The maximum number of item in the cache
      */
