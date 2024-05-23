@@ -127,16 +127,16 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     }
 
     /**
-     * Conversion configuration for a job.
-     * This class facilitates pre-configuring jobs
-     * in order to try to bundle them in a nice
-     * parallelizable way.
-     *
-     * @param xmlInputPath The path of the XML files to convert
-     * @param outputPath The path of the converted output file to write
-     * @param numberOutputPartitions The number of output files to write
-     * @param outputFormat The output format (should be json or parquet)
-     */
+      * Conversion configuration for a job.
+      * This class facilitates pre-configuring jobs
+      * in order to try to bundle them in a nice
+      * parallelizable way.
+      *
+      * @param xmlInputPath           The path of the XML files to convert
+      * @param outputPath             The path of the converted output file to write
+      * @param numberOutputPartitions The number of output files to write
+      * @param outputFormat           The output format (should be json or parquet)
+      */
     case class JobConfig(
         xmlInputPath: String,
         outputPath: String,
@@ -145,27 +145,51 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     )
 
     /**
-     * Builds a list of JobConfig objects, one for each directory contained in xmlInputBasePath
-     * and present in projectsToWork (if defined).
-     *
-     * The number of output partitions chosen for a project is the first power-of-2 number
-     * bigger than (input-size * 5 / hdfs-block-size). The factor 5 is an approximation of the
-     * bz2 compression ratio. The idea is to try get output files having roughly the size of
-     * one hdfs block.
-     *
-     * @param hadoopConfiguration The hadoop configuration to access HDFS
-     * @param xmlInputBasePath The path of the folders containing XML dumps (by-project folders)
-     * @param outputBasePath The path where to output per-project converted data
-     * @param projectsToWork The optional set of projects to work (should match folders names).
-     *                       Undefined option means all-projects
-     * @param outputFormat The output format for the conversion (should be json or parquet)
-     * @return The sequence of JobConfigs
-     */
+      * Function computing if a project should be process or not based on allow and disallow lists.
+      * 
+      * @param project The project to be processed (as in folder-name)
+      * @param allowList the projects to process (empty means process-all-projects)
+      * @param disallowList the project to NOT process (empty means no-disallowed-project)
+      * @return true if the project should be processed
+      */
+    def processProject(
+        project: String,
+        allowList: Set[String],
+        disallowList: Set[String]
+    ): Boolean = {
+        // Some projects are disallowed and this project is one of them
+        val isDisallowed = disallowList.nonEmpty && disallowList.contains(project)
+        // all project are allowed or this project is allowed
+        val isAllowed = allowList.isEmpty || allowList.contains(project)
+
+        !isDisallowed && isAllowed
+    }
+
+    /**
+      * Builds a list of JobConfig objects, one for each directory contained in xmlInputBasePath
+      * and present in projectsToWork (if defined).
+      *
+      * The number of output partitions chosen for a project is the first power-of-2 number
+      * bigger than (input-size * 5 / hdfs-block-size). The factor 5 is an approximation of the
+      * bz2 compression ratio. The idea is to try get output files having roughly the size of
+      * one hdfs block.
+      *
+      * @param hadoopConfiguration The hadoop configuration to access HDFS
+      * @param xmlInputBasePath    The path of the folders containing XML dumps (by-project folders)
+      * @param outputBasePath      The path where to output per-project converted data
+      * @param allowList           The set of projects to work (should match folders names).
+      *                            Empty means all-projects
+      * @param disallowList        The set of projects NOT to work (should match folders names).
+      *                            Empty means no disallowed projects
+      * @param outputFormat        The output format for the conversion (should be json or parquet)
+      * @return The sequence of JobConfigs
+      */
     def makeJobConfigs(
         hadoopConfiguration: Configuration,
         xmlInputBasePath: String,
         outputBasePath: String,
-        projectsToWork: Option[Set[String]],
+        allowList: Set[String],
+        disallowList: Set[String],
         outputFormat: String
     ): Seq[JobConfig] = {
 
@@ -181,7 +205,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             // make a JobConfig
             inputSubfolders.flatMap(dumpDirHadoopFileStatus => {
                 val dumpDirHadoopPath = dumpDirHadoopFileStatus.getPath
-                if (projectsToWork.isEmpty || projectsToWork.get.contains(dumpDirHadoopPath.getName)) {
+                if (processProject(dumpDirHadoopPath.getName, allowList, disallowList)) {
                     val dumpFilesHadoopPaths = hdfs.listStatus(dumpDirHadoopPath).toList
                     val dumpTotalSize = dumpFilesHadoopPaths.map(_.getLen).sum
 
@@ -200,18 +224,18 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     }
 
     /**
-     * Heuristic function grouping JobConfigs so that the number of partitions to work
-     * in parallel doesn't exceed maxParallelJobs.
-     *
-     * To do so it builds a Sequence of JobConfigs to run in parallel (Sequence of JobConfigs).
-     * For every new JobConfig in the list, make it single if its size is bigger than maxParallelJobs,
-     * or try to associate it to one of the already bundled jobs, so that the sum of their output
-     * partitions is smaller than maxParallelJobs.
-     *
-     * @param configs The Sequence of JobConfig to bundle
-     * @param maxParallelJobs The maximum number of job-partitions to try to bundle together
-     * @return The bundled JobConfigs
-     */
+      * Heuristic function grouping JobConfigs so that the number of partitions to work
+      * in parallel doesn't exceed maxParallelJobs.
+      *
+      * To do so it builds a Sequence of JobConfigs to run in parallel (Sequence of JobConfigs).
+      * For every new JobConfig in the list, make it single if its size is bigger than maxParallelJobs,
+      * or try to associate it to one of the already bundled jobs, so that the sum of their output
+      * partitions is smaller than maxParallelJobs.
+      *
+      * @param configs         The Sequence of JobConfig to bundle
+      * @param maxParallelJobs The maximum number of job-partitions to try to bundle together
+      * @return The bundled JobConfigs
+      */
     def optimizeParallelJobConfigs(
         configs: Seq[JobConfig],
         maxParallelJobs: Int
@@ -220,15 +244,16 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             (jobConfigBundles: Seq[Seq[JobConfig]], jobConfig: JobConfig) => {
 
                 /**
-                 * Internal recursive function trying to associate jobConfig (available in scope)
-                 * to an already existing jobConfigBundle. It does so by recursively deconstructing
-                 * bundlesStillToCheck  to reconstruct alreadyCheckedBundles, possibly with jobConfig
-                 * being contained in it
-                 * @param bundlesToCheck The bundles still to check
-                 * @param checkedBundles The bundles already checked
-                 * @return The new bundles list, containing jobConfig either as a new bundle at the end,
-                 *         or inside an existing bundle
-                 */
+                  * Internal recursive function trying to associate jobConfig (available in scope)
+                  * to an already existing jobConfigBundle. It does so by recursively deconstructing
+                  * bundlesStillToCheck  to reconstruct alreadyCheckedBundles, possibly with jobConfig
+                  * being contained in it
+                  *
+                  * @param bundlesToCheck The bundles still to check
+                  * @param checkedBundles The bundles already checked
+                  * @return The new bundles list, containing jobConfig either as a new bundle at the end,
+                  *         or inside an existing bundle
+                  */
                 def optimizeRecursively(
                     bundlesToCheck: Seq[Seq[JobConfig]],
                     checkedBundles: Seq[Seq[JobConfig]] = Seq.empty
@@ -264,13 +289,14 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     }
 
     /**
-     * Processes a JobConfig: Parse the files in the input-folder
-     * (XML-Dumps format expected), repartition the resulting revisions
-     * in the configured number of partitions, and write them
-     * to the configured output-path in the configured output format.
-     * @param spark The spark session to use
-     * @param config The JobConfig to process
-     */
+      * Processes a JobConfig: Parse the files in the input-folder
+      * (XML-Dumps format expected), repartition the resulting revisions
+      * in the configured number of partitions, and write them
+      * to the configured output-path in the configured output format.
+      *
+      * @param spark  The spark session to use
+      * @param config The JobConfig to process
+      */
     def convertWikiDump(spark: SparkSession, config: JobConfig): Boolean = {
         try {
             val sc: SparkContext = spark.sparkContext
@@ -293,10 +319,12 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             }.mapPartitions(it => {
                 new Iterator[Row] {
                     var previousRevId: Option[Long] = None
+
                     override def hasNext: Boolean = {
                         it.dropWhile(t => previousRevId.contains(t._1))
                         it.hasNext
                     }
+
                     override def next(): Row = {
                         val (revId, row) = it.next
                         previousRevId = Some(revId)
@@ -324,14 +352,15 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     }
 
     /**
-     * Writes an empty file working as a flag (_SUCCESS by default) in folder.
-     * @param hadoopConfiguration The hadoop configuration to use for HDFS
-     * @param folder the folder where to write the flag
-     */
+      * Writes an empty file working as a flag (_SUCCESS by default) in folder.
+      *
+      * @param hadoopConfiguration The hadoop configuration to use for HDFS
+      * @param folder              the folder where to write the flag
+      */
     def writeSuccessFlag(
         hadoopConfiguration: Configuration,
         folder: String,
-        flagName: String = "_SUCCESS"
+        flagName: String
     ): Unit = {
         val flagPath = if (folder.endsWith("/")) s"$folder$flagName" else s"$folder/$flagName"
         val hadoopFlagPath = new Path(flagPath)
@@ -341,14 +370,16 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     }
 
     /**
-     * Case class storing arguments parameters, used with [[ConfigHelper]].
-     */
+      * Case class storing arguments parameters, used with [[ConfigHelper]].
+      */
     case class Params(
         xml_dumps_base_path: String,
         output_base_path: String,
-        projects_restriction: Option[Seq[String]] = None,
+        allow_list: Seq[String] = Seq.empty,
+        disallow_list: Seq[String] = Seq.empty,
         max_parallel_jobs: Int = 128,
-        output_format: String = "avro"
+        output_format: String = "avro",
+        success_flag: String = "_SUCCESS"
     )
 
     object Params {
@@ -367,15 +398,20 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
                 """Base path of output data. Completed converted dumps are expected to be
                   |found here in wiki-project subdirectories prefixed with 'wiki_db=' to
                   |facilitate hive partitioning.""",
-            "projects_restriction <project1,project2>" ->
+            "allow_list <project1,project2>" ->
                 s"List of wiki-projects to convert (all if not set)",
+            "disallow_list <project1,project2>" ->
+                s"List of wiki-projects to NOT convert (none if not set)",
             "max_parallel_jobs" ->
                 s"""Maximum number of job-partitions to work in parallel. This defines how many jobs
                    |can be run in parallel, and should match the number of executors of your spark job.
                    |Default: ${default.max_parallel_jobs}""",
             "output_format" ->
                 s"""Output format the xml-dumps will be converted to. Should be one of json, parquet or avro.
-                   |Default: ${default.output_format}"""
+                   |Default: ${default.output_format}""",
+            "success_flag" ->
+                s"""Name of the success-flag to write in the output_base_path if all jobs are successful.
+                   |Default: ${default.success_flag}"""
         )
 
         val usage: String =
@@ -438,7 +474,8 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
             spark.sparkContext.hadoopConfiguration,
             params.xml_dumps_base_path,
             params.output_base_path,
-            params.projects_restriction.map(_.toSet),
+            params.allow_list.toSet,
+            params.disallow_list.toSet,
             params.output_format
         )
         val jobConfigBundles = optimizeParallelJobConfigs(configs, params.max_parallel_jobs)
@@ -457,7 +494,11 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
 
         // If all job result are positive, write success flag, else error with message
         if (results.forall(_._2)) {
-            writeSuccessFlag(spark.sparkContext.hadoopConfiguration, params.output_base_path)
+            writeSuccessFlag(
+                spark.sparkContext.hadoopConfiguration,
+                params.output_base_path,
+                params.success_flag
+            )
         } else {
             val errorInputPaths = results.filter(!_._2).map(_._1.xmlInputPath)
             val errorMessage = s"Error(s) occurred processing ${errorInputPaths.mkString(", ")}"
@@ -467,6 +508,4 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
         }
 
     }
-
-
 }
