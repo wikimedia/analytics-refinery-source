@@ -1,3 +1,13 @@
+## v0.2.41
+* Update clickstream job - better joins
+* chore: remove leftover from refinery-cassandra
+* style(maxmind): fix checkstyle violations for MaxMind package.
+* fix(*DatabaseReader): avoid null pointer exception when reading MaxMind
+* Include subdivision ISO code in the geo response
+* Mediawkihistory: typesafe access to compliance value.
+* Update MediawikiXMLDumpsConverter
+* Refine DeequColumnAnalysis code
+
 ## v0.2.40
 * Upgrade MediawikiHistory Checker to use AWS Deequ
 
