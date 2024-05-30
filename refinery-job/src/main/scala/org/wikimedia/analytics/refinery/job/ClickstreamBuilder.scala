@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.functions.{col, sum, desc}
+import org.apache.spark.sql.functions.{col, desc, lit, sum}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
@@ -330,13 +330,19 @@ object ClickstreamBuilder extends LogHelper with ConfigHelper {
         )
 
             // Get fromPageId instead of fromPageTitle
-            .join(pages, col("wiki_db") === pages("wikiDb") && col("fromTitle") === pages("pageTitle"))
-            .where("pageNamespace = 0")
+            .join(
+                pages,
+                col("wiki_db") === pages("wikiDb")
+                    && col("fromTitle") === pages("pageTitle")
+                    && col("pageNamespace") === lit(0))
             .selectExpr("wiki_db", "pageId AS from_page_id", "toTitle", "count")
 
             // Get toPageId instead of toPageTitle
-            .join(pages, col("wiki_db") === pages("wikiDb") && col("toTitle") === pages("pageTitle"))
-            .where("pageNamespace = 0")
+            .join(
+                pages,
+                col("wiki_db") === pages("wikiDb")
+                    && col("toTitle") === pages("pageTitle")
+                    && col("pageNamespace") === lit(0))
             .selectExpr("wiki_db", "from_page_id", "pageId AS to_page_id", "count")
 
             // Resolve one level of redirect (to_page_id --> to_redirect_pageId)
@@ -365,11 +371,19 @@ object ClickstreamBuilder extends LogHelper with ConfigHelper {
 
             // Join back to pages to present titles instead of Ids
             // Filter redirect pages and namespace not zero
-            .join(pages, col("wiki_db") === pages("wikiDb") && col("from_page_id") === pages("pageId"))
-            .where("pageNamespace = 0 AND NOT pageIsRedirect")
+            .join(
+                pages,
+                col("wiki_db") === pages("wikiDb")
+                    && col("from_page_id") === pages("pageId")
+                    && pages("pageNamespace") === lit(0)
+                    && pages("pageIsRedirect") === lit(false))
             .selectExpr("wiki_db", "pageTitle AS fromPageTitle", "to_page_id", "typ", "count")
-            .join(pages, col("wiki_db") === pages("wikiDb") && col("to_page_id") === pages("pageId"))
-            .where("pageNamespace = 0 AND NOT pageIsRedirect")
+            .join(
+                pages,
+                col("wiki_db") === pages("wikiDb")
+                    && col("to_page_id") === pages("pageId")
+                    && pages("pageNamespace") === lit(0)
+                    && pages("pageIsRedirect") === lit(false))
             .selectExpr("wiki_db AS wikiDb", "fromPageTitle", "pageTitle AS toPageTitle", "typ", "count")
             .as[ClickStream]
     }
