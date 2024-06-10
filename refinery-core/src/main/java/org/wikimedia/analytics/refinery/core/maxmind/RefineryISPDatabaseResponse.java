@@ -34,7 +34,12 @@ public class RefineryISPDatabaseResponse {
     @Nonnull private final String autonomousSystemOrg;
     @Nonnull private final int autonomousSystemNumber;
 
-    public RefineryISPDatabaseResponse(String isp, String organization, String autonomousSystemOrg, int autonomousSystemNumber) {
+    public RefineryISPDatabaseResponse(
+            @Nullable String isp,
+            @Nullable String organization,
+            @Nullable String autonomousSystemOrg,
+            // autonomousSystemNumber used to be an `int`, changed to `Integer` to avoid auto unboxing and NPE
+            @Nullable Integer autonomousSystemNumber) {
         this.isp = firstNonNull(isp, UNKNOWN_VALUE);
         this.organization = firstNonNull(organization, UNKNOWN_VALUE);
         this.autonomousSystemOrg = firstNonNull(autonomousSystemOrg, UNKNOWN_VALUE);
