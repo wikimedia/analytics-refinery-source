@@ -1,3 +1,6 @@
+## v0.2.42
+* Fix NPE in creation of RefineryISPDatabaseResponse
+
 ## v0.2.41
 * Update clickstream job - better joins
 * chore: remove leftover from refinery-cassandra
@@ -70,7 +73,7 @@
 *  Fix recursion for Maps with Structs on SanitizeTransformation
 
 ## v0.2.26
-* Bump eventutilities version to 1.3.2 
+* Bump eventutilities version to 1.3.2
 * ProduceCanaryEvents now will retry failed HTTP POSTs to event intake services.
 
 ## v0.2.25
