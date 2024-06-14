@@ -12,8 +12,10 @@ import javax.annotation.concurrent.Immutable;
 
 import com.maxmind.geoip2.model.IspResponse;
 
+import lombok.EqualsAndHashCode;
+
 /** MaxMind's GeoIP2-ISP information that we query for given an IP. */
-@Immutable
+@Immutable @EqualsAndHashCode
 public class RefineryISPDatabaseResponse {
     // Constants to hold the keys to use in data map
     public static final String ISP = "isp";
@@ -38,7 +40,6 @@ public class RefineryISPDatabaseResponse {
             @Nullable String isp,
             @Nullable String organization,
             @Nullable String autonomousSystemOrg,
-            // autonomousSystemNumber used to be an `int`, changed to `Integer` to avoid auto unboxing and NPE
             @Nullable Integer autonomousSystemNumber) {
         this.isp = firstNonNull(isp, UNKNOWN_VALUE);
         this.organization = firstNonNull(organization, UNKNOWN_VALUE);

@@ -14,8 +14,10 @@ import javax.annotation.concurrent.Immutable;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.record.Subdivision;
 
+import lombok.EqualsAndHashCode;
+
 /** MaxMind's GeoIP2-City information that we query for given an IP. */
-@Immutable
+@Immutable @EqualsAndHashCode
 public class RefineryGeocodeDatabaseResponse {
 
     // Constants to hold the keys to use in data map

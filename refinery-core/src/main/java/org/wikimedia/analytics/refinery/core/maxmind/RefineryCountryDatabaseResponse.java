@@ -9,8 +9,10 @@ import javax.annotation.concurrent.Immutable;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.Country;
 
+import lombok.EqualsAndHashCode;
+
 /** MaxMind's GeoIP2-Country information that we query for given an IP. */
-@Immutable
+@Immutable @EqualsAndHashCode
 public class RefineryCountryDatabaseResponse {
 
     public static final String UNKNOWN_VALUE = "Unknown";
