@@ -101,40 +101,40 @@ class DenormalizedHistoryChecker(
          |    COALESCE(p.event_type, n.event_type) AS event_type,
          |    MAP(
          |        'growth_count_denorm_event',
-         |            (COALESCE(n.count_denorm_event, 0) - COALESCE(p.count_denorm_event, 0)) / COALESCE(p.count_denorm_event, 1),
+         |            (COALESCE(n.count_denorm_event, 0) - COALESCE(p.count_denorm_event, 0)) / COALESCE(NULLIF(p.count_denorm_event, 0), 1),
          |
          |        -- User values
          |        'growth_distinct_user_id',
-         |            (COALESCE(n.distinct_user_id, 0) - COALESCE(p.distinct_user_id, 0)) / COALESCE(p.distinct_user_id, 1),
+         |            (COALESCE(n.distinct_user_id, 0) - COALESCE(p.distinct_user_id, 0)) / COALESCE(NULLIF(p.distinct_user_id, 0), 1),
          |        'growth_distinct_user_text',
-         |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(p.distinct_user_text, 1),
+         |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(NULLIF(p.distinct_user_text, 0), 1),
          |        'growth_count_user_group_bot',
-         |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(p.count_user_group_bot, 1),
+         |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(NULLIF(p.count_user_group_bot, 0), 1),
          |        'growth_count_user_anonymous',
-         |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(p.count_user_anonymous, 1),
+         |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(NULLIF(p.count_user_anonymous, 0), 1),
          |        'growth_count_user_self_created',
-         |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(p.count_user_self_created, 1),
+         |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(NULLIF(p.count_user_self_created, 0), 1),
          |
          |        -- Page values
          |        'growth_distinct_page_id',
-         |            (COALESCE(n.distinct_page_id, 0) - COALESCE(p.distinct_page_id, 0)) / COALESCE(p.distinct_page_id, 1),
+         |            (COALESCE(n.distinct_page_id, 0) - COALESCE(p.distinct_page_id, 0)) / COALESCE(NULLIF(p.distinct_page_id, 0), 1),
          |        'growth_distinct_page_title',
-         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(p.distinct_page_title, 1),
+         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(NULLIF(p.distinct_page_title, 0), 1),
          |        'growth_distinct_page_namespace',
-         |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(p.distinct_page_namespace, 1),
+         |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(NULLIF(p.distinct_page_namespace, 0), 1),
          |        -- Special case for count_page_redirect: Since this value is set from the current state of pages,
          |        -- there is no historical aspect to it, therefore we measure it's variability month to month,
          |        -- not its growth.
          |        'variability_count_page_redirect',
-         |            (COALESCE(n.count_page_redirect, 0) - COALESCE(p.count_page_redirect, 0)) / COALESCE(p.count_page_redirect, 1),
+         |            (COALESCE(n.count_page_redirect, 0) - COALESCE(p.count_page_redirect, 0)) / COALESCE(NULLIF(p.count_page_redirect, 0), 1),
          |
          |        -- Revision values
          |        'growth_count_revision_deleted',
-         |            (COALESCE(n.count_revision_deleted, 0) - COALESCE(p.count_revision_deleted, 0)) / COALESCE(p.count_revision_deleted, 1),
+         |            (COALESCE(n.count_revision_deleted, 0) - COALESCE(p.count_revision_deleted, 0)) / COALESCE(NULLIF(p.count_revision_deleted, 0), 1),
          |        'growth_count_revision_reverted',
-         |            (COALESCE(n.count_revision_reverted, 0) - COALESCE(p.count_revision_reverted, 0)) / COALESCE(p.count_revision_reverted, 1),
+         |            (COALESCE(n.count_revision_reverted, 0) - COALESCE(p.count_revision_reverted, 0)) / COALESCE(NULLIF(p.count_revision_reverted, 0), 1),
          |        'growth_count_revision_revert',
-         |            (COALESCE(n.count_revision_revert, 0) - COALESCE(p.count_revision_revert, 0)) / COALESCE(p.count_revision_revert, 1)
+         |            (COALESCE(n.count_revision_revert, 0) - COALESCE(p.count_revision_revert, 0)) / COALESCE(NULLIF(p.count_revision_revert, 0), 1)
          |    ) AS growths
          |FROM $tmpPrevTable p
          |    FULL OUTER JOIN $tmpNewTable n
@@ -266,13 +266,11 @@ class DenormalizedHistoryChecker(
     )
 
     val errorRowsRatio = getDenormGrowthErrorsRatio(denormMetricsGrowth)
-
     log.info(s"DenormMetricsGrowthErrors ratio: $errorRowsRatio")
 
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"DenormMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
-      // TODO: Write denormalized history metrics growth errors to Error path using RowLevelSchemaValidator
       val denormMetricsGrowthErrors = getDenormMetricsGrowthErrors(denormMetricsGrowth)
       denormMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }

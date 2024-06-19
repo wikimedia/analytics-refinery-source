@@ -1,5 +1,6 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory
 
+import com.amazon.deequ.analyzers.runners.EmptyStateException
 import org.scalatest.FlatSpec
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.Row
@@ -437,5 +438,44 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
         // and actual error ratio is less than tolerance value
         assert(Math.abs(1.0 - errorRatio) < tolerance)
     }
+
+    it should "Give a EmptyStateException when the column is null" in {
+        val nullData = Seq(
+            Row("cswiki", "userHistory", "create",
+                Map("growth_count_user_event" -> null,
+                    "growth_distinct_user_id" -> null,
+                    "growth_distinct_user_text" -> null,
+                    "growth_count_user_group_bot" -> null,
+                    "growth_count_user_anonymous" -> null,
+                    "growth_count_user_self_created" -> null)),
+            Row("nlwiki", "userHistory", "alterblocks",
+                Map("growth_count_user_event" -> null,
+                    "growth_distinct_user_id" -> null,
+                    "growth_distinct_user_text" -> null,
+                    "growth_count_user_group_bot" -> null,
+                    "growth_count_user_anonymous" -> null,
+                    "growth_count_user_self_created" -> 3.6039282818271914E-4)),
+            Row("enwikinews", "userHistory", "alterblocks",
+                Map("growth_count_user_event" -> null,
+                    "growth_distinct_user_id" -> 5.230125523012552E-4,
+                    "growth_distinct_user_text" -> 5.230125523012552E-4,
+                    "growth_count_user_group_bot" -> 0.0,
+                    "growth_count_user_anonymous" -> null,
+                    "growth_count_user_self_created" -> 2.946375957572186E-4))
+        )
+
+        val nullDataFrame = getGrowthDataFrame(nullData)
+        assertThrows[java.lang.RuntimeException](
+            new UserHistoryChecker(
+                spark,
+                mediawikiHistoryBasePath,
+                previousSnapshot,
+                newSnapshot,
+                wikisToCheck,
+                minEventsGrowthThreshold,
+                maxEventsGrowthThreshold,
+                wrongRowsRatioThreshold
+            ).getUserGrowthErrorsRatio(nullDataFrame))
+        }
 
 }

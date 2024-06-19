@@ -86,17 +86,17 @@ class UserHistoryChecker(
         |    COALESCE(p.caused_by_event_type, n.caused_by_event_type) AS event_type,
         |    MAP(
         |        'growth_count_user_event',
-        |            (COALESCE(n.count_user_event, 0) - COALESCE(p.count_user_event, 0)) / COALESCE(p.count_user_event, 1),
+        |            (COALESCE(n.count_user_event, 0) - COALESCE(p.count_user_event, 0)) / COALESCE(NULLIF(p.count_user_event, 0), 1),
         |        'growth_distinct_user_id',
-        |            (COALESCE(n.distinct_user_id, 0) - COALESCE(p.distinct_user_id, 0)) / COALESCE(p.distinct_user_id, 1),
+        |            (COALESCE(n.distinct_user_id, 0) - COALESCE(p.distinct_user_id, 0)) / COALESCE(NULLIF(p.distinct_user_id, 0), 1),
         |        'growth_distinct_user_text',
-        |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(p.distinct_user_text, 1),
+        |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(NULLIF(p.distinct_user_text, 0), 1),
         |        'growth_count_user_group_bot',
-        |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(p.count_user_group_bot, 1),
+        |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(NULLIF(p.count_user_group_bot, 0), 1),
         |        'growth_count_user_anonymous',
-        |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(p.count_user_anonymous, 1),
+        |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(NULLIF(p.count_user_anonymous, 0), 1),
         |        'growth_count_user_self_created',
-        |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(p.count_user_self_created, 1)
+        |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(NULLIF(p.count_user_self_created, 0), 1)
         |    ) AS growths
         |FROM $tmpPrevTable p
         |    FULL OUTER JOIN $tmpNewTable n
@@ -183,7 +183,6 @@ class UserHistoryChecker(
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"UserMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
-      // TODO: Write user metrics growth errors to Error path using RowLevelSchemaValidator
       val userMetricsGrowthErrors = getUserMetricsGrowthErrors(userMetricsGrowth)
       userMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }

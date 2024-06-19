@@ -86,24 +86,24 @@ class PageHistoryChecker(
          |    COALESCE(p.caused_by_event_type, n.caused_by_event_type) AS event_type,
          |    MAP(
          |        'growth_count_page_event',
-         |            (COALESCE(n.count_page_event, 0) - COALESCE(p.count_page_event, 0)) / COALESCE(p.count_page_event, 1),
+         |            (COALESCE(n.count_page_event, 0) - COALESCE(p.count_page_event, 0)) / COALESCE(NULLIF(p.count_page_event, 0), 1),
          |        'growth_distinct_all_page_id',
          |            ((COALESCE(n.distinct_page_id, 0) + COALESCE(n.distinct_page_artificial_id, 0)) -
          |              (COALESCE(p.distinct_page_id, 0) + COALESCE(p.distinct_page_artificial_id, 0))) /
-         |              (COALESCE(p.distinct_page_id, 1) + COALESCE(p.distinct_page_artificial_id, 1)),
+         |              (COALESCE(NULLIF(p.distinct_page_id, 0), 1) + COALESCE(NULLIF(p.distinct_page_artificial_id, 0), 1)),
          |        'growth_distinct_page_id',
-         |            (COALESCE(n.distinct_page_id, 0) - COALESCE(p.distinct_page_id, 0)) / COALESCE(p.distinct_page_id, 1),
+         |            (COALESCE(n.distinct_page_id, 0) - COALESCE(p.distinct_page_id, 0)) / COALESCE(NULLIF(p.distinct_page_id, 0), 1),
          |        'growth_distinct_page_artificial_id',
-         |            (COALESCE(n.distinct_page_artificial_id, 0) - COALESCE(p.distinct_page_artificial_id, 0)) / COALESCE(p.distinct_page_artificial_id, 1),
+         |            (COALESCE(n.distinct_page_artificial_id, 0) - COALESCE(p.distinct_page_artificial_id, 0)) / COALESCE(NULLIF(p.distinct_page_artificial_id, 0), 1),
          |        'growth_distinct_page_title',
-         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(p.distinct_page_title, 1),
+         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(NULLIF(p.distinct_page_title, 0), 1),
          |        'growth_distinct_page_namespace',
-         |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(p.distinct_page_namespace, 1),
+         |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(NULLIF(p.distinct_page_namespace, 0), 1),
          |        -- Special case for count_page_redirect: Since this value is set from the current state of pages,
          |        -- there is no historical aspect to it, therefore we measure it;s variability month to month,
          |        -- not its growth.
          |        'variability_count_page_redirect',
-         |            (COALESCE(n.count_page_redirect, 0) - COALESCE(p.count_page_redirect, 0)) / COALESCE(p.count_page_redirect, 1)
+         |            (COALESCE(n.count_page_redirect, 0) - COALESCE(p.count_page_redirect, 0)) / COALESCE(NULLIF(p.count_page_redirect, 0), 1)
          |    ) AS growths
          |FROM $tmpPrevTable p
          |    FULL OUTER JOIN $tmpNewTable n
@@ -190,7 +190,6 @@ class PageHistoryChecker(
     if (errorRowsRatio > wrongRowsRatioThreshold) {
       log.warn(s"PageMetricsGrowthErrors ratio $errorRowsRatio is higher " +
         s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
-      // TODO: Write page metrics growth errors to Error path using RowLevelSchemaValidator
       val pageMetricsGrowthErrors = getPageMetricsGrowthErrors(pageMetricsGrowth)
       pageMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }

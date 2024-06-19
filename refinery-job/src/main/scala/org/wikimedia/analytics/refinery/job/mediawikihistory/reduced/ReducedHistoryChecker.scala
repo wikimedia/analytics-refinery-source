@@ -106,53 +106,53 @@ class ReducedHistoryChecker(
          |    COALESCE(p.event_type, n.event_type) AS event_type,
          |    MAP(
          |        'growth_count_reduced_event',
-         |            (COALESCE(n.count_reduced_event, 0) - COALESCE(p.count_reduced_event, 0)) / COALESCE(p.count_reduced_event, 1),
+         |            (COALESCE(n.count_reduced_event, 0) - COALESCE(p.count_reduced_event, 0)) / COALESCE(NULLIF(p.count_reduced_event, 0), 1),
          |
          |        -- User values
          |        'growth_distinct_user_text',
-         |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(p.distinct_user_text, 1),
+         |            (COALESCE(n.distinct_user_text, 0) - COALESCE(p.distinct_user_text, 0)) / COALESCE(NULLIF(p.distinct_user_text, 0), 1),
          |        'growth_count_user_group_bot',
-         |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(p.count_user_group_bot, 1),
+         |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(NULLIF(p.count_user_group_bot, 0), 1),
          |        'growth_count_user_name_bot',
-         |            (COALESCE(n.count_user_name_bot, 0) - COALESCE(p.count_user_name_bot, 0)) / COALESCE(p.count_user_name_bot, 1),
+         |            (COALESCE(n.count_user_name_bot, 0) - COALESCE(p.count_user_name_bot, 0)) / COALESCE(NULLIF(p.count_user_name_bot, 0), 1),
          |        'growth_count_user_anonymous',
-         |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(p.count_user_anonymous, 1),
+         |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(NULLIF(p.count_user_anonymous, 0), 1),
          |        'growth_count_user_user',
-         |            (COALESCE(n.count_user_user, 0) - COALESCE(p.count_user_user, 0)) / COALESCE(p.count_user_user, 1),
+         |            (COALESCE(n.count_user_user, 0) - COALESCE(p.count_user_user, 0)) / COALESCE(NULLIF(p.count_user_user, 0), 1),
          |        'growth_count_user_self_created',
-         |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(p.count_user_self_created, 1),
+         |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(NULLIF(p.count_user_self_created, 0), 1),
          |
          |        -- Page values
          |        'growth_distinct_page_title',
-         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(p.distinct_page_title, 1),
+         |            (COALESCE(n.distinct_page_title, 0) - COALESCE(p.distinct_page_title, 0)) / COALESCE(NULLIF(p.distinct_page_title, 0), 1),
          |        'growth_distinct_page_namespace',
-         |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(p.distinct_page_namespace, 1),
+         |            (COALESCE(n.distinct_page_namespace, 0) - COALESCE(p.distinct_page_namespace, 0)) / COALESCE(NULLIF(p.distinct_page_namespace, 0), 1),
          |        'growth_count_page_content',
-         |            (COALESCE(n.count_page_content, 0) - COALESCE(p.count_page_content, 0)) / COALESCE(p.count_page_content, 1),
+         |            (COALESCE(n.count_page_content, 0) - COALESCE(p.count_page_content, 0)) / COALESCE(NULLIF(p.count_page_content, 0), 1),
          |        'growth_count_page_non_content',
-         |            (COALESCE(n.count_page_non_content, 0) - COALESCE(p.count_page_non_content, 0)) / COALESCE(p.count_page_non_content, 1),
+         |            (COALESCE(n.count_page_non_content, 0) - COALESCE(p.count_page_non_content, 0)) / COALESCE(NULLIF(p.count_page_non_content, 0), 1),
          |        -- Special case for count_page_redirect: Since this value is set from the current state of pages,
          |        -- there is no historical aspect to it, therefore we measure it's variability month to month,
          |        -- not its growth.
          |        'variability_count_page_redirect',
-         |            (COALESCE(n.count_page_redirect, 0) - COALESCE(p.count_page_redirect, 0)) / COALESCE(p.count_page_redirect, 1),
+         |            (COALESCE(n.count_page_redirect, 0) - COALESCE(p.count_page_redirect, 0)) / COALESCE(NULLIF(p.count_page_redirect, 0), 1),
          |
          |        -- Revision values
          |        'growth_count_revision_deleted',
-         |            (COALESCE(n.count_revision_deleted, 0) - COALESCE(p.count_revision_deleted, 0)) / COALESCE(p.count_revision_deleted, 1),
+         |            (COALESCE(n.count_revision_deleted, 0) - COALESCE(p.count_revision_deleted, 0)) / COALESCE(NULLIF(p.count_revision_deleted, 0), 1),
          |        'growth_count_revision_reverted',
-         |            (COALESCE(n.count_revision_reverted, 0) - COALESCE(p.count_revision_reverted, 0)) / COALESCE(p.count_revision_reverted, 1),
+         |            (COALESCE(n.count_revision_reverted, 0) - COALESCE(p.count_revision_reverted, 0)) / COALESCE(NULLIF(p.count_revision_reverted, 0), 1),
          |        'growth_count_revision_revert',
-         |            (COALESCE(n.count_revision_revert, 0) - COALESCE(p.count_revision_revert, 0)) / COALESCE(p.count_revision_revert, 1),
+         |            (COALESCE(n.count_revision_revert, 0) - COALESCE(p.count_revision_revert, 0)) / COALESCE(NULLIF(p.count_revision_revert, 0), 1),
          |
          |        -- Digests values
          |        'growth_count_revisions',
-         |            (COALESCE(n.count_revisions, 0) - COALESCE(p.count_revisions, 0)) / COALESCE(p.count_revisions, 1),
+         |            (COALESCE(n.count_revisions, 0) - COALESCE(p.count_revisions, 0)) / COALESCE(NULLIF(p.count_revisions, 0), 1),
          |        -- Same as for page-redirect, we measure variability here as values can be positive or negative
          |        'variability_sum_text_bytes_diff',
-         |            (COALESCE(n.sum_text_bytes_diff, 0) - COALESCE(p.sum_text_bytes_diff, 0)) / COALESCE(p.sum_text_bytes_diff, 1),
+         |            (COALESCE(n.sum_text_bytes_diff, 0) - COALESCE(p.sum_text_bytes_diff, 0)) / COALESCE(NULLIF(p.sum_text_bytes_diff, 0), 1),
          |        'growth_sum_text_bytes_diff_abs',
-         |            (COALESCE(n.sum_text_bytes_diff_abs, 0) - COALESCE(p.sum_text_bytes_diff_abs, 0)) / COALESCE(p.sum_text_bytes_diff_abs, 1)
+         |            (COALESCE(n.sum_text_bytes_diff_abs, 0) - COALESCE(p.sum_text_bytes_diff_abs, 0)) / COALESCE(NULLIF(p.sum_text_bytes_diff_abs, 0), 1)
          |    ) AS growths
          |FROM $tmpPrevTable p
          |    FULL OUTER JOIN $tmpNewTable n
@@ -274,7 +274,7 @@ class ReducedHistoryChecker(
          |    OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
          |    OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
          |    OR growths['growth_count_user_name_bot'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_user_name_bot'] < $maxEventsGrowthThreshold
+         |    OR growths['growth_count_user_name_bot'] > $maxEventsGrowthThreshold
          |    OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
          |    OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
          |    OR growths['growth_count_user_user'] < $minEventsGrowthThreshold
