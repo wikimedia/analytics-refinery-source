@@ -126,7 +126,6 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
         AnalysisRunner
           .onData(denormalizedHistoryDf)
           .addAnalyzer(Size()) //count of mw history event
-          .addAnalyzer(ApproxCountDistinct("wiki_db"))
           .useRepository(repository)
           .saveOrAppendResult(historyCountsMetricKey)
           .run()
@@ -165,7 +164,17 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
                 .hasSize(_ > (previousSnapshotCount - growth_threshold))
                 .isComplete("page_id")
                 .satisfies("page_id > 0", "page_id is not 0")
-                .hasUniqueness(List("wiki_db", "event_entity", "event_type", "event_timestamp"),_ == 1.0)
+                .hasUniqueness(List(
+                    "wiki_db",
+                    "event_entity",
+                    "event_type",
+                    "event_timestamp",
+                    "event_user_text_historical",
+                    "user_text_historical",
+                    "page_id",
+                    "revision_id"),
+                    _ == 1.0
+                )
           )
           .run()
           .checkResults
