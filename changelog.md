@@ -1,3 +1,8 @@
+## v0.2.43
+* Add unit tests for Refinery*DatabaseResponse
+* Fix MediawikiHistory Checker Null Exceptions
+* Update column definition for uniqueness check.
+
 ## v0.2.42
 * Fix NPE in creation of RefineryISPDatabaseResponse
 
