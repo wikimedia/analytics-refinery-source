@@ -20,6 +20,8 @@ package org.wikimedia.analytics.refinery.job.refine
   * See the Refine --transform-functions CLI option documentation.
   */
 
+import org.apache.spark.sql.DataFrame
+
 import java.util.UUID.randomUUID
 import scala.util.matching.Regex
 import org.apache.spark.sql.functions.{coalesce, col, expr, input_file_name, udf, unix_timestamp, when}
@@ -76,6 +78,7 @@ object event_transforms {
   */
 object deduplicate extends LogHelper {
     val possibleSourceColumnNames = Seq("meta.id", "uuid")
+    val possibleSortingColumnNames = Seq("meta.dt", "meta.id", "uuid", "meta.request_id")
 
     /**
       * Generates a new random UUID Column value prefixed with 'fake_'
@@ -95,17 +98,29 @@ object deduplicate extends LogHelper {
             )
             partDf
         } else {
-            log.info(s"Dropping duplicates based on ${sourceColumnNames.mkString(",")} columns in ${partDf.partition}")
 
             // Add fake uuid column into the list of idColumns that will be used, and
-            // then coalesce to use the first non null value found.
-            // This guarantees that if a record has NULL for all of the possible source id columns,
+            // then coalesce to use the first non-null value found.
+            // This guarantees that if a record has NULL for all the possible source id columns,
             // NULL itself will not be considered a unique id.  In that case, the fake uuid will
             // be used as the deduplication key, which will be unique in each row.
             val idColumn = coalesce(sourceColumnNames.map(col) :+ fakeUuid():_*)
 
             val tempColumnName = s"__temp__uuid__for_deduplicate"
-            val tempDf = partDf.df.withColumn(tempColumnName, idColumn)
+            var tempDf: DataFrame = partDf.df.withColumn(tempColumnName, idColumn)
+
+            val sortingColumnNames: Seq[String] = partDf.df.findColumnNames(possibleSortingColumnNames)
+
+            if (sortingColumnNames.nonEmpty) {
+                // We need to sort before deduplicating to ensure picking always the same first record in each group
+                // of duplicates.  This is important for deterministic results.
+                tempDf = tempDf.sort(sortingColumnNames.map(col):_*)
+            }
+
+            log.info(s"""Dropping duplicates
+                        |based on ${sourceColumnNames.mkString(",")} columns
+                        |in ${partDf.partition}
+                        |sorted by `${sortingColumnNames.mkString(",")}`""".stripMargin)
 
             partDf.copy(df = tempDf
                 // Drop duplicate records based on the tempColumnName we added to the df.

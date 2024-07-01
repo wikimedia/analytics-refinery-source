@@ -203,6 +203,23 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         transformedDf.df.count should equal(2)
     }
 
+    it should "deduplicate over a sorted DF to keep a single line in a deterministic manner" in {
+        // We have 3 duplicated events, only differing from the `dt` field
+        val dt1: Some[String] = Some("2020-04-01T00:00:01Z")
+        val dt2: Some[String] = Some("2020-04-01T00:00:02Z")
+        val dt3: Some[String] = Some("2020-04-01T00:00:03Z")
+        val events = Seq(
+            TestEvent(Some(MetaSubObject(id1, dt2, internalDomain)), Some(HttpSubObject(ip1))),
+            TestEvent(Some(MetaSubObject(id1, dt1, internalDomain)), Some(HttpSubObject(ip1))), // Keep this one
+            TestEvent(Some(MetaSubObject(id1, dt3, internalDomain)), Some(HttpSubObject(ip1)))
+        )
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = deduplicate(partDf)
+        // Keep the one with the earliest `dt`
+        transformedDf.df.select("meta.dt").collect().map(_(0)) should contain allElementsOf Seq(dt1.get)
+    }
+
     it should "filter_allowed_domains using `webHost`" in {
         val events = Seq(
             TestLegacyEventLoggingEvent(id1, internalDomain, ip1),

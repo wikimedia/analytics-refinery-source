@@ -1,3 +1,6 @@
+## v0.2.49
+* Make deduplication TransformFunction deterministic.
+
 ## v0.2.48
 * Add Special:AllEvents to the PageviewDefinition
 
