@@ -67,7 +67,7 @@
 
     <properties>
         <developerConnection>scm:git:ssh://${user.name}@gerrit.wikimedia.org:29418/analytics/refinery/source</developerConnection>
-        <eventutilities.version>1.3.4</eventutilities.version>
+        <eventutilities.version>1.3.6</eventutilities.version>
         <!--
         Those number reference jar-versions to be used as dependencies.
         We should try to keep them in sync with our hadoop/hive/spark versions.
