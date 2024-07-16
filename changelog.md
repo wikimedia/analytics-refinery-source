@@ -1,3 +1,6 @@
+## v0.2.44
+* Update eventutilities version to 1.3.6
+
 ## v0.2.43
 * Add unit tests for Refinery*DatabaseResponse
 * Fix MediawikiHistory Checker Null Exceptions
