@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.job
 
 import scala.util.{Failure, Success, Try}
 import org.apache.spark.sql.{Column, DataFrame, SaveMode, SparkSession}
+import org.apache.spark.sql.functions.{lower, first}
 import org.apache.spark.SparkConf
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
@@ -68,7 +69,7 @@ object DataPivoter extends LogHelper with ConfigHelper {
                    |Default: ${defaults.reader_format}""".stripMargin,
             "reader_options" ->
                 s"""The source read-options to be passed to spark, in key-value format
-                   |k1:v1,k2,v2. Default: ${defaults.reader_options}""".stripMargin,
+                   |k1:v1,k2:v2. Default: ${defaults.reader_options}""".stripMargin,
             "destination_directory" ->
                 "Directory where to write the pivoted result file.",
             "writer_format" ->
@@ -148,18 +149,25 @@ object DataPivoter extends LogHelper with ConfigHelper {
     }
 
     def pivotDataframe(df: DataFrame, emptyValue: String): DataFrame = {
+        // if a value in the pivot column has varied casing, it will pivot but fail to insert
+        // later (because insert column names are not case sensitive, example: WikiViz and Wikiviz)
+        // to prevent this, transform the data to normalize case to the first found value
+        val pivotCol = df.col(df.columns(df.columns.length -2))
+        val fixNamesDF = df.groupBy(lower(pivotCol).as("lowercase")).agg(first(pivotCol).as("canonical"))
+        val fixedDF = df.join(fixNamesDF, lower(pivotCol).equalTo(fixNamesDF.col("lowercase")))
+
         // Prepare columns reused in data pivotal
-        val valueColName = df.columns.last
-        val valueCol = df.col(valueColName)
-        val toPivotCol = df.col(df.columns(df.columns.length -2))
-        val noChangeCols = df.columns.dropRight(2).foldLeft(Seq.empty[Column])(
-            (colList, colName) => colList :+ df.col(colName))
+        val valueColName = fixedDF.columns.dropRight(2).last
+        val valueCol = fixedDF.col(valueColName)
+        val toPivotCol = fixedDF.col("canonical")
+        val noChangeCols = fixedDF.columns.dropRight(4).foldLeft(Seq.empty[Column])(
+            (colList, colName) => colList :+ fixedDF.col(colName))
 
         // Optimize computation by caching the data
-        df.cache()
+        fixedDF.cache()
 
         // Assert that there is no duplication in dimension-columns set of values
-        if (df.count() > df.select(noChangeCols :+ toPivotCol:_*).distinct().count()) {
+        if (fixedDF.count() > fixedDF.select(noChangeCols :+ toPivotCol:_*).distinct().count()) {
             throw new IllegalStateException(
                 "The dimension-columns contains duplicate while distinct sets of values are expected."
             )
@@ -168,8 +176,7 @@ object DataPivoter extends LogHelper with ConfigHelper {
         }
 
         // Pivot dataframe
-        import org.apache.spark.sql.functions.first
-        df
+        fixedDF
             .groupBy(noChangeCols:_*)
             .pivot(toPivotCol)
             .agg(first(valueCol).as(valueColName))
