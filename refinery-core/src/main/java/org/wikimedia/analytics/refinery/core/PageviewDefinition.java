@@ -82,7 +82,8 @@ public class PageviewDefinition {
             "search",
             "recentchanges",
             "version",
-            "viewobject"
+            "viewobject",
+            "allevents"
     )));
 
     private final static Pattern URI_PATH_PATTERN = Pattern.compile(
