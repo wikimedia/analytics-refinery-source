@@ -1,3 +1,15 @@
+## v0.2.48
+* Add Special:AllEvents to the PageviewDefinition
+
+## v0.2.47
+* No apparent updates?
+
+## v0.2.46
+* Enable pivoting with varied casing in DataPivoter
+
+## v0.2.45
+* refinery-job: add webrequest instrumentation
+
 ## v0.2.44
 * Update eventutilities version to 1.3.6
 
