@@ -509,13 +509,16 @@ object Refine extends LogHelper with ConfigHelper {
             }.mkString("|")
 
             val rerunOptions = Seq(
-                "--ignore_failure_flag=true",
-                s"--table_include_regex='$tablesWithFailuresRegex'",
-                s"--since='${earliestFailureDt.hourOfDay().roundFloorCopy()}'",
+                "sudo -u analytics kerberos-run-command analytics \\\n",
+                s"${spark.conf.get("spark.app.name")} \\\n",
+                "--ignore_failure_flag=true \\\n",
+                s"--table_include_regex='$tablesWithFailuresRegex' \\\n",
+                s"--since='${earliestFailureDt.hourOfDay().roundFloorCopy()}' \\\n",
                 s"--until='${latestFailureDt.hourOfDay().roundCeilingCopy()}'"
             )
             reportBody += s"\n\nTo rerun, use the following options:\n"
-            reportBody += rerunOptions.mkString(" ")
+            reportBody += "(the sudo -u analytics kerberos part is a guess at the correct rerun command for use by analytics-hadoop event ingestion jobs.)\n\n"
+            reportBody += rerunOptions.mkString("")
         }
 
         // If we should send this as a failure email report
