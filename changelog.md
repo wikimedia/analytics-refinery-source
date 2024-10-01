@@ -1,3 +1,6 @@
+## v0.2.51
+* Add a new mediawiki-jdbc spark datasource to refinery-spark.
+
 ## v0.2.50
 * Refactor Refine to make it work atomically from Airflow
 
