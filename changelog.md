@@ -1,3 +1,6 @@
+## v0.2.53
+* Fix on TransformFunction deterministic behavior
+
 ## v0.2.52
 * Update the smtp server settings for email from refine
 

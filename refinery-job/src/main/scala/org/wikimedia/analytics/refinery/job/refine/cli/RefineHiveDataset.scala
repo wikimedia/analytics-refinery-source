@@ -213,7 +213,8 @@ object RefineHiveDataset
                     config.schema_base_uris,
                     inputFormat = config.input_format,
                     dataframeReaderOptions = config.dataframe_reader_options,
-                    corruptRecordFailureThreshold = config.corrupt_record_failure_threshold
+                    corruptRecordFailureThreshold = config.corrupt_record_failure_threshold,
+                    timestampsAsStrings = true
                 )
 
                 val outputFilesNumber = if (config.spark_job_scale == "small") 1 else inputDf.rdd.getNumPartitions

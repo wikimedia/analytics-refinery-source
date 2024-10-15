@@ -82,6 +82,8 @@ object RefineHelper extends LogHelper {
         inputFormat: String = "json",
         dataframeReaderOptions: Map[String, String] = Map(),
         corruptRecordFailureThreshold: Integer = 1,
+        loadLatest: Boolean = false,
+        timestampsAsStrings: Boolean = false,
     ): DataFrame = {
 
         val eventSchemaLoader: EventSchemaLoader = buildEventSchemaLoader(inputSchemaBaseURIs)
@@ -89,8 +91,8 @@ object RefineHelper extends LogHelper {
         val sparkSchema = loadSparkSchema(
             eventSchemaLoader,
             inputSchemaURI,
-            false,
-            true
+            loadLatest=loadLatest,
+            timestampsAsStrings=timestampsAsStrings,
         )
 
         // We've already looked up the schema from the inputSchemaURI,

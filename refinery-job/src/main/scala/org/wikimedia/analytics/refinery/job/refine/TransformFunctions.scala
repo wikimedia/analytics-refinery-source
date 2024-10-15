@@ -24,8 +24,8 @@ import org.apache.spark.sql.DataFrame
 
 import java.util.UUID.randomUUID
 import scala.util.matching.Regex
-import org.apache.spark.sql.functions.{coalesce, col, expr, input_file_name, udf, when}
-import org.apache.spark.sql.expressions.UserDefinedFunction
+import org.apache.spark.sql.functions.{coalesce, col, desc, expr, row_number, udf}
+import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
 import org.wikimedia.analytics.refinery.core.Webrequest
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
@@ -78,7 +78,7 @@ object event_transforms {
 object deduplicate extends LogHelper {
     import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("meta.id", "uuid")
-    val possibleSortingColumnNames = Seq("meta.dt", "meta.id", "uuid", "meta.request_id")
+    val possibleSortingColumnNames = Seq("meta.dt", "meta.request_id")
 
     /**
       * Generates a new random UUID Column value prefixed with 'fake_'
@@ -89,6 +89,7 @@ object deduplicate extends LogHelper {
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         val sourceColumnNames: Seq[String] = partDf.df.findColumnNames(possibleSourceColumnNames)
+        val sortingColumnNames: Seq[String] = partDf.df.findColumnNames(possibleSortingColumnNames)
 
         // No-op
         if (sourceColumnNames.isEmpty) {
@@ -107,14 +108,21 @@ object deduplicate extends LogHelper {
             val idColumn = coalesce(sourceColumnNames.map(col) :+ fakeUuid():_*)
 
             val tempColumnName = s"__temp__uuid__for_deduplicate"
+
+            var windowSpec = Window.partitionBy(tempColumnName)
+
             var tempDf: DataFrame = partDf.df.withColumn(tempColumnName, idColumn)
-
-            val sortingColumnNames: Seq[String] = partDf.df.findColumnNames(possibleSortingColumnNames)
-
             if (sortingColumnNames.nonEmpty) {
-                // We need to sort before deduplicating to ensure picking always the same first record in each group
-                // of duplicates.  This is important for deterministic results.
-                tempDf = tempDf.sort(sortingColumnNames.map(col):_*)
+                windowSpec = windowSpec.orderBy(sortingColumnNames.map(desc):_*)
+
+                tempDf = tempDf
+                    // Add a row number based on the partition (by idColumn) and order (by sortingColumns)
+                    .withColumn("row_num", row_number().over(windowSpec))
+                    // Filter to keep only the first occurrence (where row_num == 1)
+                    .filter(col("row_num") === 1)
+                    .drop("row_num")  // Clean up the row_num column
+            } else {
+                tempDf = tempDf.dropDuplicates(tempColumnName)
             }
 
             log.info(s"""Dropping duplicates
@@ -122,12 +130,7 @@ object deduplicate extends LogHelper {
                         |in ${partDf.partition}
                         |sorted by `${sortingColumnNames.mkString(",")}`""".stripMargin)
 
-            partDf.copy(df = tempDf
-                // Drop duplicate records based on the tempColumnName we added to the df.
-                .dropDuplicates(tempColumnName)
-                // And drop the tempColumnName column from the result.
-                .drop(tempColumnName)
-            )
+            partDf.copy(df = tempDf.drop(tempColumnName))
         }
     }
 }
