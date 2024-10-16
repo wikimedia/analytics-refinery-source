@@ -1,19 +1,16 @@
 package org.wikimedia.analytics.refinery.job.refine.cli
 
-import java.net.URI
-import com.fasterxml.jackson.databind.node.ObjectNode
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.job.refine.RefineHelper
-import com.fasterxml.jackson.databind.JsonNode
-import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper}
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, applyTransforms}
+import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
 import org.wikimedia.analytics.refinery.spark.sql.TableSchemaManager.HiveTableSchemaManager
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
-import org.wikimedia.eventutilities.spark.sql.JsonSchemaSparkConverter
 
+import java.net.URI
 import scala.collection.immutable.ListMap
 
 /**

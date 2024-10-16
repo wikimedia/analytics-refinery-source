@@ -3,8 +3,8 @@ package org.wikimedia.analytics.refinery.job.refine.cli
 import cats.syntax.either._
 import io.circe.Decoder
 import org.wikimedia.analytics.refinery.core.ReflectUtils
-import org.wikimedia.analytics.refinery.job.refine.Refine.log
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
+import org.wikimedia.analytics.refinery.job.refine.Refine.log
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 trait TransformFunctionsConfigHelper {

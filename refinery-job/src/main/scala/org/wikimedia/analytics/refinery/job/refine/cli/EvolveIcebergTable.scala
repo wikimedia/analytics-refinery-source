@@ -3,9 +3,9 @@ package org.wikimedia.analytics.refinery.job.refine.cli
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper}
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, applyTransforms}
-import org.wikimedia.analytics.refinery.job.refine.RefineHelper
+import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
 import org.wikimedia.analytics.refinery.spark.sql.IcebergExtensions.IcebergStructTypeExtensions
 import org.wikimedia.analytics.refinery.spark.sql.TableSchemaManager.IcebergTableSchemaManager
 import org.wikimedia.analytics.refinery.tools.LogHelper

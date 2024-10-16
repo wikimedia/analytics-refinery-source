@@ -1,15 +1,16 @@
 package org.wikimedia.analytics.refinery.job.refine.cli
 
-import org.apache.spark.sql.catalyst.util.FailFastMode
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.util.FailFastMode
 import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, buildEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
-import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
-import org.wikimedia.analytics.refinery.job.refine.{RefineHelper, RefineTarget}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
+import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
-import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
+import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
@@ -147,16 +148,16 @@ object RefineHiveDataset
          * Loads Config from args
          */
         def apply(args: Array[String]): Config = {
-            val config = try {
-                configureArgs[Config](args)
+            try {
+                val config = configureArgs[Config](args)
+                log.info("Loaded Refine config:\n" + prettyPrint(config))
+                config
             } catch {
                 case e: ConfigHelperException => {
                     log.fatal(e.getMessage + ". Aborting.")
                     sys.exit(1)
                 }
             }
-            log.info("Loaded Refine config:\n" + prettyPrint(config))
-            config
         }
     }
 
@@ -174,7 +175,15 @@ object RefineHiveDataset
         val config = Config(args)
 
         // Call apply with spark and Config properties as parameters
-        sys.exit(if (apply(spark)(config)) 0 else 1)
+        val eventSchemaLoader: EventSchemaLoader = buildEventSchemaLoader(config.schema_base_uris)
+        val reader = RawRefineDataReader(
+            spark,
+            RefineHelper.loadSparkSchema(eventSchemaLoader, config.schema_uri, timestampsAsStrings = true),
+            config.input_format,
+            config.dataframe_reader_options,
+            config.corrupt_record_failure_threshold)
+
+        sys.exit(if (apply(reader, config)) 0 else 1)
     }
 
     /**
@@ -182,63 +191,52 @@ object RefineHiveDataset
      *
      * @return true if the target refinement succeeded, false otherwise.
      */
-    def apply(
-        spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
-    )(
-        config: Config,
-    ): Boolean = {
+    def apply(reader: RawRefineDataReader, config: Config): Boolean = {
+
         val inputPathsCount = config.input_paths.length
-        config.input_paths.zipWithIndex.map { case (inputPath: String, i: Int) =>
-            val Array(database, table) = config.table.split("\\.")
-            val tableLocation = RefineHelper.tableLocation(spark, config.table)
-            val partitionPath = config.partition_paths(i)
+        config.input_paths.zipWithIndex.map {
+            case (inputPath: String, i: Int) =>
+                val Array(database, table) = config.table.split("\\.")
+                val tableLocation = reader.tableLocation(config.table)
+                val partitionPath = config.partition_paths(i)
 
-            // Here we are using HivePartition:
-            // - for nice toString and logging purposes.
-            // - to parse the partitionPath into a Map of partition columns.
-            val hivePartition = HivePartition(
-                table,
-                database,
-                tableLocation, // location not really needed here, but it is nice for logging
-                partitionPath // partitionPath
-            )
-
-            try {
-                log.info(s"Refining folder ${i + 1}/$inputPathsCount $inputPath into $hivePartition")
-
-                val inputDf = RefineHelper.readInputDataFrameWithSchemaURI(
-                    spark,
-                    Seq(inputPath),
-                    config.schema_uri,
-                    config.schema_base_uris,
-                    inputFormat = config.input_format,
-                    dataframeReaderOptions = config.dataframe_reader_options,
-                    corruptRecordFailureThreshold = config.corrupt_record_failure_threshold,
-                    timestampsAsStrings = true
+                // Here we are using HivePartition:
+                // - for nice toString and logging purposes.
+                // - to parse the partitionPath into a Map of partition columns.
+                val hivePartition = HivePartition(
+                    table,
+                    database,
+                    tableLocation, // location not really needed here, but it is nice for logging
+                    partitionPath
                 )
 
-                val outputFilesNumber = if (config.spark_job_scale == "small") 1 else inputDf.rdd.getNumPartitions
+                try {
+                    log.info(s"Refining folder ${i + 1}/$inputPathsCount $inputPath into $hivePartition")
 
-                // Add partition columns with the literal values as provided.
-                val inputDfWithPartitionValues = inputDf.addPartitionColumnValues(hivePartition.partitions)
+                    val inputDf = reader.readInputDataFrameWithSchemaURI(Seq(inputPath))
 
-                // Apply the configured transform functions.
-                val transformedDf = RefineHelper.applyTransforms(inputDfWithPartitionValues, config.transform_functions)
+                    val outputFilesNumber = if (config.spark_job_scale == "small") 1 else inputDf.rdd.getNumPartitions
 
-                // Insert and overwrite the DataFrame into the Hive table.
-                val recordCount = DataFrameToTable.hiveInsertOverwrite(
-                    transformedDf,
-                    config.table,
-                    outputFilesNumber
-                )
+                    // Add partition columns with the literal values as provided.
+                    val inputDfWithPartitionValues = inputDf.addPartitionColumnValues(hivePartition.partitions)
 
-                log.info(s"Successfully refined $recordCount rows from ${config.input_paths} into $hivePartition")
-                Success()
-            } catch {
-                case e: Exception =>
-                    log.error(s"Failed refinement of $inputPath into $hivePartition", e)
-                    throw e
-            }
+                    // Apply the configured transform functions.
+                    val transformedDf = RefineHelper.applyTransforms(inputDfWithPartitionValues, config.transform_functions)
+
+                    // Insert and overwrite the DataFrame into the Hive table.
+                    val recordCount = DataFrameToTable.hiveInsertOverwrite(
+                        transformedDf,
+                        config.table,
+                        outputFilesNumber
+                    )
+
+                    log.info(s"Successfully refined $recordCount rows from ${config.input_paths} into $hivePartition")
+                    Success()
+                } catch {
+                    case e: Exception =>
+                        log.error(s"Failed refinement of $inputPath into $hivePartition", e)
+                        throw e
+                }
         }.forall(_.isSuccess)
     }
 }

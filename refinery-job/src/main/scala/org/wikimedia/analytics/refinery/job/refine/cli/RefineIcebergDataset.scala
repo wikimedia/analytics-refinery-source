@@ -3,12 +3,13 @@ package org.wikimedia.analytics.refinery.job.refine.cli
 import com.github.nscala_time.time.Imports._
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.FailFastMode
-import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, buildEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
-import org.wikimedia.analytics.refinery.job.refine.{RefineHelper, RefineTarget}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
+import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
@@ -143,16 +144,16 @@ object RefineIcebergDataset extends LogHelper with ConfigHelper with TransformFu
           * Loads Config from args
           */
         def apply(args: Array[String]): Config = {
-            val config = try {
-                configureArgs[Config](args)
+             try {
+                 val config = configureArgs[Config](args)
+                 log.info("Loaded Refine config:\n" + prettyPrint(config))
+                 config
             } catch {
                 case e: ConfigHelperException => {
                     log.fatal(e.getMessage + ". Aborting.")
                     sys.exit(1)
                 }
             }
-            log.info("Loaded Refine config:\n" + prettyPrint(config))
-            config
         }
     }
 
@@ -169,8 +170,14 @@ object RefineIcebergDataset extends LogHelper with ConfigHelper with TransformFu
 
         val config = Config(args)
 
-        // Call apply with spark and Config properties as parameters
-        apply(spark)(config) match {
+        val eventSchemaLoader: EventSchemaLoader = buildEventSchemaLoader(config.input_schema_base_uris)
+        val reader = RawRefineDataReader(spark,
+            RefineHelper.loadSparkSchema(eventSchemaLoader, config.input_schema_uri),
+            config.input_format,
+            config.dataframe_reader_options,
+            config.corrupt_record_failure_threshold)
+
+        apply(reader, config) match {
             case Success(_) => sys.exit(0)
             case Failure(_) => sys.exit(1)
         }
@@ -182,23 +189,14 @@ object RefineIcebergDataset extends LogHelper with ConfigHelper with TransformFu
       * @return true if the target refinement succeeded, false otherwise.
       */
     def apply(
-        spark: SparkSession = SparkSession.builder().enableHiveSupport().getOrCreate()
-    )(
+        reader: RawRefineDataReader,
         config: Config,
     ): Try[Unit] = {
         try {
             log.info(s"Refining ${config.input_paths} folder(s) into Iceberg table ${config.output_table} " +
                 s"between ${config.delete_after} and ${config.delete_before}.")
 
-            val inputDf = RefineHelper.readInputDataFrameWithSchemaURI(
-                spark,
-                config.input_paths,
-                config.input_schema_uri,
-                config.input_schema_base_uris,
-                inputFormat = config.input_format,
-                dataframeReaderOptions = config.dataframe_reader_options,
-                corruptRecordFailureThreshold = config.corrupt_record_failure_threshold
-            )
+            val inputDf = reader.readInputDataFrameWithSchemaURI(config.input_paths)
 
             val transformedDf = RefineHelper.applyTransforms(inputDf, config.transform_functions)
 

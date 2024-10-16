@@ -1,11 +1,5 @@
 package org.wikimedia.analytics.refinery.job.refine
 
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.parallel.ForkJoinTaskSupport
-import scala.concurrent.forkjoin.ForkJoinPool
-import scala.util.{Failure, Success, Try}
-import scala.util.matching.Regex
 import com.github.nscala_time.time.Imports._
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
@@ -20,6 +14,13 @@ import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.WikimediaDefaults
+
+import scala.collection.immutable.ListMap
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.parallel.ForkJoinTaskSupport
+import scala.concurrent.forkjoin.ForkJoinPool
+import scala.util.matching.Regex
+import scala.util.{Failure, Success, Try}
 
 // TODO: Move this into org.wikimedia.analytics.refinery.job.refine.cli
 

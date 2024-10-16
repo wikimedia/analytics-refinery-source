@@ -7,7 +7,7 @@ import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructT
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
-class RefineHelperTest extends FlatSpec
+class RawRefineDataReaderTest extends FlatSpec
     with Matchers
     with DataFrameSuiteBase
     with BeforeAndAfterEach {
@@ -31,7 +31,7 @@ class RefineHelperTest extends FlatSpec
         )))
     }
 
-    "readInputDataFrame" should "read a json input" in {
+    "readInputDataFrameWithSchemaURI" should "read a json input" in {
         val inputPath = getClass.getResource("/event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19").toString
         val outputPath = getClass.getResource("/event_data") + "refined/event/table_a/datacenter=eqiad/year=2021/month=03/day=22/hour=19"
         val schemasBaseUris = Seq(getClass.getResource("/event_data/schemas").toString)
@@ -51,12 +51,10 @@ class RefineHelperTest extends FlatSpec
 
         val sparkSchema = rt.schema.get
 
-        val explicitSparkSchemaLoader: ExplicitSchemaLoader = ExplicitSchemaLoader(Some(sparkSchema))
+        val reader = RawRefineDataReader(spark = spark, sparkSchema = sparkSchema)
 
-        val df = RefineHelper.readInputDataFrame(
-            spark,
-            Seq(inputPath),
-            explicitSparkSchemaLoader
+        val df = reader.readInputDataFrameWithSchemaURI(
+            Seq(inputPath)
         )
 
         df.count() should equal(1)
