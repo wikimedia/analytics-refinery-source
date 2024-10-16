@@ -1,3 +1,6 @@
+## v0.2.52
+* Update the smtp server settings for email from refine
+
 ## v0.2.51
 * Add a new mediawiki-jdbc spark datasource to refinery-spark.
 
