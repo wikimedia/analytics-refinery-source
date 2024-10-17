@@ -1,3 +1,6 @@
+## v0.2.49.2
+* Fix Refine deduplication deterministic behaviour.
+
 ## v0.2.49
 * Make deduplication TransformFunction deterministic.
 

@@ -217,7 +217,7 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val partDf = PartitionedDataFrame(df, fakeHivePartition)
         val transformedDf = deduplicate(partDf)
         // Keep the one with the earliest `dt`
-        transformedDf.df.select("meta.dt").collect().map(_(0)) should contain allElementsOf Seq(dt1.get)
+        transformedDf.df.select("meta.dt").collect().map(_(0)) should contain allElementsOf Seq(dt3.get)
     }
 
     it should "filter_allowed_domains using `webHost`" in {
