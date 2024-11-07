@@ -37,7 +37,8 @@ object RefineHiveDataset
         transform_functions: Seq[TransformFunction] = Seq.empty,
         dataframe_reader_options: Map[String, String] = Map("mode" -> FailFastMode.name),
         corrupt_record_failure_threshold: Int = 1,
-        spark_job_scale: String = "small"
+        spark_job_scale: String = "small",
+        ignore_missing_paths: Boolean = false
     ) {
         // Call validate now so we can throw at instantiation if this Config is not valid.
         validate()
@@ -121,7 +122,9 @@ object RefineHiveDataset
                   |Default: mode:FAILFAST""".stripMargin,
             "spark_job_scale" ->
                 """The scale of the Spark job (small, medium, large). This is used to set the number of
-                  |partitions of the DataFrame. Default: small""".stripMargin
+                  |partitions of the DataFrame. Default: small""".stripMargin,
+            "ignore_missing_paths" ->
+                """If true, ignore missing paths when reading input data. Default: false""",
         )
 
         val usage: String =
@@ -183,7 +186,9 @@ object RefineHiveDataset
             sparkSchemaLoader.load(URI.create(config.schema_uri)),
             config.input_format,
             config.dataframe_reader_options,
-            config.corrupt_record_failure_threshold)
+            config.corrupt_record_failure_threshold,
+            config.ignore_missing_paths
+        )
 
         sys.exit(if (apply(reader, config)) 0 else 1)
     }
@@ -217,22 +222,26 @@ object RefineHiveDataset
 
                     val inputDf = reader.readInputDataFrameWithSchemaURI(Seq(inputPath))
 
-                    val outputFilesNumber = if (config.spark_job_scale == "small") 1 else inputDf.rdd.getNumPartitions
+                    if (inputDf.rdd.isEmpty()) {
+                        log.warn(s"Input DataFrame is empty for $inputPath")
+                    } else {
+                        val outputFilesNumber = if (config.spark_job_scale == "small") 1 else inputDf.rdd.getNumPartitions
 
-                    // Add partition columns with the literal values as provided.
-                    val inputDfWithPartitionValues = inputDf.addPartitionColumnValues(hivePartition.partitions)
+                        // Add partition columns with the literal values as provided.
+                        val inputDfWithPartitionValues = inputDf.addPartitionColumnValues(hivePartition.partitions)
 
-                    // Apply the configured transform functions.
-                    val transformedDf = RefineHelper.applyTransforms(inputDfWithPartitionValues, config.transform_functions)
+                        // Apply the configured transform functions.
+                        val transformedDf = RefineHelper.applyTransforms(inputDfWithPartitionValues, config.transform_functions)
 
-                    // Insert and overwrite the DataFrame into the Hive table.
-                    val recordCount = DataFrameToTable.hiveInsertOverwrite(
-                        transformedDf,
-                        config.table,
-                        outputFilesNumber
-                    )
+                        // Insert and overwrite the DataFrame into the Hive table.
+                        val recordCount = DataFrameToTable.hiveInsertOverwrite(
+                            transformedDf,
+                            config.table,
+                            outputFilesNumber
+                        )
 
-                    log.info(s"Successfully refined $recordCount rows from ${config.input_paths} into $hivePartition")
+                        log.info(s"Successfully refined $recordCount rows from ${config.input_paths} into $hivePartition")
+                    }
                     Success()
                 } catch {
                     case e: Exception =>

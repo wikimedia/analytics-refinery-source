@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
@@ -11,7 +11,8 @@ case class RawRefineDataReader(spark: SparkSession,
                                sparkSchema: StructType,
                                inputFormat: String = "json",
                                dataframeReaderOptions: Map[String, String] = Map(),
-                               corruptRecordFailureThreshold: Integer = 1) extends LogHelper {
+                               corruptRecordFailureThreshold: Integer = 1,
+                               ignoreMissingPaths: Boolean = false) extends LogHelper {
 
     /**
      * Get the table's location path via the Spark catalog API.
@@ -47,7 +48,15 @@ case class RawRefineDataReader(spark: SparkSession,
         ))
 
         refineTargets
-            .map(Refine.getInputPartitionedDataFrame(_, corruptRecordFailureThreshold).df)
+            .map( refineTarget => {
+                if (!refineTarget.inputExists() && ignoreMissingPaths) {
+                    log.warn(s"Path ${refineTarget.inputPath} does not exist, ignoring")
+                    spark.createDataFrame(spark.sparkContext.emptyRDD[Row], refineTarget.schema.get)
+                } else {
+                    // Next line will throw an exception if the path does not exist.
+                    Refine.getInputPartitionedDataFrame(refineTarget, corruptRecordFailureThreshold).df
+                }
+            })
             .reduce(_ union _)
     }
 }
