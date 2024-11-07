@@ -15,6 +15,8 @@ object TestUserHistoryHelpers {
     causedByUserId: Option[Long] = Some(1L),
     causedByUserText: Option[String] = Some("User"),
     causedByAnonymousUser: Option[Boolean] = Some(false),
+    causedByTemporaryUser: Option[Boolean] = Some(false),
+    causedByPermanentUser: Option[Boolean] = Some(true),
     oldUserText: Option[String] = Some("User"),
     newUserText: Option[String] = Some("User"),
     oldUserGroups: Option[Seq[String]] = Some(Seq.empty),
@@ -41,6 +43,8 @@ object TestUserHistoryHelpers {
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
           case "adminAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
+          case "adminTemp" | "causedByTemporaryUser" => ("causedByTemporaryUser" -> boolean(v))
+          case "adminPerm" | "causedByPermanentUser" => ("causedByPermanentUser" -> boolean(v))
           case "oldText" | "oldUserText" => ("oldUserText" -> string(v))
           case "newText" | "newUserText" => ("newUserText" -> string(v))
           case "oldGroups" | "oldUserGroups" => ("oldUserGroups" -> list(v))
@@ -59,6 +63,8 @@ object TestUserHistoryHelpers {
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
+        causedByTemporaryUser = valueMap.getOrElse("causedByTemporaryUser", causedByTemporaryUser).asInstanceOf[Option[Boolean]],
+        causedByPermanentUser = valueMap.getOrElse("causedByPermanentUser", causedByPermanentUser).asInstanceOf[Option[Boolean]],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         oldUserText = valueMap.getOrElse("oldUserText", oldUserText).get.asInstanceOf[String],
         newUserText = valueMap.getOrElse("newUserText", newUserText).get.asInstanceOf[String],
@@ -83,6 +89,8 @@ object TestUserHistoryHelpers {
                     causedByUserId: Option[Long] = Some(1L),
                     causedByUserText: Option[String] = Some("User"),
                     causedByAnonymousUser: Option[Boolean] = Some(false),
+                    causedByTemporaryUser: Option[Boolean] = Some(false),
+                    causedByPermanentUser: Option[Boolean] = Some(true),
                     userId: Option[Long] = Some(1L),
                     userTextHistorical: Option[String] = Some("User"),
                     userText: Option[String] = None,
@@ -94,6 +102,9 @@ object TestUserHistoryHelpers {
                     userCreation: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
                     userFirstEdit: Option[Timestamp] = TimestampHelpers.makeMediawikiTimestampOption("20010115000000"),
                     autoCreate: Option[Boolean] = Some(false),
+                    isAnonymous: Option[Boolean] = Some(false),
+                    isTemporary: Option[Boolean] = Some(false),
+                    isPermanent: Option[Boolean] = Some(true),
                     causedByBlockExpiration: Option[String] = None,
                     inferredFrom: Option[String] = None,
                     sourceLogId: Option[Long] = Some(0L),
@@ -116,6 +127,8 @@ object TestUserHistoryHelpers {
           case "adminId" | "causedByUserId" => ("causedByUserId" -> long(v))
           case "adminText" | "causedByUserText" => ("causedByUserText" -> string(v))
           case "adminAnon" | "causedByAnonymousUser" => ("causedByAnonymousUser" -> boolean(v))
+          case "adminTemp" | "causedByTemporaryUser" => ("causedByTemporaryUser" -> boolean(v))
+          case "adminPerm" | "causedByPermanentUser" => ("causedByPermanentUser" -> boolean(v))
           case "id" | "userId" => ("userId" -> long(v))
           case "textH" | "userTextH" => ("userTextHistorical" -> string(v))
           case "text" | "userText" => ("userText" -> string(v))
@@ -127,6 +140,9 @@ object TestUserHistoryHelpers {
           case "creation" | "userCreation" => ("userCreation" -> timestamp(v))
           case "firstEdit" | "userFirstEdit" => ("userFirstEdit" -> timestamp(v))
           case "auto" | "autoCreate" => ("autoCreate" -> boolean(v))
+          case "anon" | "isAnon" | "isAnonymous" => ("isAnonymous" -> boolean(v))
+          case "temp" | "isTemp" | "isTemporary" => ("isTemporary" -> boolean(v))
+          case "perm" | "isPerm" | "isPermanent" => ("isPermanent" -> boolean(v))
           case "expiration" | "causedByBlockExpiration" => ("causedByBlockExpiration" -> string(v))
           case "inferred" | "inferredFrom" => ("inferredFrom" -> string(v))
           case "log" | "logId" | "sourceLogId" => ("sourceLogId" -> long(v))
@@ -145,6 +161,8 @@ object TestUserHistoryHelpers {
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
+        causedByTemporaryUser = valueMap.getOrElse("causedByTemporaryUser", causedByTemporaryUser).asInstanceOf[Option[Boolean]],
+        causedByPermanentUser = valueMap.getOrElse("causedByPermanentUser", causedByPermanentUser).asInstanceOf[Option[Boolean]],
         userId = valueMap.getOrElse("userId", userId).get.asInstanceOf[Long],
         userTextHistorical = userTextHistoricalVal,
         userText = valueMap.getOrElse("userText", Some(userTextHistoricalVal)).get.asInstanceOf[String],
@@ -156,6 +174,9 @@ object TestUserHistoryHelpers {
         userCreationTimestamp = valueMap.getOrElse("userCreation", userCreation).asInstanceOf[Option[Timestamp]],
         userFirstEditTimestamp = valueMap.getOrElse("userFirstEdit", userFirstEdit).asInstanceOf[Option[Timestamp]],
         createdBySystem = valueMap.getOrElse("autoCreate", autoCreate).get.asInstanceOf[Boolean],
+        isAnonymous = valueMap.getOrElse("isAnonymous", isAnonymous).get.asInstanceOf[Boolean],
+        isTemporary = valueMap.getOrElse("isTemporary", isTemporary).get.asInstanceOf[Boolean],
+        isPermanent = valueMap.getOrElse("isPermanent", isPermanent).get.asInstanceOf[Boolean],
         causedByBlockExpiration = valueMap.getOrElse("causedByBlockExpiration", causedByBlockExpiration).asInstanceOf[Option[String]],
         inferredFrom = valueMap.getOrElse("inferredFrom", inferredFrom).asInstanceOf[Option[String]],
         sourceLogId = valueMap.getOrElse("sourceLogId", sourceLogId).asInstanceOf[Option[Long]],

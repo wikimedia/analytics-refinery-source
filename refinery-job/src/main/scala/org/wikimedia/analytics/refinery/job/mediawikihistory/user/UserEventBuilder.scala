@@ -264,12 +264,13 @@ object UserEventBuilder extends Serializable {
     *   2 log_timestamp,
     *   3 actor_user,
     *   4 actor_name,
-    *   5 actor_is_anon
-    *   6 log_title,
-    *   7 comment_text,
-    *   8 log_params,
-    *   9 wiki_db,
-    *  10 log_id
+    *   5 actor_is_anon,
+    *   6 actor_is_temp,
+    *   7 log_title,
+    *   8 comment_text,
+    *   9 log_params,
+    *  10 wiki_db,
+    *  11 log_id
     */
   def buildUserEvent(log: Row): UserEvent = {
     val logType = log.getString(0)
@@ -279,12 +280,38 @@ object UserEventBuilder extends Serializable {
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
     val actorUser = if (log.isNullAt(3) || log.isNullAt(4)) None else Some(log.getLong(3))
     val actorName = Option(log.getString(4))
-    val actorIsAnon = if (log.isNullAt(5)) None else Some(log.getBoolean(5))
-    val logTitle = log.getString(6)
-    val commentText = log.getString(7)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(8))
-    val wikiDb = log.getString(9)
-    val logId = log.getLong(10)
+    val logTitle = log.getString(7)
+    val commentText = log.getString(8)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(9))
+    val wikiDb = log.getString(10)
+    val logId = log.getLong(11)
+
+    // Assert that actor_is_anon is not true while actor_is_temp is defined and viceversa.
+    assert(log.isNullAt(5) || !log.getBoolean(5) || log.isNullAt(6))
+
+    // Derive actorIsAnon from actor_is_temp and actor_is_anon.
+    val actorIsAnon = if (!log.isNullAt(5)) {
+      Some(log.getBoolean(5))
+    } else {
+      if (!log.isNullAt(6)) Some(false)
+      else None
+    }
+
+    // Derive actorIsTemp from actor_is_temp and actor_is_anon.
+    val actorIsTemp = if (!log.isNullAt(6)) {
+      Some(log.getBoolean(6))
+    } else {
+      if (!log.isNullAt(5) && log.getBoolean(5)) Some(false)
+      else None
+    }
+
+    // Derive actorIsPerm from actor_is_temp and actor_is_anon.
+    val actorIsPerm = if (!log.isNullAt(6)) {
+      Some(!log.getBoolean(6))
+    } else {
+      if (!log.isNullAt(5) && log.getBoolean(5)) Some(false)
+      else None
+    }
 
     val eventType = logType match {
       case "renameuser" => "rename"
@@ -330,6 +357,8 @@ object UserEventBuilder extends Serializable {
         eventType = eventType,
         causedByUserId = actorUser,
         causedByAnonymousUser = actorIsAnon,
+        causedByTemporaryUser = actorIsTemp,
+        causedByPermanentUser = actorIsPerm,
         causedByUserText = actorName,
         oldUserText = oldUserText,
         newUserText = newUserText,
@@ -349,4 +378,3 @@ object UserEventBuilder extends Serializable {
     )
   }
 }
-

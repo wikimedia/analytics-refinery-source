@@ -126,6 +126,8 @@ class UserHistoryBuilder(
               causedByUserId = None,
               causedByUserText = None,
               causedByAnonymousUser = None,
+              causedByTemporaryUser = None,
+              causedByPermanentUser = None,
               inferredFrom = Some("unclosed"),
               sourceLogId = Some(event.sourceLogId),
               sourceLogComment = Some(event.sourceLogComment),
@@ -156,6 +158,8 @@ class UserHistoryBuilder(
                   causedByUserId = None,
                   causedByUserText = None,
                   causedByAnonymousUser = None,
+                  causedByTemporaryUser = None,
+                  causedByPermanentUser = None,
                   inferredFrom = Some("conflict"),
                   sourceLogId = Some(event.sourceLogId),
                   sourceLogComment = Some(event.sourceLogComment),
@@ -221,6 +225,8 @@ class UserHistoryBuilder(
                   causedByUserId = event.causedByUserId,
                   causedByUserText = event.causedByUserText,
                   causedByAnonymousUser = event.causedByAnonymousUser,
+                  causedByTemporaryUser = event.causedByTemporaryUser,
+                  causedByPermanentUser = event.causedByPermanentUser,
                   causedByBlockExpiration = event.blockExpiration,
                   sourceLogId = Some(event.sourceLogId),
                   sourceLogComment = Some(event.sourceLogComment),
@@ -293,11 +299,11 @@ class UserHistoryBuilder(
     * @return The updated states
     */
   def updateAnonymousAndIsBotBy(states: List[UserState]): List[UserState] = {
-    val anonymous = states.head.userId == 0
+    val isAnonymous = states.head.userId == 0
     val isBotBy = UserEventBuilder.isBotBy(Some(states.head.userText), states.head.userGroups)
     states.map(s => s.copy(
       // [[UserState]]
-      anonymous = anonymous,
+      isAnonymous = isAnonymous,
       isBotBy = isBotBy,
       isBotByHistorical = UserEventBuilder.isBotBy(Some(s.userTextHistorical), s.userGroupsHistorical)
     ))
@@ -404,6 +410,8 @@ class UserHistoryBuilder(
                     causedByUserId = None,
                     causedByUserText = None,
                     causedByAnonymousUser = None,
+                    causedByTemporaryUser = None,
+                    causedByPermanentUser = None,
                     causedByBlockExpiration = None,
                     inferredFrom = Some("unblock")
                 ),
