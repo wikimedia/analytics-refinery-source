@@ -25,6 +25,11 @@ class TestHdfsXMLFsImageConverter extends FlatSpec with Matchers {
           <genstamp>95130810</genstamp>
           <numBytes>49679794</numBytes>
         </block>
+        <block>
+          <id>1168840691</id>
+          <genstamp>95130810</genstamp>
+          <numBytes>49679794</numBytes>
+        </block>
       </blocks>
       <storagePolicyId>0</storagePolicyId>
     </inode>"""
@@ -35,6 +40,7 @@ class TestHdfsXMLFsImageConverter extends FlatSpec with Matchers {
     val xmlReader = xmlInputFactory.createXMLStreamReader(buffreader).asInstanceOf[XMLStreamReader2]
     val inode = HdfsXMLFsImageConverter.Inode.parseXml(xmlReader)
     assert(inode.typ.get == "FILE")
+    assert(inode.totalBlocks.get == 2)
   }
 
   "HdfsXMLFsImageConverter" should "parse XML of inode under construction" in {
