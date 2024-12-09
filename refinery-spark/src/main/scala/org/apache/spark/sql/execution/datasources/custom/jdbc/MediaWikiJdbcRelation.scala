@@ -232,7 +232,7 @@ private[sql] object MediaWikiJdbcRelation extends Logging {
       // -- BEGIN MediaWiki MODIFICATION --
       // dateTimeToString above just happens to do exactly what we need, but may not in future versions
       // the conversion from iso to mw format is simple, just remove everything that's not a digit
-      case BinaryType => dateTimeToString().replaceAll("[^0-9]", "")
+      case BinaryType => dateTimeToString().replaceAll("[^0-9']", "")
       // -- END MediaWiki MODIFICATION --
       case DateType | TimestampType => dateTimeToString()
     }
