@@ -148,6 +148,22 @@
             </plugins>
         </pluginManagement>
         <plugins>
+
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <!-- pick last version compiled with java 8 -->
+                <version>2.30.0</version>
+                <configuration>
+                    <ratchetFrom>origin/master</ratchetFrom>
+                    <java>
+                        <googleJavaFormat>
+                            <!-- downgrade due to plugin version constraint, see above -->
+                            <version>1.7</version>
+                        </googleJavaFormat>
+                    </java>
+                </configuration>
+            </plugin>
             <plugin>
                 <!-- Add GeoIP path as system propertie values to surefire global parameters -->
                 <groupId>org.apache.maven.plugins</groupId>

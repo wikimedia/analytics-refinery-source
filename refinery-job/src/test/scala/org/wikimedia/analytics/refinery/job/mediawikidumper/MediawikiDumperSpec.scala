@@ -1,20 +1,21 @@
 package org.wikimedia.analytics.refinery.job.mediawikidumper
 
-import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.apache.commons.io.FileUtils
-import org.apache.hadoop.fs.Path
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.types.{BooleanType, LongType, IntegerType, MapType, StringType, StructField, StructType, TimestampType}
-
-import scala.io.Source
-import java.io.File
+import java.io._
 import java.nio.file.{Files, StandardCopyOption}
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
-import org.wikimedia.analytics.refinery.tools.LogHelper
 
 import scala.language.postfixOps
 
+import com.holdenkarau.spark.testing.DataFrameSuiteBase
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql.functions.{col, lit, when}
+import org.apache.spark.sql.types._
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.wikimedia.analytics.refinery.job.mediawikidumper.MediawikiDumperSpec.assertSinglePartitionForRevision
+import org.wikimedia.analytics.refinery.tools.LogHelper
+
+// -Dsuites="org.wikimedia.analytics.refinery.job.mediawikidumper.MediawikiDumperSpec"
 class MediawikiDumperSpec
     extends FlatSpec
     with Matchers
@@ -22,28 +23,39 @@ class MediawikiDumperSpec
     with DataFrameSuiteBase
     with LogHelper {
 
-    val tmpDir: File = Files.createTempDirectory(
-        s"mediawikidumper_test_db_${System.currentTimeMillis / 1000}"
-    ).toFile
+    val tmpDir: File = {
+        Files
+            .createTempDirectory(
+              s"mediawikidumper_test_db_${System.currentTimeMillis / 1000}"
+            )
+            .toFile
+    }
 
     val outputFolder: Path = new Path(s"${tmpDir.getAbsolutePath}/output")
 
-    val testResourcesDir: String = if (System.getProperty("user.dir").contains("refinery-job")) {
-        "src/test/resources/mediawikidumper"
-    } else {
-        // If we are not running from refinery-job, we need to add the refinery-job prefix to the path
-        // in order to find the test resources.
-        "refinery-job/src/test/resources/mediawikidumper"
+    val testResourcesDir: String = {
+        if (System.getProperty("user.dir").contains("refinery-job")) {
+            "src/test/resources/mediawikidumper"
+        } else {
+            // If we are not running from refinery-job, we need to add the refinery-job prefix to the path
+            // in order to find the test resources.
+            "refinery-job/src/test/resources/mediawikidumper"
+        }
     }
 
     val sourceDBName: String = "wmf_dumps"
     val sourceTableName: String = s"$sourceDBName.wikitext_raw_rc1"
-    val namespaceTableName: String = s"$sourceDBName.mediawiki_project_namespace_map"
+    val namespaceTableName: String = {
+        s"$sourceDBName.mediawiki_project_namespace_map"
+    }
     val snapshot: String = "2023-09"
 
     def createBaseTables(): Unit = {
-        spark.sql(s"CREATE DATABASE IF NOT EXISTS $sourceDBName LOCATION '${tmpDir.getAbsolutePath}';")
-        spark.read
+        spark.sql(
+          s"CREATE DATABASE IF NOT EXISTS $sourceDBName LOCATION '${tmpDir.getAbsolutePath}';"
+        )
+        spark
+            .read
             .schema(wikitextSchema)
             .option("header", "true")
             .option("inferSchema", "false")
@@ -53,58 +65,77 @@ class MediawikiDumperSpec
             .option("compression", "none")
             .saveAsTable(sourceTableName)
 
-        spark.read
+        spark
+            .read
             .schema(namespacesSchema)
             .option("header", "true")
             .option("inferSchema", "false")
             .option("compression", "gzip")
-            .json(s"${testResourcesDir}/wmf_raw_mediawiki_project_namespace_map.json.gz")
+            .json(
+              s"${testResourcesDir}/wmf_raw_mediawiki_project_namespace_map.json.gz"
+            )
             .write
             .option("compression", "none")
             .saveAsTable(namespaceTableName)
     }
 
-    val wikitextSchema = new StructType(Array(
-        StructField("page_id", LongType),
-        StructField("page_namespace", LongType),
-        StructField("page_title", StringType),
-        StructField("user_id", LongType),
-        StructField("user_text", StringType),
-        StructField("user_is_visible", BooleanType),
-        StructField("revision_id", LongType),
-        StructField("revision_parent_id", LongType),
-        StructField("revision_timestamp", TimestampType),
-        StructField("revision_comment", StringType),
-        StructField("revision_comment_is_visible", BooleanType),
-        StructField("revision_sha1", StringType),
-        StructField("revision_size", LongType),
-        StructField("revision_is_minor_edit", BooleanType),
-        StructField("revision_content_slots", MapType(StringType, new StructType(Array(
-            StructField("content_body", StringType),
-            StructField("content_format", StringType),
-            StructField("content_model", StringType),
-            StructField("content_sha1", StringType),
-            StructField("content_size", LongType)
-        )))),
-        StructField("revision_content_is_visible", BooleanType),
-        StructField("wiki_db", StringType)
-    ))
+    val wikitextSchema = {
+        new StructType(
+          Array(
+            StructField("page_id", LongType),
+            StructField("page_namespace", LongType),
+            StructField("page_title", StringType),
+            StructField("user_id", LongType),
+            StructField("user_text", StringType),
+            StructField("user_is_visible", BooleanType),
+            StructField("revision_id", LongType),
+            StructField("revision_parent_id", LongType),
+            StructField("revision_timestamp", TimestampType),
+            StructField("revision_comment", StringType),
+            StructField("revision_comment_is_visible", BooleanType),
+            StructField("revision_sha1", StringType),
+            StructField("revision_size", LongType),
+            StructField("revision_is_minor_edit", BooleanType),
+            StructField(
+              "revision_content_slots",
+              MapType(
+                StringType,
+                new StructType(
+                  Array(
+                    StructField("content_body", StringType),
+                    StructField("content_format", StringType),
+                    StructField("content_model", StringType),
+                    StructField("content_sha1", StringType),
+                    StructField("content_size", LongType)
+                  )
+                )
+              )
+            ),
+            StructField("revision_content_is_visible", BooleanType),
+            StructField("wiki_db", StringType)
+          )
+        )
+    }
 
-    val namespacesSchema = new StructType(Array(
-        StructField("hostname", StringType),
-        StructField("language", StringType),
-        StructField("sitename", StringType),
-        StructField("dbname", StringType),
-        StructField("home_page", StringType),
-        StructField("mw_version", StringType),
-        StructField("case_setting", StringType),
-        StructField("namespace", IntegerType),
-        StructField("namespace_canonical_name", StringType),
-        StructField("namespace_localized_name", StringType),
-        StructField("namespace_case_setting", StringType),
-        StructField("namespace_is_content", IntegerType),
-        StructField("snapshot", StringType),
-    ))
+    val namespacesSchema = {
+        new StructType(
+          Array(
+            StructField("hostname", StringType),
+            StructField("language", StringType),
+            StructField("sitename", StringType),
+            StructField("dbname", StringType),
+            StructField("home_page", StringType),
+            StructField("mw_version", StringType),
+            StructField("case_setting", StringType),
+            StructField("namespace", IntegerType),
+            StructField("namespace_canonical_name", StringType),
+            StructField("namespace_localized_name", StringType),
+            StructField("namespace_case_setting", StringType),
+            StructField("namespace_is_content", IntegerType),
+            StructField("snapshot", StringType)
+          )
+        )
+    }
 
     def dropTables(): Unit = {
         spark.sql(s"""DROP TABLE IF EXISTS $sourceTableName;""")
@@ -117,100 +148,204 @@ class MediawikiDumperSpec
     override def afterEach(): Unit = dropTables()
 
     val params: MediawikiDumper.Params = MediawikiDumper.Params(
-        sourceTable = sourceTableName,
-        outputFolder = outputFolder.toString,
-        // Note: update those values to match the input data from resources, after change to input file.
-        publishUntil = "2023-09-01",
-        wikiId = "simplewiki",
-        outputFilesCompression = "uncompressed",
-        namespacesTable = namespaceTableName,
-        namespacesSnapshot = snapshot
+      maxPartitionSizeMB = 1,
+      sourceTable = sourceTableName,
+      outputFolder = outputFolder.toString,
+      // Note: update those values to match the input data from resources, after change to input file.
+      publishUntil = "2023-09-01",
+      wikiId = "simplewiki",
+      namespacesTable = namespaceTableName,
+      namespacesSnapshot = snapshot
     )
 
     // Setup the baseDF through a function in order to use the same Spark Session as in the test beforeEach.
     def baseDF: DataFrame = MediawikiDumper.buildBaseRevisionsDF(params)
 
-    // Same comment as above
-    def partitionsDefiner(baseDF: DataFrame): PagesPartitionsDefiner = new PagesPartitionsDefiner(
-        spark,
-        baseDF,
-        params.pageSizeOverhead,
-        params.maxTargetFileSize,
-        params.minChunkSize
-    )
+    def fakeSize(df: DataFrame): DataFrame = {
+        df.withColumn(
+          "size",
+          // revision 360821
+          when(
+            col("timestamp").equalTo(
+              lit("2007-03-27T11:27:44.000Z").cast(DataTypes.TimestampType)
+            ),
+            params.maxPartitionSizeMB * 1024 * 1024 + 1
+          ).otherwise(col("size"))
+        )
+    }
 
     "buildBaseRevisionsDF" should "create a valid dataframe" in {
         val df = baseDF
-        df.count() should equal(33)
-        val pageIds = df.select("pageId").rdd.collect()
+        df.count should equal(33)
+        val pageIds = df.select("pageId").collect
         pageIds.distinct.length should equal(2)
     }
 
-    "sortedAndPartitionedRevisions" should "rearrange and complete the revisions with partition information" in {
-        val df = baseDF
-        val rdd: RDD[Revision] = MediawikiDumper.sortedAndPartitionedRevisions(df, partitionsDefiner(df))
-        rdd.count() should equal(33)
-        // This size changes when data is correct (the uncommented line is currently based on bad data)
-        // rdd.first().pagesPartition.get should equal(PagesPartition(681371,45046,279900,Some(0)))  // See json file for ids
-        rdd.first().pagesPartition.get should equal(PagesPartition(681027,45046,279900,Some(0)))  // See json file for ids
+    private val maxPartitionSize: Long = MediawikiDumper
+        .calculateMaxPartitionSize(params)
+
+    "createPartitioner" should "create a single partition partitioner" in {
+        val partitioner: RangeLookupPartitioner[RowKey, Long] = MediawikiDumper
+            .createPartitioner(baseDF, maxPartitionSize)
+        partitioner.numPartitions should equal(1)
+        partitioner.indexOfRange(45046) should equal(Some(0))
     }
 
-    def fragmentsRDD: RDD[XMLProducer] = {
-        val df = baseDF
-        val revisionsRDD: RDD[Revision] = MediawikiDumper.sortedAndPartitionedRevisions(df, partitionsDefiner(baseDF))
-        MediawikiDumper.buildXMLFragments(revisionsRDD, params)
+    "createPartitioner" should "create a size-aware partitioner" in {
+        val partitioner = MediawikiDumper.createPartitioner(
+          fakeSize(MediawikiDumper.readPartitioningData(params)),
+          maxPartitionSize
+        )
+
+        // Revision 360821 has predecessors and successors,
+        // so page 45046 needs three partitions: [predecessors:_*, 360821, successors:_*].
+        // The last partition is for the remaining page 279900.
+        partitioner.numPartitions should equal(4)
+        val partitionedDF = MediawikiDumper
+            .partitionByXMLFileBoundaries(baseDF, partitioner)
+        partitionedDF.rdd.getNumPartitions should equal(4)
+        partitionedDF
+            .rdd
+            .foreachPartition(assertSinglePartitionForRevision(360821))
+
+        partitionedDF.count() should equal(33)
     }
 
-    "buildXMLFragments" should "build all fragements" in {
-        val rdd: RDD[XMLProducer] = fragmentsRDD
-        rdd.count() should equal(39)
-        rdd.first().pagesPartition should not be empty
-        rdd.getNumPartitions should equal(1)
+    def fragmentsWithPageRange(
+        overrideBaseDF: DataFrame = baseDF
+    ): Dataset[Row] = {
+        val partitioner: RangeLookupPartitioner[RowKey, Long] = MediawikiDumper
+            .createPartitioner(overrideBaseDF, maxPartitionSize)
+        MediawikiDumper.buildXMLFragmentChunks(
+          MediawikiDumper
+              .partitionByXMLFileBoundaries(overrideBaseDF, partitioner),
+          MediawikiDumper.getSiteInfo(params),
+          params
+        )
     }
 
-    def getStringFromFilePath(path: String): String = {
-        val source = Source.fromFile(path)
-        val fileContents = source.getLines.mkString
-        source.close()
-        fileContents
+    "buildXMLFragments" should "build all fragments" in {
+        val df = fragmentsWithPageRange()
+        df.first.getAs[String]("partition_id") should equal("p45046p279900")
+        df.count should equal(1)
     }
 
-    def writeXML(): Unit = {
-        val rdd: RDD[XMLProducer] = fragmentsRDD
-        MediawikiDumper.writeXMLFiles(rdd, params)
+    "buildXMLFragments" should "add revision range if applicable" in {
+        val df = fragmentsWithPageRange(fakeSize(baseDF))
+        df.first.getAs[String]("partition_id") should
+            equal("p45046r266092r266092")
+        df.count should equal(4)
+    }
+
+    private def getStringFromFilePath(path: String): String = {
+        path match {
+            case _ if path.endsWith("bz2") =>
+                getStringFromBzipFile(path)
+            case _ =>
+                val source = scala.io.Source.fromFile(path)
+                try source.mkString
+                finally source.close
+        }
+    }
+
+    private def getStringFromBzipFile(path: String) = {
+        // Create input streams for reading the BZ2-compressed file
+        val inputStream = {
+            new BZip2CompressorInputStream(new FileInputStream(path))
+        }
+        val reader = {
+            new BufferedReader(new InputStreamReader(inputStream, "UTF-8"))
+        }
+
+        // Read the decompressed content into a single string
+        val stringBuilder = new StringBuilder
+        try {
+            var line = reader.readLine
+            while (line != null) {
+                stringBuilder.append(line).append("\n")
+                line = reader.readLine
+            }
+        } finally {
+            // Close the streams
+            reader.close()
+            inputStream.close()
+        }
+
+        stringBuilder.toString
+    }
+
+    private def writeXML(
+        overrideFragmentsWithPageRange: DataFrame = fragmentsWithPageRange()
+    ): Unit = {
+        MediawikiDumper.writeXMLFiles(overrideFragmentsWithPageRange, params)
     }
 
     "writeXMlFiles" should "build an XML file" in {
         writeXML()
 
-        val outputPartitionDir = new File(s"${outputFolder.toString}/startPageId=45046/endPageId=279900/")
-        val outputTxtFile = new File(
-            outputPartitionDir.listFiles.filter(_.isFile).
-                filter(_.toString.matches(".*\\.txt$")).toList.head.toString
-        )
-        val output: String = getStringFromFilePath(outputTxtFile.toString)
+        val outputPartitionDir = new File(s"${outputFolder.toString}/")
+        val compressedOutputFilePath = {
+            new File(
+              outputPartitionDir
+                  .listFiles
+                  .filter(_.isFile)
+                  .filter(_.toString.matches(".*\\.xml.bz2$"))
+                  .toList
+                  .head
+                  .toString
+            )
+        }
 
-        val referenceFile: File = new File(s"$testResourcesDir/MediawikiDumperOutputTest.xml")
+        compressedOutputFilePath.getName should
+            equal(
+              "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.bz2"
+            )
+
+        val output: String = {
+            try getStringFromFilePath(compressedOutputFilePath.toString)
+            catch {
+                case e: IOException =>
+                    throw new IOException(
+                      s"Failed to read $compressedOutputFilePath",
+                      e
+                    )
+            }
+        }
+
+        val referenceFile: File = {
+            new File(s"$testResourcesDir/MediawikiDumperOutputTest.xml")
+        }
 
         // Optionally, regenerate the reference file, in this case the test will always pass
         // Run your test with env vor REGENERATE_FIXTURES=true to regenerate the reference file
-        val regenerateReferenceFileVar: String = sys.env.getOrElse("REGENERATE_FIXTURES", "")
+        val regenerateReferenceFileVar: String = sys
+            .env
+            .getOrElse("REGENERATE_FIXTURES", "")
         if (regenerateReferenceFileVar == "true") {
             log.info(s"Regenerating fixture file: ${referenceFile.toString}")
-            Files.copy(outputTxtFile.toPath, referenceFile.toPath, StandardCopyOption.REPLACE_EXISTING)
+            Files.copy(
+              compressedOutputFilePath.toPath,
+              referenceFile.toPath,
+              StandardCopyOption.REPLACE_EXISTING
+            )
         }
 
         val reference: String = getStringFromFilePath(referenceFile.toString)
 
         output should equal(reference)
     }
+}
 
-    "renameXMLFiles" should "Rename the output with a flatter naming" in {
-        writeXML()
-        MediawikiDumper.renameXMLFiles(params)
-        val outputDir = new File(s"${outputFolder.toString}")
-        outputDir.listFiles.map(file => new Path(file.toString).getName).toList should contain (
-            "simplewiki-2023-09-01-45046-279900-pages-meta-history.xml"
-        )
+object MediawikiDumperSpec {
+    private def assertSinglePartitionForRevision(
+        revisionId: Int
+    ): Iterator[Revision] => Unit = { revisions =>
+        val size = revisions.size
+        if (revisions.exists(revision => revision.revisionId == revisionId)) {
+            assert(
+              size == 1,
+              message = s"Unexpected number of revisions $size in partition"
+            )
+        }
     }
 }

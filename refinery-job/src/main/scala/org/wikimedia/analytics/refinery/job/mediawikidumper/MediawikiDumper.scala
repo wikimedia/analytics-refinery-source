@@ -1,291 +1,438 @@
 package org.wikimedia.analytics.refinery.job.mediawikidumper
 
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.functions.{col, element_at}
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.wikimedia.analytics.refinery.job.HDFSArchiver
+import java.io.PrintWriter
+import java.sql.Timestamp
+
+import scala.collection.JavaConverters
+
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
+import org.apache.spark.Partitioner
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.rdd.RDD.rddToOrderedRDDFunctions
+import org.apache.spark.sql._
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.wikimedia.analytics.refinery.core.ChunkedByteArrayOutputStream
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import scopt.OptionParser
 
-import java.time.format.DateTimeFormatter
-import java.time.{Instant, ZonedDateTime}
-import java.util.TimeZone
-import scala.collection.mutable.ListBuffer
+/** Job to dump the content of a wiki at a given date.
+  */
+object MediawikiDumper extends LogHelper {
 
+    lazy val spark: SparkSession = SparkSession.builder.getOrCreate
 
-/**
- * Job to dump the content of a wiki at a given date.
- */
-object MediawikiDumper extends LogHelper{
+    import spark.implicits._ // Used when converting Rows to case classes.
 
-    lazy val spark: SparkSession = { SparkSession.builder.getOrCreate }
-
-    import spark.implicits._  // Used when converting Rows to case classes.
-
-    /**
-     * Main class entry point
-     *
-     * @param params parsed Params including the configuration of the source and the target.
-     * @return Unit
-     */
+    /** Main class entry point
+      *
+      * @param params
+      *   parsed Params including the configuration of the source and the
+      *   target.
+      * @return
+      *   Unit
+      */
     def apply(params: Params): Unit = {
         // necessary so timezones don't go local
         spark.conf.set("spark.sql.session.timeZone", "UTC")
 
-        log.info("Mediawiki Dumper")
-        log.info(s"Mediawiki Dumper: About to dump ${params.wikiId} at ${params.publishUntil}")
-        log.info(s"Mediawiki Dumper: from ${params.sourceTable} to ${params.outputFolder}")
+        log.info(s"""Mediawiki Dumper
+         | Will dump ${params.wikiId} at ${params.publishUntil}
+         | from ${params.sourceTable} to ${params.outputFolder}""".stripMargin)
 
-        log.info(s"Mediawiki Dumper: step 1/5: build base revisions dataframe")
-        val revisionsDF: DataFrame = buildBaseRevisionsDF(params)
+        val siteInfo = getSiteInfo(params)
 
-        // NOTE: the following would cause a lot of work for bigger wikis with many TB of content
-        // revisionsDF.cache()
-        // log.info(s"Mediawiki Dumper:   ${revisionsDF.count()} revisions selected.")
-
-        log.info("Mediawiki Dumper: step 2/5: define page partitions")
-        val partitionsDefiner = new PagesPartitionsDefiner(
-            spark,
-            revisionsDF,
-            params.pageSizeOverhead,
-            params.maxTargetFileSize,
-            params.minChunkSize
+        val partitioner = createPartitioner(
+          readPartitioningData(params),
+          calculateMaxPartitionSize(params)
         )
-        log.info(s"Mediawiki Dumper:   ${partitionsDefiner.pagesPartitions.length} partitions defined.")
 
-        log.info("Mediawiki Dumper: step 3/5: sort and partition revisions")
-        val revisionsRDD = sortedAndPartitionedRevisions(revisionsDF, partitionsDefiner)
+        writeXMLFiles(
+          buildXMLFragmentChunks(
+            partitionByXMLFileBoundaries(
+              buildBaseRevisionsDF(params),
+              partitioner
+            ),
+            siteInfo,
+            params
+          ),
+          params
+        )
 
-        log.info("Mediawiki Dumper: step 4/5: build XML fragments RDD from sorted revisions")
-        val fragments: RDD[XMLProducer] = buildXMLFragments(revisionsRDD, params)
-        log.info(s"Mediawiki Dumper:   XML fragments generated.")
-
-        log.info("Mediawiki Dumper: step 5/5: Write XML files and rename them")
-        writeXMLFiles(fragments, params)
-        renameXMLFiles(params)
         log.info(s"Mediawiki Dumper: Done. Output in ${params.outputFolder}")
     }
 
-  /**
-   * Build the base revisions dataframe.
-   * @param params the job parameters
-   * @return A dataframe containing the revisions from the source table
-   */
-  def buildBaseRevisionsDF(params: Params): DataFrame = {
-    // NOTE: the stuff left to do below is followed by code that, if used, will make the XML output
-    //   match the MediawikiDumperOutputTest.Simplewiki.Sample.xml perfectly
-    //   This approach can be used to work on and fix any data problems, but ultimately this query
-    //   should look like it does now, with the comments and to do lines removed.
-    spark.sql(
-      s"""|SELECT *
-          |FROM ${params.sourceTable}
-          |WHERE revision_timestamp < TIMESTAMP '${params.publishUntil}'
-          |  AND wiki_db = '${params.wikiId}'
-          |ORDER BY page_id ASC,
-          |  revision_id ASC;""".stripMargin)
-      // TODO: enable all slots by adding the whole map to Revision
-      .withColumn("content_slot", element_at(col("revision_content_slots"), "main"))
-      // In the next select list, some NULL columns are added to fill the case classes.
-      .selectExpr("page_id as pageId",
-        "page_namespace as ns",
-        "page_title as title",
-        "user_text as contributor",
-        // user_id is null when this revision was done by an IP editor
-        // user_id = 0 when this revision was done by an old system user
-        // when backfilling from current dumps:
-        //   user_id = -1 either when the user is deleted via rev_deleted or something else went wrong
-        "user_id as contributorId",
-        // TODO: example: simplewiki revision id 360821 has a redacted user showing up as visible here
-        "user_is_visible as isEditorVisible",
-        "revision_id as revisionId",
-        // XSD mandates this timestamp format (timestamps are in UTC by spark.conf above)
-        s"""date_format(
-              to_utc_timestamp(revision_timestamp, '${TimeZone.getDefault.getID}'),
-              "yyyy-MM-dd'T'HH:mm:ss'Z'"
-           ) as timestamp
-        """,
-        "revision_comment as comment",
-        // TODO: figure out why this data is wrong
-        // "revision_id <> 1714215 AND (revision_id = 360821 OR revision_comment_is_visible) as isCommentVisible",
-        "revision_comment_is_visible as isCommentVisible",
-        "revision_content_is_visible as isContentVisible",
-        // revision_parent_id is null when the revision has no parent (the first revision or sometimes imported revisions)
-        // revision_parent_id = -1 when something went wrong with processing the import or backfill
-        "revision_parent_id as parentId",
-        "revision_is_minor_edit as isMinor",
-        "content_slot.content_model as model",
-        "content_slot.content_format as format",
-        "content_slot.content_body as text",
-        "content_slot.content_size as size",
-        "content_slot.content_sha1 as sha1")
-  }
-
-  /**
-   * Sort and partition the revisions.
-   * @param revisionDF the base dataframe containing the revisions
-   * @param definer the partition definer, containing the partitioning information
-   * @return an RDD of revisions, sorted and partitioned
-   */
-  def sortedAndPartitionedRevisions(revisionDF: DataFrame, definer: PagesPartitionsDefiner): RDD[Revision] = {
-    val partitioner: ByPagesPartitionKeyPartitioner = new ByPagesPartitionKeyPartitioner(
-            definer.pagesPartitions.length
-        )
-        val broadcastDefiner = spark.sparkContext.broadcast(definer)
-        revisionDF
-            .withColumn("pagesPartition", PagesPartition.emptyPagesPartitionColumn)
-            .as[Revision]
-            .map(revision => {
-                // Add the partition information to the revisions
-                val pagePartition = broadcastDefiner.value.getPagesPartition(revision.pageId)
-                val revisionWithPartitionInfo = revision.addPartitionInfo(pagePartition)
-                // prepare the data structure for the partitioner
-                (revisionWithPartitionInfo.pagesPartitionKey, revisionWithPartitionInfo)
-            })
-            .rdd  // Convert to RDD to use custom partitioning
-            .repartitionAndSortWithinPartitions(partitioner)  // Custom partitioning
-            .map(_._2) // Take only the value, the Revision, from the partitioned datastructures.
+    def calculateMaxPartitionSize(params: Params): Long = {
+        params.maxPartitionSizeMB * 1024 * 1024
     }
 
-    /**
-     * Build the XML fragments from the sorted and partitioned revisions.
-     * The XML fragments mainly are the XML representation of the revisions, with the page header and footer.
-     * @param sortedRevisions the sorted and partitioned revisions
-     * @param params the job parameters
-     * @return An RDD of XML fragments
-     */
-    def buildXMLFragments(sortedRevisions: RDD[Revision], params: Params): RDD[XMLProducer] = {
-        val siteInfoDF = spark.sql(
-            f"""|
-                | select language as languageCode,
-                |        sitename as siteName,
-                |        dbname as dbName,
-                |        home_page as homePage,
-                |        mw_version as mediaWikiVersion,
-                |        case_setting as caseSetting,
-                |        collect_list(named_struct(
-                |          'code', namespace,
-                |          'name', namespace_localized_name,
-                |          'caseSetting', namespace_case_setting,
-                |          'isContent', namespace_is_content = 1
-                |        )) as namespaces
-                |   from ${params.namespacesTable}
-                |  where snapshot = '${params.namespacesSnapshot}'
-                |    and dbname = '${params.wikiId}'
-                |  group by language, sitename, dbname, home_page, mw_version, case_setting
-                |;""".stripMargin)
-
-        val test = spark.sql(f"select * from ${params.namespacesTable} where dbname = 'simplewiki'")
-        val out = test.map(x => x.mkString(" ")).collect().mkString(" >>> ")
-        val si = siteInfoDF.as[SiteInfo]
-        si.count()
-        val siteInfo = si.first() // there should only ever be one row with the group by
-
-        sortedRevisions
-            .mapPartitions(revisions => {
-                var currentPageId = 0L
-                var currentPartition: Option[PagesPartition] = None
-                var currentPage: Option[Page] = None
-                val revisionAndPageFragments: List[XMLProducer] = revisions
-                    .flatMap(revision => {
-                        if (currentPartition.isEmpty) currentPartition = revision.pagesPartition  // Set it once per partition
-                        val result = ListBuffer[XMLProducer]()
-                        if (revision.pageId != currentPageId) { // We arrive to a new page, or first revision of partition
-                            if (currentPageId != 0L) result.append(XMLFragment.pageFooter(currentPartition.get))
-                            if (currentPage.isEmpty || revision.pageId != currentPage.get.pageId) {
-                                currentPage = Some(revision.buildPage)
-                            }
-                            result.append(currentPage.get)
-                            currentPageId = revision.pageId
-                        }
-                        result.append(revision)
-                        if (!revisions.hasNext) result.append(XMLFragment.pageFooter(currentPartition.get))
-                        result.toList
-                    }).toList
-                // Add the XML header and footer to the partition
-                Iterator(XMLFragment.xmlHeader(currentPartition.get, siteInfo)) ++
-                    revisionAndPageFragments.toIterator ++
-                    Iterator(XMLFragment.xmlFooter(currentPartition.get))
-            })
-    }
-
-    /**
-     * Write the dataframe as XML files.
-     * 1 file is generated by partition by design.
-     * In order to add the page ranges into each file name, we write the dataframe into an Hive directory structure
-     * with the pages ranges as directories (startPageId=123/endPageId=456/0_000000.xml.gz).
-     * Then we rename the files to put them into a single directory.
-     * @param fragments the XML fragments
-     * @param params the job parameters
-     */
-    def writeXMLFiles(fragments: RDD[XMLProducer], params: Params): Unit = {
-        val xmlByPageRangeRDD = fragments.map(producer => (
-            producer.getPartitionStartPageId,
-            producer.getPartitionEndPageId,
-            producer.getXML
-        ))
-        val columns = Seq("startPageId", "endPageId", "xml")
+    /** Partitions and sorts rows and converts them to [[Revision Revisions]].
+      *
+      * The partitions assigned by `partitioner` should match the desired file
+      * boundaries.
+      *
+      * @param df
+      *   revision rows
+      * @param partitioner
+      *   partitioner grouping by future
+      * @return
+      *   a [[Dataset]] of sorted [[Revision Revisions]]
+      */
+    def partitionByXMLFileBoundaries(
+        df: DataFrame,
+        partitioner: Partitioner
+    ): Dataset[Revision] = {
+        val schema = df.schema
         spark
-            .createDataFrame(xmlByPageRangeRDD)
-            .toDF(columns: _*)
-            .write
-            .mode(SaveMode.Overwrite)
-            // Then each task will write each pair (startPageId, endPageId) into
-            // their own file. Given the previous partitioning, this ensures
-            // one single file per (startPageId, endPageId) pair.
-            .partitionBy("startPageId", "endPageId")
-            .option("compression", params.outputFilesCompression)
-            // The Spark Text writer request the dataframe to contain a single column in the schema.
-            // The call to `partitionBy` from the writer is actually subtracting the 2 columns from the schema.
-            // So, only the xml column remains, and it respects the requirement.
-            .text(params.outputFolder)
+            .createDataFrame(
+              df.rdd
+                  .map(row => (RowKey(row), row))
+                  .repartitionAndSortWithinPartitions(partitioner)
+                  .map(_._2),
+              schema
+            )
+            .as[Revision]
     }
 
-    private val compressionExtensions: Map[String, String] = Map(
-        "none" -> "",
-        "uncompressed" -> "",
-        "gzip" -> ".gz",
-        "bzip2" -> ".bz2",
-        "lz4" -> ".lz4",
-        "snappy" -> ".snappy"
+    /** Load minimal data to build partition LUT.
+      *
+      * @param params
+      *   the job parameters
+      * @return
+      *   A dataframe containing sparse revision data from the source table
+      */
+    def readPartitioningData(params: Params): DataFrame = {
+        spark.sql(s"""SELECT
+         |page_id as pageId,
+         |revision_id as revisionId,
+         |to_utc_timestamp(revision_timestamp, 'GMT') as timestamp,
+         |aggregate ( transform ( map_values ( revision_content_slots ), slot -> slot['content_size'] ), 0L, (total_size, size) -> total_size + size ) as size
+         |FROM ${params.sourceTable}
+         |WHERE revision_timestamp < TIMESTAMP '${params.publishUntil}'
+         |  AND wiki_db = '${params.wikiId}'
+         |  AND page_id IS NOT NULL;""".stripMargin)
+    }
+
+    /** Build the base revisions dataframe.
+      *
+      * @param params
+      *   the job parameters
+      * @return
+      *   A dataframe containing the revisions from the source table
+      */
+    def buildBaseRevisionsDF(params: Params): DataFrame = {
+        // NOTE: the stuff left to do below is followed by code that, if used, will make the XML output
+        //   match the MediawikiDumperOutputTest.Simplewiki.Sample.xml perfectly
+        //   This approach can be used to work on and fix any data problems, but ultimately this query
+        //   should look like it does now, with the comments and to do lines removed.
+        spark
+            .sql(s"""SELECT *
+           |FROM ${params.sourceTable}
+           |WHERE revision_timestamp < TIMESTAMP '${params.publishUntil}'
+           |  AND wiki_db = '${params.wikiId}';""".stripMargin)
+            // TODO: enable all slots by adding the whole map to Revision
+            .withColumn(
+              "content_slot",
+              element_at(col("revision_content_slots"), "main")
+            )
+            // In the next select list, some NULL columns are added to fill the case classes.
+            .selectExpr(
+              "page_id as pageId",
+              "page_namespace as ns",
+              "page_title as title",
+              "user_text as contributor",
+              // user_id is null when this revision was done by an IP editor
+              // user_id = 0 when this revision was done by an old system user
+              // when backfilling from current dumps:
+              //   user_id = -1 either when the user is deleted via rev_deleted or something else went wrong
+              "user_id as contributorId",
+              // TODO: example: simplewiki revision id 360821 has a redacted user showing up as visible here
+              "user_is_visible as isEditorVisible",
+              "revision_id as revisionId",
+              // XSD mandates this timestamp format (timestamps are in UTC by spark.conf above)
+              s"to_utc_timestamp(revision_timestamp, 'GMT') as timestamp",
+              "revision_comment as comment",
+              // TODO: figure out why this data is wrong
+              // "revision_id <> 1714215 AND (revision_id = 360821 OR revision_comment_is_visible) as isCommentVisible",
+              "revision_comment_is_visible as isCommentVisible",
+              "revision_content_is_visible as isContentVisible",
+              // revision_parent_id is null when the revision has no parent (the first revision or sometimes imported revisions)
+              // revision_parent_id = -1 when something went wrong with processing the import or backfill
+              "revision_parent_id as parentId",
+              "revision_is_minor_edit as isMinor",
+              "content_slot.content_model as model",
+              "content_slot.content_format as format",
+              "content_slot.content_body as text",
+              "content_slot.content_size as size",
+              "content_slot.content_sha1 as sha1"
+            )
+    }
+
+    /** Creates a [[Partitioner]] based on (sparse) revision rows.
+      *
+      * Massages `df` to come up with lists:
+      *   - For regular sized pages (<= `maxPartitionSize`): a list of page ID
+      *     ranges, each represented by its max. page ID
+      *   - For oversize pages (> `maxPartitionSize`): a list of revision
+      *     timestamp ranges, each represented by its max. timestamp, per
+      *     oversize page
+      *
+      * Partitions are based on summed up revision sizes.
+      *
+      * @param df
+      *   data frame of (sparse) revision rows
+      * @param maxPartitionSize
+      *   max size of a partition (sum of sizes of revisions in it)
+      * @return
+      */
+    def createPartitioner(
+        df: DataFrame,
+        maxPartitionSize: Long
+    ): RangeLookupPartitioner[RowKey, Long] = {
+        // Step 1: Calculate total size for each pageId group
+        val groupedByPageId = df
+            .groupBy("pageId")
+            .agg(sum("size").alias("pageSize"))
+
+        // Step 2: Identify oversize pages and regular pages
+        val oversizePages = groupedByPageId
+            .filter($"pageSize" > maxPartitionSize)
+        val regularPages = groupedByPageId
+            .filter($"pageSize" <= maxPartitionSize)
+
+        val regularWithPartition = regularPages
+            .select(
+              $"pageId",
+              RebasedSizeBucket
+                  .bucket($"pageSize", maxPartitionSize)
+                  .over(Window.orderBy("pageId"))
+                  .as("partitionId")
+            )
+            .groupBy("partitionId")
+            .agg(max($"pageId").as("maxPageId"))
+
+        // Step 3: Handle oversize pages by splitting them into chunks
+        val partitionByPageIdWindow = Window.partitionBy("pageId")
+        val oversizeWithPartition = df
+            .join(broadcast(oversizePages.select("pageId")), "pageId")
+            .select(
+              $"pageId",
+              $"timestamp",
+              RebasedSizeBucket
+                  .bucket($"size", maxPartitionSize)
+                  .over(
+                    partitionByPageIdWindow.orderBy($"timestamp", $"revisionId")
+                  )
+                  .as("partitionId")
+            )
+            .groupBy("pageId", "partitionId")
+            .agg(
+              max($"timestamp").as("maxTimestamp"),
+              last($"pageId").as("pageId")
+            )
+
+        val timestampRangesPerPageId = oversizeWithPartition
+            .collect()
+            .groupBy(row => row.getAs[Long]("pageId"))
+            .map { case (pageId, rows) =>
+                (
+                  pageId,
+                  rows.map(row => row.getAs[Timestamp]("maxTimestamp").getTime)
+                      .toIterable
+                )
+            }
+
+        RangeLookupPartitioner[RowKey, Long](
+          timestampRangesPerPageId,
+          (rowKey: RowKey) => rowKey.timestamp.getTime,
+          regularWithPartition
+              .collect()
+              .map(row => row.getAs[Long]("maxPageId")),
+          (rowKey: RowKey) => rowKey.pageId
+        )
+    }
+
+    private val COL_VALUE = "value"
+    private val COL_FRAGMENT_INDEX = "fragment_index"
+    private val COL_PARTITION_ID = "partition_id"
+    private val COL_PARTITION_CHECKSUM = "partition_checksum"
+
+    private val FRAGMENT_SCHEMA = StructType(
+      List(
+        StructField(
+          COL_VALUE,
+          DataTypes.createArrayType(DataTypes.ByteType),
+          nullable = false
+        ),
+        StructField(COL_PARTITION_ID, DataTypes.StringType, nullable = false),
+        StructField(
+          COL_PARTITION_CHECKSUM,
+          DataTypes.LongType,
+          nullable = false
+        )
+      )
     )
 
-    /**
-     * Moves the generated XML files.
-     *
-     * The repartitioning process outputs files in an "ugly" directory tree.
-     * Folders use Hive syntax (/startPageId=123/endPageId=456/0_000000.xml.gz).
-     * This method rename files to put all of them into a single directory with pretty naming
-     * eg brwiki-20230901-pages-meta-history.xml.gz .
-     * @param params the job parameters
-     */
-    def renameXMLFiles(params: Params): Unit = {
-        val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-        val startPageIdDirs = fs.listStatus(new Path(params.outputFolder))
-        val compressionExtension = compressionExtensions.getOrElse(params.outputFilesCompression, "")
-        startPageIdDirs.foreach { startPageIdDir =>
-            if (startPageIdDir.getPath.getName != "_SUCCESS") {
-                // The substring removes Hive partition prefix (startPageId=).
-                val startPageId = startPageIdDir.getPath.getName.substring(12)
-                val endPageIdDirs = fs.listStatus(startPageIdDir.getPath)
-                endPageIdDirs.foreach { endPageIdDir =>
-                    // The substring removes Hive partition prefix (endPageId=).
-                    val endPageId = endPageIdDir.getPath.getName.substring(10)
-                    val destinationFile = s"${params.wikiId}-${params.publishUntil}-$startPageId-$endPageId-pages-meta-history.xml$compressionExtension"
-                    val destinationPath = new Path(s"${params.outputFolder}/$destinationFile")
-                    HDFSArchiver(
-                        sourceDirectory = endPageIdDir.getPath,
-                        expectedFilenameEnding = s".txt$compressionExtension",
-                        checkDone = false,
-                        doneFilePath = new Path("dummy"),
-                        archiveFile = destinationPath,
-                        archiveParentUmask = "022",
-                        archivePerms = "644"
-                    )
+    /** Build the XML fragments from the sorted and partitioned revisions.
+      *
+      * The XML fragments mainly are the XML representation of the revisions,
+      * with the page header and footer.
+      *
+      * All XML fragments of a partition are compressed using bzip2 and split
+      * into chunks.
+      *
+      * @param sortedAndPartitionedRevisions
+      *   the sorted and partitioned revisions
+      * @param params
+      *   the job parameters
+      * @return
+      *   An RDD of XML fragments
+      */
+    def buildXMLFragmentChunks(
+        sortedAndPartitionedRevisions: Dataset[Revision],
+        siteInfo: Broadcast[SiteInfo],
+        params: Params
+    ): Dataset[Row] = {
+
+        val pageFooterFragment = XMLFragment.pageFooter().getXML
+
+        sortedAndPartitionedRevisions.mapPartitions[Row] {
+            revisions: Iterator[Revision] =>
+                if (revisions.nonEmpty) {
+                    val outputStream = {
+                        new ChunkedByteArrayOutputStream(params.outputChunkSize)
+                    }
+                    val outputCompressorStream = {
+                        new BZip2CompressorOutputStream(outputStream)
+                    }
+                    val outputStreamCompressorWriter = {
+                        new PrintWriter(outputCompressorStream)
+                    }
+                    try {
+                        outputStreamCompressorWriter.println(
+                          XMLFragment.xmlHeader(siteInfo.value).getXML
+                        )
+                        val pageIdRange = {
+                            revisions.foldLeft(
+                              Option.empty[((Long, Long), (Long, Long))]
+                            ) { case (pageIdRange, revision) =>
+                                pageIdRange match {
+                                    case None =>
+                                        outputStreamCompressorWriter
+                                            .println(revision.buildPage.getXML)
+                                        outputStreamCompressorWriter
+                                            .println(revision.getXML)
+                                        Some(
+                                          (
+                                            (
+                                              revision.pageId,
+                                              revision.revisionId
+                                            ),
+                                            (
+                                              revision.pageId,
+                                              revision.revisionId
+                                            )
+                                          )
+                                        )
+                                    case Some((start, (endPageId, _)))
+                                        if endPageId != revision.pageId =>
+                                        outputStreamCompressorWriter
+                                            .println(pageFooterFragment)
+                                        outputStreamCompressorWriter
+                                            .println(revision.buildPage.getXML)
+                                        outputStreamCompressorWriter
+                                            .println(revision.getXML)
+                                        Some(
+                                          (
+                                            start,
+                                            (
+                                              revision.pageId,
+                                              revision.revisionId
+                                            )
+                                          )
+                                        )
+                                    case Some(_) =>
+                                        outputStreamCompressorWriter
+                                            .println(revision.getXML)
+                                        pageIdRange
+                                }
+                            }
+                        }
+                        val partitionId = {
+                            pageIdRange
+                                .map {
+                                    case (
+                                          (startPageId, startRevisionId),
+                                          (endPageId, endRevisionId)
+                                        ) if startPageId == endPageId =>
+                                        s"p${startPageId}r${startRevisionId}r$endRevisionId"
+                                    case ((startPageId, _), (endPageId, _)) =>
+                                        s"p${startPageId}p$endPageId"
+                                }
+                                .get
+                        }
+
+                        outputStreamCompressorWriter.println(pageFooterFragment)
+                        outputStreamCompressorWriter
+                            .println(XMLFragment.xmlFooter().getXML)
+                        outputStreamCompressorWriter.close()
+                        outputCompressorStream.close()
+                        outputStream.close()
+                        val list = {
+                            JavaConverters
+                                .iterableAsScalaIterable(outputStream.getChunks)
+                                .map(chunk => {
+                                    new GenericRowWithSchema(
+                                      Array[Any](
+                                        chunk,
+                                        partitionId,
+                                        outputStream.getChecksum
+                                      ),
+                                      FRAGMENT_SCHEMA
+                                    )
+                                })
+                                .toList
+                        }
+                        list.toIterator
+                    } finally {
+                        outputStreamCompressorWriter.close()
+                        outputCompressorStream.close()
+                        outputStream.close()
+                    }
+                } else {
+                    Iterator.empty
                 }
-                fs.delete(startPageIdDir.getPath, true)
-            }
-        }
+
+        }(RowEncoder(FRAGMENT_SCHEMA))
+    }
+
+    /** Writes the dataframe as XML files.
+      *
+      * Partitions `fragments` by their associated page range and Creates one
+      * file per partition.
+      *
+      * @param fragments
+      *   the XML fragments and their associated page range
+      * @param params
+      *   the job parameters
+      */
+    def writeXMLFiles(
+        fragments: Dataset[Row],
+        params: Params,
+        outputFolderSuffix: String = ""
+    ): Unit = {
+        fragments
+            .write
+            .mode(SaveMode.Overwrite)
+            .format("wmf-binary")
+            .option(
+              "filename-replacement",
+              s"${params.wikiId}-${params.publishUntil}-$${$COL_PARTITION_ID}-pages-meta-history.xml.bz2"
+            )
+            .save(params.outputFolder + outputFolderSuffix)
     }
 
     case class Params(
@@ -293,66 +440,108 @@ object MediawikiDumper extends LogHelper{
         publishUntil: String = "",
         sourceTable: String = "wmf_dumps.wikitext_raw_rc1",
         namespacesTable: String = "wmf_raw.mediawiki_project_namespace_map",
-        namespacesSnapshot: String = "2023-09",
+        namespacesSnapshot: String = "2024-11",
         outputFolder: String = "",
-        pageSizeOverhead: Integer = 20, // in kB
-        maxTargetFileSize: Integer = 100, // in MB
-        minChunkSize: Integer = 10, // in MB (used to facilitate pages grouping. See PagesPartitionsDefiner.)
-        outputFilesCompression: String = "bzip2"
+        outputChunkSize: Int = 100 * 1024 * 1024, // in B
+        maxPartitionSizeMB: Long = 100 // in MB
     )
 
-    /**
-     * Define the command line options parser
-     */
-    val argsParser: OptionParser[Params] = new OptionParser[Params]("Mediawiki XML Dumper job") {
-        head("Mediawiki XML dumper job", "")
-        note("This job dumps the content of a wiki at a publish date from an Iceberg table.")
-        help("help") text "Prints this usage text"
+    /** Define the command line options parser
+      */
+    val argsParser: OptionParser[Params] = {
+        new OptionParser[Params]("Mediawiki XML Dumper job") {
+            head("Mediawiki XML dumper job", "")
+            note(
+              "This job dumps the content of a wiki at a publish date from an Iceberg table."
+            )
+            help("help") text "Prints this usage text"
 
-        opt[String]('w', "wiki_id") required() valueName "<wiki_id>" action { (x, p) =>
-            p.copy(wikiId = x)
-        } text "The name of the wiki: enwiki, frwiki, etc."
+            opt[String]('w', "wiki_id") required
+                () valueName "<wiki_id>" action { (x, p) =>
+                    p.copy(wikiId = x)
+                } text "The name of the wiki: enwiki, frwiki, etc."
 
-        opt[String]('s', "publish_until") required() valueName "<publish_until>" action { (x, p) =>
-            p.copy(publishUntil = x)
-        } text "The date to publish until as YYYY-MM-DD (job will append 00:00)."
+            opt[String]('s', "publish_until") required
+                () valueName "<publish_until>" action { (x, p) =>
+                    p.copy(publishUntil = x)
+                } text
+                "The date to publish until as YYYY-MM-DD (job will append 00:00)."
 
-        opt[String]('i', "source_table") valueName "<source_table>" action { (x, p) =>
-            p.copy(sourceTable = x)
-        } text "The Iceberg table to read data from."
+            opt[String]('i', "source_table") valueName "<source_table>" action {
+                (x, p) => p.copy(sourceTable = x)
+            } text "The Iceberg table to read data from."
 
-        opt[String]('n', "namespaces_table") valueName "<namespaces_table>" action { (x, p) =>
-            p.copy(namespacesTable = x)
-        } text "A table with site info including namespace info."
+            opt[String]('n', "namespaces_table") valueName
+                "<namespaces_table>" action { (x, p) =>
+                    p.copy(namespacesTable = x)
+                } text "A table with site info including namespace info."
 
-        opt[String]('d', "namespaces_snapshot") valueName "<namespaces_snapshot>" action { (x, p) =>
-            p.copy(namespacesSnapshot = x)
-        } text "Which snapshot of the namespaces table to use."
+            opt[String]('d', "namespaces_snapshot") valueName
+                "<namespaces_snapshot>" action { (x, p) =>
+                    p.copy(namespacesSnapshot = x)
+                } text "Which snapshot of the namespaces table to use."
 
-        opt[String]('o', "output_folder") required() valueName "<output_folder>" action { (x, p) =>
-            p.copy(outputFolder = x)
-        } text "The output folder where the XML files will be written."
+            opt[String]('o', "output_folder") required
+                () valueName "<output_folder>" action { (x, p) =>
+                    p.copy(outputFolder = x)
+                } text "The output folder where the XML files will be written."
 
-        opt[Int]("page_size_overhead") optional() valueName "<page_size_overhead>" action { (x, p) =>
-            p.copy(pageSizeOverhead = x)
-        } text "Overhead in kB to add to the revision page contents to estimate the page size."
+            opt[Int]("output_chunk_size") optional
+                () valueName "<output_chunk_size>" action { (x, p) =>
+                    p.copy(outputChunkSize = x)
+                } text
+                """Defines the maximum size (in bytes) of each allocated output buffer when compressing XML data.
+                |The choice of chunk size impacts memory efficiency:
+                |too small, and frequent allocations may slow down processing;
+                |too large, and memory waste increases due to underutilized chunks.
+                |As a rule of thumb, use a quarter of the avg. output file size."""
+                    .stripMargin
 
-        opt[Int]("max_target_file_size") optional() valueName "<max_target_file_size>" action { (x, p) =>
-            p.copy(maxTargetFileSize = x)
-        } text "The maximum size of the target XML files in MB."
-
-        opt[Int]("min_chunk_size") optional() valueName "<min_chunk_size>" action { (x, p) =>
-            p.copy(minChunkSize = x)
-        } text "The minimum size of a chunk of pages in MB. Internally used for partitioning. See Upper."
+            opt[Int]("max_partition_size") optional
+                () valueName "<max_partition_size>" action { (x, p) =>
+                    p.copy(maxPartitionSizeMB = x)
+                } text
+                """Specifies the maximum uncompressed size (in MB) of a partition of revisions.
+              |This size is based on the raw revision content, not the final rendered XML.
+              |Each partition is immediately compressed with bzip2.
+              |Since XML is verbose, compression can achieve ratios of up to 85:1.
+              |In practice, a 2,024 MB partition typically results in a ~100 MB compressed file."""
+                    .stripMargin
+        }
     }
 
-    /**
-     * Job entrypoint
-     *
-     * @param args the parsed cli arguments
-     */
+    def getSiteInfo(params: Params): Broadcast[SiteInfo] = {
+        val siteInfoDF = spark.sql(f"""|
+          | select language as languageCode,
+          |        sitename as siteName,
+          |        dbname as dbName,
+          |        home_page as homePage,
+          |        mw_version as mediaWikiVersion,
+          |        case_setting as caseSetting,
+          |        collect_list(named_struct(
+          |          'code', namespace,
+          |          'name', namespace_localized_name,
+          |          'caseSetting', namespace_case_setting,
+          |          'isContent', namespace_is_content = 1
+          |        )) as namespaces
+          |   from ${params.namespacesTable}
+          |  where snapshot = '${params.namespacesSnapshot}'
+          |    and dbname = '${params.wikiId}'
+          |  group by language, sitename, dbname, home_page, mw_version, case_setting
+          |;""".stripMargin)
+
+        spark.sparkContext.broadcast(siteInfoDF.as[SiteInfo].first())
+    }
+
+    /** Job entrypoint
+      *
+      * @param args
+      *   the parsed cli arguments
+      */
     def main(args: Array[String]): Unit = {
-        val params: Params = argsParser.parse(args, Params()).getOrElse(sys.exit(1))
+        val params: Params = argsParser
+            .parse(args, Params())
+            .getOrElse(sys.exit(1))
         apply(params)
     }
 }
