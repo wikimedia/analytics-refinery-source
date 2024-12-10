@@ -74,6 +74,14 @@ object HdfsXMLFsImageConverter extends LogHelper {
                             case "numBytes" => numBytes = Some(xmlStreamReader.getElementText.toLong)
                             case _ => {}:Unit  // continue
                         }
+                    case XMLStreamConstants.END_ELEMENT =>
+                        val elName = xmlStreamReader.getName.toString
+                        elName match {
+                            // Force returning when block ends, other wise we
+                            // continue looping over other elements
+                            case "block" => return Block(id, numBytes)
+                            case _ => {}:Unit  // continue
+                        }
                     case _ => {}:Unit  // continue
                 }
             }
@@ -163,7 +171,7 @@ object HdfsXMLFsImageConverter extends LogHelper {
                             case "atime" => atime = Some(xmlStreamReader.getElementText.toLong)
                             case "preferredBlockSize" => preferredBlockSize = Some(xmlStreamReader.getElementText.toLong)
                             case "permission" => permission = Option(xmlStreamReader.getElementText)
-                            case "block" => blocks += Block.parseXml(xmlStreamReader)
+                            case "block" => blocks.append(Block.parseXml(xmlStreamReader))
                             case "file-under-construction" => fileUnderConstruction = true
                             case _ => {}: Unit  // continue
                         }
