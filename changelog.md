@@ -1,3 +1,8 @@
+##v0.2.54
+* Fix HdfsXMLFsImageConverter block reading
+* Fix mediawiki-jdbc that causes slower pull
+* build: add sdkman configuration
+
 ## v0.2.53
 * Fix on TransformFunction deterministic behavior
 
