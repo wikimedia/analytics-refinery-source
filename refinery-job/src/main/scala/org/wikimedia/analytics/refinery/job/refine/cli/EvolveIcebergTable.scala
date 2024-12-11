@@ -3,7 +3,7 @@ package org.wikimedia.analytics.refinery.job.refine.cli
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, applyTransforms}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
 import org.wikimedia.analytics.refinery.spark.sql.IcebergExtensions.IcebergStructTypeExtensions
@@ -208,7 +208,7 @@ class EvolveIcebergTable(
         tableProperties:    Map[String, String],
         dryRun:             Boolean
     ): Boolean = {
-        val sparkSchema = RefineHelper.loadSparkSchema(schemaLoader, schemaUri.toString)
+        val sparkSchema = SparkEventSchemaLoader(schemaLoader).load(schemaUri)
         evolveIcebergTableWithSchema(
             table, sparkSchema, transformFunctions, location, partitionBy, tableProperties, dryRun
         )

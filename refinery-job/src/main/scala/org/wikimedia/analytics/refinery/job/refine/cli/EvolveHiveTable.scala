@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.refine.cli
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
-import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, applyTransforms}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
 import org.wikimedia.analytics.refinery.spark.sql.TableSchemaManager.HiveTableSchemaManager
@@ -216,12 +216,10 @@ class EvolveHiveTable(schemaLoader: EventSchemaLoader, spark: SparkSession) exte
         partitionColumns:    ListMap[String, String],
         dryRun:              Boolean,
     ): Boolean = {
+
+        val sparkSchemaLoader= SparkEventSchemaLoader(schemaLoader, timestampsAsStrings = timestampsAsStrings)
         // TODO: schemaLoader should return ObjectNodes
-        val sparkSchema = RefineHelper.loadSparkSchema(
-            eventSchemaLoader = schemaLoader,
-            schemaUri = schemaUri.toString,
-            timestampsAsStrings = true
-        )
+        val sparkSchema = sparkSchemaLoader.load(schemaUri)
 
         evolveHiveTableWithSchema(
             table,

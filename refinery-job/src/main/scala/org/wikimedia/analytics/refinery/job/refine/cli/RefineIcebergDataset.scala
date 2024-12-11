@@ -5,12 +5,13 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.FailFastMode
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, buildEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
-import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
+import java.net.URI
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Success, Try}
@@ -171,8 +172,9 @@ object RefineIcebergDataset extends LogHelper with ConfigHelper with TransformFu
         val config = Config(args)
 
         val eventSchemaLoader: EventSchemaLoader = buildEventSchemaLoader(config.input_schema_base_uris)
+        val sparkSchemaLoader = SparkEventSchemaLoader(eventSchemaLoader)
         val reader = RawRefineDataReader(spark,
-            RefineHelper.loadSparkSchema(eventSchemaLoader, config.input_schema_uri),
+            sparkSchemaLoader.load(URI.create(config.input_schema_uri)),
             config.input_format,
             config.dataframe_reader_options,
             config.corrupt_record_failure_threshold)

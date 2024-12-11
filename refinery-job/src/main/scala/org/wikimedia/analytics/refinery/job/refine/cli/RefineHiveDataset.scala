@@ -5,13 +5,14 @@ import org.apache.spark.sql.catalyst.util.FailFastMode
 import org.wikimedia.analytics.refinery.core.HivePartition
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, buildEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
-import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
+import java.net.URI
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Success
@@ -176,9 +177,10 @@ object RefineHiveDataset
 
         // Call apply with spark and Config properties as parameters
         val eventSchemaLoader: EventSchemaLoader = buildEventSchemaLoader(config.schema_base_uris)
+        val sparkSchemaLoader = SparkEventSchemaLoader(eventSchemaLoader, timestampsAsStrings = true)
         val reader = RawRefineDataReader(
             spark,
-            RefineHelper.loadSparkSchema(eventSchemaLoader, config.schema_uri, timestampsAsStrings = true),
+            sparkSchemaLoader.load(URI.create(config.schema_uri)),
             config.input_format,
             config.dataframe_reader_options,
             config.corrupt_record_failure_threshold)

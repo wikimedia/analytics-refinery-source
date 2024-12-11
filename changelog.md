@@ -1,5 +1,6 @@
 ## v0.2.55
 * Refactoring: Extract RawRefineDataReader from RefineHelper used in refine to hive
+* Refactoring: Extract SparkEventSchemaLoader from RefineHelper used in refine to hive
 
 ## v0.2.54
 * Fix HdfsXMLFsImageConverter block reading

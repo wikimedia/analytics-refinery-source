@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.log
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
@@ -36,49 +37,6 @@ object RefineHelper extends LogHelper {
       .setJsonSchemaLoader(JsonSchemaLoader.build(resourceLoader))
 
     eventSchemaLoaderBuilder.build()
-  }
-
-  /**
-   * Given an EventSchemaLoader and a schemaUri, loads the JSON schema
-   * and converts it to a Spark StructType schema.
-   * @param eventSchemaLoader The EventSchemaLoader to use to load the schema
-   * @param schemaUri The URI of the schema to load. e.g. "/event/1.0.0"
-   * @param loadLatest True to load the latest schema
-   * @param timestampsAsStrings True to convert timestamps to strings
-   * @return
-   */
-  def loadSparkSchema(
-                       eventSchemaLoader: EventSchemaLoader,
-                       schemaUri: String,
-                       loadLatest: Boolean = false,
-                       timestampsAsStrings: Boolean = false
-                     ): StructType = {
-
-    log.info(
-      s"Loading JSONSchema for schemaUri $schemaUri using $eventSchemaLoader"
-    )
-
-    val jsonSchema = if (loadLatest) {
-      eventSchemaLoader.getLatestSchema(URI.create(schemaUri))
-    } else {
-      eventSchemaLoader.getSchema(URI.create(schemaUri))
-    }
-
-    log.debug(
-      s"Loaded ${if (loadLatest) "latest" else ""} JSONSchema for URI $schemaUri:\n$jsonSchema"
-    )
-
-    val sparkSchema = JsonSchemaSparkConverter.toDataType(
-      // TODO: eventSchemaLoader should return ObjectNodes
-      jsonSchema.asInstanceOf[ObjectNode],
-      timestampsAsStrings
-    ).asInstanceOf[StructType]
-
-    log.debug(
-      s"Converted JSONSchema for URI $schemaUri " +
-        s"to Spark schema:\n${sparkSchema.treeString}"
-    )
-    sparkSchema
   }
 
   /**
@@ -118,6 +76,51 @@ object RefineHelper extends LogHelper {
     transformFunctions
       .foldLeft(inputPartDf)((currPartDf, fn) => fn(currPartDf))
       .df
+  }
+
+}
+
+/**
+ * Given an EventSchemaLoader and a schemaUri, loads the JSON schema
+ * and converts it to a Spark StructType schema.
+ *
+ * @param eventSchemaLoader The EventSchemaLoader to use to load the schema
+ * @param loadLatest True to load the latest schema
+ * @param timestampsAsStrings True to convert timestamps to strings
+ */
+case class SparkEventSchemaLoader(eventSchemaLoader: EventSchemaLoader,
+                             loadLatest: Boolean = false,
+                             timestampsAsStrings: Boolean = false) {
+
+  /**
+   * @param schemaUri The URI of the schema to load. e.g. "/event/1.0.0"
+   */
+  def load(schemaUri: URI): StructType = {
+    log.info(
+      s"Loading JSONSchema for schemaUri $schemaUri using $eventSchemaLoader"
+    )
+
+    val jsonSchema = if (loadLatest) {
+      eventSchemaLoader.getLatestSchema(schemaUri)
+    } else {
+      eventSchemaLoader.getSchema(schemaUri)
+    }
+
+    log.debug(
+      s"Loaded ${if (loadLatest) "latest" else ""} JSONSchema for URI $schemaUri:\n$jsonSchema"
+    )
+
+    val sparkSchema = JsonSchemaSparkConverter.toDataType(
+      // TODO: eventSchemaLoader should return ObjectNodes
+      jsonSchema.asInstanceOf[ObjectNode],
+      timestampsAsStrings
+    ).asInstanceOf[StructType]
+
+    log.debug(
+      s"Converted JSONSchema for URI $schemaUri " +
+        s"to Spark schema:\n${sparkSchema.treeString}"
+    )
+    sparkSchema
   }
 
 }
