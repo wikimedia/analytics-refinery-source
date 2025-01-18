@@ -1,5 +1,6 @@
 ## v0.2.56
 * Update MediaWiki History to support Temp Accounts
+* Refine: Make transform functions handle minimalist events
 
 ## v0.2.55
 * Refactoring: Extract RawRefineDataReader from RefineHelper used in refine to hive

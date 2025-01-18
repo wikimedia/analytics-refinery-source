@@ -20,12 +20,13 @@ package org.wikimedia.analytics.refinery.job.refine
   * See the Refine --transform-functions CLI option documentation.
   */
 
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{Column, DataFrame}
 
 import java.util.UUID.randomUUID
 import scala.util.matching.Regex
-import org.apache.spark.sql.functions.{coalesce, col, desc, expr, row_number, udf}
+import org.apache.spark.sql.functions.{coalesce, col, desc, expr, lit, row_number, udf}
 import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
+import org.apache.spark.sql.types.{ArrayType, BooleanType, StringType, StructField, StructType}
 import org.wikimedia.analytics.refinery.core.Webrequest
 import org.wikimedia.analytics.refinery.job.refine.RefineHelper.TransformFunction
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
@@ -485,24 +486,32 @@ object add_is_wmf_domain extends LogHelper {
 
     val isWMFDomain: UserDefinedFunction = udf(
         (hostname: String) => {
-            if (hostname == null) {
-                false;
-            } else {
-                Webrequest.getInstance().isWMFHostname(hostname)
-            }
+            if (hostname == null) false else Webrequest.getInstance().isWMFHostname(hostname)
         }
     )
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
-        val sourceColumnSql = sourceColumnNames match {
-            case Seq(singleColumnName) => singleColumnName
-            case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
-        }
+        // If sourceColumnNames is empty, then there is no column to use for is_wmf_domain.
+        // return a null column
+        if (sourceColumnNames.isEmpty) {
+            log.debug(
+                s"${partDf.partition} does not contain any columns named " +
+                s"${possibleSourceColumnNames.mkString(" or ")}, $isWMFDomainColumnName will be NULL."
+            )
+            partDf.copy(df = partDf.df.withColumn(
+                isWMFDomainColumnName, lit(null).cast(BooleanType)
+            ))
+        } else {
+            val sourceColumnSql = sourceColumnNames match {
+                case Seq(singleColumnName) => singleColumnName
+                case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
+            }
 
-        partDf.copy(df = partDf.df.withColumn(
-            isWMFDomainColumnName, isWMFDomain(expr(sourceColumnSql))
-        ))
+            partDf.copy(df = partDf.df.withColumn(
+                isWMFDomainColumnName, isWMFDomain(expr(sourceColumnSql))
+            ))
+        }
     }
 }
 
@@ -629,26 +638,48 @@ object add_normalized_host extends LogHelper {
     import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
     val possibleSourceColumnNames = Seq("meta.domain", "webHost")
     val normalizedHostColumnName = "normalized_host"
+    // Here, we prefer to rely on simple Spark code to set the schema in case the source columns are missing, bypassing
+    // GetHostPropertiesUDF when it is not needed. The schema should match exactly the one returned by the UDF.
+    val normalizedHostColumnSchema: StructType = StructType(Seq(
+        StructField("project_class", StringType, nullable = true),
+        StructField("project", StringType, nullable = true),
+        StructField("qualifiers", ArrayType(StringType), nullable = true),
+        StructField("tld", StringType, nullable = true),
+        StructField("project_family", StringType, nullable = true)
+    ))
 
     def apply(partDf: PartitionedDataFrame): PartitionedDataFrame = {
         val spark = partDf.df.sparkSession
 
-        // Use GetHostPropertiesUDF to get normalized host data from meta.domain and/or webHost
-        spark.sql(
-            "CREATE OR REPLACE TEMPORARY FUNCTION get_host_properties AS " +
-              "'org.wikimedia.analytics.refinery.hive.GetHostPropertiesUDF'"
-        )
-
         val sourceColumnNames = partDf.df.findColumnNames(possibleSourceColumnNames)
 
-        val sourceColumnSql = sourceColumnNames match {
-            case Seq(singleColumnName) => singleColumnName
-            case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
-        }
+        // If sourceColumnNames is empty, then there is no column to use for normalized_host.
+        // Return a struct with NULL values.
+        if (sourceColumnNames.isEmpty) {
+            log.debug(
+                s"${partDf.partition} does not contain any columns named " +
+                s"${possibleSourceColumnNames.mkString(" or ")}, $normalizedHostColumnName will be null."
+            )
 
-        partDf.copy(df = partDf.df.withColumn(
-            normalizedHostColumnName, expr(s"get_host_properties(${expr(sourceColumnSql)})")
-        ))
+            val column: Column = lit(null).cast(normalizedHostColumnSchema)  // Creates the struct with null values
+
+            partDf.copy(df = partDf.df.withColumn(normalizedHostColumnName, column))
+        } else {
+            // Use GetHostPropertiesUDF to get normalized host data from meta.domain and/or webHost
+            spark.sql(
+                "CREATE OR REPLACE TEMPORARY FUNCTION get_host_properties AS " +
+                    "'org.wikimedia.analytics.refinery.hive.GetHostPropertiesUDF'"
+            )
+
+            val sourceColumnSql = sourceColumnNames match {
+                case Seq(singleColumnName) => singleColumnName
+                case _ => s"COALESCE(${sourceColumnNames.mkString(",")})"
+            }
+
+            partDf.copy(df = partDf.df.withColumn(
+                normalizedHostColumnName, expr(s"get_host_properties(${expr(sourceColumnSql)})")
+            ))
+        }
     }
 }
 
