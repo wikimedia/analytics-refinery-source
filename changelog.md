@@ -1,3 +1,6 @@
+## v0.2.49.3
+* Refine: Make transform functions handle minimalist events
+
 ## v0.2.49.2
 * Fix Refine deduplication deterministic behaviour.
 

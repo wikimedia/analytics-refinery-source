@@ -7,6 +7,7 @@ import org.apache.spark.sql.internal.StaticSQLConf.CATALOG_IMPLEMENTATION
 import org.apache.spark.sql.types._
 import org.scalatest.{FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
+import org.wikimedia.analytics.refinery.job.refine.add_normalized_host.normalizedHostColumnSchema
 import org.wikimedia.analytics.refinery.spark.sql.PartitionedDataFrame
 
 import scala.collection.immutable.ListMap
@@ -67,9 +68,20 @@ case class TestLegacyEventLoggingMigrationEvent(
     useragent: Option[LegacyUserAgentStruct] = Some(LegacyUserAgentStruct())
 )
 
-
 case class NoWebHostEvent(
     id: Option[String] = None
+)
+
+case class MetaMinimalistSubObject(
+    dt: Option[String] = Some("2020-01-01T00:00:00Z"),
+    stream: Option[String] = Some("mystream"),
+)
+
+// See more information about the minimum set of columns in an event here:
+// https://wikitech.wikimedia.org/wiki/Event_Platform/Schemas/Guidelines#Required_fields
+case class minimalistEvent(
+    meta: Option[MetaMinimalistSubObject] = None,
+    dt: Option[String] = Some("2020-01-01T00:00:00Z"),
 )
 
 class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteBase {
@@ -542,11 +554,39 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     }
 
     it should "extract datacenter from filename" in {
-
         val df = spark.read.json(s"${getClass.getResource("/")}event_data/raw/event/eqiad_table_a/hourly/2021/03/22/19")
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
 
         val resDf = extractDatacenterFromFilepath(partDf).df
         resDf.select("datacenter").collect.head.getString(0) shouldEqual ("eqiad")
+    }
+
+    it should "execute all transforms without crashing for a minimalist event" in {
+        val events = Seq(minimalistEvent())
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+
+        // Apply transforms to the DataFrame.
+        // See the list of applied transforms to apply in the Refine job itself.
+        val transformedDf = normalizeFieldNamesAndWidenTypes(event_transforms(partDf))
+
+        // Check if `is_wmf_domain` is NULL when `meta.domain` or `webHost` are not present
+        transformedDf.df.select("is_wmf_domain").collect()(0)(0).asInstanceOf[AnyRef] shouldBe null
+
+        // Check if `normalized_host` is empty when `meta.domain` or `webHost` are not present
+        transformedDf.df.select("normalized_host").collect()(0)(0) shouldBe Row(null, null, null, null, null)
+
+
+        // Ensure added columns have the correct types in an empty DataFrame (EvolveTable context)
+        val emptyDf = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], df.schema)
+        val emptyPartDf = PartitionedDataFrame(emptyDf, fakeHivePartition)
+        val transformedEmptyDf = normalizeFieldNamesAndWidenTypes(event_transforms(emptyPartDf))
+        transformedEmptyDf.df.schema("is_wmf_domain") should equal(
+            StructField("is_wmf_domain", BooleanType, nullable = true)
+        )
+
+        transformedEmptyDf.df.schema("normalized_host") should equal(
+            StructField("normalized_host", normalizedHostColumnSchema, nullable = true)
+        )
     }
 }
