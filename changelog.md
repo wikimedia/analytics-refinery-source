@@ -1,3 +1,6 @@
+## v0.2.56
+* Update MediaWiki History to support Temp Accounts
+
 ## v0.2.55
 * Refactoring: Extract RawRefineDataReader from RefineHelper used in refine to hive
 * Refactoring: Extract SparkEventSchemaLoader from RefineHelper used in refine to hive
