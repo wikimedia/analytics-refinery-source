@@ -18,6 +18,8 @@ case class PageEvent(
                       eventType: String,
                       causedByUserId: Option[Long],
                       causedByAnonymousUser: Option[Boolean] = None,
+                      causedByTemporaryUser: Option[Boolean] = None,
+                      causedByPermanentUser: Option[Boolean] = None,
                       causedByUserText: Option[String],
                       parsingErrors: Seq[String] = Seq.empty[String],
                       // Specific fields

@@ -554,6 +554,10 @@
                                 </excludes>
                             </filter>
                         </filters>
+                        <transformers>
+                            <!-- The following line is needed for proper reading of raw mediawiki avro files -->
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                        </transformers>
                     </configuration>
                 </plugin>
                 <plugin>

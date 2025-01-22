@@ -65,8 +65,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User   1   02"
     )
     val expectedResults = userStateSet()(
-      "start  end   textH id  creation  groupsH  eventType  adminId  adminText  adminAnon  inferred",
-      "02     None  User  1   02        ()       create     None     None       None       unclosed"
+      "start  end   textH id  creation  groupsH  eventType  adminId  adminText  adminAnon  adminTemp  adminPerm  inferred",
+      "02     None  User  1   02        ()       create     None     None       None       None       None       unclosed"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -96,8 +96,8 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   01"
     )
     val expectedResults = userStateSet()(
-      "start  end   eventType  textH  id  creation  adminId  adminText  adminAnon  inferred",
-      "02     None  create     User   1   02        None     None       None       conflict"
+      "start  end   eventType  textH  id  creation  adminId  adminText  adminAnon  adminTemp  adminPerm  inferred",
+      "02     None  create     User   1   02        None     None       None       None       None       conflict"
     )
     process(events, states) should be (Seq(expectedResults))
   }
@@ -309,16 +309,16 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
     val expectedResults = userStateSet(
       userText = Some("User"), userId = Some(1L), userCreation = TimestampHelpers.makeMediawikiTimestampOption("20010101000001")
     )(
-      "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType     adminId  adminText  adminAnon  inferred",
-      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       1        User       false      None",
-      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  1        User       false      None",
-      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  1        User       false      None",
-      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None     None       None       unblock", // Inserted.
-      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  1        User       false      None",
-      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  1        User       false      None",
-      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  1        User       false      None",    // Explicit.
-      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  1        User       false      None",
-      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None     None       None       unblock"  // Inserted.
+      "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType     adminId  adminText  adminAnon  adminTemp  adminPerm  inferred",
+      "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       1        User       false      false      true       None",
+      "20010101000002     20010101000003    ()       (flood)  (nocreate)  ()       20010101000004  alterblocks  1        User       false      false      true       None",
+      "20010101000003     20010101000004    (sysop)  (flood)  (nocreate)  ()       None            altergroups  1        User       false      false      true       None",
+      "20010101000004     20010101000005    (sysop)  (flood)  ()          ()       None            alterblocks  None     None       None       None       None       unblock", // Inserted.
+      "20010101000005     20010101000006    (sysop)  (flood)  (noemail)   ()       20010101000009  alterblocks  1        User       false      false      true       None",
+      "20010101000006     20010101000007    (flood)  (flood)  (noemail)   ()       None            altergroups  1        User       false      false      true       None",
+      "20010101000007     20010101000008    (flood)  (flood)  ()          ()       None            alterblocks  1        User       false      false      true       None",    // Explicit.
+      "20010101000008     20010101000010    (flood)  (flood)  (nocreate)  ()       20010101000010  alterblocks  1        User       false      false      true       None",
+      "20010101000010     None              (flood)  (flood)  ()          ()       None            alterblocks  None     None       None       None       None       unblock"  // Inserted.
     )
     process(events, states) should be (Seq(expectedResults))
   }

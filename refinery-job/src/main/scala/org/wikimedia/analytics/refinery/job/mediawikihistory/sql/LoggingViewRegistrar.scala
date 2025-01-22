@@ -29,6 +29,7 @@ class LoggingViewRegistrar(
 
   // View names for not reusable views
   private val actorUnprocessedView = "actor_unprocessed"
+  private val userUnprocessedView = "user_unprocessed"
   private val commentUnprocessedView = "comment_unprocessed"
   private val loggingUnprocessedView = "logging_unprocessed"
 
@@ -37,7 +38,8 @@ class LoggingViewRegistrar(
    * to the actor and comment ones using broadcast join tricks
    */
   def run(
-    actorUnprocessedPath : String,
+    actorUnprocessedPath: String,
+    userUnprocessedPath: String,
     commentUnprocessedPath: String,
     loggingUnprocessedPath: String
   ): Unit = {
@@ -46,6 +48,7 @@ class LoggingViewRegistrar(
 
     // Register needed unprocessed-views
     spark.read.format(readerFormat).load(actorUnprocessedPath).createOrReplaceTempView(actorUnprocessedView)
+    spark.read.format(readerFormat).load(userUnprocessedPath).createOrReplaceTempView(userUnprocessedView)
     spark.read.format(readerFormat).load(commentUnprocessedPath).createOrReplaceTempView(commentUnprocessedView)
     spark.read.format(readerFormat).load(loggingUnprocessedPath).createOrReplaceTempView(loggingUnprocessedView)
 
@@ -157,14 +160,30 @@ logging_actor_comment_splits AS (
   FROM distinct_filtered_logging
 ),
 
+actor_with_is_temp AS (
+  SELECT
+    a.wiki_db,
+    a.actor_id,
+    a.actor_user,
+    a.actor_name,
+    u.user_is_temp AS actor_is_temp
+  FROM $actorUnprocessedView a
+    LEFT JOIN $userUnprocessedView u
+      ON a.wiki_db = u.wiki_db
+      AND a.actor_user = u.user_id
+  WHERE TRUE
+    $wikiClause
+),
+
 actor_split AS (
   SELECT
     wiki_db,
     actor_id,
     actor_user,
     actor_name,
+    actor_is_temp,
     EXPLODE(getLogActorSplitsList(wiki_db, actor_id)) as actor_split
-  FROM $actorUnprocessedView
+  FROM actor_with_is_temp
   WHERE TRUE
     $wikiClause
 ),
@@ -189,6 +208,7 @@ SELECT
   actor_user,
   actor_name,
   if(actor_name is null, null, actor_user is null) actor_is_anon,
+  actor_is_temp,
   log_page,
   log_title,
   log_namespace,

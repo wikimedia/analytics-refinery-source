@@ -109,6 +109,7 @@ class PageHistoryRunner(
     actor_user,
     actor_name,
     actor_is_anon,
+    actor_is_temp,
     log_title,
     log_params,
     log_namespace,
@@ -132,12 +133,13 @@ class PageHistoryRunner(
            4 actor_user,
            5 actor_name,
            6 actor_is_anon,
-           7 log_title,
-           8 log_params,
-           9 log_namespace,
-          10 wiki_db,
-          11 log_id,
-          12 comment_text
+           7 actor_is_temp,
+           8 log_title,
+           9 log_params,
+          10 log_namespace,
+          11 wiki_db,
+          12 log_id,
+          13 comment_text
        */
       .map(row =>
       {
@@ -222,6 +224,8 @@ class PageHistoryRunner(
           causedByEventType = "create",
           causedByUserId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
           causedByAnonymousUser = if (row.isNullAt(7)) None else Some(row.getBoolean(7)),
+          causedByTemporaryUser = None,
+          causedByPermanentUser = None,
           causedByUserText = Option(row.getString(8)),
           inferredFrom = Option(row.getString(10)),
           wikiDb = wikiDb

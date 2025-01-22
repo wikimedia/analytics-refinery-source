@@ -22,6 +22,8 @@ case class PageState(
                       causedByEventType: String,
                       causedByUserId: Option[Long] = None,
                       causedByAnonymousUser: Option[Boolean] = None,
+                      causedByTemporaryUser: Option[Boolean] = None,
+                      causedByPermanentUser: Option[Boolean] = None,
                       causedByUserText: Option[String] = None,
                       // Specific fields
                       pageId: Option[Long] = None,
@@ -65,6 +67,8 @@ case class PageState(
     causedByEventType,
     causedByUserId.orNull,
     causedByAnonymousUser.orNull,
+    causedByTemporaryUser.orNull,
+    causedByPermanentUser.orNull,
     causedByUserText.orNull,
     inferredFrom.orNull,
     sourceLogId.orNull,
@@ -112,12 +116,14 @@ object PageState {
     causedByEventType = row.getString(15),
     causedByUserId = getOptLong(row, 16),
     causedByAnonymousUser = getOptBoolean(row, 17),
-    causedByUserText = getOptString(row, 18),
-    inferredFrom = getOptString(row, 19),
-    sourceLogId = getOptLong(row, 20),
-    sourceLogComment = getOptString(row, 21),
-    sourceLogParams = getOptMap[String, String](row, 22),
-    pageFirstState = row.getBoolean(23)
+    causedByTemporaryUser = getOptBoolean(row, 18),
+    causedByPermanentUser = getOptBoolean(row, 19),
+    causedByUserText = getOptString(row, 20),
+    inferredFrom = getOptString(row, 21),
+    sourceLogId = getOptLong(row, 22),
+    sourceLogComment = getOptString(row, 23),
+    sourceLogParams = getOptMap[String, String](row, 24),
+    pageFirstState = row.getBoolean(25)
   )
 
   val schema: StructType = StructType(
@@ -144,6 +150,8 @@ object PageState {
       StructField("caused_by_event_type", StringType, nullable = false),
       StructField("caused_by_user_id", LongType, nullable = true),
       StructField("caused_by_anonymous_user", BooleanType, nullable = true),
+      StructField("caused_by_temporary_user", BooleanType, nullable = true),
+      StructField("caused_by_permanent_user", BooleanType, nullable = true),
       StructField("caused_by_user_text", StringType, nullable = true),
       StructField("inferred_from", StringType, nullable = true),
       StructField("source_log_id", LongType, nullable = true),

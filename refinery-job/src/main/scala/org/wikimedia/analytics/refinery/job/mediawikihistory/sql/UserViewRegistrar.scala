@@ -61,6 +61,7 @@ WITH filtered_user AS (
   SELECT
     wiki_db,
     user_id,
+    user_is_temp,
     user_name AS user_text,
     user_registration
   FROM $userUnprocessedView
@@ -156,6 +157,7 @@ grouped_user_groups AS (
 SELECT
   u.wiki_db,
   u.user_id,
+  u.user_is_temp,
   u.user_text,
   u.user_registration,
   fr.user_first_rev_timestamp,
@@ -171,6 +173,7 @@ GROUP BY
   -- Grouping by to enforce expected partitioning
   u.wiki_db,
   u.user_id,
+  u.user_is_temp,
   u.user_text,
   u.user_registration,
   fr.user_first_rev_timestamp,

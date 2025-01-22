@@ -73,6 +73,7 @@ class UserHistoryRunner(
     actor_user,
     actor_name,
     actor_is_anon,
+    actor_is_temp,
     log_title,
     comment_text,
     log_params,
@@ -94,21 +95,22 @@ class UserHistoryRunner(
            3 actor_user,
            4 actor_name,
            5 actor_is_anon,
-           6 log_title,
-           7 comment_text,
-           8 log_params,
-           9 wiki_db,
-          10 log_id
+           6 actor_is_temp,
+           7 log_title,
+           8 comment_text,
+           9 log_params,
+          10 wiki_db,
+          11 log_id
        */
       .filter(row => {
-        val wikiDb = row.getString(9)
-        val isValid = UserEventBuilder.isValidLogTitle(row.getString(6))
+        val wikiDb = row.getString(10)
+        val isValid = UserEventBuilder.isValidLogTitle(row.getString(7))
         val metricName = if (isValid) METRIC_VALID_LOGS_OK else METRIC_VALID_LOGS_KO
         addOptionalStat(s"$wikiDb.$metricName", 1)
         isValid
       })
       .map(row => {
-        val wikiDb = row.getString(9)
+        val wikiDb = row.getString(10)
         val userEvent = UserEventBuilder.buildUserEvent(row)
         val metricName = if (userEvent.parsingErrors.isEmpty) METRIC_EVENTS_PARSING_OK else METRIC_EVENTS_PARSING_KO
         addOptionalStat(s"$wikiDb.$metricName", 1)
@@ -124,6 +126,7 @@ SELECT
   wiki_db,
   user_id,
   user_text,
+  user_is_temp,
   user_registration,
   user_first_rev_timestamp,
   user_groups
@@ -134,9 +137,10 @@ FROM ${SQLHelper.USER_VIEW}
            0 wiki_db,
            1 user_id,
            2 user_text,
-           3 user_registration,
-           4 user_first_rev_timestamp,
-           5 user_groups
+           3 user_is_temp,
+           4 user_registration,
+           5 user_first_rev_timestamp,
+           6 user_groups
        */
       .map { row =>
         val wikiDb = row.getString(0)
@@ -145,10 +149,12 @@ FROM ${SQLHelper.USER_VIEW}
             userId = row.getLong(1),
             userTextHistorical = row.getString(2),
             userText = row.getString(2),
-            userRegistrationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(3)),
-            userFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(4)),
+            isTemporary = row.getBoolean(3),
+            isPermanent = !row.getBoolean(3),
+            userRegistrationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(4)),
+            userFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
             userGroupsHistorical = Seq.empty[String],
-            userGroups = if (row.isNullAt(5)) Seq.empty[String] else row.getSeq(5),
+            userGroups = if (row.isNullAt(6)) Seq.empty[String] else row.getSeq(6),
             userBlocksHistorical = Seq.empty[String],
             causedByEventType = "create",
             wikiDb = wikiDb

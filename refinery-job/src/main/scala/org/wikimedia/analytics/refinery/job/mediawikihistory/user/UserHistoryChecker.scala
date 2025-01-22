@@ -42,7 +42,9 @@ class UserHistoryChecker(
         |    COUNT(DISTINCT user_id) AS distinct_user_id,
         |    COUNT(DISTINCT user_text) AS distinct_user_text,
         |    SUM(IF(ARRAY_CONTAINS(user_groups_historical, "bot"), 1, 0)) AS count_user_group_bot,
-        |    SUM(IF(anonymous, 1, 0)) AS count_user_anonymous,
+        |    SUM(IF(is_anonymous, 1, 0)) AS count_user_anonymous,
+        |    SUM(IF(is_temporary, 1, 0)) AS count_user_temporary,
+        |    SUM(IF(is_permanent, 1, 0)) AS count_user_permanent,
         |    SUM(IF(created_by_self, 1, 0)) AS count_user_self_created
         |FROM $tmpTable
         |-- Null start_timestamp means beginning of time, therefore before snapshot :)
@@ -95,6 +97,10 @@ class UserHistoryChecker(
         |            (COALESCE(n.count_user_group_bot, 0) - COALESCE(p.count_user_group_bot, 0)) / COALESCE(NULLIF(p.count_user_group_bot, 0), 1),
         |        'growth_count_user_anonymous',
         |            (COALESCE(n.count_user_anonymous, 0) - COALESCE(p.count_user_anonymous, 0)) / COALESCE(NULLIF(p.count_user_anonymous, 0), 1),
+        |        'growth_count_user_temporary',
+        |            (COALESCE(n.count_user_temporary, 0) - COALESCE(p.count_user_temporary, 0)) / COALESCE(NULLIF(p.count_user_temporary, 0), 1),
+        |        'growth_count_user_permanent',
+        |            (COALESCE(n.count_user_permanent, 0) - COALESCE(p.count_user_permanent, 0)) / COALESCE(NULLIF(p.count_user_permanent, 0), 1),
         |        'growth_count_user_self_created',
         |            (COALESCE(n.count_user_self_created, 0) - COALESCE(p.count_user_self_created, 0)) / COALESCE(NULLIF(p.count_user_self_created, 0), 1)
         |    ) AS growths
@@ -134,6 +140,12 @@ class UserHistoryChecker(
         |    OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
         |    OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
         |
+        |    OR growths['growth_count_user_temporary'] < $minEventsGrowthThreshold
+        |    OR growths['growth_count_user_temporary'] > $maxEventsGrowthThreshold
+        |
+        |    OR growths['growth_count_user_permanent'] < $minEventsGrowthThreshold
+        |    OR growths['growth_count_user_permanent'] > $maxEventsGrowthThreshold
+        |
         |    OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
         |    OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold
       """.stripMargin).cache()
@@ -156,6 +168,10 @@ class UserHistoryChecker(
          |OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
          |OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
          |OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
+         |OR growths['growth_count_user_temporary'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_user_temporary'] > $maxEventsGrowthThreshold
+         |OR growths['growth_count_user_permanent'] < $minEventsGrowthThreshold
+         |OR growths['growth_count_user_permanent'] > $maxEventsGrowthThreshold
          |OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
          |OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold""".stripMargin.replaceAll("\n", " ")
 

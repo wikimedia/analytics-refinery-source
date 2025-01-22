@@ -69,7 +69,7 @@ class AllViewsRegistrar(
       .run(actorUnprocessedPath, commentUnprocessedPath, revisionUnprocessedPath)
 
     new LoggingViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-      .run(actorUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
+      .run(actorUnprocessedPath, userUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
 
 
     // Warning: page, deleted_page and user view registration need to happen
