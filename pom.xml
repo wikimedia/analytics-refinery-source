@@ -45,6 +45,7 @@
         <module>refinery-spark</module>
         <module>refinery-hive</module>
         <module>refinery-job</module>
+        <module>refinery-job-lite</module>
     </modules>
 
     <scm>

@@ -1,3 +1,6 @@
+## v0.2.62
+* Create new module refinery-job-lite
+
 ## v0.2.61
 * Refine transform deduplication improvement
 
