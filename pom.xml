@@ -496,6 +496,7 @@
                     <artifactId>spotbugs-maven-plugin</artifactId>
                     <configuration>
                         <failOnError>false</failOnError>
+                        <maxHeap>1024</maxHeap>
                     </configuration>
                 </plugin>
                 <plugin>

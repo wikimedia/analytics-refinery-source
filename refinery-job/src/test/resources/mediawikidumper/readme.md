@@ -73,7 +73,7 @@ namespacesDF
 ```bash
 cd refinery-job/src/test/resources/mediawikidumper/
 # this just wrote to hdfs at
-# /tmp/wmf_dumps_wikitext_raw_rc1.json.gz/part....json.gz
+# /tmp/wmf_content_mediawiki_content_history_v1.json.gz/part....json.gz
 # /tmp/wmf_raw_mediawiki_project_namespace_map.json.gz/part...json.gz
 # so adjust accordingly
 scp stat1004.eqiad.wmnet:/mnt/hdfs/tmp/...

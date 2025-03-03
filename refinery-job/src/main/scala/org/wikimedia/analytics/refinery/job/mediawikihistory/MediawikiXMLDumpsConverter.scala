@@ -63,10 +63,10 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
     // Schema of the revisions to output
     @transient
     lazy val wikiTextStructure = StructType(Seq(
-        StructField("wiki_db", StringType, nullable = false),
+        StructField("wiki_id", StringType, nullable = false),
 
         StructField("page_id", LongType, nullable = false),
-        StructField("page_namespace", IntegerType, nullable = false),
+        StructField("page_namespace_id", IntegerType, nullable = false),
         StructField("page_title", StringType, nullable = false),
         StructField("page_redirect_title", StringType, nullable = false),
         StructField("page_restrictions", ArrayType(StringType, containsNull = false), nullable = false),
@@ -76,7 +76,7 @@ object MediawikiXMLDumpsConverter extends ConfigHelper {
 
         StructField("revision_id", LongType, nullable = false),
         StructField("revision_parent_id", LongType, nullable = true),
-        StructField("revision_timestamp", StringType, nullable = false),
+        StructField("revision_dt", StringType, nullable = false),
         StructField("revision_minor_edit", BooleanType, nullable = false),
         StructField("revision_comment", StringType, nullable = false),
         StructField("revision_text_bytes", LongType, nullable = false),

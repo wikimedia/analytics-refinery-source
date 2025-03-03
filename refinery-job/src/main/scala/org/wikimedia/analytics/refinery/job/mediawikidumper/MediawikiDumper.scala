@@ -108,11 +108,11 @@ object MediawikiDumper extends LogHelper {
         spark.sql(s"""SELECT
          |page_id as pageId,
          |revision_id as revisionId,
-         |to_utc_timestamp(revision_timestamp, 'GMT') as timestamp,
+         |to_utc_timestamp(revision_dt, 'GMT') as timestamp,
          |aggregate ( transform ( map_values ( revision_content_slots ), slot -> slot['content_size'] ), 0L, (total_size, size) -> total_size + size ) as size
          |FROM ${params.sourceTable}
-         |WHERE revision_timestamp < TIMESTAMP '${params.publishUntil}'
-         |  AND wiki_db = '${params.wikiId}'
+         |WHERE revision_dt < TIMESTAMP '${params.publishUntil}'
+         |  AND wiki_id = '${params.wikiId}'
          |  AND page_id IS NOT NULL;""".stripMargin)
     }
 
@@ -131,8 +131,8 @@ object MediawikiDumper extends LogHelper {
         spark
             .sql(s"""SELECT *
            |FROM ${params.sourceTable}
-           |WHERE revision_timestamp < TIMESTAMP '${params.publishUntil}'
-           |  AND wiki_db = '${params.wikiId}';""".stripMargin)
+           |WHERE revision_dt < TIMESTAMP '${params.publishUntil}'
+           |  AND wiki_id = '${params.wikiId}';""".stripMargin)
             // TODO: enable all slots by adding the whole map to Revision
             .withColumn(
               "content_slot",
@@ -141,7 +141,7 @@ object MediawikiDumper extends LogHelper {
             // In the next select list, some NULL columns are added to fill the case classes.
             .selectExpr(
               "page_id as pageId",
-              "page_namespace as ns",
+              "page_namespace_id as ns",
               "page_title as title",
               "user_text as contributor",
               // user_id is null when this revision was done by an IP editor
@@ -153,7 +153,7 @@ object MediawikiDumper extends LogHelper {
               "user_is_visible as isEditorVisible",
               "revision_id as revisionId",
               // XSD mandates this timestamp format (timestamps are in UTC by spark.conf above)
-              s"to_utc_timestamp(revision_timestamp, 'GMT') as timestamp",
+              s"to_utc_timestamp(revision_dt, 'GMT') as timestamp",
               "revision_comment as comment",
               // TODO: figure out why this data is wrong
               // "revision_id <> 1714215 AND (revision_id = 360821 OR revision_comment_is_visible) as isCommentVisible",
@@ -441,9 +441,9 @@ object MediawikiDumper extends LogHelper {
         sourceTable: String = "wmf_dumps.wikitext_raw_rc1",
         namespacesTable: String = "wmf_raw.mediawiki_project_namespace_map",
         namespacesSnapshot: String = "2024-11",
-        outputFolder: String = "",
+        maxPartitionSizeMB: Long = 100, // in MB
         outputChunkSize: Int = 100 * 1024 * 1024, // in B
-        maxPartitionSizeMB: Long = 100 // in MB
+        outputFolder: String = ""
     )
 
     /** Define the command line options parser

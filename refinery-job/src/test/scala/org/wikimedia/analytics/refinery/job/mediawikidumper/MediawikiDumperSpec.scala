@@ -8,7 +8,7 @@ import scala.language.postfixOps
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{DataFrame, Dataset, Row}
+import org.apache.spark.sql.{DataFrame, Dataset, Encoders, Row}
 import org.apache.spark.sql.functions.{col, lit, when}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -60,7 +60,9 @@ class MediawikiDumperSpec
             .option("header", "true")
             .option("inferSchema", "false")
             .option("compression", "gzip")
-            .json(s"${testResourcesDir}/wmf_dumps_wikitext_raw_rc1.json.gz")
+            .json(
+              s"${testResourcesDir}/wmf_content_mediawiki_content_history_v1.json.gz"
+            )
             .write
             .option("compression", "none")
             .saveAsTable(sourceTableName)
@@ -83,14 +85,14 @@ class MediawikiDumperSpec
         new StructType(
           Array(
             StructField("page_id", LongType),
-            StructField("page_namespace", LongType),
+            StructField("page_namespace_id", LongType),
             StructField("page_title", StringType),
             StructField("user_id", LongType),
             StructField("user_text", StringType),
             StructField("user_is_visible", BooleanType),
             StructField("revision_id", LongType),
             StructField("revision_parent_id", LongType),
-            StructField("revision_timestamp", TimestampType),
+            StructField("revision_dt", TimestampType),
             StructField("revision_comment", StringType),
             StructField("revision_comment_is_visible", BooleanType),
             StructField("revision_sha1", StringType),
@@ -112,7 +114,7 @@ class MediawikiDumperSpec
               )
             ),
             StructField("revision_content_is_visible", BooleanType),
-            StructField("wiki_db", StringType)
+            StructField("wiki_id", StringType)
           )
         )
     }
