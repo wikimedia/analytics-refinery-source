@@ -336,6 +336,18 @@ class MediawikiDumperSpec
 
         output should equal(reference)
     }
+
+    "onlyLatestRevisions" should "only keep latest revision" in {
+        val df = MediawikiDumper.onlyLatestRevisions(baseDF)
+        df.count should equal(2)
+        val pageIds = df.select("pageId").collect
+        df.schema.fieldNames should contain allElementsOf Seq("size")
+        pageIds.distinct.length should equal(2)
+        val revisionIds = df
+            .map(row => row.getAs[Long]("revisionId"))(Encoders.scalaLong)
+            .collect()
+        revisionIds should contain allElementsOf Seq(5566832, 8750749)
+    }
 }
 
 object MediawikiDumperSpec {
