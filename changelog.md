@@ -1,3 +1,8 @@
+## v0.2.58
+* Rewrite MediawikiDumper partitioning implementation
+* Adapt table/column names for dumps
+* Add partial dumps
+
 ## v0.2.57
 * Refine: Make transform functions handle minimalist events
 
