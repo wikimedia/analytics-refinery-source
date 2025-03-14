@@ -2,6 +2,7 @@ package org.wikimedia.analytics.refinery.spark.deequ;
 
 import com.amazon.deequ.VerificationSuite
 import com.amazon.deequ.checks.{Check, CheckLevel, CheckResult}
+import com.amazon.deequ.repository.ResultKey
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Row, SparkSession}
@@ -73,6 +74,7 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
         val constraintId = "SizeConstraint(Size(None))"
         val errorMessage = "Value: 5 does not meet the constraint requirement!"
         val outputPath = "/some/path"
+        val resultKey = ResultKey(12345L)
 
         val expectedAlertRows = Seq(
             Row(
@@ -84,7 +86,9 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
                 value,
                 constraintId,
                 errorMessage,
-                runId
+                runId,
+                resultKey.dataSetDate,
+                resultKey.tags
             )
         )
 
@@ -99,7 +103,7 @@ class TestDeequVerificationSuiteToDataQualityAlerts extends FlatSpec with DataFr
                |message=${errorMessage}
                |run_id=${runId}""".stripMargin
 
-        val alerts = DeequVerificationSuiteToDataQualityAlerts(spark)(alertConstraintResult, partition, runId)
+        val alerts = DeequVerificationSuiteToDataQualityAlerts(spark)(alertConstraintResult, partition, runId, Some(resultKey))
         val expectedAlertDataFrame = spark.createDataFrame(spark.sparkContext.parallelize(expectedAlertRows), alerts.outputSchema)
 
         assertDataFrameEquals(expectedAlertDataFrame, alerts.getAsDataFrame)

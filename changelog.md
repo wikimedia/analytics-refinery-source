@@ -1,3 +1,6 @@
+## v0.2.60
+* Support adding a ResultKey to DeequVerificationSuiteToDataQualityAlerts
+
 ## v0.2.59
 * Update pageview definition accepting trailing dots domains
 
