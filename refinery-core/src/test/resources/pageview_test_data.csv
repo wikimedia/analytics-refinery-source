@@ -85,3 +85,6 @@ Is Not App Pageview - No pageview header,en.wikipedia, default,Main_page,false, 
 Is Not Pageview - Desktop - SpecialPage,en.wikimedia,default,Special:ConfirmEmail,false,false,174.62.175.82,-,en.wikimedia.org, /wiki/Special:ConfirmEmail/87587587889,-,200,text/html, some-user-agent, special=ConfirmEmail;WMF-Last-Access=01-Jul-2019;prefetch_sec_purpose=chrome_preview
 Is Not Pageview - Desktop - SpecialPage,en.wikimedia,default,Special:ConfirmEmail,false,false,174.62.175.82,-,en.wikimedia.org, /wiki/Special:ConfirmEmail/87587587889,-,200,text/html, some-user-agent, ;special=ConfirmEmail
 Is Pageview - Special:AllEvents,meta.wikimedia,default,Special:AllEvents,true,false,174.62.175.82,-,meta.wikimedia.org,/wiki/Special:AllEvents,-,200,text/html,some-user-agent,special=AllEvents
+Is Pageview – URI host wikimedia domain with trailing dot,en.wikimedia,default,Z1,true,true,174.62.175.94,-,En.m.wikimedia.org.,/wiki/Z1,-,200,text/html,turnip/,
+Is Pageview – URI host project domain with trailing dot,en.wikipedia,default,Z1,true,true,174.62.175.94,-,en.wikipedia.org.,/wiki/Z1,-,200,text/html,turnip/,
+Is Pageview – URI host other project domain with trailing dot,other.mediawiki,default,Z1,true,true,174.62.175.94,-,other.mediawiki.org.,/wiki/Z1,-,200,text/html,turnip/,

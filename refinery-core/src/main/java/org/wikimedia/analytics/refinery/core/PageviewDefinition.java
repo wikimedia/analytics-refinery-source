@@ -100,17 +100,17 @@ public class PageviewDefinition {
         "^(?!doc)" // subdomains of wikimedia.org included in pageview datasets
             + "(advisory|commons|foundation|incubator|meta|outreach|species|strategy|usability|wikimania|wikitech|[a-zA-Z]{2,3})\\."
             + "((m|mobile|wap|zero)\\.)?"  // followed by an optional mobile or zero qualifier
-            + "wikimedia\\.org$"    // ending with wikimedia.org
+            + "wikimedia\\.org\\.?$"    // ending with wikimedia.org
     );
     private final static Pattern URI_HOST_PROJECT_DOMAIN_PATTERN = Pattern.compile(
         // starting with a letter but not starting with "www" "test", "donate" or "arbcom"
         "^((?!www)(?!donate)(?!arbcom)(?!sysop)([a-zA-Z][a-zA-Z0-9-_]*)\\.)*"
             + "(wik(ibooks|"  // match project domains ending in .org
-            + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org$"
+            + "inews|ipedia|iquote|isource|tionary|iversity|ivoyage))\\.org\\.?$"
     );
     private final static Pattern URI_HOST_OTHER_PROJECTS_PATTERN = Pattern.compile(
         "^((?!test)(?!query)([a-zA-Z0-9-_]+)\\.)*"  // not starting with "test" or "query"
-            + "(wikifunctions|wikidata|mediawiki|wikimediafoundation)\\.org$"  // match project domains ending in .org
+            + "(wikifunctions|wikidata|mediawiki|wikimediafoundation)\\.org\\.?$"  // match project domains ending in .org
     );
 
     private final Pattern uriQueryUnwantedActions = Pattern.compile(
