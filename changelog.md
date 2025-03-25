@@ -1,3 +1,6 @@
+## v0.2.59
+* Update pageview definition accepting trailing dots domains
+
 ## v0.2.58
 * Rewrite MediawikiDumper partitioning implementation
 * Adapt table/column names for dumps
