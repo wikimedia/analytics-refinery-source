@@ -84,9 +84,13 @@ public class TestIpUtil extends TestCase {
         assertEquals("Invalid client IP address", "37.228.105.17", clientIp);
     }
 
-    public void testGetNeworkOriginLabsIpv4() {
+    public void testGetNeworkOriginWmcsIpv4() {
         assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("185.15.56.1"));
         assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("172.16.4.22"));
+    }
+
+    public void testGetNeworkOriginWmcsIpv6() {
+        assertEquals(NetworkOrigin.WIKIMEDIA_LABS, ipUtil.getNetworkOrigin("2a02:ec80:a000:1::1"));
     }
 
     public void testGetNeworkOriginWikimediaIpv4() {
