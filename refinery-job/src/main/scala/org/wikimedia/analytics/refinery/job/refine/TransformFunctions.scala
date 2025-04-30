@@ -79,7 +79,7 @@ object event_transforms {
   */
 object deduplicate extends LogHelper {
     val possibleSourceColumnNames = Seq("meta.id", "uuid")
-    val possibleSortingColumnNames = Seq("meta.dt", "meta.request_id")
+    val possibleSortingColumnNames = Seq("meta.dt", "meta.request_id", "meta.uri")
 
     /**
       * Generates a new random UUID Column value prefixed with 'fake_'
