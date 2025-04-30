@@ -1,3 +1,6 @@
+## v0.2.61
+* Refine transform deduplication improvement
+
 ## v0.2.60
 * Support adding a ResultKey to DeequVerificationSuiteToDataQualityAlerts
 
