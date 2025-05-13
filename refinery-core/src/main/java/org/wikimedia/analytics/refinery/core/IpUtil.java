@@ -51,22 +51,24 @@ public class IpUtil {
     Set<IpAddressMatcher> trustedProxiesCache;
 
     /**
-     * List of Wikimedia Labs subnets
+     * List of Wikimedia Cloud Services subnets
      * <p>
-     * The following list is sourced from ops/puppet.git's data.yaml file (see above)
-     * Specifically these were taken from the labs portion
-     * See @https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml#L273
+     * This list is sourced from the Wikitech [[Help:Cloud VPS IP space]] as well as from Netbox.
+     * https://wikitech.wikimedia.org/wiki/Help:Cloud_VPS_IP_space
      *
-     * Last updated: 2021-01-20
+     * Last updated: 2025-04-24
      */
     final String[] labsSubnets = new String[] {
             // cloud-eqiad1
-            "172.16.0.0/21",
+            "172.16.0.0/17",
             "185.15.56.0/25",
+            "2a02:ec80:a000::/56",
 
             // cloud-codfw1dev
-            "172.16.128.0/24",
+            "172.16.128.0/17",
             "185.15.57.0/29",
+            "185.15.57.16/29",
+            "2a02:ec80:a100::/56",
     };
 
     Set<IpAddressMatcher> labsSubnetsCache;
