@@ -81,6 +81,7 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
                     <execution>
+                        <id>shade</id>
                         <goals>
                             <goal>shade</goal>
                         </goals>
