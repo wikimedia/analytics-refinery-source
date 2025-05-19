@@ -1,3 +1,9 @@
+## v0.2.64
+* Fix refinery-job-lite CI
+
+## v0.2.63
+* Update Cloud VPS IP space in refinery-core
+
 ## v0.2.62
 * Create new module refinery-job-lite
 
