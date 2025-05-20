@@ -1,3 +1,6 @@
+## v0.2.65
+* Add EvolveAndRefineToHiveTable job to refine
+
 ## v0.2.64
 * Fix refinery-job-lite CI
 

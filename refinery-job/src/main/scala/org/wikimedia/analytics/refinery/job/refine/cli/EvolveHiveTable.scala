@@ -18,7 +18,7 @@ import scala.collection.immutable.ListMap
   */
 object EvolveHiveTable extends ConfigHelper with TransformFunctionsConfigHelper with LogHelper {
 
-    private val DEFAULT_PARTITIONS: ListMap[String, String] = ListMap(
+    val DEFAULT_PARTITIONS: ListMap[String, String] = ListMap(
         "year" -> "long",
         "month" -> "long",
         "day" -> "long",
