@@ -21,6 +21,10 @@ import org.apache.log4j.Logger;
 import ua_parser.*;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +39,9 @@ public class UAParser {
     public static final int MAX_UA_LENGTH = 400;
 
     public static final String NA = "-";
+
+    // Property name for the regex yaml file
+    public static final String PARSER_REGEX_PROPERTY_NAME = "ua.parser.regex.yaml.path";
 
     private static final Logger LOG = Logger.getLogger(UAParser.class.getName());
 
@@ -80,7 +87,20 @@ public class UAParser {
         // by ~2.5, and expanding it more has less impact
         synchronized (cachingParserLock) {
             if (cachingParser == null) {
-                cachingParser = new CachingParser(10000);
+                String fileName = System.getProperty(PARSER_REGEX_PROPERTY_NAME);
+                if (fileName == null) {
+                    cachingParser = new CachingParser(10000);
+                } else {
+                    try {
+                        Path filePath = FileSystems.getDefault().getPath(fileName);
+                        InputStream inputStream = Files.newInputStream(filePath);
+                        cachingParser = new CachingParser(inputStream, 10000);
+                        inputStream.close();
+                    } catch (IOException e) {
+                        LOG.error("Error loading ua-parser regex yaml file '" + fileName + "': " + e.getMessage(), e);
+                        cachingParser = new CachingParser(10000);
+                    }
+                }
             }
         }
     }
