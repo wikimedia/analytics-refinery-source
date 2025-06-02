@@ -1,3 +1,6 @@
+## v0.2.66
+* Allow loading an external regex.yaml file for ua-parser
+
 ## v0.2.65
 * Add EvolveAndRefineToHiveTable job to refine
 
