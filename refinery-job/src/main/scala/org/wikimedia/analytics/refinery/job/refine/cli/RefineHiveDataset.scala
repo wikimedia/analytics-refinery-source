@@ -210,10 +210,11 @@ object RefineHiveDataset
                 // Here we are using HivePartition:
                 // - for nice toString and logging purposes.
                 // - to parse the partitionPath into a Map of partition columns.
+                // - to ensure that we always add an actual Hive partition, even if the output dataframe is empty.
                 val hivePartition = HivePartition(
-                    table,
                     database,
-                    tableLocation, // location not really needed here, but it is nice for logging
+                    table,
+                    tableLocation,
                     partitionPath
                 )
 
@@ -239,6 +240,8 @@ object RefineHiveDataset
                             config.table,
                             outputFilesNumber
                         )
+
+                        reader.spark.sql(hivePartition.addPartitionQL)
 
                         log.info(s"Successfully refined $recordCount rows from ${config.input_paths} into $hivePartition")
                     }

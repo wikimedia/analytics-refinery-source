@@ -1,3 +1,6 @@
+## v0.2.67
+* Refine: Add Hive partition after refining in case of an empty partition
+
 ## v0.2.66
 * Allow loading an external regex.yaml file for ua-parser
 
