@@ -205,6 +205,7 @@ object RefineHiveDataset
             case (inputPath: String, i: Int) =>
                 val Array(database, table) = config.table.split("\\.")
                 val tableLocation = reader.tableLocation(config.table)
+                val baseLocation = tableLocation.stripSuffix(s"/$table")
                 val partitionPath = config.partition_paths(i)
 
                 // Here we are using HivePartition:
@@ -212,10 +213,10 @@ object RefineHiveDataset
                 // - to parse the partitionPath into a Map of partition columns.
                 // - to ensure that we always add an actual Hive partition, even if the output dataframe is empty.
                 val hivePartition = HivePartition(
-                    database,
-                    table,
-                    tableLocation,
-                    partitionPath
+                    database=database,
+                    table=table,
+                    baseLocation=baseLocation,
+                    partitionPath=partitionPath
                 )
 
                 try {

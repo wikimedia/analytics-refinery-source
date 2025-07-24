@@ -26,7 +26,8 @@ class RefineHiveDatasetTest extends FlatSpec with Matchers with DataFrameSuiteBa
     def setupTable(): DataFrame = {
         tempDir = Files.createTempDirectory("DataFrameToTableTest_db_table")
         spark.sql("create database db;")
-        spark.sql(s"create table db.table (wiki string, year int, month int) USING PARQUET location '$tempDir' partitioned by (year, month)")
+        // Location finishes with a dir named by the table name
+        spark.sql(s"create table db.table (wiki string, year int, month int) USING PARQUET location '$tempDir/table' partitioned by (year, month)")
     }
 
     // Custom transform function to filter out records with wiki="to_be_deleted"
@@ -86,7 +87,15 @@ class RefineHiveDatasetTest extends FlatSpec with Matchers with DataFrameSuiteBa
         partitions should contain ("year=2021/month=3")
         partitions should contain ("year=2021/month=4")
         partitions.size should equal (2)
-        
+
+        // Check partition location:
+        val partition_df = spark.sql("DESCRIBE FORMATTED db.table PARTITION (year=2021, month=4)")
+        val location = partition_df
+            .filter(partition_df("col_name") === "Location")
+            .select("data_type")
+            .collect()(0)(0)
+        location.toString should equal(s"file:$tempDir/table/year=2021/month=4")
+
         // Verify that the filtered data was removed (second partition should be empty)
         val partition20Count = spark.sql("SELECT COUNT(*) FROM db.table WHERE year=2021 AND month=3").collect()(0)(0)
         partition20Count should equal (1)

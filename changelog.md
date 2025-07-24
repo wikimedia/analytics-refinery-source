@@ -1,3 +1,6 @@
+## v0.2.69
+* Refine: Fix Hive partition location in case of empty-data
+
 ## v0.2.68
 * Refine: Add GetHexDecodedIpUDF to convert hex-encoded IP address to its normal form
 
