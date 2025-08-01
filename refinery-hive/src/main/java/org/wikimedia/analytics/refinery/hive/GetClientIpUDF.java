@@ -36,11 +36,9 @@ import org.wikimedia.analytics.refinery.core.IpUtil;
         extended = "")
 public class GetClientIpUDF extends UDF {
 
-    private IpUtil ipUtil = new IpUtil();
+    private final IpUtil ipUtil = new IpUtil();
 
     public String evaluate(String ip, String xff) {
-        assert ipUtil != null : "Evaluate called without initializing 'ipUtil'";
-
         return ipUtil.getClientIp(ip, xff);
     }
 }

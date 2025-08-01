@@ -112,4 +112,16 @@ public class TestIpUtil extends TestCase {
     public void testGetNeworkOriginInvalidIp() {
         assertEquals(NetworkOrigin.INTERNET, ipUtil.getNetworkOrigin("xyzzy"));
     }
+
+    public void testFormatHexIpv4() {
+        assertEquals("86.10.35.16", ipUtil.formatHex("560A2310"));
+    }
+
+    public void testFormatHexIpv6() {
+        assertEquals("2A00:23C7:82F1:A101:6546:941C:4FCE:CC43", ipUtil.formatHex("v6-2A0023C782F1A1016546941C4FCECC43"));
+    }
+
+    public void testFormatHexInvalidIp() {
+        assertEquals("0.0.0.0", ipUtil.formatHex(""));
+    }
 }

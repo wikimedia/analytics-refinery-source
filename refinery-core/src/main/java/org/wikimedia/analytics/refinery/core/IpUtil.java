@@ -16,15 +16,17 @@
 
 package org.wikimedia.analytics.refinery.core;
 
+import java.math.BigInteger;
 import java.util.*;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.routines.InetAddressValidator;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
 public class IpUtil {
 
     /**
-     * List of trusted proxies
+     * List of trusted proxies.
      * <p>
      * The following trusted proxies list is sourced from
      * https://github.com/wikimedia/puppet/blob/production/modules/network/data/data.yaml
@@ -232,5 +234,64 @@ public class IpUtil {
             }
         }
         return isLabs;
+    }
+
+    /**
+     * An IPv6 address is made up of 8 words (each x0000 to xFFFF).
+     * However, the "::" abbreviation can be used on consecutive x0000 words.
+     */
+    private static final String RE_IPV6_WORD = "([0-9A-Fa-f]{1,4})";
+
+    /**
+     * Converts an IPv4 or IPv6 hexadecimal representation back to readable format.
+     *
+     * @param ipHex Number, with "v6-" prefix if it is IPv6
+     * @return Quad-dotted (IPv4) or octet notation (IPv6)
+     */
+    public String formatHex(String ipHex) {
+        if (ipHex.startsWith("v6-")) {
+            // IPv6
+            return hexToOctet(ipHex.substring(3));
+        }
+        // IPv4
+        return hexToQuad(ipHex);
+    }
+
+    /**
+     * Converts a hexadecimal number to an IPv6 address in octet notation.
+     *
+     * @param ipHex Pure hex (no v6- prefix)
+     * @return  (of format a:b:c:d:e:f:g:h)
+     */
+    public String hexToOctet(String ipHex) {
+        // Pad hex to 32 chars (128 bits)
+        ipHex = StringUtils.leftPad(ipHex.toUpperCase(), 32, "0");
+        // Separate into 8 words
+        StringBuilder ipOct = new StringBuilder(ipHex.substring(0, 4));
+        for (int n = 1; n < 8; n++) {
+            ipOct.append(':').append(ipHex, 4 * n, 4 * n + 4);
+        }
+        // NO leading zeroes
+        return ipOct.toString().replaceAll("(^|:)0+" + RE_IPV6_WORD, "$1$2");
+    }
+    /**
+     * Converts a hexadecimal number to an IPv4 address in quad-dotted notation.
+     *
+     * @param ipHex Pure hex
+     * @return string (of format a.b.c.d)
+     */
+    public String hexToQuad(String ipHex) {
+        // Pad hex to 8 chars (32 bits)
+        ipHex = StringUtils.leftPad(ipHex.toUpperCase(), 8, "0");
+        // Separate into four quads
+        StringBuilder ipOct = new StringBuilder();
+
+        for (int i = 0; i < 4; i++) {
+            if (ipOct.length() > 0) {
+                ipOct.append('.');
+            }
+            ipOct.append(new BigInteger(ipHex.substring(i*2, i*2+2), 16).toString(10));
+        }
+        return ipOct.toString();
     }
 }
