@@ -82,27 +82,6 @@ public class TestWebrequest {
         );
     }
 
-    @Test
-    @FileParameters(
-        value = "../refinery-core/src/test/resources/access_method_test_data.csv",
-        mapper = CsvWithHeaderMapper.class
-    )
-    public void testGetAccessMethod(
-        String test_description,
-        String expected_method,
-        String uri_host,
-        String user_agent
-    ) {
-        assertEquals(
-            test_description,
-            expected_method,
-            webrequest.getAccessMethod(
-                uri_host,
-                user_agent
-            )
-        );
-    }
-
     private String join(List<String> l, String sep) {
         String res = "";
         for (int i = 0; i < l.size(); i++) {

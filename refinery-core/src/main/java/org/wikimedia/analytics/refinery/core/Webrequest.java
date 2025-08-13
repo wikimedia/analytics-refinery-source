@@ -146,15 +146,6 @@ public class Webrequest {
                         "User:|User_talk:|github|tools.wmflabs.org|Blackboard Safeassign|Damn Small XSS|MeetingRoomApp|" + coarseEmailPattern + ").*" +
                     ")$");
 
-
-    /**
-     * Pattern for automatically-added subdomains that indicate zero,
-     * or some similar portal-based interface to MW.
-     */
-    private static final Pattern uriHostPattern = Pattern.compile(
-        "(^(m|zero|wap|mobile)\\.)|(\\.(m|zero|wap|mobile)\\.)"
-    );
-
     /**
      * Consistent fragment of the user agent used by the Wikimedia
      * official mobile apps: used to identify app requests in
@@ -281,31 +272,6 @@ public class Webrequest {
     @Deprecated
     public boolean isCrawler(String userAgent) {
         return isSpider(userAgent);
-    }
-
-
-    /**
-     * Determines the method used for accessing the site - mobile web,
-     * desktop, or app. If the user agent is an app agent, it's
-     * mobile app; if the user agent is not, but it is to m. or
-     * zero. domains, mobile web; otherwise, desktop.
-     *
-     * @param uriHost   the value in the uri_host field.
-     * @param userAgent the user_agent.
-     * @return String
-     */
-    public String getAccessMethod(String uriHost, String userAgent) {
-        String accessMethod;
-
-        if (appAgentPattern.matcher(userAgent).find()) {
-            accessMethod = "mobile app";
-        } else if (uriHostPattern.matcher(uriHost).find()) {
-            accessMethod = "mobile web";
-        } else {
-            accessMethod = "desktop";
-        }
-
-        return accessMethod;
     }
 
     /**
