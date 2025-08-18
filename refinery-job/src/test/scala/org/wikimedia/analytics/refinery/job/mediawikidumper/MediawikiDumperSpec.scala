@@ -7,6 +7,8 @@ import scala.language.postfixOps
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{DataFrame, Dataset, Encoders, Row}
 import org.apache.spark.sql.functions.{col, lit, when}
@@ -214,7 +216,8 @@ class MediawikiDumperSpec
     }
 
     def fragmentsWithPageRange(
-        overrideBaseDF: DataFrame = baseDF
+        overrideBaseDF: DataFrame = baseDF,
+        params: MediawikiDumper.Params = params,
     ): Dataset[Row] = {
         val partitioner: RangeLookupPartitioner[RowKey, Long] = MediawikiDumper
             .createPartitioner(overrideBaseDF, maxPartitionSize)
@@ -240,20 +243,27 @@ class MediawikiDumperSpec
     }
 
     private def getStringFromFilePath(path: String): String = {
-        path match {
-            case _ if path.endsWith("bz2") =>
-                getStringFromBzipFile(path)
-            case _ =>
-                val source = scala.io.Source.fromFile(path)
-                try source.mkString
-                finally source.close
+        if (path.endsWith(".xml")) {
+            val source = scala.io.Source.fromFile(path)
+            try source.mkString
+            finally source.close
+        } else {
+            getStringFromCompressedFile(path)
         }
     }
 
-    private def getStringFromBzipFile(path: String) = {
-        // Create input streams for reading the BZ2-compressed file
-        val inputStream = {
-            new BZip2CompressorInputStream(new FileInputStream(path))
+    private def getStringFromCompressedFile(path: String) = {
+        // Create input streams for reading the compressed file
+        val extension = path.split("\\.").last
+        val inputStream = extension match {
+            case "bz2" =>
+              new BZip2CompressorInputStream(new FileInputStream(path))
+            case "gz" =>
+              new GzipCompressorInputStream(new FileInputStream(path))
+            case "zst" =>
+              new ZstdCompressorInputStream(new FileInputStream(path))
+            case _ =>
+              throw new IOException(s"Unsupported compression format: $extension")
         }
         val reader = {
             new BufferedReader(new InputStreamReader(inputStream, "UTF-8"))
@@ -277,16 +287,42 @@ class MediawikiDumperSpec
     }
 
     private def writeXML(
+        params: MediawikiDumper.Params,
         overrideFragmentsWithPageRange: DataFrame = fragmentsWithPageRange()
     ): Unit = {
         MediawikiDumper.writeXMLFiles(overrideFragmentsWithPageRange, params)
     }
 
-    "writeXMlFiles" should "build an XML file" in {
-        writeXML()
+    private def fetchOrRegenerateReferenceFileContent(outputFileFromCaller: File): String = {
+      val referenceFile: File = {
+        new File(s"$testResourcesDir/MediawikiDumperOutputTest.xml")
+      }
+
+      // Optionally, regenerate the reference file. In this case the test will always pass.
+      // Run your test with env var REGENERATE_FIXTURES=true to regenerate the reference file
+      val regenerateReferenceFileVar: String = sys
+        .env
+        .getOrElse("REGENERATE_FIXTURES", "")
+      if (regenerateReferenceFileVar == "true") {
+        log.info(s"Regenerating fixture file: ${referenceFile.toString}")
+        Files.copy(
+          outputFileFromCaller.toPath,
+          referenceFile.toPath,
+          StandardCopyOption.REPLACE_EXISTING
+        )
+      }
+
+      val reference: String = getStringFromFilePath(referenceFile.toString)
+
+      reference
+    }
+
+    "writeXMlFiles" should "build a BZIP2 compressed XML file" in {
+        val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "bzip2")
+        writeXML(p, fragmentsWithPageRange(params = p))
 
         val outputPartitionDir = new File(s"${outputFolder.toString}/")
-        val compressedOutputFilePath = {
+        val compressedOutputFile = {
             new File(
               outputPartitionDir
                   .listFiles
@@ -298,44 +334,140 @@ class MediawikiDumperSpec
             )
         }
 
-        compressedOutputFilePath.getName should
+        compressedOutputFile.getName should
             equal(
               "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.bz2"
             )
 
         val output: String = {
-            try getStringFromFilePath(compressedOutputFilePath.toString)
+            try getStringFromFilePath(compressedOutputFile.toString)
             catch {
                 case e: IOException =>
                     throw new IOException(
-                      s"Failed to read $compressedOutputFilePath",
+                      s"Failed to read $compressedOutputFile",
                       e
                     )
             }
         }
 
-        val referenceFile: File = {
-            new File(s"$testResourcesDir/MediawikiDumperOutputTest.xml")
-        }
-
-        // Optionally, regenerate the reference file, in this case the test will always pass
-        // Run your test with env vor REGENERATE_FIXTURES=true to regenerate the reference file
-        val regenerateReferenceFileVar: String = sys
-            .env
-            .getOrElse("REGENERATE_FIXTURES", "")
-        if (regenerateReferenceFileVar == "true") {
-            log.info(s"Regenerating fixture file: ${referenceFile.toString}")
-            Files.copy(
-              compressedOutputFilePath.toPath,
-              referenceFile.toPath,
-              StandardCopyOption.REPLACE_EXISTING
-            )
-        }
-
-        val reference: String = getStringFromFilePath(referenceFile.toString)
+        val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
 
         output should equal(reference)
     }
+
+    "writeXMlFiles" should "build a ZSTD compressed XML file" in {
+      val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "zstd")
+      writeXML(p, fragmentsWithPageRange(params = p))
+
+      val outputPartitionDir = new File(s"${outputFolder.toString}/")
+      val compressedOutputFile = {
+        new File(
+          outputPartitionDir
+            .listFiles
+            .filter(_.isFile)
+            .filter(_.toString.matches(".*\\.xml.zst$"))
+            .toList
+            .head
+            .toString
+        )
+      }
+
+      compressedOutputFile.getName should
+        equal(
+          "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.zst"
+        )
+
+      val output: String = {
+        try getStringFromFilePath(compressedOutputFile.toString)
+        catch {
+          case e: IOException =>
+            throw new IOException(
+              s"Failed to read $compressedOutputFile",
+              e
+            )
+        }
+      }
+
+      val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+
+      output should equal(reference)
+    }
+
+  "writeXMlFiles" should "build a GZIP compressed XML file" in {
+    val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "gzip")
+    writeXML(p, fragmentsWithPageRange(params = p))
+
+    val outputPartitionDir = new File(s"${outputFolder.toString}/")
+    val compressedOutputFile = {
+      new File(
+        outputPartitionDir
+          .listFiles
+          .filter(_.isFile)
+          .filter(_.toString.matches(".*\\.xml.gz$"))
+          .toList
+          .head
+          .toString
+      )
+    }
+
+    compressedOutputFile.getName should
+      equal(
+        "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.gz"
+      )
+
+    val output: String = {
+      try getStringFromFilePath(compressedOutputFile.toString)
+      catch {
+        case e: IOException =>
+          throw new IOException(
+            s"Failed to read $compressedOutputFile",
+            e
+          )
+      }
+    }
+
+    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+
+    output should equal(reference)
+  }
+
+  "writeXMlFiles" should "build an uncompressed XML file" in {
+    val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "none")
+    writeXML(p, fragmentsWithPageRange(params = p))
+
+    val outputPartitionDir = new File(s"${outputFolder.toString}/")
+    val compressedOutputFile = {
+      new File(
+        outputPartitionDir
+          .listFiles
+          .filter(_.isFile)
+          .filter(_.toString.matches(".*\\.xml$"))
+          .toList
+          .head
+          .toString
+      )
+    }
+
+    compressedOutputFile.getName should
+      equal(
+        "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml"
+      )
+
+    val output: String = {
+      try getStringFromFilePath(compressedOutputFile.toString)
+      catch {
+        case e: IOException =>
+          throw new IOException(
+            s"Failed to read $compressedOutputFile",
+            e
+          )
+      }
+    }
+
+    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+
+    output should equal(reference)
+  }
 
     "onlyLatestRevisions" should "only keep latest revision" in {
         val df = MediawikiDumper.onlyLatestRevisions(baseDF)

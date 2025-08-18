@@ -1,11 +1,14 @@
 package org.wikimedia.analytics.refinery.job.mediawikidumper
 
+import java.io.OutputStream
 import java.io.PrintWriter
 import java.sql.Timestamp
 
 import scala.collection.JavaConverters
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
+import org.apache.commons.compress.compressors.gzip.{GzipCompressorOutputStream, GzipParameters}
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
 import org.apache.spark.Partitioner
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD.rddToOrderedRDDFunctions
@@ -295,12 +298,53 @@ object MediawikiDumper extends LogHelper {
       )
     )
 
+    /** Creates an appropriate compressor output stream based on the selected algorithm and level.
+      *
+      * @param outputStream the base output stream to compress
+      * @param algorithm the compression algorithm to use (bzip2, gzip, zstd, none)
+      * @param level the compression level (-1 for the default level of the algorithm)
+      * @return a compressed output stream
+      */
+    private def getCompressorStream(outputStream: OutputStream, algorithm: String, level: Int): OutputStream = {
+        def getActualLevel(defaultLevel: Int, minLevel: Int, maxLevel: Int): Int = {
+            if (level == -1) defaultLevel
+            else Math.max(minLevel, Math.min(maxLevel, level))
+        }
+
+        algorithm match {
+            case "bzip2" =>
+                // BZip2 levels: 1-9, default 9
+                val bzLevel = getActualLevel(9, 1, 9)
+                new BZip2CompressorOutputStream(outputStream, bzLevel)
+
+            case "gzip" =>
+                // GZip levels: 1-9, default 6
+                val gzLevel = getActualLevel(6, 1, 9)
+                val gzParams = new GzipParameters()
+                gzParams.setCompressionLevel(gzLevel)
+                new GzipCompressorOutputStream(outputStream, gzParams)
+
+            case "zstd" =>
+                // Zstd levels: 1-22, default 3
+                val zstdLevel = getActualLevel(3, 1, 22)
+                new ZstdCompressorOutputStream(outputStream, zstdLevel)
+
+            case "none" =>
+                outputStream
+
+            case _ => throw new IllegalArgumentException(
+                s"Unsupported compression algorithm: $algorithm. " +
+                "Supported values are: bzip2, gzip, zstd, none"
+            )
+        }
+    }
+
     /** Build the XML fragments from the sorted and partitioned revisions.
       *
       * The XML fragments mainly are the XML representation of the revisions,
       * with the page header and footer.
       *
-      * All XML fragments of a partition are compressed using bzip2 and split
+      * All XML fragments of a partition are compressed using the specified algorithm and split
       * into chunks.
       *
       * @param sortedAndPartitionedRevisions
@@ -325,7 +369,7 @@ object MediawikiDumper extends LogHelper {
                         new ChunkedByteArrayOutputStream(params.outputChunkSize)
                     }
                     val outputCompressorStream = {
-                        new BZip2CompressorOutputStream(outputStream)
+                        getCompressorStream(outputStream, params.compressionAlgorithm, params.compressionLevel)
                     }
                     val outputStreamCompressorWriter = {
                         new PrintWriter(outputCompressorStream)
@@ -443,13 +487,20 @@ object MediawikiDumper extends LogHelper {
         params: Params,
         outputFolderSuffix: String = ""
     ): Unit = {
+        val extension = params.compressionAlgorithm match {
+            case "bzip2" => ".bz2"
+            case "gzip" => ".gz"
+            case "zstd" => ".zst"
+            case _ => "" // none, that is, plain XML
+        }
+
         fragments
             .write
             .mode(SaveMode.Overwrite)
             .format("wmf-binary")
             .option(
               "filename-replacement",
-              s"${params.wikiId}-${params.publishUntil}-$${$COL_PARTITION_ID}-pages-meta-history.xml.bz2"
+              s"${params.wikiId}-${params.publishUntil}-$${$COL_PARTITION_ID}-pages-meta-history.xml$extension"
             )
             .save(params.outputFolder + outputFolderSuffix)
     }
@@ -457,13 +508,15 @@ object MediawikiDumper extends LogHelper {
     case class Params(
         wikiId: String = "",
         publishUntil: String = "",
-        sourceTable: String = "wmf_dumps.wikitext_raw_rc1",
+        sourceTable: String = "wmf_content.mediawiki_content_history_v1",
         namespacesTable: String = "wmf_raw.mediawiki_project_namespace_map",
         namespacesSnapshot: String = "2024-11",
         maxPartitionSizeMB: Long = 100, // in MB
         outputChunkSize: Int = 100 * 1024 * 1024, // in B
         outputFolder: String = "",
-        partial: Boolean = false
+        partial: Boolean = false,
+        compressionAlgorithm: String = "bzip2", // Default compression algorithm
+        compressionLevel: Int = -1 // -1 means use the default level for each algorithm
     )
 
     /** Define the command line options parser
@@ -532,6 +585,19 @@ object MediawikiDumper extends LogHelper {
                 () valueName "<partial>" action { (x, p) =>
                     p.copy(partial = x)
                 } text "Only process the latest revision of each page."
+
+            opt[String]('c', "compression") optional() valueName "<compression>" action { (x, p) =>
+                p.copy(compressionAlgorithm = x.toLowerCase)
+            } text """Compression algorithm to use:
+                     |  - bzip2 (levels 1-9, default 9)
+                     |  - gzip  (levels 1-9, default 6)
+                     |  - zstd  (levels 1-22, default 3)
+                     |  - none
+                     |Defaults to bzip2""".stripMargin
+
+            opt[Int]("compression-level") optional() valueName "<level>" action { (x, p) =>
+                p.copy(compressionLevel = x)
+            } text "Compression level. Use -1 for algorithm default. See --compression help for valid ranges."
         }
     }
 
