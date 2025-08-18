@@ -58,17 +58,14 @@ case class Revision(
                 val identifier = {
                     if (contributorId.isDefined) {
                         f"""|        <username>${escape(contributor)}</username>
-                    |        <id>${contributorId.get}</id>
-                    |""".stripMargin
+                            |        <id>${contributorId.get}</id>""".stripMargin
                     } else {
-                        f"""|        <ip>${escape(contributor)}</ip>
-                    |""".stripMargin
+                        f"""|        <ip>${escape(contributor)}</ip>""".stripMargin
                     }
                 }
-                f"""      <contributor>
-               |${identifier}
-               |      </contributor>
-               |""".stripMargin
+                f"""|      <contributor>
+                            |${identifier}
+                    |      </contributor>""".stripMargin
             } else {
                 "      <contributor deleted=\"deleted\" />"
             }
