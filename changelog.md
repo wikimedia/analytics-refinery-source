@@ -1,3 +1,7 @@
+## v0.3.0
+* Manually bump projects versions to release 0.3.0 instead of 0.2.70
+* Update parent POM making artifacts being released to gitlab instead of archiva
+
 ## v0.2.69
 * Refine: Fix Hive partition location in case of empty-data
 
