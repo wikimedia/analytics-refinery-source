@@ -49,20 +49,14 @@ object MediawikiDumper extends LogHelper {
         val siteInfo = getSiteInfo(params)
 
         val partitioner = createPartitioner(
-          if (params.partial) {
-              onlyLatestRevisions(readPartitioningData(params))
-          } else
-              readPartitioningData(params),
+          readPartitioningData(params),
           calculateMaxPartitionSize(params)
         )
 
         writeXMLFiles(
           buildXMLFragmentChunks(
             partitionByXMLFileBoundaries(
-              if (params.partial) {
-                  onlyLatestRevisions(buildBaseRevisionsDF(params))
-              } else
-                  buildBaseRevisionsDF(params),
+              buildBaseRevisionsDF(params),
               partitioner
             ),
             siteInfo,
@@ -72,19 +66,6 @@ object MediawikiDumper extends LogHelper {
         )
 
         log.info(s"Mediawiki Dumper: Done. Output in ${params.outputFolder}")
-    }
-
-    def onlyLatestRevisions(df: DataFrame): DataFrame = {
-        df.withColumn(
-              "rank",
-              row_number().over(
-                Window
-                    .partitionBy("pageId")
-                    .orderBy(col("timestamp").desc, col("revisionId").desc)
-              )
-            )
-            .filter(col("rank") === 1)
-            .drop("rank")
     }
 
     def calculateMaxPartitionSize(params: Params): Long = {
@@ -514,7 +495,6 @@ object MediawikiDumper extends LogHelper {
         maxPartitionSizeMB: Long = 100, // in MB
         outputChunkSize: Int = 100 * 1024 * 1024, // in B
         outputFolder: String = "",
-        partial: Boolean = false,
         compressionAlgorithm: String = "bzip2", // Default compression algorithm
         compressionLevel: Int = -1 // -1 means use the default level for each algorithm
     )
@@ -580,11 +560,6 @@ object MediawikiDumper extends LogHelper {
               |Since XML is verbose, compression can achieve ratios of up to 85:1.
               |In practice, a 2,024 MB partition typically results in a ~100 MB compressed file."""
                     .stripMargin
-
-            opt[Boolean]('p', "partial") required
-                () valueName "<partial>" action { (x, p) =>
-                    p.copy(partial = x)
-                } text "Only process the latest revision of each page."
 
             opt[String]('c', "compression") optional() valueName "<compression>" action { (x, p) =>
                 p.copy(compressionAlgorithm = x.toLowerCase)
