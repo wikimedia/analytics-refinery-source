@@ -25,6 +25,10 @@ case class HttpSubObject(
     ))
 )
 
+case class AgentSubObject(
+    ua_string: Option[String] = Some("Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:19.0) Gecko/20100101 Chrome/134.0.6998.166")
+)
+
 case class LegacyUserAgentStruct(
     browser_family: Option[String] = Some("-"),
     browser_major: Option[String] = Some("-"),
@@ -50,6 +54,21 @@ case class TestLegacyEventLoggingEvent(
 case class TestEvent(
     meta: Option[MetaSubObject] = None,
     http: Option[HttpSubObject] = None,
+    greeting: Option[String] = Some("hi"),
+    tags: Option[Array[String]] = Some(Array("tag1", "tag2"))
+)
+
+case class TestEventWithAgentUAString(
+    meta: Option[MetaSubObject] = None,
+    agent: Option[AgentSubObject] = None,
+    greeting: Option[String] = Some("hi"),
+    tags: Option[Array[String]] = Some(Array("tag1", "tag2"))
+)
+
+case class TestEventWithHttpAndAgentUAString(
+    meta: Option[MetaSubObject] = None,
+    http: Option[HttpSubObject] = None,
+    agent: Option[AgentSubObject] = None,
     greeting: Option[String] = Some("hi"),
     tags: Option[Array[String]] = Some(Array("tag1", "tag2"))
 )
@@ -120,6 +139,15 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
     val mDotEvent = TestEvent(
         Some(MetaSubObject(id1, dt1, mDotDomain)),
         Some(HttpSubObject(ip1))
+    )
+    val eventWithAgentUAString = TestEventWithAgentUAString(
+        Some(MetaSubObject(id2, dt2, internalDomain)),
+        Some(AgentSubObject())
+    )
+    val eventWithHttpUserAgentAndAgentUAString = TestEventWithHttpAndAgentUAString(
+        Some(MetaSubObject(id2, dt2, internalDomain)),
+        Some(HttpSubObject(ip1)),
+        Some(AgentSubObject())
     )
 
     val migratedLegacyEventLoggingEvent = TestLegacyEventLoggingMigrationEvent(
@@ -475,6 +503,22 @@ class TestTransformFunctions extends FlatSpec with Matchers with DataFrameSuiteB
         val partDf = new PartitionedDataFrame(df, fakeHivePartition)
         val transformedDf = parse_user_agent(partDf)
         transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Firefox")
+    }
+
+    it should "parse_user_agent using `agent.ua_string`" in {
+        val events = Seq(eventWithAgentUAString)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = parse_user_agent(partDf)
+        transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Chrome")
+    }
+
+    it should "parse_user_agent using `http.request_headers['user-agent']` and `agent.ua_string`" in {
+        val events = Seq(eventWithHttpUserAgentAndAgentUAString)
+        val df = spark.createDataFrame(sc.parallelize(events))
+        val partDf = new PartitionedDataFrame(df, fakeHivePartition)
+        val transformedDf = parse_user_agent(partDf)
+        transformedDf.df.select("user_agent_map.browser_family").take(1).head.getString(0) should equal("Chrome")
     }
 
     it should "parse_user_agent using `http.request_headers['user-agent']` and add legacy `useragent` struct" in {

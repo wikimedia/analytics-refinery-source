@@ -1,3 +1,6 @@
+## v0.3.3
+* Refine: Added agent.ua_string as a possible source when parsing user agent while refining
+
 ## v0.3.2
 * Updates to CommonsCategoryGraphBuilder SQL code due to changes in table schema
 * v0.3.1 also included this, except the SQL wasn't performant enough.

@@ -281,6 +281,7 @@ object geocode_ip extends LogHelper {
   * as some extra logic to add the is_mediawiki and is_bot struct fields.
   *
   * The user agent string will be extracted from one of the following columns:
+  * - agent.ua_string (a contextual attributes of the Experimentation Lab client libraries)
   * - http.request_headers['user-agent']
   *
   * In the order listed above, the first non null column value in the input DataFrame
@@ -291,8 +292,8 @@ object geocode_ip extends LogHelper {
 
 object parse_user_agent extends LogHelper {
     import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
-    // Only one possible source column currently, but we could add more.
-    val possibleSourceColumnNames = Seq("http.request_headers.`user-agent`")
+    // There are two possible source columns currently, but we could add more.
+    val possibleSourceColumnNames = Seq("agent.ua_string", "http.request_headers.`user-agent`")
     val userAgentMapColumnName    = "user_agent_map"
     // This camelCase userAgent case sensitive name is really a pain.
     // df.hasColumn is case-insenstive, but accessing StructType schema fields
