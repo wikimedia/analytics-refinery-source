@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.page
 
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.apache.spark.sql.functions._
-import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
+import org.wikimedia.analytics.refinery.job.mediawikihistory.{DeequColumnAnalysis, MediawikiHistoryCheckerConfig}
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
@@ -15,9 +15,7 @@ class PageHistoryChecker(
   val previousSnapshot: String,
   val newSnapshot: String,
   val wikisToCheck: Int,
-  val minEventsGrowthThreshold: Double,
-  val maxEventsGrowthThreshold: Double,
-  val wrongRowsRatioThreshold: Double
+  val thresholdsConfig: MediawikiHistoryCheckerConfig
 ) extends LogHelper with Serializable with DeequColumnAnalysis {
 
   /**
@@ -126,22 +124,22 @@ class PageHistoryChecker(
          |    event_type,
          |    growths
          |FROM $tmpTable
-         |WHERE growths['growth_count_page_event'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_page_event'] > $maxEventsGrowthThreshold
+         |WHERE growths['growth_count_page_event'] < ${thresholdsConfig.growth_count_page_event_min}
+         |        OR growths['growth_count_page_event'] > ${thresholdsConfig.growth_count_page_event_max}
          |
-         |        OR growths['growth_distinct_all_page_id'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_all_page_id'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_distinct_all_page_id'] < ${thresholdsConfig.growth_distinct_all_page_id_min}
+         |        OR growths['growth_distinct_all_page_id'] > ${thresholdsConfig.growth_distinct_all_page_id_max}
          |
-         |        OR growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_distinct_page_title'] < ${thresholdsConfig.growth_distinct_page_title_min}
+         |        OR growths['growth_distinct_page_title'] > ${thresholdsConfig.growth_distinct_page_title_max}
          |
-         |        OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_distinct_page_namespace'] < ${thresholdsConfig.growth_distinct_page_namespace_min}
+         |        OR growths['growth_distinct_page_namespace'] > ${thresholdsConfig.growth_distinct_page_namespace_max}
          |
          |        -- Since we measure variability, we set the lower accepted threshold limit to
          |        -- -maxEventsGrowthThreshold.
-         |        OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
-         |        OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold
+         |        OR growths['variability_count_page_redirect'] < -${thresholdsConfig.variability_count_page_redirect_max}
+         |        OR growths['variability_count_page_redirect'] > ${thresholdsConfig.variability_count_page_redirect_max}
       """.stripMargin).cache()
   }
 
@@ -153,16 +151,16 @@ class PageHistoryChecker(
   def getPageGrowthErrorsRatio(pageMetricsGrowth: DataFrame): Double = {
     val compliancePredicate: String =
       s"""
-        |growths['growth_count_page_event'] < $minEventsGrowthThreshold
-        |OR growths['growth_count_page_event'] > $maxEventsGrowthThreshold
-        |OR growths['growth_distinct_all_page_id'] < $minEventsGrowthThreshold
-        |OR growths['growth_distinct_all_page_id'] > $maxEventsGrowthThreshold
-        |OR growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
-        |OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
-        |OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
-        |OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
-        |OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
-        |OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold
+        |growths['growth_count_page_event'] < ${thresholdsConfig.growth_count_page_event_min}
+        |OR growths['growth_count_page_event'] > ${thresholdsConfig.growth_count_page_event_max}
+        |OR growths['growth_distinct_all_page_id'] < ${thresholdsConfig.growth_distinct_all_page_id_min}
+        |OR growths['growth_distinct_all_page_id'] > ${thresholdsConfig.growth_distinct_all_page_id_max}
+        |OR growths['growth_distinct_page_title'] < ${thresholdsConfig.growth_distinct_page_title_min}
+        |OR growths['growth_distinct_page_title'] > ${thresholdsConfig.growth_distinct_page_title_max}
+        |OR growths['growth_distinct_page_namespace'] < ${thresholdsConfig.growth_distinct_page_namespace_min}
+        |OR growths['growth_distinct_page_namespace'] > ${thresholdsConfig.growth_distinct_page_namespace_max}
+        |OR growths['variability_count_page_redirect'] < -${thresholdsConfig.variability_count_page_redirect_max}
+        |OR growths['variability_count_page_redirect'] > ${thresholdsConfig.variability_count_page_redirect_max}
         |""".stripMargin.replaceAll("\n", " ")
 
     columnComplianceAnalysis(pageMetricsGrowth, compliancePredicate, "Check Page ErrorRatio Metric")
@@ -187,9 +185,9 @@ class PageHistoryChecker(
     val errorRowsRatio = getPageGrowthErrorsRatio(pageMetricsGrowth)
     log.info(s"PageMetricsGrowthErrors ratio: $errorRowsRatio")
 
-    if (errorRowsRatio > wrongRowsRatioThreshold) {
+    if (errorRowsRatio > thresholdsConfig.pageWrongRowsRatioThreshold) {
       log.warn(s"PageMetricsGrowthErrors ratio $errorRowsRatio is higher " +
-        s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+        s"than expected threshold ${thresholdsConfig.pageWrongRowsRatioThreshold} -- Writing errors")
       val pageMetricsGrowthErrors = getPageMetricsGrowthErrors(pageMetricsGrowth)
       pageMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }

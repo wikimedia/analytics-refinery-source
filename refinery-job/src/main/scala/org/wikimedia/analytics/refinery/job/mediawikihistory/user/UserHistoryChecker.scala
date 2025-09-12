@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.user
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
+import org.wikimedia.analytics.refinery.job.mediawikihistory.{DeequColumnAnalysis, MediawikiHistoryCheckerConfig}
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
@@ -15,9 +15,7 @@ class UserHistoryChecker(
   val previousSnapshot: String,
   val newSnapshot: String,
   val wikisToCheck: Int,
-  val minEventsGrowthThreshold: Double,
-  val maxEventsGrowthThreshold: Double,
-  val wrongRowsRatioThreshold: Double
+  val thresholdsConfig: MediawikiHistoryCheckerConfig
 ) extends LogHelper with Serializable with DeequColumnAnalysis {
 
   /**
@@ -125,29 +123,29 @@ class UserHistoryChecker(
         |    event_type,
         |    growths
         |FROM $tmpTable
-        |WHERE growths['growth_count_user_event'] < $minEventsGrowthThreshold
-        |    OR growths['growth_count_user_event'] > $maxEventsGrowthThreshold
+        |WHERE growths['growth_count_user_event'] < ${thresholdsConfig.growth_count_user_event_min}
+        |    OR growths['growth_count_user_event'] > ${thresholdsConfig.growth_count_user_event_max}
         |
-        |    OR growths['growth_distinct_user_id'] < $minEventsGrowthThreshold
-        |    OR growths['growth_distinct_user_id'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_distinct_user_id'] < ${thresholdsConfig.growth_distinct_user_id_min}
+        |    OR growths['growth_distinct_user_id'] > ${thresholdsConfig.growth_distinct_user_id_max}
         |
-        |    OR growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
-        |    OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_distinct_user_text'] < ${thresholdsConfig.growth_distinct_user_text_min}
+        |    OR growths['growth_distinct_user_text'] > ${thresholdsConfig.growth_distinct_user_text_max}
         |
-        |    OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
-        |    OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_count_user_group_bot'] < ${thresholdsConfig.growth_count_user_group_bot_min}
+        |    OR growths['growth_count_user_group_bot'] > ${thresholdsConfig.growth_count_user_group_bot_max}
         |
-        |    OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
-        |    OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_count_user_anonymous'] < ${thresholdsConfig.growth_count_user_anonymous_min}
+        |    OR growths['growth_count_user_anonymous'] > ${thresholdsConfig.growth_count_user_anonymous_max}
         |
-        |    OR growths['growth_count_user_temporary'] < $minEventsGrowthThreshold
-        |    OR growths['growth_count_user_temporary'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_count_user_temporary'] < ${thresholdsConfig.growth_count_user_temporary_min}
+        |    OR growths['growth_count_user_temporary'] > ${thresholdsConfig.growth_count_user_temporary_max}
         |
-        |    OR growths['growth_count_user_permanent'] < $minEventsGrowthThreshold
-        |    OR growths['growth_count_user_permanent'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_count_user_permanent'] < ${thresholdsConfig.growth_count_user_permanent_min}
+        |    OR growths['growth_count_user_permanent'] > ${thresholdsConfig.growth_count_user_permanent_max}
         |
-        |    OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
-        |    OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold
+        |    OR growths['growth_count_user_self_created'] < ${thresholdsConfig.growth_count_user_self_created_min}
+        |    OR growths['growth_count_user_self_created'] > ${thresholdsConfig.growth_count_user_self_created_max}
       """.stripMargin).cache()
   }
 
@@ -158,22 +156,22 @@ class UserHistoryChecker(
    */
   def getUserGrowthErrorsRatio(userMetricsGrowth: DataFrame):Double = {
     val compliancePredicate:String =
-      s"""growths['growth_count_user_event'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_user_event'] > $maxEventsGrowthThreshold
-         |OR growths['growth_distinct_user_id'] < $minEventsGrowthThreshold
-         |OR growths['growth_distinct_user_id'] > $maxEventsGrowthThreshold
-         |OR growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
-         |OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
-         |OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
-         |OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
-         |OR growths['growth_count_user_temporary'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_user_temporary'] > $maxEventsGrowthThreshold
-         |OR growths['growth_count_user_permanent'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_user_permanent'] > $maxEventsGrowthThreshold
-         |OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold""".stripMargin.replaceAll("\n", " ")
+      s"""growths['growth_count_user_event'] < ${thresholdsConfig.growth_count_user_event_min}
+         |OR growths['growth_count_user_event'] > ${thresholdsConfig.growth_count_user_event_max}
+         |OR growths['growth_distinct_user_id'] < ${thresholdsConfig.growth_distinct_user_id_min}
+         |OR growths['growth_distinct_user_id'] > ${thresholdsConfig.growth_distinct_user_id_max}
+         |OR growths['growth_distinct_user_text'] < ${thresholdsConfig.growth_distinct_user_text_min}
+         |OR growths['growth_distinct_user_text'] > ${thresholdsConfig.growth_distinct_user_text_max}
+         |OR growths['growth_count_user_group_bot'] < ${thresholdsConfig.growth_count_user_group_bot_min}
+         |OR growths['growth_count_user_group_bot'] > ${thresholdsConfig.growth_count_user_group_bot_max}
+         |OR growths['growth_count_user_anonymous'] < ${thresholdsConfig.growth_count_user_anonymous_min}
+         |OR growths['growth_count_user_anonymous'] > ${thresholdsConfig.growth_count_user_anonymous_max}
+         |OR growths['growth_count_user_temporary'] < ${thresholdsConfig.growth_count_user_temporary_min}
+         |OR growths['growth_count_user_temporary'] > ${thresholdsConfig.growth_count_user_temporary_max}
+         |OR growths['growth_count_user_permanent'] < ${thresholdsConfig.growth_count_user_permanent_min}
+         |OR growths['growth_count_user_permanent'] > ${thresholdsConfig.growth_count_user_permanent_max}
+         |OR growths['growth_count_user_self_created'] < ${thresholdsConfig.growth_count_user_self_created_min}
+         |OR growths['growth_count_user_self_created'] > ${thresholdsConfig.growth_count_user_self_created_max}""".stripMargin.replaceAll("\n", " ")
 
     columnComplianceAnalysis(userMetricsGrowth, compliancePredicate, "Check User ErrorRatio metric")
   }
@@ -196,9 +194,9 @@ class UserHistoryChecker(
     val errorRowsRatio = getUserGrowthErrorsRatio(userMetricsGrowth)
     log.info(s"UserMetricsGrowthErrors ratio: $errorRowsRatio")
 
-    if (errorRowsRatio > wrongRowsRatioThreshold) {
+    if (errorRowsRatio > thresholdsConfig.userWrongRowsRatioThreshold) {
       log.warn(s"UserMetricsGrowthErrors ratio $errorRowsRatio is higher " +
-        s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+        s"than expected threshold ${thresholdsConfig.userWrongRowsRatioThreshold} -- Writing errors")
       val userMetricsGrowthErrors = getUserMetricsGrowthErrors(userMetricsGrowth)
       userMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Append).json(outputPath)
     }

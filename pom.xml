@@ -223,7 +223,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
-                <version>3.5</version>
+                <version>3.11</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>
@@ -481,7 +481,6 @@
             <id>wmf-mirror-cloudera</id>
             <url>https://archiva.wikimedia.org/repository/mirror-cloudera/</url>
         </repository>
-
         <!-- Manually uploaded artifacts for analytics -->
         <repository>
             <id>wmf-analytics-old-uploads</id>

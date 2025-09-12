@@ -23,9 +23,7 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
     val previousSnapshot = "2023-12"
     val newSnapshot = "2024-01"
     val wikisToCheck = 50
-    val minEventsGrowthThreshold = -0.01
-    val maxEventsGrowthThreshold = 1.0
-    val wrongRowsRatioThreshold = 0.05
+    val thresholdsConfig: MediawikiHistoryCheckerConfig = MediawikiHistoryCheckerConfig()
 
     def getGrowthDataFrame(data: Seq[Row], column1: String = "wiki_db") = {
         spark.createDataFrame(
@@ -118,9 +116,7 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
             previousSnapshot,
             newSnapshot,
             wikisToCheck,
-            minEventsGrowthThreshold,
-            maxEventsGrowthThreshold,
-            wrongRowsRatioThreshold
+            thresholdsConfig
         ).getUserGrowthErrorsRatio(userGrowthDataFrame)
         // check that difference between expected error ratio(0.125)
         // and actual error ratio is less than tolerance value
@@ -178,9 +174,7 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
             previousSnapshot,
             newSnapshot,
             wikisToCheck,
-            minEventsGrowthThreshold,
-            maxEventsGrowthThreshold,
-            wrongRowsRatioThreshold
+            thresholdsConfig
         ).getPageGrowthErrorsRatio(pageGrowthDataFrame)
 
         // check that difference between expected error ratio(0.0)
@@ -327,9 +321,7 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
             previousSnapshot,
             newSnapshot,
             wikisToCheck,
-            minEventsGrowthThreshold,
-            maxEventsGrowthThreshold,
-            wrongRowsRatioThreshold
+            thresholdsConfig
         ).getDenormGrowthErrorsRatio(denormGrowthDataFrame)
         // check that difference between expected error ratio(0.375)
         // and actual error ratio is less than tolerance value
@@ -473,9 +465,7 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
             previousSnapshot,
             newSnapshot,
             wikisToCheck,
-            minEventsGrowthThreshold,
-            maxEventsGrowthThreshold,
-            wrongRowsRatioThreshold
+            thresholdsConfig
         ).getReducedGrowthErrorsRatio(reducedGrowthDataFrame)
         println(errorRatio)
         // check that difference between expected error ratio(1.0)
@@ -522,9 +512,7 @@ class TestMediawikiHistoryChecker extends FlatSpec with DataFrameSuiteBase {
                 previousSnapshot,
                 newSnapshot,
                 wikisToCheck,
-                minEventsGrowthThreshold,
-                maxEventsGrowthThreshold,
-                wrongRowsRatioThreshold
+                thresholdsConfig
             ).getUserGrowthErrorsRatio(nullDataFrame))
         }
 

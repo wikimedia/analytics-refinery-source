@@ -67,9 +67,7 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             else
                 patternOpt should equal(expected.patternOpt)
         }}
-
     }
-
 
     it should "load Params with defaults" in {
         val expected = Params()
@@ -124,6 +122,28 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         )
 
         val propertiesFile: String = getClass.getResource("/test_config_helper.properties").getPath
+        assertParamsEqual(configure[Params](Array(propertiesFile), Array.empty), expected)
+    }
+
+    it should "load Params with partial file overrides" in {
+        val expected = Params(
+            "not the default str",
+            None,
+            0,
+            None,
+            1.0,
+            None,
+            bool=false,
+            Seq("first"),
+            new DateTime(2018, 1, 1, 0, 0),
+            DateTimeFormat.forPattern("'hourly'/yyyy/MM/dd/HH"),
+            "(.*)".r,
+            None,
+            Map(),
+            ListMap()
+        )
+
+        val propertiesFile: String = getClass.getResource("/test_config_helper3.properties").getPath
         assertParamsEqual(configure[Params](Array(propertiesFile), Array.empty), expected)
     }
 
@@ -192,7 +212,6 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         assertParamsEqual(configure[Params](Array(propertiesFile, propertiesFile2), args), expected)
     }
 
-
     it should "load Params with multiple --config_file and args overrides" in {
         val expected = Params(
             "overrideString",
@@ -211,7 +230,6 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         val propertiesFile: String = getClass.getResource("/test_config_helper.properties").getPath
         val propertiesFile2:       String = getClass.getResource("/test_config_helper2.properties").getPath
 
-
         val args = Array(
             "--str", "overrideString",
             "--dt", "2018-04-01T00:00:00Z",
@@ -224,7 +242,6 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
             "--config_file=" + propertiesFile2
         )
 
-
         assertParamsEqual(configureArgs[Params](args), expected)
     }
 
@@ -235,7 +252,6 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
 
         configureArgs[Params](args).groups should equal(array)
     }
-
 
     it should "fail converting bad int" in {
         a [RuntimeException] should be thrownBy configure[Params](Array.empty, Array("--int", "not 1 an 2 int"))
@@ -260,7 +276,6 @@ class TestConfigHelper extends FlatSpec with Matchers with BeforeAndAfter with I
         case class ParamsWithRequired(required1: String, required2: String, optional: String = "no worries")
         a [ConfigHelperException] should be thrownBy configure[ParamsWithRequired](Array.empty, Array("--required2=got-it"))
     }
-
 
     it should "extract --config_file" in {
         val args = Array("--hi", "there", "--config_file", "/path/to/y.yaml", "--yo=true", "--config_file=/path/to/p.properties", "--yes=no", "--config_file=/path/1.yaml,/path/2.json")

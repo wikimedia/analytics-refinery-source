@@ -2,7 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.reduced
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.wikimedia.analytics.refinery.job.mediawikihistory.DeequColumnAnalysis
+import org.wikimedia.analytics.refinery.job.mediawikihistory.{DeequColumnAnalysis, MediawikiHistoryCheckerConfig}
 import org.wikimedia.analytics.refinery.tools.LogHelper
 
 
@@ -16,10 +16,8 @@ class ReducedHistoryChecker(
   val previousSnapshot: String,
   val newSnapshot: String,
   val wikisToCheck: Int,
-  val minEventsGrowthThreshold: Double,
-  val maxEventsGrowthThreshold: Double,
-  val wrongRowsRatioThreshold: Double
-) extends LogHelper with Serializable with DeequColumnAnalysis{
+  val thresholdsConfig: MediawikiHistoryCheckerConfig
+) extends LogHelper with Serializable with DeequColumnAnalysis {
 
   /**
    * Path instantiation at creation
@@ -178,83 +176,75 @@ class ReducedHistoryChecker(
          |    event_type,
          |    growths
          |FROM $tmpMetricGrowthTable
-         |WHERE growths['growth_count_reduced_event'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_reduced_event'] > $maxEventsGrowthThreshold
+         |WHERE growths['growth_count_reduced_event'] < ${thresholdsConfig.growth_count_reduced_event_min}
+         |    OR growths['growth_count_reduced_event'] > ${thresholdsConfig.growth_count_reduced_event_max}
          |
          |    -- User values with digests
          |    OR (event_entity = 'user' AND (
-         |        growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
+         |        growths['growth_distinct_user_text'] < ${thresholdsConfig.growth_distinct_user_text_min}
+         |        OR growths['growth_distinct_user_text'] > ${thresholdsConfig.growth_distinct_user_text_max}
          |
-         |        OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_user_group_bot'] < ${thresholdsConfig.growth_count_user_group_bot_min}
+         |        OR growths['growth_count_user_group_bot'] > ${thresholdsConfig.growth_count_user_group_bot_max}
          |
-         |        OR growths['growth_count_user_name_bot'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_user_name_bot'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_user_name_bot'] < ${thresholdsConfig.growth_count_user_name_bot_min}
+         |        OR growths['growth_count_user_name_bot'] > ${thresholdsConfig.growth_count_user_name_bot_max}
          |
-         |        OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_user_anonymous'] < ${thresholdsConfig.growth_count_user_anonymous_min}
+         |        OR growths['growth_count_user_anonymous'] > ${thresholdsConfig.growth_count_user_anonymous_max}
          |
-         |        OR growths['growth_count_user_user'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_user_user'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_user_user'] < ${thresholdsConfig.growth_count_user_user_min}
+         |        OR growths['growth_count_user_user'] > ${thresholdsConfig.growth_count_user_user_max}
          |
-         |        OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_user_self_created'] < ${thresholdsConfig.growth_count_user_self_created_min}
+         |        OR growths['growth_count_user_self_created'] > ${thresholdsConfig.growth_count_user_self_created_max}
          |
-         |        OR growths['growth_count_revisions'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_revisions'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_revisions'] < ${thresholdsConfig.growth_count_revisions_min}
+         |        OR growths['growth_count_revisions'] > ${thresholdsConfig.growth_count_revisions_max}
          |
          |        -- Variability not growth --> between -max and max
-         |        OR growths['variability_sum_text_bytes_diff'] < -$maxEventsGrowthThreshold
-         |        OR growths['variability_sum_text_bytes_diff'] > $maxEventsGrowthThreshold
+         |        OR growths['variability_sum_text_bytes_diff'] < -${thresholdsConfig.variability_sum_text_bytes_diff_max}
+         |        OR growths['variability_sum_text_bytes_diff'] > ${thresholdsConfig.variability_sum_text_bytes_diff_max}
          |
-         |        OR growths['growth_sum_text_bytes_diff_abs'] < $minEventsGrowthThreshold
-         |        OR growths['growth_sum_text_bytes_diff_abs'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_sum_text_bytes_diff_abs'] < ${thresholdsConfig.growth_sum_text_bytes_diff_abs_min}
+         |        OR growths['growth_sum_text_bytes_diff_abs'] > ${thresholdsConfig.growth_sum_text_bytes_diff_abs_max}
          |    ))
          |
          |    -- Page values with digests
          |    OR (event_entity = 'page' AND (
-         |        growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
+         |        growths['growth_distinct_page_title'] < ${thresholdsConfig.growth_distinct_page_title_min}
+         |        OR growths['growth_distinct_page_title'] > ${thresholdsConfig.growth_distinct_page_title_max}
          |
-         |        OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
-         |        OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_distinct_page_namespace'] < ${thresholdsConfig.growth_distinct_page_namespace_min}
+         |        OR growths['growth_distinct_page_namespace'] > ${thresholdsConfig.growth_distinct_page_namespace_max}
          |
-         |        OR growths['growth_count_page_content'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_page_content'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_page_content'] < ${thresholdsConfig.growth_count_page_content_min}
+         |        OR growths['growth_count_page_content'] > ${thresholdsConfig.growth_count_page_content_max}
          |
-         |        OR growths['growth_count_page_non_content'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_page_non_content'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_page_non_content'] < ${thresholdsConfig.growth_count_page_non_content_min}
+         |        OR growths['growth_count_page_non_content'] > ${thresholdsConfig.growth_count_page_non_content_max}
          |
          |        -- Since we measure variability, we set the lower accepted threshold limit to
          |        -- -maxEventsGrowthThreshold.
-         |        OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
-         |        OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold
+         |        OR growths['variability_count_page_redirect'] < -${thresholdsConfig.variability_count_page_redirect_max}
+         |        OR growths['variability_count_page_redirect'] > ${thresholdsConfig.variability_count_page_redirect_max}
          |
-         |        OR growths['growth_count_revisions'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_revisions'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_count_revisions'] < ${thresholdsConfig.growth_count_revisions_min}
+         |        OR growths['growth_count_revisions'] > ${thresholdsConfig.growth_count_revisions_max}
          |
          |        -- Variability not growth --> between -max and max
-         |        OR growths['variability_sum_text_bytes_diff'] < -$maxEventsGrowthThreshold
-         |        OR growths['variability_sum_text_bytes_diff'] > $maxEventsGrowthThreshold
+         |        OR growths['variability_sum_text_bytes_diff'] < -${thresholdsConfig.variability_sum_text_bytes_diff_max}
+         |        OR growths['variability_sum_text_bytes_diff'] > ${thresholdsConfig.variability_sum_text_bytes_diff_max}
          |
-         |        OR growths['growth_sum_text_bytes_diff_abs'] < $minEventsGrowthThreshold
-         |        OR growths['growth_sum_text_bytes_diff_abs'] > $maxEventsGrowthThreshold
+         |        OR growths['growth_sum_text_bytes_diff_abs'] < ${thresholdsConfig.growth_sum_text_bytes_diff_abs_min}
+         |        OR growths['growth_sum_text_bytes_diff_abs'] > ${thresholdsConfig.growth_sum_text_bytes_diff_abs_max}
          |    ))
          |
          |    -- Revision values
          |    OR (event_entity = 'revision' AND (
-         |        growths['growth_count_revision_deleted'] < $minEventsGrowthThreshold
-         |        OR growths['growth_count_revision_deleted'] > $maxEventsGrowthThreshold
+         |        growths['growth_count_revision_deleted'] < ${thresholdsConfig.growth_count_revision_deleted_min}
+         |        OR growths['growth_count_revision_deleted'] > ${thresholdsConfig.growth_count_revision_deleted_max}
          |
-         |        -- Data is present but exhibits too much variability to be checked
-         |        -- in the way the rest is. Since this data is no used in wikistat2,
-         |        -- check is removed.
-         |        --OR growths['growth_count_revision_reverted'] < $minEventsGrowthThreshold
-         |        --OR growths['growth_count_revision_reverted'] > $maxEventsGrowthThreshold
-         |
-         |        --OR growths['growth_count_revision_revert'] < $minEventsGrowthThreshold
-         |        --OR growths['growth_count_revision_revert'] > $maxEventsGrowthThreshold
          |    ))
       """.stripMargin).cache()
   }
@@ -266,47 +256,47 @@ class ReducedHistoryChecker(
    */
   def getReducedGrowthErrorsRatio(reducedMetricsGrowth: DataFrame): Double = {
     val compliancePredicate: String =
-      s"""growths['growth_count_reduced_event'] < $minEventsGrowthThreshold
-         |OR growths['growth_count_reduced_event'] > $maxEventsGrowthThreshold
+      s"""growths['growth_count_reduced_event'] < ${thresholdsConfig.growth_count_reduced_event_min}
+         |OR growths['growth_count_reduced_event'] > ${thresholdsConfig.growth_count_reduced_event_max}
          |OR (event_entity = 'user' AND(
-         |    growths['growth_distinct_user_text'] < $minEventsGrowthThreshold
-         |    OR growths['growth_distinct_user_text'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_user_group_bot'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_user_group_bot'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_user_name_bot'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_user_name_bot'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_user_anonymous'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_user_anonymous'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_user_user'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_user_user'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_user_self_created'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_user_self_created'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_revisions'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_revisions'] > $maxEventsGrowthThreshold
-         |    OR growths['variability_sum_text_bytes_diff'] < -$maxEventsGrowthThreshold
-         |    OR growths['variability_sum_text_bytes_diff'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_sum_text_bytes_diff_abs'] < $minEventsGrowthThreshold
-         |    OR growths['growth_sum_text_bytes_diff_abs'] > $maxEventsGrowthThreshold))
+         |    growths['growth_distinct_user_text'] < ${thresholdsConfig.growth_distinct_user_text_min}
+         |    OR growths['growth_distinct_user_text'] > ${thresholdsConfig.growth_distinct_user_text_max}
+         |    OR growths['growth_count_user_group_bot'] < ${thresholdsConfig.growth_count_user_group_bot_min}
+         |    OR growths['growth_count_user_group_bot'] > ${thresholdsConfig.growth_count_user_group_bot_max}
+         |    OR growths['growth_count_user_name_bot'] < ${thresholdsConfig.growth_count_user_name_bot_min}
+         |    OR growths['growth_count_user_name_bot'] > ${thresholdsConfig.growth_count_user_name_bot_max}
+         |    OR growths['growth_count_user_anonymous'] < ${thresholdsConfig.growth_count_user_anonymous_min}
+         |    OR growths['growth_count_user_anonymous'] > ${thresholdsConfig.growth_count_user_anonymous_max}
+         |    OR growths['growth_count_user_user'] < ${thresholdsConfig.growth_count_user_user_min}
+         |    OR growths['growth_count_user_user'] > ${thresholdsConfig.growth_count_user_user_max}
+         |    OR growths['growth_count_user_self_created'] < ${thresholdsConfig.growth_count_user_self_created_min}
+         |    OR growths['growth_count_user_self_created'] > ${thresholdsConfig.growth_count_user_self_created_max}
+         |    OR growths['growth_count_revisions'] < ${thresholdsConfig.growth_count_revisions_min}
+         |    OR growths['growth_count_revisions'] > ${thresholdsConfig.growth_count_revisions_max}
+         |    OR growths['variability_sum_text_bytes_diff'] < -${thresholdsConfig.variability_sum_text_bytes_diff_max}
+         |    OR growths['variability_sum_text_bytes_diff'] > ${thresholdsConfig.variability_sum_text_bytes_diff_max}
+         |    OR growths['growth_sum_text_bytes_diff_abs'] < ${thresholdsConfig.growth_sum_text_bytes_diff_abs_min}
+         |    OR growths['growth_sum_text_bytes_diff_abs'] > ${thresholdsConfig.growth_sum_text_bytes_diff_abs_max}))
          |OR (event_entity = 'page' AND (
-         |    growths['growth_distinct_page_title'] < $minEventsGrowthThreshold
-         |    OR growths['growth_distinct_page_title'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_distinct_page_namespace'] < $minEventsGrowthThreshold
-         |    OR growths['growth_distinct_page_namespace'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_page_content'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_page_content'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_page_non_content'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_page_non_content'] > $maxEventsGrowthThreshold
-         |    OR growths['variability_count_page_redirect'] < -$maxEventsGrowthThreshold
-         |    OR growths['variability_count_page_redirect'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_count_revisions'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_revisions'] > $maxEventsGrowthThreshold
-         |    OR growths['variability_sum_text_bytes_diff'] < -$maxEventsGrowthThreshold
-         |    OR growths['variability_sum_text_bytes_diff'] > $maxEventsGrowthThreshold
-         |    OR growths['growth_sum_text_bytes_diff_abs'] < $minEventsGrowthThreshold
-         |    OR growths['growth_sum_text_bytes_diff_abs'] > $maxEventsGrowthThreshold))
+         |    growths['growth_distinct_page_title'] < ${thresholdsConfig.growth_distinct_page_title_min}
+         |    OR growths['growth_distinct_page_title'] > ${thresholdsConfig.growth_distinct_page_title_max}
+         |    OR growths['growth_distinct_page_namespace'] < ${thresholdsConfig.growth_distinct_page_namespace_min}
+         |    OR growths['growth_distinct_page_namespace'] > ${thresholdsConfig.growth_distinct_page_namespace_max}
+         |    OR growths['growth_count_page_content'] < ${thresholdsConfig.growth_count_page_content_min}
+         |    OR growths['growth_count_page_content'] > ${thresholdsConfig.growth_count_page_content_max}
+         |    OR growths['growth_count_page_non_content'] < ${thresholdsConfig.growth_count_page_non_content_min}
+         |    OR growths['growth_count_page_non_content'] > ${thresholdsConfig.growth_count_page_non_content_max}
+         |    OR growths['variability_count_page_redirect'] < -${thresholdsConfig.variability_count_page_redirect_max}
+         |    OR growths['variability_count_page_redirect'] > ${thresholdsConfig.variability_count_page_redirect_max}
+         |    OR growths['growth_count_revisions'] < ${thresholdsConfig.growth_count_revisions_min}
+         |    OR growths['growth_count_revisions'] > ${thresholdsConfig.growth_count_revisions_max}
+         |    OR growths['variability_sum_text_bytes_diff'] < -${thresholdsConfig.variability_sum_text_bytes_diff_max}
+         |    OR growths['variability_sum_text_bytes_diff'] > ${thresholdsConfig.variability_sum_text_bytes_diff_max}
+         |    OR growths['growth_sum_text_bytes_diff_abs'] < ${thresholdsConfig.growth_sum_text_bytes_diff_abs_min}
+         |    OR growths['growth_sum_text_bytes_diff_abs'] > ${thresholdsConfig.growth_sum_text_bytes_diff_abs_max}))
          |OR (event_entity = 'revision' AND (
-         |    growths['growth_count_revision_deleted'] < $minEventsGrowthThreshold
-         |    OR growths['growth_count_revision_deleted'] > $maxEventsGrowthThreshold))""".stripMargin.replaceAll("\n", " ")
+         |    growths['growth_count_revision_deleted'] < ${thresholdsConfig.growth_count_revision_deleted_min}
+         |    OR growths['growth_count_revision_deleted'] > ${thresholdsConfig.growth_count_revision_deleted_max}))""".stripMargin.replaceAll("\n", " ")
 
     columnComplianceAnalysis(reducedMetricsGrowth, compliancePredicate, "Check Reduced ErrorRatio Metric")
   }
@@ -329,9 +319,9 @@ class ReducedHistoryChecker(
 
     log.info(s"ReducedMetricsGrowthErrors ratio: $errorRowsRatio")
 
-    if (errorRowsRatio > wrongRowsRatioThreshold) {
+    if (errorRowsRatio > thresholdsConfig.reducedWrongRowsRatioThreshold) {
       log.warn(s"ReducedMetricsGrowthErrors ratio $errorRowsRatio is higher " +
-        s"than expected threshold $wrongRowsRatioThreshold -- Writing errors")
+        s"than expected threshold ${thresholdsConfig.reducedWrongRowsRatioThreshold} -- Writing errors")
       val reducedMetricsGrowthErrors = getReducedMetricsGrowthErrors(reducedMetricsGrowth)
       reducedMetricsGrowthErrors.repartition(1).write.mode(SaveMode.Overwrite).json(outputPath)
     }

@@ -7,6 +7,7 @@ import org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized.Denorm
 import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageHistoryChecker
 import org.wikimedia.analytics.refinery.job.mediawikihistory.reduced.ReducedHistoryChecker
 import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserHistoryChecker
+import org.wikimedia.analytics.refinery.tools.config._
 import scopt.OptionParser
 
 
@@ -55,7 +56,7 @@ import scopt.OptionParser
   *     --check-denormalized-history
   *
   */
-object MediawikiHistoryChecker {
+object MediawikiHistoryChecker extends ConfigHelper {
 
   @transient
   lazy val log: Logger = Logger.getLogger(this.getClass)
@@ -68,9 +69,7 @@ object MediawikiHistoryChecker {
                     newSnapshot: String = "",
                     wikisToCheck: Int = 50,                      // Number of wikis to check
                     numPartitions: Int = 1024,                   // Number of partitions to use
-                    minEventsGrowthThreshold: Double = -0.01d,   // Set to -1% by default
-                    maxEventsGrowthThreshold: Double = 1.0d,     // Set to 100% by default
-                    wrongRowsRatioThreshold: Double = 0.05d,     // Set to 5% by default
+                    checkerThresholdsConfigPath: String = "",
                     checkUserHistory: Boolean = false,
                     checkPageHistory: Boolean = false,
                     checkDenormHistory: Boolean = false,
@@ -105,6 +104,10 @@ object MediawikiHistoryChecker {
       p.copy(newSnapshot = x)
     } text "New snapshot partition to compare to previous."
 
+    opt[String]('z', "threshold-config") required() valueName "<thresholds>" action { (x, p) =>
+      p.copy(checkerThresholdsConfigPath = x)
+    } text "Path to mediawiki history checker threshold configuration file."
+
     opt[Int]('c', "wikis-to-check") optional() valueName "<int>" action { (x, p) =>
       p.copy(wikisToCheck = x)
     } text ("The number of wikis to include in the list of checked metrics (by decreasing edit activity)."
@@ -113,20 +116,6 @@ object MediawikiHistoryChecker {
     opt[Int]('t', "num-partitions") optional() valueName "<int>" action { (x, p) =>
       p.copy(numPartitions = x)
     } text ("The number of partitions to use to parallelize tasks (Default to 1024).")
-
-    opt[Double]('m', "min-events-growth-threshold") optional() valueName "<double>" action { (x, p) =>
-      p.copy(minEventsGrowthThreshold = x)
-    } text ("The minimum growth below which events-difference-ratio raise an error (negative, as growth is expected)."
-           + "(default to -0.01)")
-
-    opt[Double]('x', "max-events-growth-threshold") optional() valueName "<double>" action { (x, p) =>
-      p.copy(maxEventsGrowthThreshold = x)
-    } text ("The maximum growth above which events-difference-ratio raise an error."
-      + "(default to 1.0)")
-
-    opt[Double]('r', "wrong-rows-ratio-threshold") optional() valueName "<double>" action { (x, p) =>
-      p.copy(wrongRowsRatioThreshold = x)
-    } text "The ratio above which error-rows-ratio raise an error (default to 0.05)"
 
     opt[Unit]("check-user-history").action( (_, c) =>
       c.copy(checkUserHistory = true)).text("Check User History")
@@ -170,7 +159,6 @@ object MediawikiHistoryChecker {
         Logger.getLogger("org.graphframes").setLevel(allLogLevel)
         Logger.getLogger("org.spark-project").setLevel(allLogLevel)
 
-
         log.info(
           s"""Starting MediawikiHistoryChecker with parameters:
             | mediawikiHistoryBasePath = ${params.mediawikiHistoryBasePath}
@@ -178,9 +166,7 @@ object MediawikiHistoryChecker {
             | newSnapshot = ${params.newSnapshot}
             | wikisToCheck = ${params.wikisToCheck}
             | numPartitions = ${params.numPartitions}
-            | minEventsGrowthThreshold = ${params.minEventsGrowthThreshold}
-            | maxEventsGrowthThreshold = ${params.maxEventsGrowthThreshold}
-            | wrongRowsRatioThreshold = ${params.wrongRowsRatioThreshold}
+            | checkerThresholdsConfigPath = ${params.checkerThresholdsConfigPath}
             | checkUserHistory = ${params.checkUserHistory}
             | checkPageHistory = ${params.checkPageHistory}
             | checkDenormHistory = ${params.checkDenormHistory}
@@ -211,6 +197,14 @@ object MediawikiHistoryChecker {
           .set("spark.shuffle.registration.timeout", "2m")
           .set("spark.shuffle.registration.maxAttempts", "5")
 
+        val configFiles: Array[String] = if (params.checkerThresholdsConfigPath.isEmpty) {
+          Array.empty
+        } else {
+          Array(params.checkerThresholdsConfigPath)
+        }
+        val thresholdsConfig: MediawikiHistoryCheckerConfig =
+          configure[MediawikiHistoryCheckerConfig](configFiles, Array.empty)
+
         val spark = SparkSession.builder().config(conf).enableHiveSupport().getOrCreate()
 
         if (params.checkUserHistory) {
@@ -219,9 +213,7 @@ object MediawikiHistoryChecker {
             previousSnapshot,
             newSnapshot,
             params.wikisToCheck,
-            params.minEventsGrowthThreshold,
-            params.maxEventsGrowthThreshold,
-            params.wrongRowsRatioThreshold
+            thresholdsConfig
           ).checkUserHistory()
         }
 
@@ -231,9 +223,7 @@ object MediawikiHistoryChecker {
             previousSnapshot,
             newSnapshot,
             params.wikisToCheck,
-            params.minEventsGrowthThreshold,
-            params.maxEventsGrowthThreshold,
-            params.wrongRowsRatioThreshold
+            thresholdsConfig
           ).checkPageHistory()
         }
 
@@ -243,9 +233,7 @@ object MediawikiHistoryChecker {
             previousSnapshot,
             newSnapshot,
             params.wikisToCheck,
-            params.minEventsGrowthThreshold,
-            params.maxEventsGrowthThreshold,
-            params.wrongRowsRatioThreshold
+            thresholdsConfig
           ).checkDenormHistory()
         }
 
@@ -255,9 +243,7 @@ object MediawikiHistoryChecker {
             previousSnapshot,
             newSnapshot,
             params.wikisToCheck,
-            params.minEventsGrowthThreshold,
-            params.maxEventsGrowthThreshold,
-            params.wrongRowsRatioThreshold
+            thresholdsConfig
           ).checkReducedHistory()
         }
 
