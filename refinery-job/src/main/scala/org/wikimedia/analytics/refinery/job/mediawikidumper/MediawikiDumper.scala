@@ -353,58 +353,59 @@ object MediawikiDumper extends LogHelper {
                         getCompressorStream(outputStream, params.compressionAlgorithm, params.compressionLevel)
                     }
                     val outputStreamCompressorWriter = {
-                        new PrintWriter(outputCompressorStream)
+                        // aggressively flush with autoFlush = true
+                        // to keep memory usage reasonable
+                        new PrintWriter(outputCompressorStream, true)
                     }
                     try {
                         outputStreamCompressorWriter.println(
                           XMLFragment.xmlHeader(siteInfo.value).getXML
                         )
-                        val pageIdRange = {
-                            revisions.foldLeft(
-                              Option.empty[((Long, Long), (Long, Long))]
-                            ) { case (pageIdRange, revision) =>
-                                pageIdRange match {
-                                    case None =>
-                                        outputStreamCompressorWriter
-                                            .println(revision.buildPage.getXML)
-                                        outputStreamCompressorWriter
-                                            .println(revision.getXML)
-                                        Some(
-                                          (
-                                            (
-                                              revision.pageId,
-                                              revision.revisionId
-                                            ),
-                                            (
-                                              revision.pageId,
-                                              revision.revisionId
-                                            )
-                                          )
-                                        )
-                                    case Some((start, (endPageId, _)))
-                                        if endPageId != revision.pageId =>
-                                        outputStreamCompressorWriter
-                                            .println(pageFooterFragment)
-                                        outputStreamCompressorWriter
-                                            .println(revision.buildPage.getXML)
-                                        outputStreamCompressorWriter
-                                            .println(revision.getXML)
-                                        Some(
-                                          (
-                                            start,
-                                            (
-                                              revision.pageId,
-                                              revision.revisionId
-                                            )
-                                          )
-                                        )
-                                    case Some(_) =>
-                                        outputStreamCompressorWriter
-                                            .println(revision.getXML)
-                                        pageIdRange
-                                }
-                            }
+                      // use iterator rather than a functional approach like foldLeft
+                      // to stream the partition rather than load it completely in memory.
+                      var pageIdRange: Option[((Long, Long), (Long, Long))] = None
+                      while (revisions.hasNext) {
+                          val revision = revisions.next()
+                          pageIdRange match {
+                            case None =>
+                              outputStreamCompressorWriter
+                                .println(revision.buildPage.getXML)
+                              outputStreamCompressorWriter
+                                .println(revision.getXML)
+                              pageIdRange = Some(
+                                (
+                                  (
+                                    revision.pageId,
+                                    revision.revisionId
+                                  ),
+                                  (
+                                    revision.pageId,
+                                    revision.revisionId
+                                  )
+                                )
+                              )
+                            case Some((start, (endPageId, _))) if endPageId != revision.pageId =>
+                              outputStreamCompressorWriter
+                                .println(pageFooterFragment)
+                              outputStreamCompressorWriter
+                                .println(revision.buildPage.getXML)
+                              outputStreamCompressorWriter
+                                .println(revision.getXML)
+                              pageIdRange = Some(
+                                (
+                                  start,
+                                  (
+                                    revision.pageId,
+                                    revision.revisionId
+                                  )
+                                )
+                              )
+                            case Some(_) =>
+                              outputStreamCompressorWriter
+                                .println(revision.getXML)
+                          }
                         }
+
                         val partitionId = {
                             pageIdRange
                                 .map {
@@ -425,22 +426,23 @@ object MediawikiDumper extends LogHelper {
                         outputStreamCompressorWriter.close()
                         outputCompressorStream.close()
                         outputStream.close()
-                        val list = {
-                            JavaConverters
-                                .iterableAsScalaIterable(outputStream.getChunks)
-                                .map(chunk => {
-                                    new GenericRowWithSchema(
-                                      Array[Any](
-                                        chunk,
-                                        partitionId,
-                                        outputStream.getChecksum
-                                      ),
-                                      FRAGMENT_SCHEMA
-                                    )
-                                })
-                                .toList
+                        // keep things as iterable to avoid further conversion costs.
+                        val chunkIterator = {
+                          JavaConverters.iterableAsScalaIterable(outputStream.getChunks)
+                            .map(chunk => {
+                              new GenericRowWithSchema(
+                                Array[Any](
+                                  chunk,
+                                  partitionId,
+                                  outputStream.getChecksum
+                                ),
+                                FRAGMENT_SCHEMA
+                              )
+                            })
+                            .toIterator
                         }
-                        list.toIterator
+
+                        chunkIterator
                     } finally {
                         outputStreamCompressorWriter.close()
                         outputCompressorStream.close()

@@ -136,11 +136,11 @@ class WmfBinaryFileFormat
                 outputStream = fs.create(fsPath, true)
             }
 
-            row.getArray(valueIndex)
-                .foreach(
-                  DataTypes.ByteType,
-                  (_, byte) => outputStream.write(byte.asInstanceOf[Byte])
-                )
+            val arrayData = row.getArray(valueIndex)
+
+            // copy the whole chunk in one go
+            val bytes: Array[Byte] = arrayData.toByteArray()
+            outputStream.write(bytes)
         }
 
         override def close(): Unit = {

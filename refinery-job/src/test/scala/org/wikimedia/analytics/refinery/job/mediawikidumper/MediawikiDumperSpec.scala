@@ -232,14 +232,14 @@ class MediawikiDumperSpec
     "buildXMLFragments" should "build all fragments" in {
         val df = fragmentsWithPageRange()
         df.first.getAs[String]("partition_id") should equal("p45046p279900")
-        df.count should equal(1)
+        df.count should equal(2)
     }
 
     "buildXMLFragments" should "add revision range if applicable" in {
         val df = fragmentsWithPageRange(fakeSize(baseDF))
         df.first.getAs[String]("partition_id") should
             equal("p45046r266092r266092")
-        df.count should equal(4)
+        df.count should equal(8)
     }
 
     private def getStringFromFilePath(path: String): String = {
