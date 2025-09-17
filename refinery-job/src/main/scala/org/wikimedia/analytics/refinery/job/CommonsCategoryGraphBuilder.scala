@@ -105,6 +105,7 @@ object CommonsCategoryGraphBuilder {
     case class Params(
         pageTable: String = "",
         categorylinksTable: String = "",
+        linktargetTable: String = "",
         categoryAllowListUrl: String = "",
         mediawikiSnapshot: String = "",
         outputTable: String = "",
@@ -124,6 +125,10 @@ object CommonsCategoryGraphBuilder {
         opt[String]("categorylinks-table") required() valueName ("<table_name>") action { (x, p) =>
             p.copy(categorylinksTable = x)
         } text ("Fully qualified name of the MediaWiki categorylinks table to use.")
+
+        opt[String]("linktarget-table") required() valueName ("<table_name>") action { (x, p) =>
+          p.copy(linktargetTable = x)
+        } text ("Fully qualified name of the MediaWiki private linktarget table to use.")
 
         opt[String]("category-allow-list-url") required() valueName ("<url>") action { (x, p) =>
             p.copy(categoryAllowListUrl = x)
@@ -246,11 +251,13 @@ object CommonsCategoryGraphBuilder {
                     pg.page_id AS cl_to,
                     cl.cl_type
                 FROM ${params.categorylinksTable} cl
+                    INNER JOIN ${params.linktargetTable} lt
                     INNER JOIN ${params.pageTable} pg
-                    ON (cl.cl_to = pg.page_title)
+                    ON (cl.cl_target_id = lt.lt_id AND lt.lt_title = pg.page_title)
                 WHERE
                     cl.wiki_db = 'commonswiki' AND
                     cl.snapshot = '${params.mediawikiSnapshot}' AND
+                    lt.snapshot = '${params.mediawikiSnapshot}' AND
                     pg.wiki_db = 'commonswiki' AND
                     pg.snapshot = '${params.mediawikiSnapshot}' AND
                     pg.page_namespace = 14
