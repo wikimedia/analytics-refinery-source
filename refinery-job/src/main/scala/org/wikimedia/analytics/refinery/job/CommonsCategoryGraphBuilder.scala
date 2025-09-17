@@ -257,7 +257,9 @@ object CommonsCategoryGraphBuilder {
                 WHERE
                     cl.wiki_db = 'commonswiki' AND
                     cl.snapshot = '${params.mediawikiSnapshot}' AND
+                    lt.wiki_db = 'commonswiki' AND
                     lt.snapshot = '${params.mediawikiSnapshot}' AND
+                    lt.lt_namespace = 14 AND
                     pg.wiki_db = 'commonswiki' AND
                     pg.snapshot = '${params.mediawikiSnapshot}' AND
                     pg.page_namespace = 14
