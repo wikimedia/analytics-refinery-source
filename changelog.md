@@ -1,3 +1,7 @@
+## v0.3.2
+* Updates to CommonsCategoryGraphBuilder SQL code due to changes in the schema of tables referenced.
+* v0.3.1 was related to the same thing but the new SQL wasn't performant enough.
+
 ## v0.3.0
 * Manually bump projects versions to release 0.3.0 instead of 0.2.70
 * Update parent POM making artifacts being released to gitlab instead of archiva
