@@ -483,7 +483,7 @@ object MediawikiDumper extends LogHelper {
             .format("wmf-binary")
             .option(
               "filename-replacement",
-              s"${params.wikiId}-${params.publishUntil}-$${$COL_PARTITION_ID}-pages-meta-history.xml$extension"
+              s"${params.wikiId}-${params.publishUntil}-$${$COL_PARTITION_ID}.xml$extension"
             )
             .save(params.outputFolder + outputFolderSuffix)
     }
@@ -493,7 +493,7 @@ object MediawikiDumper extends LogHelper {
         publishUntil: String = "",
         sourceTable: String = "wmf_content.mediawiki_content_history_v1",
         namespacesTable: String = "wmf_raw.mediawiki_project_namespace_map",
-        namespacesSnapshot: String = "2024-11",
+        namespacesSnapshot: String = "",
         maxPartitionSizeMB: Long = 100, // in MB
         outputChunkSize: Int = 100 * 1024 * 1024, // in B
         outputFolder: String = "",

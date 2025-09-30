@@ -336,7 +336,7 @@ class MediawikiDumperSpec
 
         compressedOutputFile.getName should
             equal(
-              "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.bz2"
+              "simplewiki-2023-09-01-p45046p279900.xml.bz2"
             )
 
         val output: String = {
@@ -374,7 +374,7 @@ class MediawikiDumperSpec
 
       compressedOutputFile.getName should
         equal(
-          "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.zst"
+          "simplewiki-2023-09-01-p45046p279900.xml.zst"
         )
 
       val output: String = {
@@ -412,7 +412,7 @@ class MediawikiDumperSpec
 
     compressedOutputFile.getName should
       equal(
-        "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml.gz"
+        "simplewiki-2023-09-01-p45046p279900.xml.gz"
       )
 
     val output: String = {
@@ -450,7 +450,7 @@ class MediawikiDumperSpec
 
     compressedOutputFile.getName should
       equal(
-        "simplewiki-2023-09-01-p45046p279900-pages-meta-history.xml"
+        "simplewiki-2023-09-01-p45046p279900.xml"
       )
 
     val output: String = {
