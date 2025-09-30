@@ -1,5 +1,8 @@
 ## v0.3.3
 * Refine: Added agent.ua_string as a possible source when parsing user agent while refining
+* Fine-tune MediaWikiHistoryChecker thresholds
+* MediaWikiDumper: Memory performance improvements for MediaWikiDumper
+* MediawikiDumper: generate files without `-pages-meta-history` suffix
 
 ## v0.3.2
 * Updates to CommonsCategoryGraphBuilder SQL code due to changes in table schema
