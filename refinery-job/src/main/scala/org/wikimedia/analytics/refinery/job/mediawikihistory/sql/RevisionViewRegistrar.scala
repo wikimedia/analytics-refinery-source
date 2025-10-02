@@ -64,7 +64,7 @@ class RevisionViewRegistrar(
         spark.read.format(readerFormat).load(slotsUnprocessedPath).createOrReplaceTempView(slotsUnprocessedView)
 
         // Prepare UDF to compute revision sha1 from multi-content sha1s
-        spark.udf.register("compute_sha1", MediawikiMultiContentRevisionSha1.compute _)
+        spark.udf.register("compute_sha1", MediawikiMultiContentRevisionSha1.computeForRows _)
 
         // Prepare joining revision to actor using broadcast
         val revActorSplitsSql = SQLHelper.skewSplits(revisionUnprocessedView, "wiki_db, rev_actor", wikiClause, 4, 3)

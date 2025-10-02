@@ -112,7 +112,7 @@ object MediawikiDumper extends LogHelper {
          |page_id as pageId,
          |revision_id as revisionId,
          |to_utc_timestamp(revision_dt, 'GMT') as timestamp,
-         |aggregate ( transform ( map_values ( revision_content_slots ), slot -> slot['content_size'] ), 0L, (total_size, size) -> total_size + size ) as size
+         |revision_size as revisionSize
          |FROM ${params.sourceTable}
          |WHERE revision_dt < TIMESTAMP '${params.publishUntil}'
          |  AND wiki_id = '${params.wikiId}'
@@ -136,11 +136,6 @@ object MediawikiDumper extends LogHelper {
            |FROM ${params.sourceTable}
            |WHERE revision_dt < TIMESTAMP '${params.publishUntil}'
            |  AND wiki_id = '${params.wikiId}';""".stripMargin)
-            // TODO: enable all slots by adding the whole map to Revision
-            .withColumn(
-              "content_slot",
-              element_at(col("revision_content_slots"), "main")
-            )
             // In the next select list, some NULL columns are added to fill the case classes.
             .selectExpr(
               "page_id as pageId",
@@ -166,11 +161,8 @@ object MediawikiDumper extends LogHelper {
               // revision_parent_id = -1 when something went wrong with processing the import or backfill
               "revision_parent_id as parentId",
               "revision_is_minor_edit as isMinor",
-              "content_slot.content_model as model",
-              "content_slot.content_format as format",
-              "content_slot.content_body as text",
-              "content_slot.content_size as size",
-              "content_slot.content_sha1 as sha1"
+              "revision_content_slots as contentSlots",
+              "revision_size as revisionSize"
             )
     }
 
@@ -198,7 +190,7 @@ object MediawikiDumper extends LogHelper {
         // Step 1: Calculate total size for each pageId group
         val groupedByPageId = df
             .groupBy("pageId")
-            .agg(sum("size").alias("pageSize"))
+            .agg(sum("revisionSize").alias("pageSize"))
 
         // Step 2: Identify oversize pages and regular pages
         val oversizePages = groupedByPageId
@@ -225,7 +217,7 @@ object MediawikiDumper extends LogHelper {
               $"pageId",
               $"timestamp",
               RebasedSizeBucket
-                  .bucket($"size", maxPartitionSize)
+                  .bucket($"revisionSize", maxPartitionSize)
                   .over(
                     partitionByPageIdWindow.orderBy($"timestamp", $"revisionId")
                   )
@@ -259,7 +251,6 @@ object MediawikiDumper extends LogHelper {
     }
 
     private val COL_VALUE = "value"
-    private val COL_FRAGMENT_INDEX = "fragment_index"
     private val COL_PARTITION_ID = "partition_id"
     private val COL_PARTITION_CHECKSUM = "partition_checksum"
 

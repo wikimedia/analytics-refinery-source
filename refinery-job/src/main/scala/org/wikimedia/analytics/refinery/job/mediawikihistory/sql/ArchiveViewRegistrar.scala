@@ -65,7 +65,7 @@ class ArchiveViewRegistrar(
         spark.read.format(readerFormat).load(slotsUnprocessedPath).createOrReplaceTempView(slotsUnprocessedView)
 
         // Prepare UDF to compute revision sha1 from multi-content sha1s
-        spark.udf.register("compute_sha1", MediawikiMultiContentRevisionSha1.compute _)
+        spark.udf.register("compute_sha1", MediawikiMultiContentRevisionSha1.computeForRows _)
 
         // Prepare joining archive to actor using broadcast
         val arActorSplitsSql = SQLHelper.skewSplits(archiveUnprocessedView, "wiki_db, ar_actor", wikiClause, 4, 3)

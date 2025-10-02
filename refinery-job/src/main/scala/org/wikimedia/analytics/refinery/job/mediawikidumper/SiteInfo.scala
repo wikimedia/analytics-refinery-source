@@ -1,5 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikidumper
 
+import org.wikimedia.analytics.refinery.tools.ProjectInfo
+
 /** Case class representing SiteInfo for a specific wiki Generated with a query
   * similar to: select language as languageCode, sitename as siteName, dbname as
   * dbName, home_page as homePage, mw_version as mediaWikiVersion, case_setting
@@ -52,7 +54,7 @@ case class SiteInfo(
             |    <sitename>${siteName}</sitename>
             |    <dbname>${dbName}</dbname>
             |    <base>${homePage}</base>
-            |    <generator>${mediaWikiVersion}</generator>
+            |    <generator>MediaWiki Content File Export ${ProjectInfo.version}</generator>
             |    <case>${caseSetting}</case>
             |    <namespaces>
             |      ${namespaceTags.mkString("\n      ")}

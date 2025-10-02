@@ -10,7 +10,7 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{DataFrame, Dataset, Encoders, Row}
+import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.apache.spark.sql.functions.{col, lit, when}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -45,23 +45,25 @@ class MediawikiDumperSpec
         }
     }
 
-    val sourceDBName: String = "wmf_dumps"
-    val sourceTableName: String = s"$sourceDBName.wikitext_raw_rc1"
-    val namespaceTableName: String = {
-        s"$sourceDBName.mediawiki_project_namespace_map"
-    }
-    val snapshot: String = "2023-09"
+    val sourceDBName: String = "wmf_content"
+    val sourceTableName: String = s"$sourceDBName.mediawiki_content_history_v1"
+    val nameSpaceDBName: String = "wmf_raw"
+    val namespaceTableName: String = s"$nameSpaceDBName.mediawiki_project_namespace_map"
+    val namespaceSnapshot: String = "2023-09"
 
     def createBaseTables(): Unit = {
         spark.sql(
-          s"CREATE DATABASE IF NOT EXISTS $sourceDBName LOCATION '${tmpDir.getAbsolutePath}';"
+          s"CREATE DATABASE IF NOT EXISTS $sourceDBName LOCATION '${tmpDir.getAbsolutePath}/$sourceDBName';"
+        )
+        spark.sql(
+          s"CREATE DATABASE IF NOT EXISTS $nameSpaceDBName LOCATION '${tmpDir.getAbsolutePath}/$nameSpaceDBName';"
         )
         spark
             .read
             .schema(wikitextSchema)
-            .option("header", "true")
             .option("inferSchema", "false")
             .option("compression", "gzip")
+            .option("mode", "FAILFAST")
             .json(
               s"${testResourcesDir}/wmf_content_mediawiki_content_history_v1.json.gz"
             )
@@ -72,9 +74,9 @@ class MediawikiDumperSpec
         spark
             .read
             .schema(namespacesSchema)
-            .option("header", "true")
             .option("inferSchema", "false")
             .option("compression", "gzip")
+            .option("mode", "FAILFAST")
             .json(
               s"${testResourcesDir}/wmf_raw_mediawiki_project_namespace_map.json.gz"
             )
@@ -97,7 +99,6 @@ class MediawikiDumperSpec
             StructField("revision_dt", TimestampType),
             StructField("revision_comment", StringType),
             StructField("revision_comment_is_visible", BooleanType),
-            StructField("revision_sha1", StringType),
             StructField("revision_size", LongType),
             StructField("revision_is_minor_edit", BooleanType),
             StructField(
@@ -110,7 +111,8 @@ class MediawikiDumperSpec
                     StructField("content_format", StringType),
                     StructField("content_model", StringType),
                     StructField("content_sha1", StringType),
-                    StructField("content_size", LongType)
+                    StructField("content_size", LongType),
+                    StructField("origin_rev_id", LongType)
                   )
                 )
               )
@@ -145,13 +147,14 @@ class MediawikiDumperSpec
         spark.sql(s"""DROP TABLE IF EXISTS $sourceTableName;""")
         spark.sql(s"""DROP TABLE IF EXISTS $namespaceTableName;""")
         spark.sql(s"""DROP DATABASE IF EXISTS $sourceDBName;""")
+        spark.sql(s"""DROP DATABASE IF EXISTS $nameSpaceDBName;""")
     }
 
     override def beforeEach(): Unit = createBaseTables()
 
     override def afterEach(): Unit = dropTables()
 
-    val params: MediawikiDumper.Params = MediawikiDumper.Params(
+    val simplewikiParams: MediawikiDumper.Params = MediawikiDumper.Params(
       maxPartitionSizeMB = 1,
       sourceTable = sourceTableName,
       outputFolder = outputFolder.toString,
@@ -159,45 +162,64 @@ class MediawikiDumperSpec
       publishUntil = "2023-09-01",
       wikiId = "simplewiki",
       namespacesTable = namespaceTableName,
-      namespacesSnapshot = snapshot
+      namespacesSnapshot = namespaceSnapshot
+    )
+
+    val commonswikiParams: MediawikiDumper.Params = MediawikiDumper.Params(
+      maxPartitionSizeMB = 10,
+      sourceTable = sourceTableName,
+      outputFolder = outputFolder.toString,
+      // Note: update those values to match the input data from resources, after change to input file.
+      publishUntil = "2025-10-02",
+      wikiId = "commonswiki",
+      namespacesTable = namespaceTableName,
+      namespacesSnapshot = namespaceSnapshot
     )
 
     // Setup the baseDF through a function in order to use the same Spark Session as in the test beforeEach.
-    def baseDF: DataFrame = MediawikiDumper.buildBaseRevisionsDF(params)
+    def baseSimplewikiDF: DataFrame = MediawikiDumper.buildBaseRevisionsDF(simplewikiParams)
+    def baseCommonswikiDF: DataFrame = MediawikiDumper.buildBaseRevisionsDF(commonswikiParams)
 
     def fakeSize(df: DataFrame): DataFrame = {
         df.withColumn(
-          "size",
+          "revisionSize",
           // revision 360821
           when(
             col("timestamp").equalTo(
               lit("2007-03-27T11:27:44.000Z").cast(DataTypes.TimestampType)
             ),
-            params.maxPartitionSizeMB * 1024 * 1024 + 1
-          ).otherwise(col("size"))
+            simplewikiParams.maxPartitionSizeMB * 1024 * 1024 + 1
+          ).otherwise(col("revisionSize"))
         )
     }
 
-    "buildBaseRevisionsDF" should "create a valid dataframe" in {
-        val df = baseDF
+    "baseSimplewikiDF" should "create a valid dataframe" in {
+        val df = baseSimplewikiDF
         df.count should equal(33)
         val pageIds = df.select("pageId").collect
         pageIds.distinct.length should equal(2)
     }
 
+    "baseCommonswikiDF" should "create a valid dataframe" in {
+      val df = baseCommonswikiDF
+      df.count should equal(59)
+      val pageIds = df.select("pageId").collect
+      pageIds.distinct.length should equal(1)
+    }
+
     private val maxPartitionSize: Long = MediawikiDumper
-        .calculateMaxPartitionSize(params)
+        .calculateMaxPartitionSize(simplewikiParams)
 
     "createPartitioner" should "create a single partition partitioner" in {
         val partitioner: RangeLookupPartitioner[RowKey, Long] = MediawikiDumper
-            .createPartitioner(baseDF, maxPartitionSize)
+            .createPartitioner(baseSimplewikiDF, maxPartitionSize)
         partitioner.numPartitions should equal(1)
         partitioner.indexOfRange(45046) should equal(Some(0))
     }
 
     "createPartitioner" should "create a size-aware partitioner" in {
         val partitioner = MediawikiDumper.createPartitioner(
-          fakeSize(MediawikiDumper.readPartitioningData(params)),
+          fakeSize(MediawikiDumper.readPartitioningData(simplewikiParams)),
           maxPartitionSize
         )
 
@@ -206,7 +228,7 @@ class MediawikiDumperSpec
         // The last partition is for the remaining page 279900.
         partitioner.numPartitions should equal(4)
         val partitionedDF = MediawikiDumper
-            .partitionByXMLFileBoundaries(baseDF, partitioner)
+            .partitionByXMLFileBoundaries(baseSimplewikiDF, partitioner)
         partitionedDF.rdd.getNumPartitions should equal(4)
         partitionedDF
             .rdd
@@ -216,8 +238,8 @@ class MediawikiDumperSpec
     }
 
     def fragmentsWithPageRange(
-        overrideBaseDF: DataFrame = baseDF,
-        params: MediawikiDumper.Params = params,
+        overrideBaseDF: DataFrame = baseSimplewikiDF,
+        params: MediawikiDumper.Params = simplewikiParams,
     ): Dataset[Row] = {
         val partitioner: RangeLookupPartitioner[RowKey, Long] = MediawikiDumper
             .createPartitioner(overrideBaseDF, maxPartitionSize)
@@ -236,7 +258,7 @@ class MediawikiDumperSpec
     }
 
     "buildXMLFragments" should "add revision range if applicable" in {
-        val df = fragmentsWithPageRange(fakeSize(baseDF))
+        val df = fragmentsWithPageRange(fakeSize(baseSimplewikiDF))
         df.first.getAs[String]("partition_id") should
             equal("p45046r266092r266092")
         df.count should equal(8)
@@ -293,9 +315,14 @@ class MediawikiDumperSpec
         MediawikiDumper.writeXMLFiles(overrideFragmentsWithPageRange, params)
     }
 
-    private def fetchOrRegenerateReferenceFileContent(outputFileFromCaller: File): String = {
+    private def fetchOrRegenerateReferenceFileContent(outputFileFromCaller: File, wiki_id: String): String = {
       val referenceFile: File = {
-        new File(s"$testResourcesDir/MediawikiDumperOutputTest.xml")
+        if (wiki_id == "simplewiki")
+          new File(s"$testResourcesDir/MediawikiDumperOutputTest.Simplewiki.Sample.xml")
+        else if (wiki_id == "commonswiki")
+          new File(s"$testResourcesDir/MediawikiDumperOutputTest.Commonswiki.Sample.xml")
+        else
+          throw new IllegalArgumentException(s"Unknown wiki_id: $wiki_id")
       }
 
       // Optionally, regenerate the reference file. In this case the test will always pass.
@@ -317,9 +344,13 @@ class MediawikiDumperSpec
       reference
     }
 
-    "writeXMlFiles" should "build a BZIP2 compressed XML file" in {
-        val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "bzip2")
-        writeXML(p, fragmentsWithPageRange(params = p))
+    private def removeLineWithTag(str: String, tag: String): String = {
+      str.split("\n").filterNot(_.contains(tag)).mkString("\n")
+    }
+
+    "writeXMLFiles" should "build a BZIP2 compressed XML file for simplewiki" in {
+        val p: MediawikiDumper.Params = simplewikiParams.copy(compressionAlgorithm = "bzip2")
+        writeXML(p, fragmentsWithPageRange(overrideBaseDF = baseSimplewikiDF, params = p))
 
         val outputPartitionDir = new File(s"${outputFolder.toString}/")
         val compressedOutputFile = {
@@ -350,14 +381,16 @@ class MediawikiDumperSpec
             }
         }
 
-        val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+        val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile, "simplewiki")
 
-        output should equal(reference)
+        val cleanOutput = removeLineWithTag(output, "<generator>")
+        val cleanReference = removeLineWithTag(reference, "<generator>")
+        cleanOutput should equal(cleanReference)
     }
 
-    "writeXMlFiles" should "build a ZSTD compressed XML file" in {
-      val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "zstd")
-      writeXML(p, fragmentsWithPageRange(params = p))
+    "writeXMLFiles" should "build a ZSTD compressed XML file for simplewiki" in {
+      val p: MediawikiDumper.Params = simplewikiParams.copy(compressionAlgorithm = "zstd")
+      writeXML(p, fragmentsWithPageRange(overrideBaseDF = baseSimplewikiDF, params = p))
 
       val outputPartitionDir = new File(s"${outputFolder.toString}/")
       val compressedOutputFile = {
@@ -388,14 +421,16 @@ class MediawikiDumperSpec
         }
       }
 
-      val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+      val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile, "simplewiki")
 
-      output should equal(reference)
+      val cleanOutput = removeLineWithTag(output, "<generator>")
+      val cleanReference = removeLineWithTag(reference, "<generator>")
+      cleanOutput should equal(cleanReference)
     }
 
-  "writeXMlFiles" should "build a GZIP compressed XML file" in {
-    val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "gzip")
-    writeXML(p, fragmentsWithPageRange(params = p))
+  "writeXMLFiles" should "build a GZIP compressed XML file for simplewiki" in {
+    val p: MediawikiDumper.Params = simplewikiParams.copy(compressionAlgorithm = "gzip")
+    writeXML(p, fragmentsWithPageRange(overrideBaseDF = baseSimplewikiDF, params = p))
 
     val outputPartitionDir = new File(s"${outputFolder.toString}/")
     val compressedOutputFile = {
@@ -426,14 +461,16 @@ class MediawikiDumperSpec
       }
     }
 
-    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile, "simplewiki")
 
-    output should equal(reference)
+    val cleanOutput = removeLineWithTag(output, "<generator>")
+    val cleanReference = removeLineWithTag(reference, "<generator>")
+    cleanOutput should equal(cleanReference)
   }
 
-  "writeXMlFiles" should "build an uncompressed XML file" in {
-    val p: MediawikiDumper.Params = params.copy(compressionAlgorithm = "none")
-    writeXML(p, fragmentsWithPageRange(params = p))
+  "writeXMLFiles" should "build an uncompressed XML file for simplewiki" in {
+    val p: MediawikiDumper.Params = simplewikiParams.copy(compressionAlgorithm = "none")
+    writeXML(p, fragmentsWithPageRange(overrideBaseDF = baseSimplewikiDF, params = p))
 
     val outputPartitionDir = new File(s"${outputFolder.toString}/")
     val compressedOutputFile = {
@@ -464,9 +501,51 @@ class MediawikiDumperSpec
       }
     }
 
-    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile)
+    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile, "simplewiki")
 
-    output should equal(reference)
+    val cleanOutput = removeLineWithTag(output, "<generator>")
+    val cleanReference = removeLineWithTag(reference, "<generator>")
+    cleanOutput should equal(cleanReference)
+  }
+
+  "writeXMLFiles" should "build an uncompressed XML file for commonswiki" in {
+    val p: MediawikiDumper.Params = commonswikiParams.copy(compressionAlgorithm = "none")
+    writeXML(p, fragmentsWithPageRange(overrideBaseDF = baseCommonswikiDF, params = p))
+
+    val outputPartitionDir = new File(s"${outputFolder.toString}/")
+    val compressedOutputFile = {
+      new File(
+        outputPartitionDir
+          .listFiles
+          .filter(_.isFile)
+          .filter(_.toString.matches(".*\\.xml$"))
+          .toList
+          .head
+          .toString
+      )
+    }
+
+    compressedOutputFile.getName should
+      equal(
+        "commonswiki-2025-10-02-p13327093r49883803r49883803.xml"
+      )
+
+    val output: String = {
+      try getStringFromFilePath(compressedOutputFile.toString)
+      catch {
+        case e: IOException =>
+          throw new IOException(
+            s"Failed to read $compressedOutputFile",
+            e
+          )
+      }
+    }
+
+    val reference = fetchOrRegenerateReferenceFileContent(compressedOutputFile, "commonswiki")
+
+    val cleanOutput = removeLineWithTag(output, "<generator>")
+    val cleanReference = removeLineWithTag(reference, "<generator>")
+    cleanOutput should equal(cleanReference)
   }
 
 }

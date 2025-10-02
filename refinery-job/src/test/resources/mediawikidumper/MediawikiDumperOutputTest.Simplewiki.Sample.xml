@@ -1,9 +1,9 @@
-<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.10/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.10/ http://www.mediawiki.org/xml/export-0.10.xsd" version="0.10" xml:lang="en">
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.11/ http://www.mediawiki.org/xml/export-0.11.xsd" version="0.11" xml:lang="en">
   <siteinfo>
     <sitename>Wikipedia</sitename>
     <dbname>simplewiki</dbname>
     <base>https://simple.wikipedia.org/wiki/Main_Page</base>
-    <generator>MediaWiki 1.41.0-wmf.29</generator>
+    <generator>MediaWiki Content File Export unknown-version</generator>
     <case>first-letter</case>
     <namespaces>
       <namespace key="-2" case="first-letter">Media</namespace>
@@ -46,9 +46,10 @@
         <id>6629</id>
       </contributor>
       <comment>New page: {{babel|en}}</comment>
+      <origin>266092</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <text bytes="12" sha1="61o9wqbehiqpmke7163b1675fic2cri" xml:space="preserve">{{babel|en}}</text>
       <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
     </revision>
     <revision>
@@ -57,6 +58,7 @@
       <timestamp>2007-03-27T11:27:44Z</timestamp>
       <contributor deleted="deleted" />
       <comment>Removing all content from page</comment>
+      <origin>360821</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
       <text bytes="0" />
@@ -72,9 +74,10 @@
       </contributor>
       <minor />
       <comment>Reverted edits by [[Special:Contributions/! - JEWISH BOT 18 - !|! - JEWISH BOT 18 - !]] ([[User talk:! - JEWISH BOT 18 - !|talk]]) to last version by [[User:Ryulong|Ryulong]]</comment>
+      <origin>360840</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <text bytes="12" sha1="61o9wqbehiqpmke7163b1675fic2cri" xml:space="preserve">{{babel|en}}</text>
       <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
     </revision>
     <revision>
@@ -85,9 +88,10 @@
         <username>^(bad username226)</username>
         <id>12453</id>
       </contributor>
+      <origin>558764</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="81" xml:space="preserve">Ryulong is a fascist bastard who deletes user pages of random users
+      <text bytes="81" sha1="6wlyylm6qw6mzovmepz2m8dotyr033z" xml:space="preserve">Ryulong is a fascist bastard who deletes user pages of random users
 
 {{babel|en}}</text>
       <sha1>6wlyylm6qw6mzovmepz2m8dotyr033z</sha1>
@@ -102,9 +106,10 @@
       </contributor>
       <minor />
       <comment>Reverted edits by [[Special:Contributions/Ionas68224 is Encyclopedist's little brother|Ionas68224 is Encyclopedist's little brother]] ([[User talk:Ionas68224 is Encyclopedist's little brother|talk]]) to last version by Eptalon</comment>
+      <origin>558766</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <text bytes="12" sha1="61o9wqbehiqpmke7163b1675fic2cri" xml:space="preserve">{{babel|en}}</text>
       <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
     </revision>
     <revision>
@@ -116,9 +121,10 @@
         <id>17877</id>
       </contributor>
       <comment>ffffffff</comment>
+      <origin>857580</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="18" xml:space="preserve">{{babel|fuck you}}</text>
+      <text bytes="18" sha1="26n91x3pjgm2wg0feil9m1q9nfudrza" xml:space="preserve">{{babel|fuck you}}</text>
       <sha1>26n91x3pjgm2wg0feil9m1q9nfudrza</sha1>
     </revision>
     <revision>
@@ -131,9 +137,10 @@
       </contributor>
       <minor />
       <comment>Reverted changes by [[Special:Contributions/Ryulong is stupid|Ryulong is stupid]] ([[User talk:Ryulong is stupid|talk]]) to last version by Vector</comment>
+      <origin>857621</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <text bytes="12" sha1="61o9wqbehiqpmke7163b1675fic2cri" xml:space="preserve">{{babel|en}}</text>
       <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
     </revision>
     <revision>
@@ -143,9 +150,10 @@
       <contributor>
         <ip>208.99.75.47</ip>
       </contributor>
+      <origin>1128090</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="18" xml:space="preserve">BOBABOBABO IS BACK</text>
+      <text bytes="18" sha1="6zb5re0eucz7cxavev1yca10r9dk9e9" xml:space="preserve">BOBABOBABO IS BACK</text>
       <sha1>6zb5re0eucz7cxavev1yca10r9dk9e9</sha1>
     </revision>
     <revision>
@@ -157,9 +165,10 @@
         <id>19731</id>
       </contributor>
       <comment>Undid an earlier change by [[Special:Contributions/208.99.75.47|208.99.75.47]] ([[User talk:208.99.75.47|talk]]) (revision 1128090)</comment>
+      <origin>1128091</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <text bytes="12" sha1="61o9wqbehiqpmke7163b1675fic2cri" xml:space="preserve">{{babel|en}}</text>
       <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
     </revision>
     <revision>
@@ -171,9 +180,10 @@
         <id>64846</id>
       </contributor>
       <minor />
+      <origin>1552830</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="128" xml:space="preserve">&lt;font size=5&gt;&lt;b&gt;FACE IT, YOU ARE ABOUT TO GET BANNED FROM WIKIPEDIA.  YOU ARE HOURS AWAY FROM BEING DE SYSOPPED TOO!!&lt;/B&gt;&lt;/FONT&gt;</text>
+      <text bytes="128" sha1="3gjq5tf0nzlstu23he9cs3j6xxx152a" xml:space="preserve">&lt;font size=5&gt;&lt;b&gt;FACE IT, YOU ARE ABOUT TO GET BANNED FROM WIKIPEDIA.  YOU ARE HOURS AWAY FROM BEING DE SYSOPPED TOO!!&lt;/B&gt;&lt;/FONT&gt;</text>
       <sha1>3gjq5tf0nzlstu23he9cs3j6xxx152a</sha1>
     </revision>
     <revision>
@@ -186,9 +196,10 @@
       </contributor>
       <minor />
       <comment>Reverted changes by [[Special:Contributions/Ryuulong|Ryuulong]] ([[User talk:Ryuulong|talk]]) to last version by PeterSymonds</comment>
+      <origin>1552889</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{babel|en}}</text>
+      <text bytes="12" sha1="61o9wqbehiqpmke7163b1675fic2cri" xml:space="preserve">{{babel|en}}</text>
       <sha1>61o9wqbehiqpmke7163b1675fic2cri</sha1>
     </revision>
     <revision>
@@ -199,9 +210,10 @@
         <username>Ryulong</username>
         <id>6629</id>
       </contributor>
+      <origin>1643771</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="33" xml:space="preserve">{{babel|en}}
+      <text bytes="33" sha1="hyrpzok23682nkc88k780555l0ose1i" xml:space="preserve">{{babel|en}}
 
 [[en:User:Ryulong]]</text>
       <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
@@ -210,13 +222,12 @@
       <id>1714215</id>
       <parentid>1643771</parentid>
       <timestamp>2009-08-31T10:30:39Z</timestamp>
-      <contributor>
-        <ip>67.159.41.117</ip>
-      </contributor>
+      <contributor deleted="deleted" />
       <comment deleted="deleted" />
+      <origin>1714215</origin>
       <model>wikitext</model>
-      <format>text/x-wiki</format>
-      <text bytes="26" deleted="deleted" />
+      <format>error-no-format</format>
+      <text bytes="-1" deleted="deleted" />
       <sha1 />
     </revision>
     <revision>
@@ -229,9 +240,10 @@
       </contributor>
       <minor />
       <comment>Reverted changes by [[Special:Contributions/67.159.41.117|67.159.41.117]] ([[User talk:67.159.41.117|talk]]) to last version by Ryulong</comment>
+      <origin>1714216</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="33" xml:space="preserve">{{babel|en}}
+      <text bytes="33" sha1="hyrpzok23682nkc88k780555l0ose1i" xml:space="preserve">{{babel|en}}
 
 [[en:User:Ryulong]]</text>
       <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
@@ -246,9 +258,10 @@
       </contributor>
       <minor />
       <comment>Protected &quot;[[User:Ryulong]]&quot;: Excessive [[WP:VANDALISM|vandalism]] ([edit=autoconfirmed] (expires 10:32, 1 September 2009 (UTC)) [move=autoconfirmed] (expires 10:32, 1 September 2009 (UTC)))</comment>
+      <origin>1714226</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="33" xml:space="preserve">{{babel|en}}
+      <text bytes="33" sha1="hyrpzok23682nkc88k780555l0ose1i" xml:space="preserve">{{babel|en}}
 
 [[en:User:Ryulong]]</text>
       <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
@@ -261,9 +274,10 @@
         <ip>72.160.28.62</ip>
       </contributor>
       <comment>way to let us down asshole</comment>
+      <origin>4997170</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="60" deleted="deleted" />
+      <text bytes="-1" deleted="deleted" />
       <sha1 />
     </revision>
     <revision>
@@ -276,9 +290,10 @@
       </contributor>
       <minor />
       <comment>Reverted 1 edit by [[Special:Contributions/72.160.28.62|72.160.28.62]] ([[User talk:72.160.28.62|talk]]) identified as [[WP:VAND|vandalism]] to last revision by Mercy. ([[WP:TW|TW]])</comment>
+      <origin>4997179</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="33" xml:space="preserve">{{babel|en}}
+      <text bytes="33" sha1="hyrpzok23682nkc88k780555l0ose1i" xml:space="preserve">{{babel|en}}
 
 [[en:User:Ryulong]]</text>
       <sha1>hyrpzok23682nkc88k780555l0ose1i</sha1>
@@ -290,9 +305,10 @@
       <contributor>
         <ip>206.255.40.218</ip>
       </contributor>
+      <origin>5566832</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="42" xml:space="preserve">Buddyroid{{babel|en}}
+      <text bytes="42" sha1="ax8d5q1auq8g43zgenf90u0x02jco52" xml:space="preserve">Buddyroid{{babel|en}}
 
 [[en:User:Ryulong]]</text>
       <sha1>ax8d5q1auq8g43zgenf90u0x02jco52</sha1>
@@ -309,9 +325,10 @@
         <ip>93.167.153.229</ip>
       </contributor>
       <comment>Created page with 'HAN ER LÆKKER!!'</comment>
+      <origin>2622350</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="16" xml:space="preserve">HAN ER LÆKKER!!</text>
+      <text bytes="16" sha1="lcv17x39mqr7cajs828j1xw7x57cfpx" xml:space="preserve">HAN ER LÆKKER!!</text>
       <sha1>lcv17x39mqr7cajs828j1xw7x57cfpx</sha1>
     </revision>
     <revision>
@@ -323,9 +340,10 @@
         <id>124208</id>
       </contributor>
       <comment>{{talkpage}}</comment>
+      <origin>2622673</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{talkpage}}</text>
+      <text bytes="12" sha1="g9i6v69vk0yls3vkoxf49buqqvh11a4" xml:space="preserve">{{talkpage}}</text>
       <sha1>g9i6v69vk0yls3vkoxf49buqqvh11a4</sha1>
     </revision>
     <revision>
@@ -335,9 +353,10 @@
       <contributor>
         <ip>212.121.214.1</ip>
       </contributor>
+      <origin>3846608</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="6" xml:space="preserve">fuck u</text>
+      <text bytes="6" sha1="8sovwbm62htgu6sp9ewh3x2q7g9tvok" xml:space="preserve">fuck u</text>
       <sha1>8sovwbm62htgu6sp9ewh3x2q7g9tvok</sha1>
     </revision>
     <revision>
@@ -350,9 +369,10 @@
       </contributor>
       <minor />
       <comment>[[Help:Revert a page|Reverted]] edits by [[Special:Contributions/212.121.214.1|212.121.214.1]] ([[User talk:212.121.214.1|talk]]) to last version by Wiooiw</comment>
+      <origin>3846747</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{talkpage}}</text>
+      <text bytes="12" sha1="g9i6v69vk0yls3vkoxf49buqqvh11a4" xml:space="preserve">{{talkpage}}</text>
       <sha1>g9i6v69vk0yls3vkoxf49buqqvh11a4</sha1>
     </revision>
     <revision>
@@ -361,9 +381,10 @@
       <timestamp>2013-12-21T19:46:49Z</timestamp>
       <contributor deleted="deleted" />
       <comment deleted="deleted" />
+      <origin>4670942</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="93" deleted="deleted" />
+      <text bytes="-1" deleted="deleted" />
       <sha1 />
     </revision>
     <revision>
@@ -372,9 +393,10 @@
       <timestamp>2013-12-21T19:47:18Z</timestamp>
       <contributor deleted="deleted" />
       <comment deleted="deleted" />
+      <origin>4670944</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="165" deleted="deleted" />
+      <text bytes="-1" deleted="deleted" />
       <sha1 />
     </revision>
     <revision>
@@ -387,9 +409,10 @@
       </contributor>
       <minor />
       <comment>[[Help:Revert a page|Reverted]] edits by [[Special:Contributions/41.68.240.234|41.68.240.234]] ([[User talk:41.68.240.234|talk]]) to last version by 197.133.127.205</comment>
+      <origin>4670945</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="93" xml:space="preserve">{{talkI love Ronaldo and mysRonaldo myself a professional Mobile Ronaldoelf universes such as</text>
+      <text bytes="93" sha1="twg7jhwcy1cdygwz91x9a8xvcqop9xg" xml:space="preserve">{{talkI love Ronaldo and mysRonaldo myself a professional Mobile Ronaldoelf universes such as</text>
       <sha1>twg7jhwcy1cdygwz91x9a8xvcqop9xg</sha1>
     </revision>
     <revision>
@@ -401,9 +424,10 @@
         <id>17988</id>
       </contributor>
       <comment>Reverted to revision 3846747 by Savh: last good version. ([[WP:TW|TW]])</comment>
+      <origin>4670988</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="12" xml:space="preserve">{{talkpage}}</text>
+      <text bytes="12" sha1="g9i6v69vk0yls3vkoxf49buqqvh11a4" xml:space="preserve">{{talkpage}}</text>
       <sha1>g9i6v69vk0yls3vkoxf49buqqvh11a4</sha1>
     </revision>
     <revision>
@@ -414,9 +438,10 @@
         <username>Jim Michael</username>
         <id>109566</id>
       </contributor>
+      <origin>4698314</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="20" xml:space="preserve">{{talkpage}}
+      <text bytes="20" sha1="he1cvkgbjhdzsrvxfvmdewv5congmfy" xml:space="preserve">{{talkpage}}
 {{blp}}</text>
       <sha1>he1cvkgbjhdzsrvxfvmdewv5congmfy</sha1>
     </revision>
@@ -428,9 +453,10 @@
         <username>BRPever</username>
         <id>487619</id>
       </contributor>
+      <origin>6187125</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="483" xml:space="preserve">{{talkpage}}
+      <text bytes="483" sha1="q4p9lcs49ic5om214q3j8ttwnf7x798" xml:space="preserve">{{talkpage}}
 {{blp}}
 ==Recent transfer==
 Please see:
@@ -445,9 +471,10 @@ https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for offici
         <username>BRPever</username>
         <id>487619</id>
       </contributor>
+      <origin>6187126</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="483" xml:space="preserve">{{talkpage}}
+      <text bytes="483" sha1="skw08d2t0ptebdduzpaoubkqzkghdw1" xml:space="preserve">{{talkpage}}
 {{blp}}
 ==Recent transfer==
 Please see:
@@ -463,9 +490,10 @@ https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for offici
         <id>487619</id>
       </contributor>
       <comment>/* Recent transfer */ recent transfer</comment>
+      <origin>6187130</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="492" xml:space="preserve">{{talkpage}}
+      <text bytes="492" sha1="8nv3itsxp7x7nxlxz48rkeac1g5adky" xml:space="preserve">{{talkpage}}
 {{blp}}
 ==Recent transfer==
 Please see:
@@ -480,9 +508,10 @@ https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for offici
         <username>Matthewishere0</username>
         <id>578820</id>
       </contributor>
+      <origin>7374525</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="879" xml:space="preserve">{{talkpage}}
+      <text bytes="879" sha1="nmirjx0hb91eejaspn9wq7h0xngzovb" xml:space="preserve">{{talkpage}}
 {{blp}}
 ==Recent transfer==
 Please see:
@@ -498,9 +527,10 @@ https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for offici
         <ip>219.92.54.121</ip>
       </contributor>
       <comment>/* Recent transfer */ Reply</comment>
+      <origin>8458564</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="1025" xml:space="preserve">{{talkpage}}
+      <text bytes="1025" sha1="2mh2qrdloebgahg628p41qnyxbc9pwv" xml:space="preserve">{{talkpage}}
 {{blp}}
 ==Recent transfer==
 Please see:
@@ -517,9 +547,10 @@ https://en.wikipedia.org/wiki/Talk:Cristiano_Ronaldo they are waiting for offici
         <ip>5.150.116.57</ip>
       </contributor>
       <comment>/* Ronaldo is ded */ new section</comment>
+      <origin>8750749</origin>
       <model>wikitext</model>
       <format>text/x-wiki</format>
-      <text bytes="1163" xml:space="preserve">{{talkpage}}
+      <text bytes="1163" sha1="2gxl3kxo8fq12sw0v7i9gqg7a0zneru" xml:space="preserve">{{talkpage}}
 {{blp}}
 ==Recent transfer==
 Please see:

@@ -2,7 +2,7 @@
 
 Mediawiki Dumper tests needs realistic data.
 
-Here is how wmf_dumps_wikitext_raw_rc1.json.gz was created.
+Here is how `wmf_content_mediawiki_content_history_v1.json.gz` was created.
 
 ### 1/ Find a good set of pages
 ```roomsql
@@ -40,21 +40,53 @@ Here is how wmf_dumps_wikitext_raw_rc1.json.gz was created.
 ```
 spark3-shell --master yarn
 
-// TODO: select interesting examples that vary the XML output:
-//    * temp contributors
-//    etc...
+// select interesting examples that vary the XML output
+// but also since this data will be public, we need to honor visibility flags
 val simpleDF = spark.sql(
-    s"""| SELECT * FROM wmf_dumps.wikitext_raw_rc1
-        |  WHERE wiki_db = 'simplewiki'
-        |    AND page_id in (45046, 279900)
-        |""".stripMargin)
+    s"""
+    SELECT
+    page_id,
+    page_namespace_id,
+    page_title,
+    page_redirect_target,
+    user_id,
+    IF(user_is_visible, user_text, 'redacted') AS user_text,
+    user_is_visible,
+    revision_id,
+    revision_parent_id,
+    revision_dt,
+    revision_is_minor_edit,
+    IF(revision_comment_is_visible, revision_comment, 'redacted') AS revision_comment,
+    revision_comment_is_visible,
+    IF(revision_content_is_visible, revision_sha1, 'redacted') AS revision_sha1,
+    IF(revision_content_is_visible, revision_size, -1L) AS revision_size,
+    transform_values(revision_content_slots,
+                        (k, v) -> (
+                            IF(revision_content_is_visible, v.content_body, 'redacted') AS content_body,
+                            v.content_format,
+                            v.content_model,
+                            IF(revision_content_is_visible, v.content_sha1, 'redacted') AS content_sha1,
+                            IF(revision_content_is_visible, v.content_size, -1L) AS content_size,
+                            v.origin_rev_id
+                        )
+    ) AS revision_content_slots,
+    revision_content_is_visible,
+    wiki_id,
+    row_content_update_dt,
+    row_visibility_update_dt,
+    row_move_update_dt
+    FROM wmf_content.mediawiki_content_history_v1
+    WHERE ( wiki_id = 'simplewiki' AND page_id in (45046, 279900) )
+    OR ( wiki_id = 'commonswiki' AND page_id in (13327093) )
+    ORDER BY wiki_id, page_id, revision_id
+    """)
 
 simpleDF
     .coalesce(1)
     .write
     .mode("overwrite")
     .option("compression","gzip")
-    .json("/tmp/wmf_dumps_wikitext_raw_rc1.json.gz")
+    .json("/tmp/wmf_content_mediawiki_content_history_v1.json.gz")
     
 val namespacesDF = spark.sql(
     s"""| SELECT * FROM milimetric.mediawiki_project_namespace_map
