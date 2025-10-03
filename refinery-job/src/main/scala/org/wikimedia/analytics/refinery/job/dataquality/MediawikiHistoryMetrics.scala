@@ -18,6 +18,7 @@ import scala.util.{Failure, Success, Try}
 object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
     case class Config(
         source_table: String = "wmf.mediawiki_history",
+        wiki_table: String = "wmf.ingestion_wikis",
         partition_map: ListMap[String, String],
         previous_partition_map: ListMap[String, String],
         run_id: String,
@@ -38,6 +39,8 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
                   |for matching config parameters as defined here.""",
             "source_table" ->
                 """Hive table to compute metrics on.""",
+            "wiki_table" ->
+              """Hive table to get list of ingestion wikis""",
             "partition_map" ->
                 """Map of partition keys to values.
                   |These will be used to select the Hive partition on which to compute metrics.
@@ -146,15 +149,24 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
 
     private def verifyAndGenerateMediawikiHistoryAlerts(config: Config)
                                                        (newDenormalizedHistoryDf: DataFrame,
-                                                        previousNormalizedHistoryDf: DataFrame
+                                                        previousNormalizedHistoryDf: DataFrame,
+                                                        wikiDf: DataFrame,
                                                        ): Unit = {
         val spark = newDenormalizedHistoryDf.sparkSession
+
+        if (previousNormalizedHistoryDf.isEmpty) {
+            log.warn(
+                "Previous mediawiki_history partition data is empty. Skipping data quality comparisons."
+            )
+            return
+        }
         // get growth threshold given a percentage growth allowed
         // TODO: We will need to optimize the anomaly check approach
         // TODO: by implementing Deequ FileSystem repo + anomaly detection capabilities.
-        previousNormalizedHistoryDf.cache()
         val previousSnapshotCount = previousNormalizedHistoryDf.count()
         val growth_threshold = previousSnapshotCount * config.event_growth_ratio_threshold
+        //get count of wikis that should be ingested into the source table
+        val wikisCount = wikiDf.count()
         // Data validation.
         val mwHistoryPageVerificationSuite = VerificationSuite()
           .onData(newDenormalizedHistoryDf)
@@ -175,6 +187,7 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
                     "revision_id"),
                     _ == 1.0
                 )
+                .hasNumberOfDistinctValues("wiki_db", _ == wikisCount)
           )
           .run()
           .checkResults
@@ -183,18 +196,14 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
             config.hive_table_partition,
             config.run_id)
 
-        val alertWriter = dqAlerts.write
-
         // Alerts will be persisted only when the user
         // provides an output table or output path.
         if (config.alerts_table.nonEmpty) {
-            dqAlerts.write.iceberg.output(config.alerts_table.get)
-            alertWriter.iceberg.save()
+            dqAlerts.write.iceberg.output(config.alerts_table.get).save()
         }
 
         if (config.alerts_output_path.nonEmpty) {
-            dqAlerts.write.text.output(config.alerts_output_path.get)
-            alertWriter.text.save()
+            dqAlerts.write.text.output(config.alerts_output_path.get).save()
         }
     }
 
@@ -216,10 +225,16 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
                    |where ${config.previous_hive_table_partition.sqlPredicate}
                    |""".stripMargin
             )
+            //Extract complete wiki list dataframe
+            val wikiDf = spark.sql(
+                s"""select distinct wiki_db
+                   |from ${config.wiki_table}
+                   |""".stripMargin
+            )
             // Generate summary stats for mediawiki history
             generateAndStoreMWHistorySummaryMetrics(config)(mWHistoryDf)
             // Perform checks quality checks and send alert if any
-            verifyAndGenerateMediawikiHistoryAlerts(config)(mWHistoryDf,previousMWHistoryDf)
+            verifyAndGenerateMediawikiHistoryAlerts(config)(mWHistoryDf,previousMWHistoryDf,wikiDf)
 
             Success
         } catch {
