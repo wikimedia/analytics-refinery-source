@@ -52,12 +52,21 @@ class UserViewRegistrar(
     SQLHelper.registerDedupListUDF(spark)
 
     // Assert that needed revision view is already registered
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.CENTRALAUTH_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.REVISION_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.ARCHIVE_VIEW))
 
     spark.sql(s"""
-
-WITH filtered_user AS (
+WITH global_user_match AS (
+  SELECT
+    wiki_db,
+    user_id,
+    user_central_id
+  FROM ${SQLHelper.CENTRALAUTH_VIEW}
+  WHERE TRUE
+    ${wikiClause}
+),
+prepared_user AS (
   SELECT
     wiki_db,
     user_id,
@@ -66,12 +75,25 @@ WITH filtered_user AS (
     user_registration
   FROM $userUnprocessedView
   WHERE TRUE
-    $wikiClause
+    ${wikiClause}
     -- Drop wrong user_id
     AND user_id IS NOT NULL
     AND user_id > 0
     -- Drop wrong user_name
     AND user_name IS NOT NULL
+),
+filtered_user AS (
+  SELECT
+    uv.wiki_db,
+    uv.user_id,
+    gu.user_central_id AS user_central_id,
+    uv.user_is_temp,
+    uv.user_text,
+    uv.user_registration
+  FROM prepared_user uv
+  LEFT OUTER JOIN global_user_match gu
+  ON gu.wiki_db = uv.wiki_db
+     AND gu.user_id = uv.user_id
 ),
 
 -- We want both live and archive revision to get best-approximation of user-creation date
@@ -157,6 +179,7 @@ grouped_user_groups AS (
 SELECT
   u.wiki_db,
   u.user_id,
+  u.user_central_id,
   u.user_is_temp,
   u.user_text,
   u.user_registration,
@@ -173,6 +196,7 @@ GROUP BY
   -- Grouping by to enforce expected partitioning
   u.wiki_db,
   u.user_id,
+  u.user_central_id,
   u.user_is_temp,
   u.user_text,
   u.user_registration,

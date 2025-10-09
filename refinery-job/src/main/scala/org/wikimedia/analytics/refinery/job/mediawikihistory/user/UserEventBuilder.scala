@@ -263,14 +263,15 @@ object UserEventBuilder extends Serializable {
     *   1 log_action,
     *   2 log_timestamp,
     *   3 actor_user,
-    *   4 actor_name,
-    *   5 actor_is_anon,
-    *   6 actor_is_temp,
-    *   7 log_title,
-    *   8 comment_text,
-    *   9 log_params,
-    *  10 wiki_db,
-    *  11 log_id
+    *   4 actor_user_central,
+    *   5 actor_name,
+    *   6 actor_is_anon,
+    *   7 actor_is_temp,
+    *   8 log_title,
+    *   9 comment_text,
+    *  10 log_params,
+    *  11 wiki_db,
+    *  12 log_id
     */
   def buildUserEvent(log: Row): UserEvent = {
     val logType = log.getString(0)
@@ -278,38 +279,39 @@ object UserEventBuilder extends Serializable {
     val logTimestampString = log.getString(2)
     // no need to check timestamp validity, only valid timestamps gathered from SQL
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(logTimestampString)
-    val actorUser = if (log.isNullAt(3) || log.isNullAt(4)) None else Some(log.getLong(3))
-    val actorName = Option(log.getString(4))
-    val logTitle = log.getString(7)
-    val commentText = log.getString(8)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(9))
-    val wikiDb = log.getString(10)
-    val logId = log.getLong(11)
+    val actorUser = if (log.isNullAt(3) || log.isNullAt(5)) None else Some(log.getLong(3))
+    val actorUserCentral = if (log.isNullAt(4) || log.isNullAt(5)) None else Some(log.getLong(4))
+    val actorName = Option(log.getString(5))
+    val logTitle = log.getString(8)
+    val commentText = log.getString(9)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(10))
+    val wikiDb = log.getString(11)
+    val logId = log.getLong(12)
 
     // Assert that actor_is_anon is not true while actor_is_temp is defined and viceversa.
-    assert(log.isNullAt(5) || !log.getBoolean(5) || log.isNullAt(6))
+    assert(log.isNullAt(6) || !log.getBoolean(6) || log.isNullAt(7))
 
     // Derive actorIsAnon from actor_is_temp and actor_is_anon.
-    val actorIsAnon = if (!log.isNullAt(5)) {
-      Some(log.getBoolean(5))
+    val actorIsAnon = if (!log.isNullAt(6)) {
+      Some(log.getBoolean(6))
     } else {
-      if (!log.isNullAt(6)) Some(false)
+      if (!log.isNullAt(7)) Some(false)
       else None
     }
 
     // Derive actorIsTemp from actor_is_temp and actor_is_anon.
-    val actorIsTemp = if (!log.isNullAt(6)) {
-      Some(log.getBoolean(6))
+    val actorIsTemp = if (!log.isNullAt(7)) {
+      Some(log.getBoolean(7))
     } else {
-      if (!log.isNullAt(5) && log.getBoolean(5)) Some(false)
+      if (!log.isNullAt(6) && log.getBoolean(6)) Some(false)
       else None
     }
 
     // Derive actorIsPerm from actor_is_temp and actor_is_anon.
-    val actorIsPerm = if (!log.isNullAt(6)) {
-      Some(!log.getBoolean(6))
+    val actorIsPerm = if (!log.isNullAt(7)) {
+      Some(!log.getBoolean(7))
     } else {
-      if (!log.isNullAt(5) && log.getBoolean(5)) Some(false)
+      if (!log.isNullAt(6) && log.getBoolean(6)) Some(false)
       else None
     }
 
@@ -356,6 +358,7 @@ object UserEventBuilder extends Serializable {
         timestamp = logTimestamp,
         eventType = eventType,
         causedByUserId = actorUser,
+        causedByUserCentralId = actorUserCentral,
         causedByAnonymousUser = actorIsAnon,
         causedByTemporaryUser = actorIsTemp,
         causedByPermanentUser = actorIsPerm,

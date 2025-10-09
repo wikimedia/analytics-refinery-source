@@ -71,6 +71,7 @@ class UserHistoryRunner(
     log_action,
     log_timestamp,
     actor_user,
+    actor_user_central,
     actor_name,
     actor_is_anon,
     actor_is_temp,
@@ -93,24 +94,25 @@ class UserHistoryRunner(
            1 log_action,
            2 log_timestamp,
            3 actor_user,
-           4 actor_name,
-           5 actor_is_anon,
-           6 actor_is_temp,
-           7 log_title,
-           8 comment_text,
-           9 log_params,
-          10 wiki_db,
-          11 log_id
+           4 actor_user_central,
+           5 actor_name,
+           6 actor_is_anon,
+           7 actor_is_temp,
+           8 log_title,
+           9 comment_text,
+          10 log_params,
+          11 wiki_db,
+          12 log_id
        */
       .filter(row => {
-        val wikiDb = row.getString(10)
-        val isValid = UserEventBuilder.isValidLogTitle(row.getString(7))
+        val wikiDb = row.getString(11)
+        val isValid = UserEventBuilder.isValidLogTitle(row.getString(8))
         val metricName = if (isValid) METRIC_VALID_LOGS_OK else METRIC_VALID_LOGS_KO
         addOptionalStat(s"$wikiDb.$metricName", 1)
         isValid
       })
       .map(row => {
-        val wikiDb = row.getString(10)
+        val wikiDb = row.getString(11)
         val userEvent = UserEventBuilder.buildUserEvent(row)
         val metricName = if (userEvent.parsingErrors.isEmpty) METRIC_EVENTS_PARSING_OK else METRIC_EVENTS_PARSING_KO
         addOptionalStat(s"$wikiDb.$metricName", 1)
@@ -125,6 +127,7 @@ class UserHistoryRunner(
 SELECT
   wiki_db,
   user_id,
+  user_central_id,
   user_text,
   user_is_temp,
   user_registration,
@@ -136,34 +139,34 @@ FROM ${SQLHelper.USER_VIEW}
       /* For reference below:
            0 wiki_db,
            1 user_id,
-           2 user_text,
-           3 user_is_temp,
-           4 user_registration,
-           5 user_first_rev_timestamp,
-           6 user_groups
+           2 user_central_id,
+           3 user_text,
+           4 user_is_temp,
+           5 user_registration,
+           6 user_first_rev_timestamp,
+           7 user_groups
        */
       .map { row =>
         val wikiDb = row.getString(0)
         addOptionalStat(s"$wikiDb.$METRIC_INITIAL_STATES", 1L)
         new UserState(
             userId = row.getLong(1),
-            userTextHistorical = row.getString(2),
-            userText = row.getString(2),
-            isTemporary = row.getBoolean(3),
-            isPermanent = !row.getBoolean(3),
-            userRegistrationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(4)),
-            userFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
+            userCentralId = if (row.isNullAt(2)) None else Some(row.getLong(2)),
+            userTextHistorical = row.getString(3),
+            userText = row.getString(3),
+            isTemporary = row.getBoolean(4),
+            isPermanent = !row.getBoolean(4),
+            userRegistrationTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
+            userFirstEditTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(6)),
             userGroupsHistorical = Seq.empty[String],
-            userGroups = if (row.isNullAt(6)) Seq.empty[String] else row.getSeq(6),
+            userGroups = if (row.isNullAt(7)) Seq.empty[String] else row.getSeq(7),
             userBlocksHistorical = Seq.empty[String],
             causedByEventType = "create",
             wikiDb = wikiDb
         )}
       .cache()
 
-
     log.info(s"User history data defined, starting reconstruction")
-
 
     //***********************************
     // Reconstruct user history

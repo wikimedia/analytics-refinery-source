@@ -16,6 +16,7 @@ case class UserEvent(
                       timestamp: Timestamp,
                       eventType: String,
                       causedByUserId: Option[Long],
+                      causedByUserCentralId: Option[Long],
                       causedByAnonymousUser: Option[Boolean] = None,
                       causedByTemporaryUser: Option[Boolean] = None,
                       causedByPermanentUser: Option[Boolean] = None,

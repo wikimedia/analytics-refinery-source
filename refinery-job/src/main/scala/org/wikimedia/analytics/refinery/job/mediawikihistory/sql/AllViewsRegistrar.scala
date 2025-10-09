@@ -36,10 +36,12 @@ class AllViewsRegistrar(
     @transient
     lazy val log: Logger = Logger.getLogger(this.getClass)
 
+    // Parameters to run() should be in alphabetical order, except the first one
     def run(
         namespacesCSVPath: String,
         actorUnprocessedPath: String,
         archiveUnprocessedPath: String,
+        centralAuthUnprocessedPath: String,
         changeTagUnprocessedPath: String,
         changeTagDefUnprocessedPath: String,
         commentUnprocessedPath: String,
@@ -77,23 +79,24 @@ class AllViewsRegistrar(
         new RevisionViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
             .run(actorUnprocessedPath, commentUnprocessedPath, revisionUnprocessedPath)
 
-        new LoggingViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-            .run(actorUnprocessedPath, userUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
-
-
         // Warning: page, deleted_page and user view registration need to happen
         // AFTER archive and revision one as they are expected to be registered
+
+        // WARNING: CentralAuthViewRegistrar has to run before LoggingViewRegistrar, PageViewRegistrar and UserViewRegistrar
+        new CentralAuthViewRegistrar(spark, statsAccumulator, numPartitions, readerFormat).run(centralAuthUnprocessedPath)
+
+        new UserViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+          .run(userUnprocessedPath, userGroupsUnprocessedPath)
+
+        new LoggingViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+          .run(actorUnprocessedPath, userUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
 
         new PageViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
             .run(pageUnprocessedPath)
 
         new DeletedPageViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat).run()
 
-        new UserViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-            .run(userUnprocessedPath, userGroupsUnprocessedPath)
-
         log.info(s"All views registered")
 
     }
-
 }

@@ -222,6 +222,8 @@ object MediawikiHistoryRunner {
         val slotsDataPath = baseDataPath + "/slots" + snapshotPartition
         val userDataPath = baseDataPath + "/user" + snapshotPartition
         val userGroupsDataPath = baseDataPath + "/user_groups" + snapshotPartition
+        
+        val centralAuthDataPath = basePrivateDataPath + "/centralauth_localuser" + snapshotPartition
 
         val actorPrivateDataPath = basePrivateDataPath + "/actor" + snapshotPartition
         val commentPrivateDataPath = basePrivateDataPath + "/comment" + snapshotPartition
@@ -321,6 +323,7 @@ object MediawikiHistoryRunner {
           namespacesPath,
           actorPrivateDataPath,
           archiveDataPath,
+          centralAuthDataPath,
           changeTagDataPath,
           changeTagDefDataPath,
           commentPrivateDataPath,

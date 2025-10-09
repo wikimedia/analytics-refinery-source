@@ -107,6 +107,7 @@ class PageHistoryRunner(
     log_page,
     log_timestamp,
     actor_user,
+    actor_user_central,
     actor_name,
     actor_is_anon,
     actor_is_temp,
@@ -131,15 +132,16 @@ class PageHistoryRunner(
            2 log_page,
            3 log_timestamp,
            4 actor_user,
-           5 actor_name,
-           6 actor_is_anon,
-           7 actor_is_temp,
-           8 log_title,
-           9 log_params,
-          10 log_namespace,
-          11 wiki_db,
-          12 log_id,
-          13 comment_text
+           5 actor_user_central,
+           6 actor_name,
+           7 actor_is_anon,
+           8 actor_is_temp,
+           9 log_title,
+          10 log_params,
+          11 log_namespace,
+          12 wiki_db,
+          13 log_id,
+          14 comment_text
        */
       .map(row =>
       {
@@ -164,6 +166,7 @@ class PageHistoryRunner(
     page_is_redirect,
     page_first_rev_timestamp,
     page_first_rev_user_id,
+    page_first_rev_user_central_id,
     page_first_rev_anon_user,
     page_first_rev_user_text,
     FALSE as is_deleted,
@@ -180,6 +183,7 @@ class PageHistoryRunner(
     page_is_redirect,
     page_first_rev_timestamp,
     page_first_rev_user_id,
+    page_first_rev_user_central_id,
     page_first_rev_anon_user,
     page_first_rev_user_text,
     TRUE as is_deleted,
@@ -195,10 +199,11 @@ class PageHistoryRunner(
            4 page_is_redirect,
            5 page_first_rev_timestamp,
            6 page_first_rev_user_id,
-           7 page_first_rev_anon_user,
-           8 page_first_rev_user_text,
-           9 is_deleted,
-          10 inferred_from
+           7 page_first_rev_user_central_id,
+           8 page_first_rev_anon_user,
+           9 page_first_rev_user_text,
+          10 is_deleted,
+          11 inferred_from
        */
       .map(row => {
         val wikiDb = row.getString(0)
@@ -218,16 +223,17 @@ class PageHistoryRunner(
           namespace = namespace,
           namespaceIsContent = isContentNamespace,
           isRedirect = if (row.isNullAt(4)) None else Some(row.getBoolean(4)),
-          isDeleted = row.getBoolean(9),
+          isDeleted = row.getBoolean(10),
           startTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(5)),
           endTimestamp = None,
           causedByEventType = "create",
           causedByUserId = if (row.isNullAt(6)) None else Some(row.getLong(6)),
-          causedByAnonymousUser = if (row.isNullAt(7)) None else Some(row.getBoolean(7)),
+          causedByUserCentralId = if (row.isNullAt(7)) None else Some(row.getLong(7)),
+          causedByAnonymousUser = if (row.isNullAt(8)) None else Some(row.getBoolean(8)),
           causedByTemporaryUser = None,
           causedByPermanentUser = None,
-          causedByUserText = Option(row.getString(8)),
-          inferredFrom = Option(row.getString(10)),
+          causedByUserText = Option(row.getString(9)),
+          inferredFrom = Option(row.getString(11)),
           wikiDb = wikiDb
         )
       })

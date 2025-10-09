@@ -29,7 +29,7 @@ class TestMediawikiEvent extends FlatSpec with Matchers {
   }
 
   "MediawikiEvent" should "be unmarshable from a Spark Row that contains null Seqs" in {
-    val seqOfNulls = Seq.fill(75)(null)
+    val seqOfNulls = Seq.fill(77)(null)
     val row = Row.fromSeq(seqOfNulls)
 
     val event = MediawikiEvent.fromRow(row)

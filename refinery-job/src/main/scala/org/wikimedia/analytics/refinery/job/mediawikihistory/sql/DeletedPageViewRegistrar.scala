@@ -41,37 +41,62 @@ class DeletedPageViewRegistrar(
     log.info(s"Registering deleted_page view")
 
     // Assert that needed archive and page views are already registered
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.CENTRALAUTH_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.ARCHIVE_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.PAGE_VIEW))
 
     // Register the complex view
     spark.sql(s"""
-
-SELECT DISTINCT
-  wiki_db,
-  ar_page_id as page_id,
-  LAST_VALUE(ar_title) OVER by_page_window AS page_title,
-  LAST_VALUE(ar_namespace) OVER by_page_window AS page_namespace,
-  NULL as page_is_redirect,
-  FIRST_VALUE(ar_timestamp) OVER by_page_window AS page_first_rev_timestamp,
-  FIRST_VALUE(actor_user) OVER by_page_window AS page_first_rev_user_id,
-  FIRST_VALUE(actor_is_anon) OVER by_page_window AS page_first_rev_anon_user,
-  FIRST_VALUE(actor_name) OVER by_page_window AS page_first_rev_user_text
-FROM ${SQLHelper.ARCHIVE_VIEW} a
-  -- Only keep page_id not present in page
-  LEFT ANTI JOIN ${SQLHelper.PAGE_VIEW} p_id
-    ON a.wiki_db = p_id.wiki_db
-      AND a.ar_page_id = p_id.page_id
-  -- Only keep title/ns not present in page
-  LEFT ANTI JOIN ${SQLHelper.PAGE_VIEW} p_title_ns
-    ON a.wiki_db = p_title_ns.wiki_db
-      AND a.ar_title = p_title_ns.page_title
-      AND a.ar_namespace = p_title_ns.page_namespace
-WHERE ar_page_id IS NOT NULL
-  AND ar_page_id > 0
-WINDOW by_page_window AS (
-  PARTITION BY wiki_db, ar_page_id ORDER BY ar_timestamp, ar_rev_id
+WITH global_user_match AS (
+  SELECT
+    wiki_db,
+    user_id,
+    user_central_id
+  FROM ${SQLHelper.CENTRALAUTH_VIEW}
+  WHERE TRUE
+    ${wikiClause}
+),
+deleted_pageview_prep AS (
+  SELECT DISTINCT
+    wiki_db,
+    ar_page_id as page_id,
+    LAST_VALUE(ar_title) OVER by_page_window AS page_title,
+    LAST_VALUE(ar_namespace) OVER by_page_window AS page_namespace,
+    NULL as page_is_redirect,
+    FIRST_VALUE(ar_timestamp) OVER by_page_window AS page_first_rev_timestamp,
+    FIRST_VALUE(actor_user) OVER by_page_window AS page_first_rev_user_id,
+    FIRST_VALUE(actor_is_anon) OVER by_page_window AS page_first_rev_anon_user,
+    FIRST_VALUE(actor_name) OVER by_page_window AS page_first_rev_user_text
+  FROM ${SQLHelper.ARCHIVE_VIEW} a
+    -- Only keep page_id not present in page
+    LEFT ANTI JOIN ${SQLHelper.PAGE_VIEW} p_id
+      ON a.wiki_db = p_id.wiki_db
+        AND a.ar_page_id = p_id.page_id
+    -- Only keep title/ns not present in page
+    LEFT ANTI JOIN ${SQLHelper.PAGE_VIEW} p_title_ns
+      ON a.wiki_db = p_title_ns.wiki_db
+        AND a.ar_title = p_title_ns.page_title
+        AND a.ar_namespace = p_title_ns.page_namespace
+  WHERE ar_page_id IS NOT NULL
+    AND ar_page_id > 0
+  WINDOW by_page_window AS (
+    PARTITION BY wiki_db, ar_page_id ORDER BY ar_timestamp, ar_rev_id
+  )
 )
+SELECT
+    dp.wiki_db,
+    dp.page_id,
+    dp.page_title,
+    dp.page_namespace,
+    dp.page_is_redirect,
+    dp.page_first_rev_timestamp,
+    dp.page_first_rev_user_id,
+    gu.user_central_id AS page_first_rev_user_central_id,
+    dp.page_first_rev_anon_user,
+    dp.page_first_rev_user_text
+FROM deleted_pageview_prep dp
+LEFT JOIN global_user_match gu
+ON dp.wiki_db = gu.wiki_db AND dp.page_first_rev_user_id = gu.user_id
     """
     ).repartition(numPartitions).createOrReplaceTempView(SQLHelper.DELETED_PAGE_VIEW)
 

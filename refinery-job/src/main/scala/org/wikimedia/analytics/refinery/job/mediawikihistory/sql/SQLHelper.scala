@@ -26,6 +26,7 @@ object SQLHelper {
   val REVISION_VIEW = "revision"
   val SLOTS_VIEW = "slots"
   val USER_VIEW = "user"
+  val CENTRALAUTH_VIEW = "centralauth_localuser"
 
   /**
    * Function building a clause to be included in a WHERE statement.

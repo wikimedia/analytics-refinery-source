@@ -55,11 +55,13 @@ object TestPageHistoryHelpers {
           case "params" | "logParams" | "sourceLogParams" => ("sourceLogParams" -> map(v))
         }
       }.toMap
+
       new PageEvent(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
         timestamp = valueMap.getOrElse("timestamp", timestamp).get.asInstanceOf[Timestamp],
         eventType = valueMap.getOrElse("eventType", eventType).get.asInstanceOf[String],
         causedByUserId = valueMap.getOrElse("causedByUserId", causedByUserId).asInstanceOf[Option[Long]],
+        causedByUserCentralId = Option.empty[Long],
         causedByUserText = valueMap.getOrElse("causedByUserText", causedByUserText).asInstanceOf[Option[String]],
         causedByAnonymousUser = valueMap.getOrElse("causedByAnonymousUser", causedByAnonymousUser).asInstanceOf[Option[Boolean]],
         pageId = valueMap.getOrElse("pageId", pageId).asInstanceOf[Option[Long]],
@@ -136,6 +138,7 @@ object TestPageHistoryHelpers {
           case "first" | "firstState" | "pageFirstState" => ("pageFirstState" -> boolean(v))
         }
       }.toMap
+
       val titleHistoricalVal = valueMap.getOrElse("titleHistorical", titleHistorical).get.asInstanceOf[String]
       val namespaceHistoricalVal = valueMap.getOrElse("namespaceHistorical", namespaceHistorical).get.asInstanceOf[Int]
       val namespaceIsContentHistoricalVal = valueMap.getOrElse("namespaceIsContentHistorical", namespaceIsContentHistorical).get.asInstanceOf[Boolean]

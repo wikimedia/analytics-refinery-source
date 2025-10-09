@@ -14,6 +14,7 @@ object TestHistoryEventHelpers {
   def fakeUserState(userId: Long) = new UserState(
     wikiDb = "",
     userId = userId,
+    userCentralId = Some(userId),
     causedByEventType = "",
     userTextHistorical = "",
     userText = "",

@@ -51,6 +51,7 @@ case class MediawikiEventPageDetails(pageId: Option[Long] = None,
 }
 
 case class MediawikiEventUserDetails(userId: Option[Long] = None,
+                                     userCentralId: Option[Long] = None,
                                      userTextHistorical: Option[String] = None,
                                      userText: Option[String] = None,
                                      userBlocksHistorical: Option[Seq[String]] = None,
@@ -74,6 +75,7 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                     ) {
   def updateWithUserState(userState: UserState) = this.copy(
       userId = Some(userState.userId),
+      userCentralId = userState.userCentralId,
       userTextHistorical = Some(userState.userTextHistorical),
       userText = Some(userState.userText),
       userBlocksHistorical = Some(userState.userBlocksHistorical),
@@ -156,6 +158,7 @@ case class MediawikiEvent(
     //eventTimestamp.orNull,
     eventComment.orNull,
     eventUserDetails.userId.orNull,
+    eventUserDetails.userCentralId.orNull,
     eventUserDetails.userTextHistorical.orNull,
     eventUserDetails.userText.orNull,
     eventUserDetails.userBlocksHistorical.orNull,
@@ -197,6 +200,7 @@ case class MediawikiEvent(
     pageDetails.pageSecondsSincePreviousRevision.orNull,
 
     userDetails.userId.orNull,
+    userDetails.userCentralId.orNull,
     userDetails.userTextHistorical.orNull,
     userDetails.userText.orNull,
     userDetails.userBlocksHistorical.orNull,
@@ -247,10 +251,11 @@ case class MediawikiEvent(
           eventTimestamp.map(_.toString).orNull,
           MediawikiEvent.escape(eventComment.orNull),
           eventUserDetails.userId.orNull,
+          eventUserDetails.userCentralId.orNull,
           MediawikiEvent.escape(eventUserDetails.userTextHistorical.orNull),
           MediawikiEvent.escape(eventUserDetails.userText.orNull),
           MediawikiEvent.formatArray(eventUserDetails.userBlocksHistorical.orNull),
-          MediawikiEvent.formatArray(eventUserDetails.userBlocks.orNull),
+          MediawikiEvent.formatArray(eventUserDetails.userBlocks.orNull), // 10
           MediawikiEvent.formatArray(eventUserDetails.userGroupsHistorical.orNull),
           MediawikiEvent.formatArray(eventUserDetails.userGroups.orNull),
           MediawikiEvent.formatArray(eventUserDetails.userIsBotByHistorical.orNull),
@@ -281,6 +286,7 @@ case class MediawikiEvent(
           pageDetails.pageRevisionCount.orNull,
           pageDetails.pageSecondsSincePreviousRevision.orNull,
           userDetails.userId.orNull,
+          userDetails.userCentralId.orNull,
           MediawikiEvent.escape(userDetails.userTextHistorical.orNull),
           MediawikiEvent.escape(userDetails.userText.orNull),
           MediawikiEvent.formatArray(userDetails.userBlocksHistorical.orNull),
@@ -378,6 +384,7 @@ object MediawikiEvent {
       //StructField("event_timestamp", TimestampType, nullable = true),
       StructField("event_comment", StringType, nullable = true),
       StructField("event_user_id", LongType, nullable = true),
+      StructField("event_user_central_id", LongType, nullable = true),
       StructField("event_user_text_historical", StringType, nullable = true),
       StructField("event_user_text", StringType, nullable = true),
       StructField("event_user_blocks_historical", ArrayType(StringType, containsNull = true), nullable = true),
@@ -419,6 +426,7 @@ object MediawikiEvent {
       StructField("page_seconds_since_previous_revision", LongType, nullable = true),
 
       StructField("user_id", LongType, nullable = true),
+      StructField("user_central_id", LongType, nullable = true),
       StructField("user_text_historical", StringType, nullable = true),
       StructField("user_text", StringType, nullable = true),
       StructField("user_blocks_historical", ArrayType(StringType, containsNull = true), nullable = true),
@@ -462,7 +470,13 @@ object MediawikiEvent {
     )
   )
 
-  def fromRow(row: Row): MediawikiEvent =
+  def fromRow(row: Row): MediawikiEvent = {
+    /**
+     * Which table/dataset is this function actually working on?
+     * I can't seem to find a table with this many columns, other than the TSV export
+     * described in the function toTSVLine above. That toTSVLine however does not print
+     * pageArtificialId so all the column positions are skewed after ordinal 26.
+     */
     new MediawikiEvent(
       wikiDb = row.getString(0),
       eventEntity = row.getString(1),
@@ -471,85 +485,88 @@ object MediawikiEvent {
       eventComment = getOptString(row, 4),
       eventUserDetails = new MediawikiEventUserDetails(
         userId = getOptLong(row, 5),
-        userTextHistorical = getOptString(row, 6),
-        userText = getOptString(row, 7),
-        userBlocksHistorical = getOptSeq[String](row, 8),
-        userBlocks = getOptSeq[String](row, 9),
-        userGroupsHistorical = getOptSeq[String](row, 10),
-        userGroups = getOptSeq[String](row, 11),
-        userIsBotByHistorical = getOptSeq[String](row, 12),
-        userIsBotBy = getOptSeq[String](row, 13),
-        userIsCreatedBySelf = getOptBoolean(row, 14),
-        userIsCreatedBySystem = getOptBoolean(row, 15),
-        userIsCreatedByPeer = getOptBoolean(row, 16),
-        userIsAnonymous = getOptBoolean(row, 17),
-        userIsTemporary = getOptBoolean(row, 18),
-        userIsPermanent = getOptBoolean(row, 19),
-        userRegistrationTimestamp = getOptTimestamp(row, 20),
-        userCreationTimestamp = getOptTimestamp(row, 21),
-        userFirstEditTimestamp = getOptTimestamp(row, 22),
-        userRevisionCount = getOptLong(row, 23),
-        userSecondsSincePreviousRevision = getOptLong(row, 24)
+        userCentralId = getOptLong(row, 6),
+        userTextHistorical = getOptString(row, 7),
+        userText = getOptString(row, 8),
+        userBlocksHistorical = getOptSeq[String](row, 9),
+        userBlocks = getOptSeq[String](row, 10),
+        userGroupsHistorical = getOptSeq[String](row, 11),
+        userGroups = getOptSeq[String](row, 12),
+        userIsBotByHistorical = getOptSeq[String](row, 13),
+        userIsBotBy = getOptSeq[String](row, 14),
+        userIsCreatedBySelf = getOptBoolean(row, 15),
+        userIsCreatedBySystem = getOptBoolean(row, 16),
+        userIsCreatedByPeer = getOptBoolean(row, 17),
+        userIsAnonymous = getOptBoolean(row, 18),
+        userIsTemporary = getOptBoolean(row, 19),
+        userIsPermanent = getOptBoolean(row, 20),
+        userRegistrationTimestamp = getOptTimestamp(row, 21),
+        userCreationTimestamp = getOptTimestamp(row, 22),
+        userFirstEditTimestamp = getOptTimestamp(row, 23),
+        userRevisionCount = getOptLong(row, 24),
+        userSecondsSincePreviousRevision = getOptLong(row, 25)
       ),
       pageDetails = new MediawikiEventPageDetails(
-        pageId = getOptLong(row, 25),
-        pageArtificialId = getOptString(row, 26),
-        pageTitleHistorical = getOptString(row, 27),
-        pageTitle = getOptString(row, 28),
-        pageNamespaceHistorical = getOptInt(row, 29),
-        pageNamespaceIsContentHistorical = getOptBoolean(row, 30),
-        pageNamespace = getOptInt(row, 31),
-        pageNamespaceIsContent = getOptBoolean(row, 32),
-        pageIsRedirect = getOptBoolean(row, 33),
-        pageIsDeleted = getOptBoolean(row, 34),
-        pageCreationTimestamp = getOptTimestamp(row, 35),
-        pageFirstEditTimestamp = getOptTimestamp(row, 36),
-        pageRevisionCount = getOptLong(row, 37),
-        pageSecondsSincePreviousRevision = getOptLong(row, 38)
+        pageId = getOptLong(row, 26),
+        pageArtificialId = getOptString(row, 27),
+        pageTitleHistorical = getOptString(row, 28),
+        pageTitle = getOptString(row, 29),
+        pageNamespaceHistorical = getOptInt(row, 30),
+        pageNamespaceIsContentHistorical = getOptBoolean(row, 31),
+        pageNamespace = getOptInt(row, 32),
+        pageNamespaceIsContent = getOptBoolean(row, 33),
+        pageIsRedirect = getOptBoolean(row, 34),
+        pageIsDeleted = getOptBoolean(row, 35),
+        pageCreationTimestamp = getOptTimestamp(row, 36),
+        pageFirstEditTimestamp = getOptTimestamp(row, 37),
+        pageRevisionCount = getOptLong(row, 38),
+        pageSecondsSincePreviousRevision = getOptLong(row, 39)
       ),
       userDetails = new MediawikiEventUserDetails(
-        userId = getOptLong(row, 39),
-        userTextHistorical = getOptString(row, 40),
-        userText = getOptString(row, 41),
-        userBlocksHistorical = getOptSeq[String](row, 42),
-        userBlocks = getOptSeq[String](row, 43),
-        userGroupsHistorical = getOptSeq[String](row, 44),
-        userGroups = getOptSeq[String](row, 45),
-        userIsBotByHistorical = getOptSeq[String](row, 46),
-        userIsBotBy = getOptSeq[String](row, 47),
-        userIsCreatedBySelf = getOptBoolean(row, 48),
-        userIsCreatedBySystem = getOptBoolean(row, 49),
-        userIsCreatedByPeer = getOptBoolean(row, 50),
-        userIsAnonymous = getOptBoolean(row, 51),
-        userIsTemporary = getOptBoolean(row, 52),
-        userIsPermanent = getOptBoolean(row, 53),
-        userRegistrationTimestamp = getOptTimestamp(row, 54),
-        userCreationTimestamp = getOptTimestamp(row, 55),
-        userFirstEditTimestamp = getOptTimestamp(row, 56)
+        userId = getOptLong(row, 40),
+        userCentralId = getOptLong(row, 41),
+        userTextHistorical = getOptString(row, 42),
+        userText = getOptString(row, 43),
+        userBlocksHistorical = getOptSeq[String](row, 44),
+        userBlocks = getOptSeq[String](row, 45),
+        userGroupsHistorical = getOptSeq[String](row, 46),
+        userGroups = getOptSeq[String](row, 47),
+        userIsBotByHistorical = getOptSeq[String](row, 48),
+        userIsBotBy = getOptSeq[String](row, 49),
+        userIsCreatedBySelf = getOptBoolean(row, 50),
+        userIsCreatedBySystem = getOptBoolean(row, 51),
+        userIsCreatedByPeer = getOptBoolean(row, 52),
+        userIsAnonymous = getOptBoolean(row, 53),
+        userIsTemporary = getOptBoolean(row, 54),
+        userIsPermanent = getOptBoolean(row, 55),
+        userRegistrationTimestamp = getOptTimestamp(row, 56),
+        userCreationTimestamp = getOptTimestamp(row, 57),
+        userFirstEditTimestamp = getOptTimestamp(row, 58)
         // userRevisionCount -- Not relevant, user events only
         // userSecondsSincePreviousRevision -- ie
       ),
       revisionDetails = new MediawikiEventRevisionDetails(
-        revId = getOptLong(row, 57),
-        revParentId = getOptLong(row, 58),
-        revMinorEdit = getOptBoolean(row, 59),
-        revDeletedParts = getOptSeq[String](row, 60),
-        revDeletedPartsAreSuppressed = getOptBoolean(row, 61),
-        revTextBytes = getOptLong(row, 62),
-        revTextBytesDiff = getOptLong(row, 63),
-        revTextSha1 = getOptString(row, 64),
-        revContentModel = getOptString(row, 65),
-        revContentFormat = getOptString(row, 66),
-        revIsDeletedByPageDeletion = getOptBoolean(row, 67),
-        revDeletedByPageDeletionTimestamp = getOptTimestamp(row, 68),
-        revIsIdentityReverted = getOptBoolean(row, 69),
-        revFirstIdentityRevertingRevisionId = getOptLong(row, 70),
-        revSecondsToIdentityRevert = getOptLong(row, 71),
-        revIsIdentityRevert = getOptBoolean(row, 72),
-        revIsFromBeforePageCreation = getOptBoolean(row, 73),
-        revTags = getOptSeq[String](row, 74)
+        revId = getOptLong(row, 59),
+        revParentId = getOptLong(row, 60),
+        revMinorEdit = getOptBoolean(row, 61),
+        revDeletedParts = getOptSeq[String](row, 62),
+        revDeletedPartsAreSuppressed = getOptBoolean(row, 63),
+        revTextBytes = getOptLong(row, 64),
+        revTextBytesDiff = getOptLong(row, 65),
+        revTextSha1 = getOptString(row, 66),
+        revContentModel = getOptString(row, 67),
+        revContentFormat = getOptString(row, 68),
+        revIsDeletedByPageDeletion = getOptBoolean(row, 69),
+        revDeletedByPageDeletionTimestamp = getOptTimestamp(row, 70),
+        revIsIdentityReverted = getOptBoolean(row, 71),
+        revFirstIdentityRevertingRevisionId = getOptLong(row, 72),
+        revSecondsToIdentityRevert = getOptLong(row, 73),
+        revIsIdentityRevert = getOptBoolean(row, 74),
+        revIsFromBeforePageCreation = getOptBoolean(row, 75),
+        revTags = getOptSeq[String](row, 76)
       )
     )
+  }
 
   /* select like this and then map this function:
    *   0  wiki_db,
@@ -741,6 +758,7 @@ object MediawikiEvent {
       eventComment = None,
       eventUserDetails = new MediawikiEventUserDetails(
         userId = userState.causedByUserId,
+        userCentralId = userState.causedByUserCentralId,
         userTextHistorical = userState.causedByUserText,
         // Make historical username current one for anonymous users
         userText = if (userState.causedByAnonymousUser.getOrElse(false)) userState.causedByUserText else None,
@@ -761,6 +779,7 @@ object MediawikiEvent {
       ),
       userDetails = new MediawikiEventUserDetails(
         userId = Some(userState.userId),
+        userCentralId = userState.userCentralId,
         userTextHistorical = Some(userState.userTextHistorical),
         userText = Some(userState.userText),
         userBlocksHistorical = Some(userState.userBlocksHistorical),
@@ -804,6 +823,7 @@ object MediawikiEvent {
       eventComment = None,
       eventUserDetails = new MediawikiEventUserDetails(
         userId = pageState.causedByUserId,
+        userCentralId = pageState.causedByUserCentralId,
         userTextHistorical = pageState.causedByUserText,
         // Make historical username current one for anonymous users
         userText = if (pageState.causedByAnonymousUser.getOrElse(false)) pageState.causedByUserText else None,

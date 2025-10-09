@@ -307,7 +307,9 @@ class TestUserHistoryBuilder extends FlatSpec with Matchers with BeforeAndAfterE
       "User  1   20010101000001   (flood)"
     )
     val expectedResults = userStateSet(
-      userText = Some("User"), userId = Some(1L), userCreation = TimestampHelpers.makeMediawikiTimestampOption("20010101000001")
+      userText = Some("User"),
+      userId = Some(1L),
+      userCreation = TimestampHelpers.makeMediawikiTimestampOption("20010101000001")
     )(
       "    start                end         groupsH  groups  blocksH      blocks  expiration      eventType     adminId  adminText  adminAnon  adminTemp  adminPerm  inferred",
       "20010101000001     20010101000002    ()       (flood)  ()          ()       None            create       1        User       false      false      true       None",

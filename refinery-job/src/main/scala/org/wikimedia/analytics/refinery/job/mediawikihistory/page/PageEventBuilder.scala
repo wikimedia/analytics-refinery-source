@@ -46,15 +46,16 @@ class PageEventBuilder(
     *   2 log_page,
     *   3 log_timestamp,
     *   4 actor_user,
-    *   5 actor_name,
-    *   6 actor_is_anon,
-    *   7 actor_is_temp,
-    *   8 log_title,
-    *   9 log_params,
-    *  10 log_namespace,
-    *  11 wiki_db,
-    *  12 log_id,
-    *  13 comment_text
+    *   5 actor_user_central,    
+    *   6 actor_name,
+    *   7 actor_is_anon,
+    *   8 actor_is_temp,
+    *   9 log_title,
+    *  10 log_params,
+    *  11 log_namespace,
+    *  12 wiki_db,
+    *  13 log_id,
+    *  14 comment_text
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is so far use on.ly with move value in this function. See [[buildSimplePageEvent]].
@@ -67,19 +68,20 @@ class PageEventBuilder(
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     // we check actor_name because that's a non-nullable field so a null value would mean the join failed
-    val actorUser = if (log.isNullAt(4) || log.isNullAt(5)) None else Some(log.getLong(4))
-    val actorName = Option(log.getString(5))
-    val logTitle = log.getString(8)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(9))
-    val logNamespace = if (log.isNullAt(10)) Integer.MIN_VALUE else log.getInt(10)
-    val wikiDb = log.getString(11)
+    val actorUser = if (log.isNullAt(4) || log.isNullAt(6)) None else Some(log.getLong(4))
+    val actorUserCentral = if (log.isNullAt(5) || log.isNullAt(6)) None else Some(log.getLong(5))
+    val actorName = Option(log.getString(6))
+    val logTitle = log.getString(9)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(10))
+    val logNamespace = if (log.isNullAt(11)) Integer.MIN_VALUE else log.getInt(11)
+    val wikiDb = log.getString(12)
     val pageId = if (log.isNullAt(2)) None else Some(log.getLong(2))
     // logId always defined
-    val logId = log.getLong(12)
-    val commentText = log.getString(13)
+    val logId = log.getLong(13)
+    val commentText = log.getString(14)
 
     // Assert that actor_is_anon is not true while actor_is_temp is defined and viceversa.
-    assert(log.isNullAt(6) || !log.getBoolean(6) || log.isNullAt(7))
+    assert(log.isNullAt(7) || !log.getBoolean(7) || log.isNullAt(8))
 
     // Get old and new titles
     if (logTitle == null || (logParams.isRight && logParams.right.get == null))
@@ -97,9 +99,10 @@ class PageEventBuilder(
         newNamespaceIsContent = false,
         pageId = pageId,
         causedByUserId = actorUser,
-        causedByAnonymousUser = PageEventBuilder.getActorIsAnonymous(log, 6, 7),
-        causedByTemporaryUser = PageEventBuilder.getActorIsTemporary(log, 6, 7),
-        causedByPermanentUser = PageEventBuilder.getActorIsPermanent(log, 6, 7),
+        causedByUserCentralId = actorUserCentral,
+        causedByAnonymousUser = PageEventBuilder.getActorIsAnonymous(log, 7, 8),
+        causedByTemporaryUser = PageEventBuilder.getActorIsTemporary(log, 7, 8),
+        causedByPermanentUser = PageEventBuilder.getActorIsPermanent(log, 7, 8),
         causedByUserText = actorName,
         sourceLogId = logId,
         sourceLogComment = commentText,
@@ -143,9 +146,10 @@ class PageEventBuilder(
           timestamp = logTimestamp,
           eventType = logType,
           causedByUserId = actorUser,
-          causedByAnonymousUser = PageEventBuilder.getActorIsAnonymous(log, 6, 7),
-          causedByTemporaryUser = PageEventBuilder.getActorIsTemporary(log, 6, 7),
-          causedByPermanentUser = PageEventBuilder.getActorIsPermanent(log, 6, 7),
+          causedByUserCentralId = actorUserCentral,
+          causedByAnonymousUser = PageEventBuilder.getActorIsAnonymous(log, 7, 8),
+          causedByTemporaryUser = PageEventBuilder.getActorIsTemporary(log, 7, 8),
+          causedByPermanentUser = PageEventBuilder.getActorIsPermanent(log, 7, 8),
           causedByUserText = actorName,
           sourceLogId = logId,
           sourceLogComment = commentText,
@@ -163,15 +167,16 @@ class PageEventBuilder(
     *   2 log_page,
     *   3 log_timestamp,
     *   4 actor_user,
-    *   5 actor_name,
-    *   6 actor_is_anon,
-    *   7 actor_is_temp,
-    *   8 log_title,
-    *   9 log_params,
-    *  10 log_namespace,
-    *  11 wiki_db,
-    *  12 log_id,
-    *  13 comment_text
+    *   5 actor_user_central,   
+    *   6 actor_name,
+    *   7 actor_is_anon,
+    *   8 actor_is_temp,
+    *   9 log_title,
+    *  10 log_params,
+    *  11 log_namespace,
+    *  12 wiki_db,
+    *  13 log_id,
+    *  14 comment_text
     *
     * Notes: user_id is the one of the user at the origin of the event.
     *        log_type is to be either delete or restore in this function. See [[buildMovePageEvent]]
@@ -193,21 +198,22 @@ class PageEventBuilder(
     // Only valid timestamps accepted in SQL - no need to check parsing here
     val logTimestamp = TimestampHelpers.makeMediawikiTimestamp(log.getString(3))
     // we check actor_name because that's a non-nullable field so a null value would mean the join failed
-    val actorUser = if (log.isNullAt(4) || log.isNullAt(5)) None else Some(log.getLong(4))
-    val actorName = Option(log.getString(5))
-    val title = log.getString(8)
-    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(9))
-    val namespace = if (log.isNullAt(10)) Integer.MIN_VALUE else log.getInt(10)
-    val wikiDb = log.getString(11)
-    val logId = log.getLong(12)
-    val commentText = log.getString(13)
+    val actorUser = if (log.isNullAt(4) || log.isNullAt(6)) None else Some(log.getLong(4))
+    val actorUserCentral = if (log.isNullAt(5) || log.isNullAt(6)) None else Some(log.getLong(5))
+    val actorName = Option(log.getString(6))
+    val title = log.getString(9)
+    val logParams = PhpUnserializer.tryUnserializeMap(log.getString(10))
+    val namespace = if (log.isNullAt(11)) Integer.MIN_VALUE else log.getInt(11)
+    val wikiDb = log.getString(12)
+    val logId = log.getLong(13)
+    val commentText = log.getString(14)
 
     val namespaceIsContent = isContentNamespaceMap((wikiDb, namespace))
     // Handle possible title error
     val titleError = if (title == null) Seq("Could not get title from null logTitle") else Seq.empty[String]
 
     // Assert that actor_is_anon is not true while actor_is_temp is defined and viceversa.
-    assert(log.isNullAt(6) || !log.getBoolean(6) || log.isNullAt(7))
+    assert(log.isNullAt(7) || !log.getBoolean(7) || log.isNullAt(8))
 
     new PageEvent(
       pageId = if (log.isNullAt(2)) None else Some(log.getLong(2)),
@@ -223,9 +229,10 @@ class PageEventBuilder(
       timestamp = logTimestamp,
       eventType = eventType,
       causedByUserId = actorUser,
-      causedByAnonymousUser = PageEventBuilder.getActorIsAnonymous(log, 6, 7),
-      causedByTemporaryUser = PageEventBuilder.getActorIsTemporary(log, 6, 7),
-      causedByPermanentUser = PageEventBuilder.getActorIsPermanent(log, 6, 7),
+      causedByUserCentralId = actorUserCentral,
+      causedByAnonymousUser = PageEventBuilder.getActorIsAnonymous(log, 7, 8),
+      causedByTemporaryUser = PageEventBuilder.getActorIsTemporary(log, 7, 8),
+      causedByPermanentUser = PageEventBuilder.getActorIsPermanent(log, 7, 8),
       causedByUserText = actorName,
       wikiDb = wikiDb,
       sourceLogId = logId,

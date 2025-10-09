@@ -44,13 +44,22 @@ class PageViewRegistrar(
     spark.read.format(readerFormat).load(pageUnprocessedPath).createOrReplaceTempView(pageUnprocessedView)
 
     // Assert that needed revision and archive views are already registered
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.CENTRALAUTH_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.REVISION_VIEW))
     assert(spark.sqlContext.tableNames().contains(SQLHelper.ARCHIVE_VIEW))
 
     // Register the complex view
     spark.sql(s"""
-
-WITH filtered_page AS (
+WITH global_user_match AS (
+  SELECT
+    wiki_db,
+    user_id,
+    user_central_id
+  FROM ${SQLHelper.CENTRALAUTH_VIEW}
+  WHERE TRUE
+    ${wikiClause}
+),
+filtered_page AS (
   SELECT
     wiki_db,
     page_id,
@@ -70,26 +79,32 @@ WITH filtered_page AS (
 -- Need both live and archive revisions, as live pages can have both
 all_revisions AS (
   SELECT
-    wiki_db,
-    rev_page AS page_id,
-    rev_id as page_first_rev_id,
-    actor_user AS page_first_rev_user_id,
-    actor_is_anon AS page_first_rev_anon_user,
-    actor_name AS page_first_rev_user_text,
-    rev_timestamp AS page_first_rev_timestamp
-  FROM ${SQLHelper.REVISION_VIEW}
+    rv.wiki_db,
+    rv.rev_page AS page_id,
+    rv.rev_id as page_first_rev_id,
+    rv.actor_user AS page_first_rev_user_id,
+    gu.user_central_id AS page_first_rev_user_central_id,
+    rv.actor_is_anon AS page_first_rev_anon_user,
+    rv.actor_name AS page_first_rev_user_text,
+    rv.rev_timestamp AS page_first_rev_timestamp
+  FROM ${SQLHelper.REVISION_VIEW} rv
+  JOIN global_user_match gu
+  ON gu.wiki_db = rv.wiki_db AND gu.user_id = rv.actor_user
 
   UNION ALL
 
   SELECT
-    wiki_db,
-    ar_page_id AS page_id,
-    ar_rev_id as page_first_rev_id,
-    actor_user AS page_first_rev_user_id,
-    actor_is_anon AS page_first_rev_anon_user,
-    actor_name AS page_first_rev_user_text,
-    ar_timestamp AS page_first_rev_timestamp
-  FROM ${SQLHelper.ARCHIVE_VIEW}
+    av.wiki_db,
+    av.ar_page_id AS page_id,
+    av.ar_rev_id as page_first_rev_id,
+    av.actor_user AS page_first_rev_user_id,
+    gu.user_central_id AS page_first_rev_user_central_id,
+    av.actor_is_anon AS page_first_rev_anon_user,
+    av.actor_name AS page_first_rev_user_text,
+    av.ar_timestamp AS page_first_rev_timestamp
+  FROM ${SQLHelper.ARCHIVE_VIEW} av
+  JOIN global_user_match gu
+  ON gu.wiki_db = av.wiki_db AND gu.user_id = av.actor_user
   -- Filter undefined rev_ids and page_ids
   WHERE ar_rev_id IS NOT NULL
     AND ar_rev_id > 0
@@ -102,6 +117,7 @@ page_first_revision AS (
       wiki_db,
       page_id,
       page_first_rev_user_id,
+      page_first_rev_user_central_id,
       page_first_rev_anon_user,
       page_first_rev_user_text,
       page_first_rev_timestamp
@@ -111,6 +127,7 @@ page_first_revision AS (
       page_id,
       page_first_rev_id,
       page_first_rev_user_id,
+      page_first_rev_user_central_id,
       page_first_rev_anon_user,
       page_first_rev_user_text,
       page_first_rev_timestamp,
@@ -128,6 +145,7 @@ SELECT
   p.page_namespace,
   p.page_is_redirect,
   fr.page_first_rev_user_id,
+  fr.page_first_rev_user_central_id,
   fr.page_first_rev_anon_user,
   fr.page_first_rev_user_text,
   fr.page_first_rev_timestamp
@@ -142,6 +160,7 @@ GROUP BY -- Grouping by to enforce expected partitioning
   p.page_namespace,
   p.page_is_redirect,
   fr.page_first_rev_user_id,
+  fr.page_first_rev_user_central_id,
   fr.page_first_rev_anon_user,
   fr.page_first_rev_user_text,
   fr.page_first_rev_timestamp

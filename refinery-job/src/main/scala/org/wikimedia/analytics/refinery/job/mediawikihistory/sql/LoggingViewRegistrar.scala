@@ -52,6 +52,9 @@ class LoggingViewRegistrar(
     spark.read.format(readerFormat).load(commentUnprocessedPath).createOrReplaceTempView(commentUnprocessedView)
     spark.read.format(readerFormat).load(loggingUnprocessedPath).createOrReplaceTempView(loggingUnprocessedView)
 
+    // Assert that needed revision and archive views are already registered
+    assert(spark.sqlContext.tableNames().contains(SQLHelper.CENTRALAUTH_VIEW))
+
     // Prepare joining logging to actor using broadcast
     val logActorSplitsSql = SQLHelper.skewSplits(loggingUnprocessedView, "wiki_db, log_actor", wikiClause, 4, 3)
     val logActorSplits = spark.sql(logActorSplitsSql)
@@ -98,7 +101,17 @@ class LoggingViewRegistrar(
       // NOTE: Logging table has duplicated rows (same values except for log_id)
       //       We deduplicate them using group by taking the minimum log_id
       s"""
-WITH distinct_filtered_logging AS (
+WITH global_user_match AS (
+  SELECT
+    wiki_db,
+    user_id,
+    user_central_id
+  FROM ${SQLHelper.CENTRALAUTH_VIEW}
+  WHERE TRUE
+    ${wikiClause}
+),
+
+distinct_filtered_logging AS (
   SELECT DISTINCT
     wiki_db,
     -- We take the oldest possible log_id
@@ -181,15 +194,28 @@ user_filtered AS (
     $wikiClause
 ),
 
+user_combined AS (
+  SELECT
+    u.wiki_db,
+    u.user_id,
+    gu.user_central_id,
+    u.user_is_temp
+  FROM user_filtered u
+  LEFT JOIN global_user_match gu
+     ON u.wiki_db = gu.wiki_db
+     AND u.user_id = gu.user_id
+),
+
 actor_with_is_temp AS (
   SELECT
     a.wiki_db,
     a.actor_id,
     a.actor_user,
+    u.user_central_id AS actor_user_central,
     a.actor_name,
     u.user_is_temp AS actor_is_temp
   FROM actor_filtered a
-    LEFT JOIN user_filtered u
+    LEFT JOIN user_combined u
       ON a.wiki_db = u.wiki_db
       AND a.actor_user = u.user_id
 ),
@@ -199,12 +225,11 @@ actor_split AS (
     wiki_db,
     actor_id,
     actor_user,
+    actor_user_central,
     actor_name,
     actor_is_temp,
     EXPLODE(getLogActorSplitsList(wiki_db, actor_id)) as actor_split
   FROM actor_with_is_temp
-  WHERE TRUE
-    $wikiClause
 ),
 
 comment_split AS (
@@ -225,6 +250,7 @@ SELECT
   log_action,
   log_timestamp,
   actor_user,
+  actor_user_central,
   actor_name,
   if(actor_name is null, null, actor_user is null) actor_is_anon,
   actor_is_temp,
