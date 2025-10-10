@@ -6,6 +6,7 @@ import com.amazon.deequ.repository.ResultKey
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.types.{DoubleType, LongType, MapType, StringType, StructField, StructType, TimestampType}
 import org.wikimedia.analytics.refinery.core.HivePartition
+import com.amazon.deequ.metrics.{Distribution, Metric}
 
 import java.sql.Timestamp
 
@@ -117,7 +118,16 @@ class DeequVerificationSuiteToDataQualityAlerts(spark: SparkSession)(verificatio
             // Severity level of the Check. Can be "Warning" or "Error".
             // It will be set both for Success and Failure statuses.
             constraint.check.level.toString,
-            constraint.result.metric.get.value.getOrElse(null),
+            // distribution value type may be truncated to maxBins (top N) —
+            // so distribution.absolutes.size or distribution.bins.length only
+            // tells you how many bins were returned, not necessarily the true value
+            // e.g. total distinct count across the whole column.
+            // If you need the exact/approx distinct count, use the numeric metric(if available)
+            constraint.result.metric.get.value.toOption match {
+                case Some(value: Double) => value
+                case Some(_: Distribution) => null
+                case _ => null
+            },
             constraint.result.constraint.toString,
             constraint.result.message.orNull,
             runId,

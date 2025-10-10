@@ -4,7 +4,7 @@ import com.amazon.deequ.VerificationSuite
 import com.amazon.deequ.analyzers.runners.AnalysisRunner
 import com.amazon.deequ.repository.memory.InMemoryMetricsRepository
 import com.amazon.deequ.repository.{MetricsRepository, ResultKey}
-import com.amazon.deequ.analyzers.{ApproxCountDistinct, Size}
+import com.amazon.deequ.analyzers.{CountDistinct, Size}
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.wikimedia.analytics.refinery.core.HivePartition
@@ -129,6 +129,7 @@ object MediawikiHistoryMetrics extends LogHelper with ConfigHelper{
         AnalysisRunner
           .onData(denormalizedHistoryDf)
           .addAnalyzer(Size()) //count of mw history event
+          .addAnalyzer(CountDistinct("wiki_db"))
           .useRepository(repository)
           .saveOrAppendResult(historyCountsMetricKey)
           .run()
