@@ -1,3 +1,9 @@
+## v0.3.4
+* Bug Fix: Add support for Deequ Metric value Distribution data type
+* Add check for wikis count to Mediawiki history data quality checks
+* Adapt mediawiki_history to the removal of mediawiki revision.rev_sha1
+* MW Dumper: Add support for Multi-content Revisions (MCR)
+
 ## v0.3.3
 * Refine: Added agent.ua_string as a possible source when parsing user agent while refining
 * Fine-tune MediaWikiHistoryChecker thresholds
