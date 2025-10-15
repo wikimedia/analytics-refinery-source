@@ -13,7 +13,11 @@ object MediawikiMultiContentRevisionSha1 {
     }
 
     /**
-     * Function computing the re-hashed sha1 in base 36 of multi-content revisions sha1.
+     * Scala implementation of MediaWiki's RevisionSlots::computeSha1().
+     * It computes a re-hashed sha1 in base 36 of multi-content revisions sha1.
+     * Original Mediawiki code:
+     * https://github.com/wikimedia/mediawiki/blob/14cb7eed0fcfd3f6d6a4ced7145202b6c7c32c68/includes/Revision/RevisionSlots.php#L195-L208
+     *
      * @param contentRolesAndSha1 A list of structured pairs of the form {slot_role_name, sha1}
      * @return <li>null if the content list is null or empty
      *         <li>the single content sha1 value if the content list contains one element
