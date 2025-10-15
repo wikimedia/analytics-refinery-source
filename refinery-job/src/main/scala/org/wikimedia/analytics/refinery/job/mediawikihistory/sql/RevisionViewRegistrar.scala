@@ -31,10 +31,7 @@ class RevisionViewRegistrar(
     // View names for not reusable views
     private val actorUnprocessedView = "actor_unprocessed"
     private val commentUnprocessedView = "comment_unprocessed"
-    private val contentUnprocessedView = "content_unprocessed"
     private val revisionUnprocessedView = "revision_unprocessed"
-    private val slotRolesUnprocessedView = "slot_roles_unprocessed"
-    private val slotsUnprocessedView = "slots_unprocessed"
 
     /**
      * Register the revision view in spark session joining the revision unprocessed table
@@ -44,27 +41,22 @@ class RevisionViewRegistrar(
     def run(
         actorUnprocessedPath: String,
         commentUnprocessedPath: String,
-        contentUnprocessedPath: String,
-        revisionUnprocessedPath: String,
-        slotRolesUnprocessedPath: String,
-        slotsUnprocessedPath: String
+        revisionUnprocessedPath: String
     ): Unit = {
 
         log.info(s"Registering revision view")
 
-        // Assert that needed change_tags view is already registered
+        // Assert that needed change_tags and slots views are already registered
         assert(spark.sqlContext.tableNames().contains(SQLHelper.CHANGE_TAGS_VIEW))
+        assert(spark.sqlContext.tableNames().contains(SQLHelper.SLOTS_VIEW))
 
         // Register needed unprocessed-views
         spark.read.format(readerFormat).load(actorUnprocessedPath).createOrReplaceTempView(actorUnprocessedView)
         spark.read.format(readerFormat).load(commentUnprocessedPath).createOrReplaceTempView(commentUnprocessedView)
-        spark.read.format(readerFormat).load(contentUnprocessedPath).createOrReplaceTempView(contentUnprocessedView)
         spark.read.format(readerFormat).load(revisionUnprocessedPath).createOrReplaceTempView(revisionUnprocessedView)
-        spark.read.format(readerFormat).load(slotRolesUnprocessedPath).createOrReplaceTempView(slotRolesUnprocessedView)
-        spark.read.format(readerFormat).load(slotsUnprocessedPath).createOrReplaceTempView(slotsUnprocessedView)
 
         // Prepare UDF to compute revision sha1 from multi-content sha1s
-        spark.udf.register("compute_sha1", MediawikiMultiContentRevisionSha1.computeForRows _)
+        SQLHelper.registerComputeSha1UDF(spark)
 
         // Prepare joining revision to actor using broadcast
         val revActorSplitsSql = SQLHelper.skewSplits(revisionUnprocessedView, "wiki_db, rev_actor", wikiClause, 4, 3)
@@ -127,7 +119,6 @@ WITH revision_actor_comment_splits AS (
     rev_minor_edit,
     rev_deleted,
     rev_len,
-    rev_sha1,
     rev_actor,
     -- assign a subgroup  from rev_id among the actor splits
     CAST(COALESCE(rev_id, 0) % getRevActorSplits(wiki_db, rev_actor) AS INT) AS rev_actor_split,
@@ -184,7 +175,7 @@ SELECT
   rev_deleted,
   rev_len,
   CASE WHEN rev_deleted & 1 = 0
-    THEN compute_sha1(collect_list(struct(slot_roles.role_name, content.content_sha1)))
+    THEN compute_sha1(collect_list(struct(slots.role_name, slots.content_sha1)))
     ELSE NULL
   END rev_sha1,
   null rev_content_model,
@@ -203,16 +194,10 @@ FROM revision_actor_comment_splits r
   LEFT JOIN ${SQLHelper.CHANGE_TAGS_VIEW} ct
     ON r.wiki_db = ct.wiki_db
       AND r.rev_id = ct.ct_rev_id
-  LEFT JOIN $slotsUnprocessedView slots
+  LEFT JOIN ${SQLHelper.SLOTS_VIEW} slots
     ON r.wiki_db = slots.wiki_db
       AND r.rev_id = slots.slot_revision_id
-      AND NOT (r.rev_deleted & 1 = 0)
-  LEFT JOIN $slotRolesUnprocessedView slot_roles
-    ON slots.wiki_db = slot_roles.wiki_db
-      AND slots.slot_role_id = slot_roles.role_id
-  LEFT JOIN $contentUnprocessedView content
-    ON slots.wiki_db = content.wiki_db
-      AND slots.slot_content_id = content.content_id
+      AND r.rev_deleted & 1 = 0
 
   GROUP BY
     r.wiki_db,

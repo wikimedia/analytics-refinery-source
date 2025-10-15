@@ -1,6 +1,7 @@
 package org.wikimedia.analytics.refinery.job.mediawikihistory.sql
 
 import org.apache.spark.sql.SparkSession
+import org.wikimedia.analytics.refinery.spark.sql.MediawikiMultiContentRevisionSha1
 
 import scala.collection.mutable
 
@@ -23,6 +24,7 @@ object SQLHelper {
   val LOGGING_VIEW = "logging"
   val PAGE_VIEW = "page"
   val REVISION_VIEW = "revision"
+  val SLOTS_VIEW = "slots"
   val USER_VIEW = "user"
 
   /**
@@ -76,6 +78,13 @@ object SQLHelper {
       "dedup_list",
       (a1: mutable.WrappedArray[String]) => a1.distinct
     )
+  }
+
+  /**
+   * Function registering the computeSha1 UDF to the given spark-context
+   */
+  def registerComputeSha1UDF(spark: SparkSession): Unit = {
+    spark.udf.register("compute_sha1", MediawikiMultiContentRevisionSha1.computeForRows _)
   }
 
 }

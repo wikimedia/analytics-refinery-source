@@ -65,13 +65,17 @@ class AllViewsRegistrar(
         new ChangeTagsViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
             .run(changeTagUnprocessedPath, changeTagDefUnprocessedPath)
 
+        new SlotsViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
+            .run(contentUnprocessedPath, slotRolesUnprocessedPath, slotsUnprocessedPath)
+
+        // Warning: Archive and Revision view registration need to happen
+        // AFTER Slots and ChangeTags ones as they are expected to be registered
+
         new ArchiveViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-            .run(actorUnprocessedPath, archiveUnprocessedPath, contentUnprocessedPath,
-                revisionUnprocessedPath, slotRolesUnprocessedPath, slotsUnprocessedPath)
+            .run(actorUnprocessedPath, archiveUnprocessedPath, revisionUnprocessedPath)
 
         new RevisionViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
-            .run(actorUnprocessedPath, commentUnprocessedPath, contentUnprocessedPath,
-                revisionUnprocessedPath, slotRolesUnprocessedPath, slotsUnprocessedPath)
+            .run(actorUnprocessedPath, commentUnprocessedPath, revisionUnprocessedPath)
 
         new LoggingViewRegistrar(spark, statsAccumulator, numPartitions, wikiClause, readerFormat)
             .run(actorUnprocessedPath, userUnprocessedPath, commentUnprocessedPath, loggingUnprocessedPath)
