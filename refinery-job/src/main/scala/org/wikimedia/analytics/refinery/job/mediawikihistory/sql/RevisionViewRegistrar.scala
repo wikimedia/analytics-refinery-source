@@ -204,9 +204,9 @@ FROM revision_actor_comment_splits r
     ON r.wiki_db = ct.wiki_db
       AND r.rev_id = ct.ct_rev_id
   LEFT JOIN $slotsUnprocessedView slots
-    ON ar.wiki_db = slots.wiki_db
-      AND ar_rev_id = slots.slot_revision_id
-      AND NOT (ar_deleted & 1 = 0)
+    ON r.wiki_db = slots.wiki_db
+      AND r.rev_id = slots.slot_revision_id
+      AND NOT (r.rev_deleted & 1 = 0)
   LEFT JOIN $slotRolesUnprocessedView slot_roles
     ON slots.wiki_db = slot_roles.wiki_db
       AND slots.slot_role_id = slot_roles.role_id

@@ -185,8 +185,8 @@ FROM archive_actor_split ar
       AND ar.ar_rev_id = ct.ct_rev_id
   LEFT JOIN $slotsUnprocessedView slots
     ON ar.wiki_db = slots.wiki_db
-      AND ar_rev_id = slots.slot_revision_id
-      AND NOT (ar_deleted & 1 = 0)
+      AND ar.ar_rev_id = slots.slot_revision_id
+      AND NOT (ar.ar_deleted & 1 = 0)
   LEFT JOIN $slotRolesUnprocessedView slot_roles
     ON slots.wiki_db = slot_roles.wiki_db
       AND slots.slot_role_id = slot_roles.role_id

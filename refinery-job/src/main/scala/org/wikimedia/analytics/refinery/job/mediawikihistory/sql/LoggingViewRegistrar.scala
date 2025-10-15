@@ -160,6 +160,27 @@ logging_actor_comment_splits AS (
   FROM distinct_filtered_logging
 ),
 
+actor_filtered AS (
+  SELECT
+    wiki_db,
+    actor_id,
+    actor_user,
+    actor_name
+  FROM $actorUnprocessedView
+  WHERE TRUE
+    $wikiClause
+),
+
+user_filtered AS (
+  SELECT
+    wiki_db,
+    user_id,
+    user_is_temp
+  FROM $userUnprocessedView
+  WHERE TRUE
+    $wikiClause
+),
+
 actor_with_is_temp AS (
   SELECT
     a.wiki_db,
@@ -167,12 +188,10 @@ actor_with_is_temp AS (
     a.actor_user,
     a.actor_name,
     u.user_is_temp AS actor_is_temp
-  FROM $actorUnprocessedView a
-    LEFT JOIN $userUnprocessedView u
+  FROM actor_filtered a
+    LEFT JOIN user_filtered u
       ON a.wiki_db = u.wiki_db
       AND a.actor_user = u.user_id
-  WHERE TRUE
-    $wikiClause
 ),
 
 actor_split AS (
