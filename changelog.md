@@ -1,8 +1,5 @@
-## v0.3.6
-* Add user_central_id to the mediawiki_history dataset(s)
-
 ## v0.3.5
-* Same as v0.3.4, version increased due to Jenkins deployment bug
+* Add user_central_id to the mediawiki_history dataset(s)
 
 ## v0.3.4
 * Bug Fix: Add support for Deequ Metric value Distribution data type
