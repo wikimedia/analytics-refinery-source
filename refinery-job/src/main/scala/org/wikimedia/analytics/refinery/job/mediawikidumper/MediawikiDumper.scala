@@ -140,7 +140,8 @@ object MediawikiDumper extends LogHelper {
             .selectExpr(
               "page_id as pageId",
               "page_namespace_id as ns",
-              "page_title as title",
+              "replace(page_title, '_', ' ') as title",
+              "replace(page_redirect_target, '_', ' ') as redirectTarget",
               "user_text as contributor",
               // user_id is null when this revision was done by an IP editor
               // user_id = 0 when this revision was done by an old system user

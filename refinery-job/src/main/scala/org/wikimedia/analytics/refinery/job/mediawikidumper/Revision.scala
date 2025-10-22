@@ -20,6 +20,7 @@ case class Revision(
     ns: Long,
     pageId: Long,
     title: String,
+    redirectTarget: Option[String] = None,
     revisionId: Long,
     timestamp: Instant,
     contributor: String,
@@ -158,5 +159,5 @@ case class Revision(
            |    </revision>""".stripMargin
     }
 
-    def buildPage: Page = Page(pageId = pageId, ns = ns, title = title)
+    def buildPage: Page = Page(pageId = pageId, ns = ns, title = title, redirectTarget = redirectTarget)
 }

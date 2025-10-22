@@ -87,4 +87,56 @@ class RevisionSpec
 
     output should equal(reference)
   }
+
+  "getPage" should "generate correct Page rendering when a Page is a redirect" in {
+    val base = Revision(
+      ns = 1,
+      pageId = 1,
+      title = "title",
+      revisionId = 1,
+      timestamp = Instant.parse("2025-01-01T00:00:00.00Z"),
+      contributor = "abc",
+      contributorId = Some(1),
+      isEditorVisible = true,
+      comment = "comment",
+      isCommentVisible = true,
+      isContentVisible = true,
+      contentSlots = Map(
+        "main" -> Slot(
+          content_body = Some("abc"),
+          content_format = Some("abc"),
+          content_model = Some("abc"),
+          content_sha1 = Some("abc"),
+          content_size = Some(3),
+          origin_rev_id = Some(1),
+        )
+      ),
+      parentId = Some(1)
+    )
+
+    val redirectNone = base.copy(redirectTarget = None)
+    val redirectEmptyString = base.copy(redirectTarget = Some(""))
+    val redirectWithTarget = base.copy(redirectTarget = Some("Other Title"))
+
+    val noneOutput = redirectNone.buildPage.getXML
+    val emptyStringOutput = redirectEmptyString.buildPage.getXML
+    val withTargetOutput = redirectWithTarget.buildPage.getXML
+
+    val referenceNoneAndEmpty =
+      """  <page>
+        |    <title>title</title>
+        |    <ns>1</ns>
+        |    <id>1</id>""".stripMargin
+
+    val referenceWithTargetOutput =
+      """  <page>
+        |    <title>title</title>
+        |    <ns>1</ns>
+        |    <id>1</id>
+        |    <redirect title="Other Title" />""".stripMargin
+
+    noneOutput should equal(referenceNoneAndEmpty)
+    emptyStringOutput should equal(referenceNoneAndEmpty)
+    withTargetOutput should equal(referenceWithTargetOutput)
+  }
 }

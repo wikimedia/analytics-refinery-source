@@ -61,6 +61,54 @@ case class SiteInfo(
             |    </namespaces>
             |  </siteinfo>""".stripMargin
     }
+
+    def correctedLanguageCode: String = {
+        // Due to https://phabricator.wikimedia.org/T407902, a couple special wikis, such as commonswiki,
+        // return a bad language code. Here we use a list of known bad language codes to instead default to en.
+
+        val incorrectLanguageCodes = Set(
+            "advisors",
+            "board",
+            "boardgovcom",
+            "commons",
+            "electcom",
+            "foundation",
+            "internal",
+            "labs",
+            "login",
+            "mediawiki",
+            "meta",
+            "movementroles",
+            "nostalgia",
+            "outreach",
+            "sources",
+            "species",
+            "techconduct",
+            "testcommons",
+            "testwikidata",
+            "wikidata",
+            "wikimania",
+            "wikimania2005",
+            "wikimania2006",
+            "wikimania2007",
+            "wikimania2008",
+            "wikimania2009",
+            "wikimania2010",
+            "wikimania2011",
+            "wikimania2012",
+            "wikimania2013",
+            "wikimania2014",
+            "wikimania2015",
+            "wikimania2016",
+            "wikimania2017",
+            "wikimania2018"
+        )
+
+        if (incorrectLanguageCodes.contains(languageCode))
+            "en" // default to english
+        else
+            languageCode
+    }
 }
 
 case class NamespaceInfo(

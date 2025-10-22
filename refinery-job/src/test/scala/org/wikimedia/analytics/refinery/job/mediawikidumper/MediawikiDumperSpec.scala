@@ -91,6 +91,7 @@ class MediawikiDumperSpec
             StructField("page_id", LongType),
             StructField("page_namespace_id", LongType),
             StructField("page_title", StringType),
+            StructField("page_redirect_target", StringType),
             StructField("user_id", LongType),
             StructField("user_text", StringType),
             StructField("user_is_visible", BooleanType),
