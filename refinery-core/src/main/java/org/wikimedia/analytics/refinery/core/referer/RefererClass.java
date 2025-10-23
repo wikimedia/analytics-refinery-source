@@ -25,6 +25,7 @@ public enum RefererClass {
     UNKNOWN("unknown"),
     SEARCH_ENGINE("external (search engine)"),
     MEDIA_SITE("external (media sites)"),
+    AI_CHATBOT("external (AI chatbot)"),
     NONE("none");
 
     private final String refLabel;

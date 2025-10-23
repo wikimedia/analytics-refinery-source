@@ -17,24 +17,28 @@
 package org.wikimedia.analytics.refinery.core.referer;
 
 /**
- * An enum for classifying external referer that are from
- * media sites and are non search engines.
+ * An enum for classifying external referer that are from media sites
  */
 public enum MediaSitesDefinition {
-    YOUTUBE("Youtube", "[^\\?\\/]*?((youtube|googlevideo|ytimg)\\.com|youtu\\.be)"),
-    FACEBOOK("Facebook", "[^\\?\\/]*?((facebook\\.(com|co))|(.messenger\\.com))"),
-    TWITTER("Twitter", "(t\\.co$)|(t\\.co[^a-zA-Z0-9\\.])|[^\\?\\/]*?((twitter|twimg|twttr)\\.(com|android))"),
-    REDDIT("Reddit", "[^\\?\\/]*?((reddit\\.com)|(redd\\.it))"),
-    TIKTOK("Tiktok", "([^\\?\\/]*?\\.tiktok\\.com)|(tiktok\\.com)"),
-    QUORA("Quora", "[^\\?\\/]*?((quora\\.com)|(quoracdn\\.net))"),
-    INSTAGRAM("Instagram", "(ig\\.me)|[^\\?\\/]*?((instagram|cdninstagram)\\.com)"),
-    YCOMBINATOR("Ycombinator", "[^\\?\\/]*?((startupschool\\.org)|(ycombinator\\.com))"),
-    LINKEDIN("LinkedIn", "[^\\?\\/]*?((linkedin\\.(com|android))|lnkd\\.in)"),
-    GITHUB("Github", "[^\\?\\/]*?(github\\.com)"),
-    PINTEREST("Pinterest", "[^\\?\\/]*?((pin\\.it)|(pinimg\\.com)|\\.pinterest)|pinterest"),
-    COURSERA("Coursera", "[^\\?\\/]*?(coursera\\.(org|com))"),
-    MEDIUM("Medium", "[^\\?\\/]*?(medium\\.com)"),
-    STACKOVERFLOW("Stackoverflow", "[^\\?\\/]*?(((stackexchange|stackapps|askubuntu|blogoverflow|stackoverflow)\\.com)|mathoverflow\\.net)");
+    BLUESKY("Bluesky", "bsky\\.app"),
+    COURSERA("Coursera", "coursera\\.(org|com)"),
+    DISCORD("Discord", "discord\\.com"),
+    FACEBOOK("Facebook", "(facebook\\.(com|co))|(messenger\\.com)"),
+    GITHUB("Github", "github\\.com"),
+    INSTAGRAM("Instagram", "(ig\\.me)|((instagram|cdninstagram)\\.com)"),
+    LINKEDIN("LinkedIn", "(linkedin\\.(com|android))|lnkd\\.in"),
+    MEDIUM("Medium", "medium\\.com"),
+    PINTEREST("Pinterest", "((pin\\.it)|(pinimg\\.com)|\\.pinterest)|pinterest"),
+    QUORA("Quora", "(quora\\.com)|(quoracdn\\.net)"),
+    REDDIT("Reddit", "(reddit\\.com)|(redd\\.it)|(com\\.reddit)"),
+    STACKOVERFLOW("Stackoverflow", "((stackexchange|stackapps|askubuntu|blogoverflow|stackoverflow)\\.com)|mathoverflow\\.net"),
+    STEAM("Steam", "steam\\.com"),
+    THREADS("Threads", "threads\\.com"),
+    TIKTOK("Tiktok", "tiktok\\.com"),
+    TWITCH("Twitch", "twitch\\.tv"),
+    TWITTER("Twitter", "(x\\.com)|(t\\.co$)|(t\\.co[^a-zA-Z0-9\\.])|((twitter|twimg|twttr)\\.(com|android))"),
+    YCOMBINATOR("Ycombinator", "(startupschool\\.org)|(ycombinator\\.com)"),
+    YOUTUBE("Youtube", "((youtube|googlevideo|ytimg)\\.com)|(youtu\\.be)");
 
     private final String mediaSitesName;
     private final String hostPattern;
@@ -56,8 +60,11 @@ public enum MediaSitesDefinition {
      */
     public String getPattern() {
 
-        return String.format("(^[^:]*?:\\/\\/(%s))", this.hostPattern);
-
+        // Regexp Explanation:
+        //   ^[^:]*?:\/\/ -- Only consider URLS with a protocol
+        //   ([A-Za-z0-9\\.\\-]*\.)*? -- Accept any subdomains
+        //   (%s) -- The search engine host pattern
+        return String.format("^[^:]*?:\\/\\/([A-Za-z0-9\\.\\-]*\\.)*?(%s)", this.hostPattern);
 
     }
 

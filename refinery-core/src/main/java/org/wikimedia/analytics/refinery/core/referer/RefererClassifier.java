@@ -28,8 +28,9 @@ public class RefererClassifier {
 
     private static final RefererClassifier instance = new RefererClassifier();
 
-    private static Pattern searchEnginePattern;
-    private static Pattern mediaSitePattern;
+    private static final Pattern searchEnginePattern;
+    private static final Pattern mediaSitePattern;
+    private static final Pattern aiChatbotPattern;
 
     private RefererClassifier() {
 
@@ -40,8 +41,8 @@ public class RefererClassifier {
     }
 
     public static class RefererData {
-        private RefererClass refererClassLabel;
-        private String refererIdentified;
+        private final RefererClass refererClassLabel;
+        private final String refererIdentified;
 
         private RefererData(RefererClass refererType, String refererName) {
             refererClassLabel = refererType;
@@ -73,6 +74,13 @@ public class RefererClassifier {
 
         mediaSitePattern = Pattern.compile(msPattern.substring(0, msPattern.length() - 1));
 
+        String cbPattern = "";
+        for (AIChatbotsDefinition cb:AIChatbotsDefinition.values()) {
+            cbPattern = cbPattern.concat(cb.getPattern() + "|");
+        }
+
+        aiChatbotPattern = Pattern.compile(cbPattern.substring(0, cbPattern.length() - 1));
+
     }
 
     /**
@@ -83,7 +91,7 @@ public class RefererClassifier {
      */
     public RefererData classifyReferer(String url) {
         String refererUrlName = "";
-        
+
         if (url == null || url.isEmpty() || url.equals("-")) {
             return new RefererData(RefererClass.NONE, "none");
         }
@@ -101,8 +109,13 @@ public class RefererClassifier {
             return new RefererData(RefererClass.UNKNOWN, "none");
         }
 
-        String[] domainParts = StringUtils.splitPreserveAllTokens(urlParts[2], '.');
+        String domain = urlParts[2].replaceFirst("[\\?/#].*", "");
+        // Domain must contain only valid characters, and at least one letter (No TLD is purely numeric)
+        if (!domain.matches("[\\w\\.\\-:]+") || !domain.matches(".*[A-Za-z].*")) {
+            return new RefererData(RefererClass.UNKNOWN, "none");
+        }
 
+        String[] domainParts = StringUtils.splitPreserveAllTokens(domain, '.');
         if (domainParts == null || domainParts.length < 2) {
             return new RefererData(RefererClass.UNKNOWN, "none");
         }
@@ -127,6 +140,13 @@ public class RefererClassifier {
             }
         }
 
+        // Checking for AIChatbots before search-engines as deepmind.google would
+        // pop-up in search-engine otherwise
+        if (!Objects.equals(nameAIChatbot(url), "none")) {
+            refererUrlName = nameAIChatbot(url);
+            return new RefererData(RefererClass.AI_CHATBOT, refererUrlName);
+        }
+
         if (!Objects.equals(nameSearchEngine(url), "none")) {
             refererUrlName = nameSearchEngine(url);
             return new RefererData(RefererClass.SEARCH_ENGINE, refererUrlName);
@@ -143,7 +163,6 @@ public class RefererClassifier {
     /**
      * Determines the search engine that served as a referer
      * for a particular request.
-     *
      * If no search engine was found returns "none"
      *
      * @param rawReferer the value in the referer field.
@@ -170,6 +189,19 @@ public class RefererClassifier {
                 Pattern pattern = Pattern.compile(ms.getPattern());
                 if (pattern.matcher(rawReferer).find()) {
                     return ms.getMediaSitesName();
+                }
+            }
+        }
+
+        return "none";
+    }
+
+    public String nameAIChatbot(String rawReferer) {
+        if (aiChatbotPattern.matcher(rawReferer).find()) {
+            for (AIChatbotsDefinition cb : AIChatbotsDefinition.values()) {
+                Pattern pattern = Pattern.compile(cb.getPattern());
+                if (pattern.matcher(rawReferer).find()) {
+                    return cb.getAIChatbotName();
                 }
             }
         }

@@ -23,30 +23,32 @@ package org.wikimedia.analytics.refinery.core.referer;
  * to specify a string with spaces and symbols if needed.
  */
 public enum SearchEngineDefinition {
-    GOOGLE("Google", "google\\.", ""),
-    GOOGLE_TRANSLATE("Google Translate", "translate\\.googleusercontent\\.", "prev=search|client=srp"),
-    YAHOO("Yahoo", "search\\.yahoo\\.", ""),
-    BING("Bing", "\\.bing\\.", ""),
-    YANDEX("Yandex", "yandex\\.", ""),
-    BAIDU("Baidu", "baidu\\.", ""),
-    DDG("DuckDuckGo", "duckduckgo\\.", ""),
-    ECOSIA("Ecosia", "\\.ecosia\\.", ""),
-    STARTPAGE("Startpage", "\\.(startpage|ixquick)\\.", ""),
-    NAVER("Naver", "search\\.naver\\.", ""),
-    DOCOMO("Docomo", "\\.docomo\\.", ""),
-    QWANT("Qwant", "qwant\\.", ""),
-    DAUM("Daum", "search\\.daum\\.", ""),
-    MYWAY("MyWay", "search\\.myway\\.", ""),
-    SEZNAM("Seznam", "\\.seznam\\.", ""),
-    AU("AU", "search\\.auone\\.", ""),
-    ASK("Ask", "\\.ask\\.", ""),
-    LILO("Lilo", "\\.lilo\\.", ""),
-    COC_COC("Coc Coc", "coccoc\\.", ""),
+    //
     AOL("AOL", "search\\.aol\\.", ""),
-    RAKUTEN("Rakuten", "\\.rakuten\\.", ""),
-    BRAVE("Brave", "search\\.brave\\.", ""),
-    PETAL("Petal", "petalsearch\\.", ""),
+    ASK("Ask", "ask\\.com", ""),
+    AU("AU", "search\\.auone\\.jp", ""),
+    BAIDU("Baidu", "baidu\\.com", ""),
+    BING("Bing", "bing\\.com", ""),
+    BRAVE("Brave", "search\\.brave\\.com", ""),
+    COC_COC("Coc Coc", "coccoc\\.com", ""),
+    DAUM("Daum", "search\\.daum\\.net", ""),
+    DDG("DuckDuckGo", "duckduckgo\\.(com|mobile.android)", ""),
+    DOCOMO("Docomo", "docomo\\.ne\\.jp", ""),
+    ECOSIA("Ecosia", "ecosia\\.(org|android)", ""),
+    GOOGLE("Google", "google\\.([A-Za-z]{2,3}(\\.[A-Za-z]{0,3})?(/.*|$)|android|earth)", ""),
+    GOOGLE_TRANSLATE("Google Translate", "translate\\.googleusercontent\\.", "prev=search|client=srp"),
+    KAGI("Kagi", "kagi\\.com", ""),
+    LILO("Lilo", "lilo\\.(org|mobile.android)", ""),
+    MYWAY("MyWay", "search\\.myway\\.com", ""),
+    NAVER("Naver", "search\\.naver\\.com", ""),
+    PETAL("Petal", "petalsearch\\.com", ""),
+    QWANT("Qwant", "qwant\\.(com|liberty)", ""),
+    RAKUTEN("Rakuten", "rakuten\\.[A-Za-z]{2,3}(\\.[A-Za-z]{0,3})?(/.*|$)", ""),
+    SEZNAM("Seznam", "seznam\\.(cz|sbrowser|mapy)", ""),
+    STARTPAGE("Startpage", "(startpage|ixquick)\\.[A-Za-z]{2,3}(\\.[A-Za-z]{0,3})?(/.*|$)", ""),
     VK("VK", "go\\.mail\\.ru", ""),
+    YAHOO("Yahoo", "search\\.yahoo\\.", ""),
+    YANDEX("Yandex", "ya\\.ru|yandex\\.([A-Za-z]{2,3}(\\.[A-Za-z]{0,3})?(/.*|$)|browser|searchplugin|searchapp|translate)", ""),
 
     // Maintain PREDICTED_OTHER in last position for `SearchEngineClassifier.identifySearchEngine()`
     PREDICTED_OTHER("Predicted Other", "(^.?|(?<!re)|(^|\\.)(pre|secure))(search|suche)", "");
@@ -73,7 +75,23 @@ public enum SearchEngineDefinition {
      */
     public String getPattern() {
 
-        String extendedHostPattern = String.format("(^[^:]*?:\\/\\/[^\\?\\/]*?(%s))", this.hostPattern);
+        // The PREDICTED_OTHER case need to have more permissive values before its host pattern
+        String extendedHostPattern;
+        if (this.equals(PREDICTED_OTHER)) {
+            // Regexp Explanation:
+            //   ^[^:]*?:\/\/ -- Only consider URLS with a protocol
+            //   [^\?\/]*? -- Any character not ? nor / (the domain regex is stricter for this case)
+            //   (%s) -- The search engine host pattern
+            extendedHostPattern = String.format("(^[^:]*?:\\/\\/[^\\?\\/]*?(%s))", this.hostPattern);
+        } else {
+            // Regexp Explanation:
+            //   ^[^:]*?:\/\/ -- Only consider URLS with a protocol
+            //   ([A-Za-z0-9\\.\\-]*\.)*? -- Accept any subdomains
+            //   (%s) -- The search engine host pattern
+            extendedHostPattern = String.format("^[^:]*?:\\/\\/([A-Za-z0-9\\.\\-]*\\.)*?(%s)", this.hostPattern);
+        }
+        //
+
 
         if (this.paramPattern.isEmpty()) {
             return extendedHostPattern;

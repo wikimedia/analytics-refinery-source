@@ -17,11 +17,12 @@ Bing Search Engine Path,https://www.bing.com/google.com?toWww=1,external (search
 Bing Search Engine Parameter,https://www.bing.com/search?q=google.com,external (search engine),TRUE,Bing
 Baidu,https://www.baidu.com/link?url=,external (search engine),TRUE,Baidu
 Yandex,http://yandex.ru/clck/jsredir?from=yandex.ru%3Bsearch%2F%3Bweb%3B%3B,external (search engine),TRUE,Yandex
+Yandex,android-app://com.yandex.browser,external (search engine),TRUE,Yandex
 Duck Duck Go 1,https://duckduckgo.com,external (search engine),TRUE,DuckDuckGo
 Duck Duck Go 2,https://duckduckgo.com/?t=palemoon&q=Atmosphere+of+Earth&ia=about,external (search engine),TRUE,DuckDuckGo
 Ecosia,https://www.ecosia.org/search?q=foo,external (search engine),TRUE,Ecosia
 Startpage,https://www.startpage.com/do/asearch,external (search engine),TRUE,Startpage
-Startpage ixquick,https://www.ixquick.de/do/asearch,external (search engine),TRUE,Startpage
+Startpage ixquick,https://www.ixquick.com/do/asearch,external (search engine),TRUE,Startpage
 Naver,https://m.search.naver.com/search.naver?where=m&query=facebook&sm=mtb_she&qdt=0,external (search engine),TRUE,Naver
 Docomo,https://search.smt.docomo.ne.jp/result?search_box=apple&MT=apple&SID=s04&URANK=1&SPAGE=1&TPLID=01&UNIT=02&IND=000&PAGE=1,external (search engine),TRUE,Docomo
 Qwant,https://www.qwant.com/?q=airplane&t=web,external (search engine),TRUE,Qwant
