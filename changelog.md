@@ -1,3 +1,7 @@
+## v0.3.6
+* Fix various bugs on MW Dumper code.
+* Add utility to create SHA256 fingerprints of the files of a particular HDFS folder.
+
 ## v0.3.5
 * Add user_central_id to the mediawiki_history dataset(s)
 
