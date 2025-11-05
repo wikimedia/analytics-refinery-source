@@ -49,11 +49,19 @@ object MediawikiMultiContentRevisionSha1 {
      */
     def computeForTuples(contentRolesAndSha1s: Seq[(String, String)]): String = {
         if (contentRolesAndSha1s == null || contentRolesAndSha1s.isEmpty) {
+            return null
+        }
+        val contentRolesAndSha1sFiltered = contentRolesAndSha1s.filter(
+            tup =>
+                tup != null && tup._1 != null && tup._2 != null
+        )
+
+        if (contentRolesAndSha1sFiltered.isEmpty) {
             null
-        } else if (contentRolesAndSha1s.length == 1) {
-            contentRolesAndSha1s.head._2
+        } else if (contentRolesAndSha1sFiltered.length == 1) {
+            contentRolesAndSha1sFiltered.head._2
         } else {
-            contentRolesAndSha1s
+            contentRolesAndSha1sFiltered
                 .sortBy(_._1)
                 .foldLeft("")((acc: String, contentRoleAndSha1: (String, String)) =>{
                     if (acc.isEmpty) {

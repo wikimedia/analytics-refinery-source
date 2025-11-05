@@ -24,6 +24,11 @@ class MediawikiMultiContentRevisionSha1Test extends FlatSpec with Matchers with 
         MediawikiMultiContentRevisionSha1.computeForRows(inputRow) should be(null)
     }
 
+    "computeForRows" should "return null if a partial NULL-struct is passed in the array" in {
+        val inputRow =  spark.sql("""select array(struct("main", NULL))""").collect.head.getAs[Seq[Row]](0)
+        MediawikiMultiContentRevisionSha1.computeForRows(inputRow) should be(null)
+    }
+
     "computeForRows" should "return first sha1 in case of one element input and null" in {
         val inputRow =  spark.sql("""select array(struct("main", "1jkqj7lxs8l999wu3jzlmzafwh6e2h4"), NULL)""").collect.head.getAs[Seq[Row]](0)
         MediawikiMultiContentRevisionSha1.computeForRows(inputRow) should equal("1jkqj7lxs8l999wu3jzlmzafwh6e2h4")
@@ -53,6 +58,22 @@ class MediawikiMultiContentRevisionSha1Test extends FlatSpec with Matchers with 
             ("main", "1jkqj7lxs8l999wu3jzlmzafwh6e2h4")
         )
         MediawikiMultiContentRevisionSha1.computeForTuples(inputTuples) should equal("ie6h3mnqzrk3gi7yzvoqaqi5xeur9d3")
+    }
+
+    "computeForTuples" should "ignore a NULL-struct when passed in the array" in {
+        val inputTuples =  Seq(
+            null,
+            ("main", "1jkqj7lxs8l999wu3jzlmzafwh6e2h4")
+        )
+        MediawikiMultiContentRevisionSha1.computeForTuples(inputTuples) should be("1jkqj7lxs8l999wu3jzlmzafwh6e2h4")
+    }
+
+    "computeForTuples" should "ignore a partial NULL-struct when passed in the array" in {
+        val inputTuples = Seq(
+            ("mediainfo", "t15553qh44ewu6rrgv4xbrkpoutrvj3"),
+            ("main", null)
+        )
+        MediawikiMultiContentRevisionSha1.computeForTuples(inputTuples) should be("t15553qh44ewu6rrgv4xbrkpoutrvj3")
     }
 
 }
