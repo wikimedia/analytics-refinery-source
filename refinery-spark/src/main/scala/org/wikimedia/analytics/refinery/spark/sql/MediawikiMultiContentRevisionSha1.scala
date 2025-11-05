@@ -24,11 +24,16 @@ object MediawikiMultiContentRevisionSha1 {
      *         <li>the recomputed sha1 if the content list contains more than one element
      */
     def computeForRows(contentRolesAndSha1s: Seq[Row]): String = {
-      if (contentRolesAndSha1s == null || contentRolesAndSha1s.isEmpty) {
-        null
-      } else {
-        computeForTuples(contentRolesAndSha1s.map(row => (row.getString(0), row.getString(1))))
-      }
+        if (contentRolesAndSha1s == null || contentRolesAndSha1s.isEmpty) {
+            null
+        } else {
+            val contentRolesAndSha1sFiltered = contentRolesAndSha1s.filter(row => row != null)
+            if (contentRolesAndSha1sFiltered.isEmpty) {
+                null
+            } else {
+                computeForTuples(contentRolesAndSha1sFiltered.map(row => (row.getString(0), row.getString(1))))
+            }
+        }
     }
 
     /**

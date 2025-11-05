@@ -19,6 +19,16 @@ class MediawikiMultiContentRevisionSha1Test extends FlatSpec with Matchers with 
         MediawikiMultiContentRevisionSha1.computeForRows(inputRow) should equal("1jkqj7lxs8l999wu3jzlmzafwh6e2h4")
     }
 
+    "computeForRows" should "return null if a NULL-struct is passed in the array" in {
+        val inputRow =  spark.sql("""select array(NULL)""").collect.head.getAs[Seq[Row]](0)
+        MediawikiMultiContentRevisionSha1.computeForRows(inputRow) should be(null)
+    }
+
+    "computeForRows" should "return first sha1 in case of one element input and null" in {
+        val inputRow =  spark.sql("""select array(struct("main", "1jkqj7lxs8l999wu3jzlmzafwh6e2h4"), NULL)""").collect.head.getAs[Seq[Row]](0)
+        MediawikiMultiContentRevisionSha1.computeForRows(inputRow) should equal("1jkqj7lxs8l999wu3jzlmzafwh6e2h4")
+    }
+
     "computeForRows" should "return computed sha1 in case of multi-element input" in {
         val inputRow =  spark.sql(
             """select array(
