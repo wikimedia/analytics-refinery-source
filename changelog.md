@@ -1,3 +1,8 @@
+## v0.3.7
+* Add Data quality check for Pageview Human-Bot ratio anomaly
+* Update referer classification patterns
+* Fix mediawiki-history UDF NPE
+
 ## v0.3.6
 * Fix various bugs on MW Dumper code.
 * Add utility to create SHA256 fingerprints of the files of a particular HDFS folder.
