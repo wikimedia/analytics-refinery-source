@@ -133,8 +133,8 @@ object PageViewMetrics extends LogHelper with ConfigHelper{
      * @return Dataframe
      */
     private[dataquality] def generateAgentDailyRatioMetrics(spark: SparkSession)
-                                                                  (conf: Config,
-                                                                   currPvDf: DataFrame): DataFrame = {
+                                                           (conf: Config,
+                                                            currPvDf: DataFrame): DataFrame = {
 
         val currRatioDf = currPvDf.groupBy()
           .agg(
@@ -182,10 +182,11 @@ object PageViewMetrics extends LogHelper with ConfigHelper{
         val ratioMetricWriter = conf.metrics_table match {
             case Some(value) =>
                 // Delete old metrics in case of rerun
+                log.info(s"Deleting any previous data for current day ${conf.source_hive_table_partition.dt.orNull} available in $value")
                 spark.sql(
                     s"""
                        |DELETE FROM $value
-                       |WHERE partition_ts = CAST('${conf.source_hive_table_partition.dt}' AS TIMESTAMP)
+                       |WHERE partition_ts = CAST('${conf.source_hive_table_partition.dt.orNull}' AS TIMESTAMP)
                        |AND source_table = '${conf.source_hive_table_partition.tableName}'
                        |AND tags['metric_type'] = 'PageViewAgentRatios'
                        |""".stripMargin
@@ -236,6 +237,15 @@ object PageViewMetrics extends LogHelper with ConfigHelper{
         // Alerts will be persisted only when the user
         // provides an output table or output path.
         if (conf.alerts_table.nonEmpty) {
+            log.info(s"Deleting any previous data for current day ${conf.source_hive_table_partition.dt.orNull} available in ${conf.alerts_table.get}")
+            spark.sql(
+                s"""
+                   |DELETE FROM ${conf.alerts_table.get}
+                   |WHERE partition_ts = CAST('${conf.source_hive_table_partition.dt.orNull}' AS TIMESTAMP)
+                   |AND source_table = '${conf.source_hive_table_partition.tableName}'
+                   |AND tags['metric_type'] = 'PageViewAgentRatios'
+                   |""".stripMargin
+            )
             dqAlerts.write.iceberg.output(conf.alerts_table.get).save()
         }
 
