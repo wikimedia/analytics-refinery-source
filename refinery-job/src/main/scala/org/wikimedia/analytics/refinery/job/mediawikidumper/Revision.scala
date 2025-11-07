@@ -45,118 +45,103 @@ case class Revision(
     // And the schema outlined at
     // https://www.mediawiki.org/xml/export-0.11.xsd
     def getXML: String = {
-        val parentIdElement = {
-            if (parentId.isDefined) {
-                f"\n      <parentid>${parentId.get}</parentid>"
-            } else {
-                ""
-            }
-        }
-
-        val contributorElement = {
+        def contributorElement(sb: StringBuilder): StringBuilder = {
             if (isEditorVisible && contributor != null) {
-
                 // TODO: change for IP Masking when we have temp user information
                 // logged in editor: Non-Zero Positive Integer ID
                 // old system import: Zero ID
                 // IP editor: Null ID
-                val identifier = {
-                    if (contributorId.isDefined) {
-                        f"""|        <username>${escape(contributor)}</username>
-                            |        <id>${contributorId.get}</id>""".stripMargin
-                    } else {
-                        f"""|        <ip>${escape(contributor)}</ip>""".stripMargin
-                    }
+                sb.append("      <contributor>\n")
+                if (contributorId.isDefined) {
+                  sb.append(f"        <username>${escape(contributor)}</username>\n")
+                  sb.append(f"        <id>${contributorId.get}</id>\n")
+                } else {
+                  sb.append(f"        <ip>${escape(contributor)}</ip>\n")
                 }
-                f"""|      <contributor>
-                            |${identifier}
-                    |      </contributor>""".stripMargin
+                sb.append("      </contributor>\n")
             } else {
-                """      <contributor deleted="deleted" />"""
+                sb.append("      <contributor deleted=\"deleted\" />\n")
             }
         }
 
-        val minorElement = {
-            if (isMinor) {
-                "\n      <minor />"
-            } else {
-                ""
-            }
-        }
-
-        val commentElement = {
+        def commentElement(sb: StringBuilder): StringBuilder = {
             if (isCommentVisible) {
                 if (comment == null || comment.isEmpty) {
-                    ""
+                    sb
                 } else {
-                    f"""|
-                    |      <comment>${escape(comment)}</comment>""".stripMargin
+                    sb.append(f"      <comment>${escape(comment)}</comment>\n")
                 }
             } else {
-                f"""|
-                |      <comment deleted="deleted" />""".stripMargin
+                sb.append("      <comment deleted=\"deleted\" />\n")
             }
         }
 
-        def slotTextElement(slot: Slot): String = {
+        def slotTextElement(sb: StringBuilder, indent: String, slot: Slot): StringBuilder = {
             if (isContentVisible && slot.content_size.getOrElse(0L) > 0L) {
                 val size = slot.content_size.getOrElse(0L)
                 val sha1 = slot.content_sha1.getOrElse("")
                 val text = slot.content_body.getOrElse("")
 
-                f"""<text bytes="${size}" sha1="${sha1}" xml:space="preserve">${escape(text)}</text>"""
+                sb.append(f"""${indent}<text bytes="${size}" sha1="${sha1}" xml:space="preserve">""")
+                sb.append(escape(text))
+                sb.append(f"""</text>\n""")
             } else if (isContentVisible) {
-                f"""<text bytes="0" />"""
+                sb.append(f"""${indent}<text bytes="0" />\n""")
             } else {
-                """<text bytes="-1" deleted="deleted" />"""
+                sb.append(f"""${indent}<text bytes="-1" deleted="deleted" />\n""")
             }
         }
 
-        val mainSlot = contentSlots("main")
-        val mainSlotTextElement = slotTextElement(mainSlot)
+        def contentElements(sb: StringBuilder): StringBuilder = {
+            val sortedOtherSlots = contentSlots.toSeq.filter(_._1 != "main").sortBy(_._1)
+            if (isContentVisible && sortedOtherSlots.nonEmpty) {
+                sortedOtherSlots.map { case (role, slot) =>
+                    val slotRole = role
+                    val slotOrigin = slot.origin_rev_id.getOrElse(-1L)
+                    val slotModel = slot.content_model.getOrElse("error-no-model")
+                    val slotFormat = slot.content_format.getOrElse("error-no-format")
 
-        val contentElements = {
-          val sortedOtherSlots = contentSlots.toSeq.filter(_._1 != "main").sortBy(_._1)
-          if (isContentVisible && sortedOtherSlots.nonEmpty) {
-              val otherSlotsElements = sortedOtherSlots.map { case (role, slot) =>
-                  val slotRole = role
-                  val slotOrigin = slot.origin_rev_id.getOrElse(-1L)
-                  val slotModel = slot.content_model.getOrElse("error-no-model")
-                  val slotFormat = slot.content_format.getOrElse("error-no-format")
-
-                  f"""|      <content>
-                      |        <role>$slotRole</role>
-                      |        <origin>$slotOrigin</origin>
-                      |        <model>$slotModel</model>
-                      |        <format>$slotFormat</format>
-                      |        ${slotTextElement(slot)}
-                      |      </content>""".stripMargin
-              }
-
-              f"""${otherSlotsElements.mkString("\n", "\n", "")}"""
-          } else {
-            ""
+                    sb.append(f"      <content>\n")
+                    sb.append(f"        <role>$slotRole</role>\n")
+                    sb.append(f"        <origin>$slotOrigin</origin>\n")
+                    sb.append(f"        <model>$slotModel</model>\n")
+                    sb.append(f"        <format>$slotFormat</format>\n")
+                    slotTextElement(sb, "        ", slot)
+                    sb.append(f"      </content>\n")
+                }
+                sb
+            } else {
+                sb
+            }
           }
-        }
 
-        val sha1Element = {
+        def sha1Element(sb: StringBuilder): StringBuilder = {
             if (isContentVisible) {
-                f"""<sha1>${MediawikiMultiContentRevisionSha1.computeForTuples(slotsSha1sAsSeq())}</sha1>"""
+                sb.append(f"      <sha1>${MediawikiMultiContentRevisionSha1.computeForTuples(slotsSha1sAsSeq())}</sha1>\n")
             } else {
-                f"""<sha1 />"""
+                sb.append(f"      <sha1 />\n")
             }
         }
 
-        f"""    <revision>
-           |      <id>$revisionId</id>${parentIdElement}
-           |      <timestamp>$timestamp</timestamp>
-           |$contributorElement$minorElement$commentElement
-           |      <origin>${mainSlot.origin_rev_id.getOrElse(-1L)}</origin>
-           |      <model>${mainSlot.content_model.getOrElse("error-no-model")}</model>
-           |      <format>${mainSlot.content_format.getOrElse("error-no-format")}</format>
-           |      $mainSlotTextElement$contentElements
-           |      $sha1Element
-           |    </revision>""".stripMargin
+        // assemble the XML elements in the proper order
+        val sb = new StringBuilder()
+        sb.append(f"    <revision>\n")
+        sb.append(f"      <id>$revisionId</id>\n")
+        parentId.map(pid => sb.append(f"      <parentid>${pid}</parentid>\n"))
+        sb.append(f"      <timestamp>$timestamp</timestamp>\n")
+        contributorElement(sb)
+        if (isMinor) { sb.append("      <minor />\n") }
+        commentElement(sb)
+        val mainSlot = contentSlots("main")
+        sb.append(f"      <origin>${mainSlot.origin_rev_id.getOrElse(-1L)}</origin>\n")
+        sb.append(f"      <model>${mainSlot.content_model.getOrElse("error-no-model")}</model>\n")
+        sb.append(f"      <format>${mainSlot.content_format.getOrElse("error-no-format")}</format>\n")
+        slotTextElement(sb, "      ", mainSlot)
+        contentElements(sb)
+        sha1Element(sb)
+        sb.append("    </revision>")
+
+        sb.toString()
     }
 
     def buildPage: Page = Page(pageId = pageId, ns = ns, title = title, redirectTarget = redirectTarget)

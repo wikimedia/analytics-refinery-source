@@ -139,4 +139,114 @@ class RevisionSpec
     emptyStringOutput should equal(referenceNoneAndEmpty)
     withTargetOutput should equal(referenceWithTargetOutput)
   }
+
+  "getXML" should "honor vertical bars (`|`) in content body" in {
+    val body = """{{Infobox City
+              | |official_name=Apples
+              | |subdivision_type=Canton
+              | |subdivision_name= Vaud
+              | |subdivision_type1=District
+              | |subdivision_name1=[[Aubonne (district)|Aubonne]]
+              | |latd=06|latm=26
+              | |longd=46|longm=33
+              | |elevation=635
+              | |area_total=12.89
+              | |population_total=1142
+              | |population_as_of=2004
+              | |population_density= 86
+              | |leader_title=Mayor
+              | |leader_name= Claude-Alain Roulet
+              | |website= [www.apples.ch]
+              |}}
+              |
+              |'''Apples''' is a [[commune]] in [[Switzerland]]. It is in [[Vaud]] [[Canton]]. Vaud Canton has 364 communes in it.
+              |
+              |[[Image:Apples-drapeau.png|thumb|left|Flag of Apples]]
+              |
+              |
+              |{{stub}}
+              |[[Category:Cities in Switzerland]]
+              |
+              |[[de:Apples]]
+              |[[en:Apples, Vaud]]
+              |[[fr:Apples]]
+              |[[it:Apples]]
+              |[[nl:Apples]]
+              |[[ro:Apples, Elveţia]]""".stripMargin
+
+    val rev = Revision(
+      ns = 1,
+      pageId = 1,
+      title = "title",
+      revisionId = 1,
+      timestamp = Instant.parse("2025-01-01T00:00:00.00Z"),
+      contributor = "abc",
+      contributorId = Some(1),
+      isEditorVisible = true,
+      comment = "comment",
+      isCommentVisible = true,
+      isContentVisible = true,
+      contentSlots = Map(
+        "main" -> Slot(
+          content_body = Some(body),
+          content_format = Some("abc"),
+          content_model = Some("abc"),
+          content_sha1 = Some("abc"),
+          content_size = Some(3),
+          origin_rev_id = Some(1),
+        )
+      ),
+      parentId = Some(1)
+    )
+
+    val reference =
+      """    <revision>
+        |      <id>1</id>
+        |      <parentid>1</parentid>
+        |      <timestamp>2025-01-01T00:00:00Z</timestamp>
+        |      <contributor>
+        |        <username>abc</username>
+        |        <id>1</id>
+        |      </contributor>
+        |      <comment>comment</comment>
+        |      <origin>1</origin>
+        |      <model>abc</model>
+        |      <format>abc</format>
+        |      <text bytes="3" sha1="abc" xml:space="preserve">{{Infobox City
+        | |official_name=Apples
+        | |subdivision_type=Canton
+        | |subdivision_name= Vaud
+        | |subdivision_type1=District
+        | |subdivision_name1=[[Aubonne (district)|Aubonne]]
+        | |latd=06|latm=26
+        | |longd=46|longm=33
+        | |elevation=635
+        | |area_total=12.89
+        | |population_total=1142
+        | |population_as_of=2004
+        | |population_density= 86
+        | |leader_title=Mayor
+        | |leader_name= Claude-Alain Roulet
+        | |website= [www.apples.ch]
+        |}}
+        |
+        |'''Apples''' is a [[commune]] in [[Switzerland]]. It is in [[Vaud]] [[Canton]]. Vaud Canton has 364 communes in it.
+        |
+        |[[Image:Apples-drapeau.png|thumb|left|Flag of Apples]]
+        |
+        |
+        |{{stub}}
+        |[[Category:Cities in Switzerland]]
+        |
+        |[[de:Apples]]
+        |[[en:Apples, Vaud]]
+        |[[fr:Apples]]
+        |[[it:Apples]]
+        |[[nl:Apples]]
+        |[[ro:Apples, Elveţia]]</text>
+        |      <sha1>abc</sha1>
+        |    </revision>""".stripMargin
+
+    rev.getXML should equal(reference)
+  }
 }

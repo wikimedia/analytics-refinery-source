@@ -12,8 +12,8 @@ case class XMLFragment(
             "  </page>"
         } else if (isXMLHeader) {
             val si = siteInfo.get
-            f"""|<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.11/ http://www.mediawiki.org/xml/export-0.11.xsd" version="0.11" xml:lang="${si.correctedLanguageCode}">
-                |${si.getXML}""".stripMargin
+            val header = f"""<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.11/ http://www.mediawiki.org/xml/export-0.11.xsd" version="0.11" xml:lang="${si.correctedLanguageCode}">\n"""
+            header + si.getXML
 
         } else if (isXMLFooter) {
             "</mediawiki>"

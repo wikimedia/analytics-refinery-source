@@ -38,28 +38,32 @@ case class SiteInfo(
 ) {
 
     // This Rendering follows the schema outlined at
-    // https://www.mediawiki.org/xml/export-0.10.xsd
+    // https://www.mediawiki.org/xml/export-0.11.xsd
     def getXML: String = {
         val namespaceTags = namespaces.map { ns =>
             val prefix = {
-                f"""<namespace key="${ns.code}" case="${ns.caseSetting}""""
+                f"""      <namespace key="${ns.code}" case="${ns.caseSetting}""""
             }
             if (ns.name.isEmpty) {
-                prefix + " />"
+                prefix + " />\n"
             } else {
-                prefix + f">${ns.name}</namespace>"
+                prefix + f">${ns.name}</namespace>\n"
             }
         }
-        f"""|  <siteinfo>
-            |    <sitename>${siteName}</sitename>
-            |    <dbname>${dbName}</dbname>
-            |    <base>${homePage}</base>
-            |    <generator>MediaWiki Content File Export ${ProjectInfo.version}</generator>
-            |    <case>${caseSetting}</case>
-            |    <namespaces>
-            |      ${namespaceTags.mkString("\n      ")}
-            |    </namespaces>
-            |  </siteinfo>""".stripMargin
+
+        val sb = new StringBuilder()
+        sb.append(f"  <siteinfo>\n")
+        sb.append(f"    <sitename>${siteName}</sitename>\n")
+        sb.append(f"    <dbname>${dbName}</dbname>\n")
+        sb.append(f"    <base>${homePage}</base>\n")
+        sb.append(f"    <generator>MediaWiki Content File Export ${ProjectInfo.version}</generator>\n")
+        sb.append(f"    <case>${caseSetting}</case>\n")
+        sb.append(f"    <namespaces>\n")
+        namespaceTags.map( nsTag => sb.append(nsTag))
+        sb.append(f"    </namespaces>\n")
+        sb.append(f"  </siteinfo>")
+
+        sb.toString()
     }
 
     def correctedLanguageCode: String = {
