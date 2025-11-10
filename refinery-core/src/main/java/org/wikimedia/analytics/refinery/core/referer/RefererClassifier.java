@@ -110,8 +110,12 @@ public class RefererClassifier {
         }
 
         String domain = urlParts[2].replaceFirst("[\\?/#].*", "");
-        // Domain must contain only valid characters, and at least one letter (No TLD is purely numeric)
-        if (!domain.matches("[\\w\\.\\-:]+") || !domain.matches(".*[A-Za-z].*")) {
+        // Domain must contain only valid characters, at least one letter (No TLD is purely numeric),
+        // and not contain more than 10 dots (too long)
+        if (!domain.matches("^[\\w\\.\\-:]+$")
+                || !domain.matches(".*[A-Za-z].*")
+                || StringUtils.countMatches(domain, ".") > 10
+        ) {
             return new RefererData(RefererClass.UNKNOWN, "none");
         }
 

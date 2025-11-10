@@ -90,7 +90,6 @@ public enum SearchEngineDefinition {
             //   (%s) -- The search engine host pattern
             extendedHostPattern = String.format("^[^:]*?:\\/\\/([A-Za-z0-9\\.\\-]*\\.)*?(%s)", this.hostPattern);
         }
-        //
 
 
         if (this.paramPattern.isEmpty()) {
