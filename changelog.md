@@ -1,8 +1,11 @@
-## v0.3.8
+## v0.3.10
 * Add appropriate NULL checks to MediawikiMultiContentRevisionSha1.computeForTuples
 * Make referer classification more robust
 * Fix Duplicate Pageview metrics records in data quality tables.
 * Fix bug MW Dumper in which vertical bars ( `|` ) were not being honored.
+
+## v0.3.9 - Skipped
+## v0.3.8 - Skipped
 
 ## v0.3.7
 * Add Data quality check for Pageview Human-Bot ratio anomaly
