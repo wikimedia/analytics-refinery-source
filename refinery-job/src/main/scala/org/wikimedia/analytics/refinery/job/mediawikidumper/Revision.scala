@@ -47,10 +47,10 @@ case class Revision(
     def getXML: String = {
         def contributorElement(sb: StringBuilder): StringBuilder = {
             if (isEditorVisible && contributor != null) {
-                // TODO: change for IP Masking when we have temp user information
                 // logged in editor: Non-Zero Positive Integer ID
                 // old system import: Zero ID
                 // IP editor: Null ID
+                // Temp account (aka IP Masking): username starts with '~YYYY'. See T365693.
                 sb.append("      <contributor>\n")
                 if (contributorId.isDefined) {
                   sb.append(f"        <username>${escape(contributor)}</username>\n")

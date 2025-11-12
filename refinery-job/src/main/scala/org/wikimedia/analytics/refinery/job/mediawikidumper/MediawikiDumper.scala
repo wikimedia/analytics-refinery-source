@@ -127,10 +127,6 @@ object MediawikiDumper extends LogHelper {
       *   A dataframe containing the revisions from the source table
       */
     def buildBaseRevisionsDF(params: Params): DataFrame = {
-        // NOTE: the stuff left to do below is followed by code that, if used, will make the XML output
-        //   match the MediawikiDumperOutputTest.Simplewiki.Sample.xml perfectly
-        //   This approach can be used to work on and fix any data problems, but ultimately this query
-        //   should look like it does now, with the comments and to do lines removed.
         spark
             .sql(s"""SELECT *
            |FROM ${params.sourceTable}
@@ -148,14 +144,11 @@ object MediawikiDumper extends LogHelper {
               // when backfilling from current dumps:
               //   user_id = -1 either when the user is deleted via rev_deleted or something else went wrong
               "user_id as contributorId",
-              // TODO: example: simplewiki revision id 360821 has a redacted user showing up as visible here
               "user_is_visible as isEditorVisible",
               "revision_id as revisionId",
               // XSD mandates this timestamp format (timestamps are in UTC by spark.conf above)
               s"to_utc_timestamp(revision_dt, 'GMT') as timestamp",
               "revision_comment as comment",
-              // TODO: figure out why this data is wrong
-              // "revision_id <> 1714215 AND (revision_id = 360821 OR revision_comment_is_visible) as isCommentVisible",
               "revision_comment_is_visible as isCommentVisible",
               "revision_content_is_visible as isContentVisible",
               // revision_parent_id is null when the revision has no parent (the first revision or sometimes imported revisions)
