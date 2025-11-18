@@ -1,7 +1,7 @@
 package org.wikimedia.analytics.refinery.spark.sql
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
-import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.lit
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.core.HivePartition
@@ -18,6 +18,11 @@ class DataFrameToTableTest extends FlatSpec with Matchers with DataFrameSuiteBas
     }
 
     var tempDir: Path = _
+
+    override def beforeEach(): Unit = {
+        tempDir = Files.createTempDirectory("DataFrameToTableTest_db_table")
+        spark.sql("create database db")
+    }
 
     override def afterEach(): Unit = {
         spark.sql("DROP DATABASE IF EXISTS db CASCADE")
@@ -38,14 +43,9 @@ class DataFrameToTableTest extends FlatSpec with Matchers with DataFrameSuiteBas
         }
     }
 
-    def setupTable(): DataFrame = {
-        tempDir = Files.createTempDirectory("DataFrameToTableTest_db_table")
-        spark.sql("create database db;")
-        spark.sql(s"create table db.table (wiki string, year int, month int) USING PARQUET location '$tempDir' partitioned by (year, month)")
-    }
-
     "hiveInsertOverwritePartition" should "replace data into a single partition" in {
-        setupTable()
+        spark.sql(s"create table db.table (wiki string, year int, month int) USING PARQUET location '$tempDir' partitioned by (year, month)")
+
         // Prepare existing data in partition
         spark.createDataFrame(Seq(
             ("enwiki_not_replaced", 2024, 1),
@@ -65,13 +65,13 @@ class DataFrameToTableTest extends FlatSpec with Matchers with DataFrameSuiteBas
         val hivePartition = HivePartition(
             "db",
             "table",
-            "/fake/location", // location not really needed here, but it is nice for logging
+            tempDir.toString,
             "year=2024/month=2" // partitionPath
         )
 
         val dfWithPartitions = df.addPartitionColumnValues(hivePartition.partitions)
 
-        DataFrameToTable.hiveInsertOverwrite(dfWithPartitions, hivePartition.tableName, 1)
+        DataFrameToTable.hiveInsertOverwrite(dfWithPartitions, hivePartition, 1)
 
         val result: Array[Row] = spark.sql("select * from db.table sort by year desc, month desc, wiki desc").collect()
         result.length should equal(3)
@@ -79,8 +79,7 @@ class DataFrameToTableTest extends FlatSpec with Matchers with DataFrameSuiteBas
     }
 
     it should "add datacenter partition" in {
-        setupTable()
-        spark.sql("alter table db.table add columns (datacenter string, day int, hour int);")
+        spark.sql(s"create table db.table (wiki string, datacenter string, year int, month int, day int, hour int) USING PARQUET location '$tempDir' partitioned by (datacenter, year, month, day, hour)")
 
         val df = spark.createDataFrame(Seq(
             Tuple1("enwiki"),
@@ -89,15 +88,15 @@ class DataFrameToTableTest extends FlatSpec with Matchers with DataFrameSuiteBas
 
         // Here we are just using HivePartition for nice toString and logging purposes.
         val hivePartition = HivePartition(
-            "table",
             "db",
-            "/fake/location", // location not really needed here, but it is nice for logging
+            "table",
+            tempDir.toString,
             "datacenter=eqiad/year=2024/month=2/day=15/hour=0" // partitionPath
         )
 
         val dfWithPartitions = df.addPartitionColumnValues(hivePartition.partitions)
 
-        DataFrameToTable.hiveInsertOverwrite(dfWithPartitions, "db.table", 1)
+        DataFrameToTable.hiveInsertOverwrite(dfWithPartitions, hivePartition, 1)
 
         val result:Row = spark.sql("select datacenter, day, hour from db.table limit 1").collect()(0)
         (result.getString(0), result.getInt(1), result.getInt(2)) should equal(("eqiad", 15, 0))

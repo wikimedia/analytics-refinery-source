@@ -3,19 +3,19 @@ package org.wikimedia.analytics.refinery.job.refine.cli
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.FailFastMode
 import org.wikimedia.analytics.refinery.core.HivePartition
-import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, buildEventSchemaLoader}
+import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFunction, applyTransforms, buildEventSchemaLoader}
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
-import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget, SparkEventSchemaLoader}
+import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineTarget, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
+import scala.util.Success
 
 import java.net.URI
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
-import scala.util.Success
 
 object RefineHiveDataset
     extends LogHelper
@@ -233,16 +233,14 @@ object RefineHiveDataset
                         val inputDfWithPartitionValues = inputDf.addPartitionColumnValues(hivePartition.partitions)
 
                         // Apply the configured transform functions.
-                        val transformedDf = RefineHelper.applyTransforms(inputDfWithPartitionValues, config.transform_functions)
+                        val transformedDf = applyTransforms(inputDfWithPartitionValues, config.transform_functions)
 
                         // Insert and overwrite the DataFrame into the Hive table.
                         val recordCount = DataFrameToTable.hiveInsertOverwrite(
                             transformedDf,
-                            config.table,
+                            hivePartition,
                             outputFilesNumber
                         )
-
-                        reader.spark.sql(hivePartition.addPartitionQL)
 
                         log.info(s"Successfully refined $recordCount rows from ${config.input_paths} into $hivePartition")
                     }

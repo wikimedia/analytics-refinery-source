@@ -70,7 +70,7 @@ object DataFrameToTable extends LogHelper {
      */
     def hiveInsertOverwrite(
         df: DataFrame,
-        tableName: String,
+        hivePartition: HivePartition,
         outputFilesNumber: Int
     ): Long = {
         val spark: SparkSession = df.sparkSession
@@ -82,7 +82,7 @@ object DataFrameToTable extends LogHelper {
 
         // Merge the table schema with the df schema.
         // This is the schema that we need df to look like for successful insertion into Hive.
-        val compatibleSchema = spark.table(tableName)
+        val compatibleSchema = spark.table(hivePartition.tableName)
             .schema
             .merge(df.schema)
 
@@ -91,18 +91,32 @@ object DataFrameToTable extends LogHelper {
             .repartition(outputFilesNumber) // Fix number of output files
         outputDf.cache() // Cache the DataFrame. We are performing 2 actions on it.
 
-        // The following configuration is necessary to allow dynamic partition overwrite.
-        // In other word, overwriting the partition defined in the DataFrame.
-        spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+        // We have tried to use
+        // spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+        // but it loads all partitions into the catalog putting high pressure on the Hive Metastore.
+        // We fall back on implementing the delete+insert strategy instead
+        // Note: If partition is dynamic, write using partitionBy, if not, write directly to
+        // partition path (prevents to group-by partition columns when values are set).
+        // Finally add the partition to the Hive table (either directly or through repair table).
 
-        log.info(s"Writing DataFrame to $tableName with schema:\n${outputDf.schema.treeString}")
+        spark.sql(hivePartition.dropPartitionQL)
 
-        outputDf.write
-            .mode(SaveMode.Overwrite)
-            .insertInto(tableName)
+        if (hivePartition.isDynamic) {
+            log.info(
+                s"Writing dynamically-partitioned DataFrame to ${hivePartition.location} with schema:\n${outputDf.schema.treeString}"
+            )
+            outputDf.write.partitionBy(hivePartition.keys:_*).mode(SaveMode.Overwrite).parquet(hivePartition.location.get)
+        } else {
+            log.info(
+                s"Writing DataFrame to ${hivePartition.path} with schema:\n${outputDf.schema.treeString}"
+            )
+            outputDf.write.mode(SaveMode.Overwrite).parquet(hivePartition.path)
+        }
+
+        spark.sql(hivePartition.addPartitionQL)
 
         val recordCount = outputDf.count()
-        log.info(s"Wrote $recordCount rows to $tableName")
+        log.info(s"Wrote $recordCount rows to ${hivePartition.tableName}")
 
         outputDf.unpersist // Explicitly un-cache the cached DataFrame.
         recordCount
