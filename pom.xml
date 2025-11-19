@@ -10,7 +10,7 @@
 
     <groupId>org.wikimedia.analytics.refinery</groupId>
     <artifactId>refinery</artifactId>
-    <version>0.3.11-SNAPSHOT</version>
+    <version>0.3.11</version>
     <packaging>pom</packaging>
 
     <name>Wikimedia Analytics Refinery</name>
@@ -55,7 +55,7 @@
         SCM in CI. Namely CI pushes over https when developers typically use ssh.
     -->
         <developerConnection>${developerConnection}</developerConnection>
-        <tag>HEAD</tag>
+        <tag>v0.3.11</tag>
         <url>scm:git:https://gerrit.wikimedia.org/r/p/analytics/refinery/source</url>
     </scm>
 
@@ -557,7 +557,7 @@
                         </filters>
                         <transformers>
                             <!-- The following line is needed for proper reading of raw mediawiki avro files -->
-                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                         </transformers>
                     </configuration>
                 </plugin>
