@@ -1,3 +1,6 @@
+## v0.3.11
+* Update Refine-CLI job to not overwhelm Hive metastore
+
 ## v0.3.10
 * Add appropriate NULL checks to MediawikiMultiContentRevisionSha1.computeForTuples
 * Make referer classification more robust
