@@ -281,7 +281,7 @@ object geocode_ip extends LogHelper {
   * as some extra logic to add the is_mediawiki and is_bot struct fields.
   *
   * The user agent string will be extracted from one of the following columns:
-  * - agent.ua_string (a contextual attributes of the Experimentation Lab client libraries)
+  * - agent.ua_string (a contextual attributes of the Test Kitchen platform)
   * - http.request_headers['user-agent']
   *
   * In the order listed above, the first non null column value in the input DataFrame
