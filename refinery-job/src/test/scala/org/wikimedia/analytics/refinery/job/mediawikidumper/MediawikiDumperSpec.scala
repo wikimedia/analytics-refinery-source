@@ -528,7 +528,7 @@ class MediawikiDumperSpec
 
     compressedOutputFile.getName should
       equal(
-        "commonswiki-2025-10-02-p13327093r49883803r49883803.xml"
+        "commonswiki-2025-10-02-p13327093r49883803r1080349301.xml"
       )
 
     val output: String = {

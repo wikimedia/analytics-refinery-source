@@ -30,6 +30,25 @@ object MediawikiDumper extends LogHelper {
 
     import spark.implicits._ // Used when converting Rows to case classes.
 
+    /** Represents the range of pages and revisions within a partition.
+      *
+      * Used to keep track of the state of consuming a partition and to generate filenames for XML dump files
+     *  with the format:
+      * - Single page: wiki-date-pPageIdStartrRevisionIdStartrRevisionIdEnd.xml
+      * - Multiple pages: wiki-date-pPageIdStartpPageIdEnd.xml
+      *
+      * @param startPageId the first page ID in the partition
+      * @param startRevisionId the first revision ID in the partition
+      * @param endPageId the last page ID in the partition
+      * @param endRevisionId the last revision ID in the partition
+      */
+    private case class PageIdRange(
+        startPageId: Long,
+        startRevisionId: Long,
+        endPageId: Long,
+        endRevisionId: Long
+    )
+
     /** Main class entry point
       *
       * @param params
@@ -348,28 +367,28 @@ object MediawikiDumper extends LogHelper {
                         )
                       // use iterator rather than a functional approach like foldLeft
                       // to stream the partition rather than load it completely in memory.
-                      var pageIdRange: Option[((Long, Long), (Long, Long))] = None
+                      var pageIdRange: Option[PageIdRange] = None
                       while (revisions.hasNext) {
                           val revision = revisions.next()
                           pageIdRange match {
+                            // Case 1: First revision in the partition
+                            // Start a new page and initialize the range tracker
                             case None =>
                               outputStreamCompressorWriter
                                 .println(revision.buildPage.getXML)
                               outputStreamCompressorWriter
                                 .println(revision.getXML)
                               pageIdRange = Some(
-                                (
-                                  (
-                                    revision.pageId,
-                                    revision.revisionId
-                                  ),
-                                  (
-                                    revision.pageId,
-                                    revision.revisionId
-                                  )
+                                PageIdRange(
+                                  startPageId = revision.pageId,
+                                  startRevisionId = revision.revisionId,
+                                  endPageId = revision.pageId,
+                                  endRevisionId = revision.revisionId
                                 )
                               )
-                            case Some((start, (endPageId, _))) if endPageId != revision.pageId =>
+                            // Case 2: Starting a new page (different from the current endPageId)
+                            // Close the previous page and start a new one
+                            case Some(range) if range.endPageId != revision.pageId =>
                               outputStreamCompressorWriter
                                 .println(pageFooterFragment)
                               outputStreamCompressorWriter
@@ -377,30 +396,34 @@ object MediawikiDumper extends LogHelper {
                               outputStreamCompressorWriter
                                 .println(revision.getXML)
                               pageIdRange = Some(
-                                (
-                                  start,
-                                  (
-                                    revision.pageId,
-                                    revision.revisionId
-                                  )
+                                range.copy(
+                                  endPageId = revision.pageId,
+                                  endRevisionId = revision.revisionId
                                 )
                               )
-                            case Some(_) =>
+                            // Case 3: Processing another revision of the same page
+                            // Update the end revision ID to track the latest revision
+                            case Some(range) =>
                               outputStreamCompressorWriter
                                 .println(revision.getXML)
+                              pageIdRange = Some(
+                                range.copy(
+                                  endRevisionId = revision.revisionId
+                                )
+                              )
                           }
                         }
 
                         val partitionId = {
                             pageIdRange
-                                .map {
-                                    case (
-                                          (startPageId, startRevisionId),
-                                          (endPageId, endRevisionId)
-                                        ) if startPageId == endPageId =>
-                                        s"p${startPageId}r${startRevisionId}r$endRevisionId"
-                                    case ((startPageId, _), (endPageId, _)) =>
-                                        s"p${startPageId}p$endPageId"
+                                .map { range =>
+                                    // Single page partition: include revision range in filename
+                                    if (range.startPageId == range.endPageId) {
+                                        s"p${range.startPageId}r${range.startRevisionId}r${range.endRevisionId}"
+                                    // Multiple pages partition: include only page range in filename
+                                    } else {
+                                        s"p${range.startPageId}p${range.endPageId}"
+                                    }
                                 }
                                 .get
                         }
