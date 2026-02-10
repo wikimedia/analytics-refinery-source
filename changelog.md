@@ -1,3 +1,7 @@
+## v0.3.12
+* MediawikiDumper: fix filenames to include end revision when covering a single page.
+* Updated description of a TestKitchen contextual attribute
+
 ## v0.3.11
 * Update Refine-CLI job to not overwhelm Hive metastore
 
