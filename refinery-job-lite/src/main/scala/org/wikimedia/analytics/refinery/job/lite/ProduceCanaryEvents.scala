@@ -25,7 +25,7 @@ object ProduceCanaryEvents extends ConfigHelper {
       * Config class for use config files and args.
       */
     case class Config(
-        stream_name: String,
+        stream_names: Seq[String],
         timestamp: DateTime,
         schema_base_uris: Seq[String] = Seq(
             "https://schema.discovery.wmnet/repositories/primary/jsonschema",
@@ -51,11 +51,11 @@ object ProduceCanaryEvents extends ConfigHelper {
     object Config {
         // This is just used to ease generating help message with default values.
         // Required configs are set to dummy values.
-        val default: Config = Config("_EXAMPLE_STREAM_", DateTime.now())
+        val default: Config = Config(Seq("_EXAMPLE_STREAM_"), DateTime.now())
 
         val propertiesDoc: ListMap[String, String] = ListMap(
-            "stream_name" ->"""
-                |Only this stream will have canary events produced.
+            "stream_names" ->"""
+                |Only those streams will have canary events produced.
                 |""".stripMargin,
             "timestamp" ->"""
                 |Timestamp in ISO format for which the canary events will be produced.
@@ -115,7 +115,7 @@ object ProduceCanaryEvents extends ConfigHelper {
               |  # Produce canary events for NavigationTiming stream 2024-03-15T19:05:00
               |  java -cp refinery-job.jar \
               |     org.wikimedia.analytics.refinery.job.ProduceCanaryEvents \
-              |     --stream_name navigationtimining --timestamp 2024-03-15T19:05:00
+              |     --stream_names navigationtimining --timestamp 2024-03-15T19:05:00
               |"""
 
         /**
@@ -142,15 +142,18 @@ object ProduceCanaryEvents extends ConfigHelper {
 
         val config = Config(args)
 
-        val result = apply(config)
+        val results = apply(config)
 
-        if (result.isSuccess) {
-            log.info(s"Succeeded producing canary events to ${config.stream_name}.")
+        val isSuccess = ! results.exists(_.isFailure)
+        if (isSuccess) {
+            log.info(s"Succeeded producing canary events to ${config.stream_names}.")
         } else {
-            log.error("Encountered exception in produceCanaryEvents.", result.failed.get)
+            results.filter(_.isFailure).foreach(res => {
+                log.error("Encountered exception in produceCanaryEvents.", res.failed.get)
+            })
         }
 
-        sys.exit(if (result.isSuccess) 0 else 1)
+        sys.exit(if (isSuccess) 0 else 1)
     }
 
     def init(config: Config): (EventStreamFactory, BasicHttpClient) = {
@@ -209,18 +212,21 @@ object ProduceCanaryEvents extends ConfigHelper {
       * Produces canary events (or just logs them if config.dry_run).
       * @return
       */
-    def apply(config: Config): Try[Unit] = {
+    def apply(config: Config): Seq[Try[Unit]] = {
         val (eventStreamFactory, httpClient) = init(config)
-        val targetEventStream: EventStream = eventStreamFactory.createEventStream(config.stream_name)
 
-        Try(
-            if (targetEventStream == null) {
-                throw new IllegalArgumentException(s"No event stream match the provided stream_name ${config.stream_name}.")
-            } else {
-                val canaryEventProducer = new CanaryEventProducer(eventStreamFactory, httpClient)
-                produceCanaryEvents(canaryEventProducer, targetEventStream, config.timestamp, config.dry_run)
-            }
-        )
+        config.stream_names.map(streamName => {
+            val targetEventStream: EventStream = eventStreamFactory.createEventStream(streamName)
+
+            Try(
+                if (targetEventStream == null) {
+                    throw new IllegalArgumentException(s"No event stream match the provided stream_name ${streamName}.")
+                } else {
+                    val canaryEventProducer = new CanaryEventProducer(eventStreamFactory, httpClient)
+                    produceCanaryEvents(canaryEventProducer, targetEventStream, config.timestamp, config.dry_run)
+                }
+            )
+        })
     }
 
     /**
