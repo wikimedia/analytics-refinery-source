@@ -55,7 +55,7 @@ object ProduceCanaryEvents extends ConfigHelper {
 
         val propertiesDoc: ListMap[String, String] = ListMap(
             "stream_names" ->"""
-                |Only those streams will have canary events produced.
+                |Only those streams will have canary events produced (comma-separated list).
                 |""".stripMargin,
             "timestamp" ->"""
                 |Timestamp in ISO format for which the canary events will be produced.
@@ -144,16 +144,18 @@ object ProduceCanaryEvents extends ConfigHelper {
 
         val results = apply(config)
 
-        val isSuccess = ! results.exists(_.isFailure)
-        if (isSuccess) {
-            log.info(s"Succeeded producing canary events to ${config.stream_names}.")
-        } else {
+        val hasFailure = results.exists(_.isFailure)
+        if (results.exists(_.isSuccess)) {
+            val resultsAndNames = results.zip(config.stream_names)
+            log.info(s"Succeeded producing canary events to ${resultsAndNames.filter(_._1.isSuccess).map(_._2)}.")
+        }
+        if (hasFailure) {
             results.filter(_.isFailure).foreach(res => {
                 log.error("Encountered exception in produceCanaryEvents.", res.failed.get)
             })
         }
 
-        sys.exit(if (isSuccess) 0 else 1)
+        sys.exit(if (hasFailure) 1 else 0)
     }
 
     def init(config: Config): (EventStreamFactory, BasicHttpClient) = {
