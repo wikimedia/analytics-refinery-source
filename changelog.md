@@ -1,3 +1,7 @@
+## v0.3.13
+* ProduceCanaryEvents job handle multiple streams
+* Update ProduceCanaryEvents job for comments
+
 ## v0.3.12
 * MediawikiDumper: fix filenames to include end revision when covering a single page.
 * Updated description of a TestKitchen contextual attribute
