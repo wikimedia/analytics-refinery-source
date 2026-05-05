@@ -20,3 +20,10 @@ out/
 
 # Spark
 **/derby.log
+**/logs/
+
+# macOS
+.DS_Store
+
+# Maven backups
+*.bak
