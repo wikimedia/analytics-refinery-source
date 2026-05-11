@@ -3,6 +3,8 @@ package org.wikimedia.analytics.refinery.job.mediawikihistory.denormalized
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types._
+import org.wikimedia.analytics.refinery.job.mediawikihistory.page.PageState
+import org.wikimedia.analytics.refinery.job.mediawikihistory.user.UserState
 
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -196,5 +198,81 @@ class TestMediawikiEvent extends FlatSpec with Matchers {
     event.pageDetails.pageTitleHistorical should equal(Some("SomePage"))
     event.pageDetails.pageNamespaceHistorical should equal(Some(0))
     event.pageDetails.pageNamespaceIsContentHistorical should equal(Some(true))
+  }
+
+  "MediawikiEvent.eventLogId" should "be None for revision rows" in {
+    val row = new GenericRowWithSchema(
+      Array("enwiki", "20230115120000", "edit summary", 42L, "SomeUser", false, 100L, 999L, 998L, false, 0, 1500L, "abc123", "wikitext", null, null),
+      revisionRowSchema
+    )
+    MediawikiEvent.fromRevisionRow(row).eventLogId should equal(None)
+  }
+
+  it should "be None for archive rows" in {
+    val row = new GenericRowWithSchema(
+      Array("dewiki", "20220301090000", "restore", 7L, "Editor", false, 200L, "SomePage", 0, true, 555L, 554L, false, 0, 800L, "def456", null, null, null),
+      archiveRowSchema
+    )
+    MediawikiEvent.fromArchiveRow(row).eventLogId should equal(None)
+  }
+
+  it should "be populated from UserState.sourceLogId" in {
+    val userState = UserState(
+      wikiDb = "enwiki",
+      causedByEventType = "create",
+      userId = 1L,
+      userCentralId = Some(1L),
+      userTextHistorical = "SomeUser",
+      userText = "SomeUser",
+      isTemporary = false,
+      isPermanent = true,
+      sourceLogId = Some(12345L)
+    )
+    MediawikiEvent.fromUserState(userState).eventLogId should equal(Some(12345L))
+  }
+
+  it should "be None when UserState.sourceLogId is absent" in {
+    val userState = UserState(
+      wikiDb = "enwiki",
+      causedByEventType = "create",
+      userId = 1L,
+      userCentralId = Some(1L),
+      userTextHistorical = "SomeUser",
+      userText = "SomeUser",
+      isTemporary = false,
+      isPermanent = true
+    )
+    MediawikiEvent.fromUserState(userState).eventLogId should equal(None)
+  }
+
+  it should "be populated from PageState.sourceLogId" in {
+    val pageState = PageState(
+      wikiDb = "enwiki",
+      causedByEventType = "create",
+      titleHistorical = "SomePage",
+      title = "SomePage",
+      namespaceHistorical = 0,
+      namespaceIsContentHistorical = true,
+      namespace = 0,
+      namespaceIsContent = true,
+      isDeleted = false,
+      sourceLogId = Some(67890L)
+    )
+    MediawikiEvent.fromPageState(pageState).eventLogId should equal(Some(67890L))
+  }
+
+  it should "be None when PageState.sourceLogId is absent" in {
+    val pageState = PageState(
+      wikiDb = "enwiki",
+      causedByEventType = "create",
+      titleHistorical = "SomePage",
+      title = "SomePage",
+      namespaceHistorical = 0,
+      namespaceIsContentHistorical = true,
+      namespace = 0,
+      namespaceIsContent = true,
+      isDeleted = false
+    )
+    MediawikiEvent.fromPageState(pageState).eventLogId should equal(None)
   }
 }

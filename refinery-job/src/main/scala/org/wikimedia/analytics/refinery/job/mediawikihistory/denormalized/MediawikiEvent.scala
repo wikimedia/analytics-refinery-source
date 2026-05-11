@@ -143,6 +143,7 @@ object MediawikiEventRevisionDetails {
 
 case class MediawikiEvent(
                            wikiDb: String,
+                           eventLogId: Option[Long],
                            eventEntity: String,
                            eventType: String,
                            eventTimestamp: Option[Timestamp] = None,
@@ -155,6 +156,7 @@ case class MediawikiEvent(
                       ) {
   def toRow: Row = Row(
     wikiDb,
+    eventLogId.orNull,
     eventEntity,
     eventType,
     eventTimestamp.map(_.toString).orNull,
@@ -250,6 +252,7 @@ case class MediawikiEvent(
       // Explicit typing to Seq[Any] needed to accept coalescing values to null
       val columns: Seq[Any] = Seq(
           wikiDb,
+          eventLogId.orNull,
           eventEntity,
           eventType,
           eventTimestamp.map(_.toString).orNull,
@@ -383,6 +386,7 @@ object MediawikiEvent {
   val schema = StructType(
     Seq(
       StructField("wiki_db", StringType, nullable = false),
+      StructField("event_log_id", LongType, nullable = true),
       StructField("event_entity", StringType, nullable = false),
       StructField("event_type", StringType, nullable = false),
       StructField("event_timestamp", StringType, nullable = true),
@@ -479,6 +483,7 @@ object MediawikiEvent {
   def fromRow(row: Row): MediawikiEvent = {
     new MediawikiEvent(
       wikiDb = row.getAs[String]("wiki_db"),
+      eventLogId = getOptLong(row, "event_log_id"),
       eventEntity = row.getAs[String]("event_entity"),
       eventType = row.getAs[String]("event_type"),
       eventTimestamp = getOptTimestamp(row, "event_timestamp"),
@@ -582,6 +587,7 @@ object MediawikiEvent {
     val revDeletedFlag = getOptInt(row, "rev_deleted")
     new MediawikiEvent(
       wikiDb = row.getAs[String]("wiki_db"),
+      eventLogId = None,
       eventEntity = "revision",
       eventType = "create",
       eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getAs[String]("rev_timestamp")),
@@ -651,6 +657,7 @@ object MediawikiEvent {
     val revDeletedFlag = getOptInt(row, "ar_deleted")
     MediawikiEvent(
       wikiDb = row.getAs[String]("wiki_db"),
+      eventLogId = None,
       eventEntity = "revision",
       eventType = "create",
       eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getAs[String]("ar_timestamp")),
@@ -707,6 +714,7 @@ object MediawikiEvent {
   def fromUserState(userState: UserState): MediawikiEvent = {
     MediawikiEvent(
       wikiDb = userState.wikiDb,
+      eventLogId = userState.sourceLogId,
       eventEntity = "user",
       eventType = userState.causedByEventType,
       eventTimestamp = userState.startTimestamp,
@@ -772,6 +780,7 @@ object MediawikiEvent {
   def fromPageState(pageState: PageState): MediawikiEvent = {
     MediawikiEvent(
       wikiDb = pageState.wikiDb,
+      eventLogId = pageState.sourceLogId,
       eventEntity = "page",
       eventType = pageState.causedByEventType,
       eventTimestamp = pageState.startTimestamp,

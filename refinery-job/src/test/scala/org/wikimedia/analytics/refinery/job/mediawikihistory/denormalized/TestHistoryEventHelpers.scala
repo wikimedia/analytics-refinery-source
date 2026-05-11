@@ -9,7 +9,7 @@ object TestHistoryEventHelpers {
 
   import org.wikimedia.analytics.refinery.job.mediawikihistory.TestHelpers._
 
-  val emptyMwEvent = new MediawikiEvent(wikiDb = "", eventEntity = "", eventType = "")
+  val emptyMwEvent = new MediawikiEvent(wikiDb = "", eventLogId = None, eventEntity = "", eventType = "")
 
   def fakeUserState(userId: Long) = new UserState(
     wikiDb = "",
@@ -75,6 +75,7 @@ object TestHistoryEventHelpers {
 
       new MediawikiEvent(
         wikiDb = valueMap.getOrElse("wikiDb", wikiDb).get.asInstanceOf[String],
+        eventLogId = None,
         eventEntity = eventEntity,
         eventType = eventType,
         eventTimestamp = valueMap.getOrElse("eventTimestamp", eventTimestamp).asInstanceOf[Option[Timestamp]],
