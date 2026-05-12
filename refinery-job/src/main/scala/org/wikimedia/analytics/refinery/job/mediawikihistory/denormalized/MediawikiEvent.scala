@@ -471,138 +471,115 @@ object MediawikiEvent {
   )
 
   def fromRow(row: Row): MediawikiEvent = {
-    /**
-     * Which table/dataset is this function actually working on?
-     * I can't seem to find a table with this many columns, other than the TSV export
-     * described in the function toTSVLine above. That toTSVLine however does not print
-     * pageArtificialId so all the column positions are skewed after ordinal 26.
-     */
     new MediawikiEvent(
-      wikiDb = row.getString(0),
-      eventEntity = row.getString(1),
-      eventType = row.getString(2),
-      eventTimestamp = getOptTimestamp(row, 3),
-      eventComment = getOptString(row, 4),
+      wikiDb = row.getAs[String]("wiki_db"),
+      eventEntity = row.getAs[String]("event_entity"),
+      eventType = row.getAs[String]("event_type"),
+      eventTimestamp = getOptTimestamp(row, "event_timestamp"),
+      eventComment = getOptString(row, "event_comment"),
       eventUserDetails = new MediawikiEventUserDetails(
-        userId = getOptLong(row, 5),
-        userCentralId = getOptLong(row, 6),
-        userTextHistorical = getOptString(row, 7),
-        userText = getOptString(row, 8),
-        userBlocksHistorical = getOptSeq[String](row, 9),
-        userBlocks = getOptSeq[String](row, 10),
-        userGroupsHistorical = getOptSeq[String](row, 11),
-        userGroups = getOptSeq[String](row, 12),
-        userIsBotByHistorical = getOptSeq[String](row, 13),
-        userIsBotBy = getOptSeq[String](row, 14),
-        userIsCreatedBySelf = getOptBoolean(row, 15),
-        userIsCreatedBySystem = getOptBoolean(row, 16),
-        userIsCreatedByPeer = getOptBoolean(row, 17),
-        userIsAnonymous = getOptBoolean(row, 18),
-        userIsTemporary = getOptBoolean(row, 19),
-        userIsPermanent = getOptBoolean(row, 20),
-        userRegistrationTimestamp = getOptTimestamp(row, 21),
-        userCreationTimestamp = getOptTimestamp(row, 22),
-        userFirstEditTimestamp = getOptTimestamp(row, 23),
-        userRevisionCount = getOptLong(row, 24),
-        userSecondsSincePreviousRevision = getOptLong(row, 25)
+        userId = getOptLong(row, "event_user_id"),
+        userCentralId = getOptLong(row, "event_user_central_id"),
+        userTextHistorical = getOptString(row, "event_user_text_historical"),
+        userText = getOptString(row, "event_user_text"),
+        userBlocksHistorical = getOptSeq[String](row, "event_user_blocks_historical"),
+        userBlocks = getOptSeq[String](row, "event_user_blocks"),
+        userGroupsHistorical = getOptSeq[String](row, "event_user_groups_historical"),
+        userGroups = getOptSeq[String](row, "event_user_groups"),
+        userIsBotByHistorical = getOptSeq[String](row, "event_user_is_bot_by_historical"),
+        userIsBotBy = getOptSeq[String](row, "event_user_is_bot_by"),
+        userIsCreatedBySelf = getOptBoolean(row, "event_user_is_created_by_self"),
+        userIsCreatedBySystem = getOptBoolean(row, "event_user_is_created_by_system"),
+        userIsCreatedByPeer = getOptBoolean(row, "event_user_is_created_by_peer"),
+        userIsAnonymous = getOptBoolean(row, "event_user_is_anonymous"),
+        userIsTemporary = getOptBoolean(row, "event_user_is_temporary"),
+        userIsPermanent = getOptBoolean(row, "event_user_is_permanent"),
+        userRegistrationTimestamp = getOptTimestamp(row, "event_user_registration_timestamp"),
+        userCreationTimestamp = getOptTimestamp(row, "event_user_creation_timestamp"),
+        userFirstEditTimestamp = getOptTimestamp(row, "event_user_first_edit_timestamp"),
+        userRevisionCount = getOptLong(row, "event_user_revision_count"),
+        userSecondsSincePreviousRevision = getOptLong(row, "event_user_seconds_since_previous_revision")
       ),
       pageDetails = new MediawikiEventPageDetails(
-        pageId = getOptLong(row, 26),
-        pageArtificialId = getOptString(row, 27),
-        pageTitleHistorical = getOptString(row, 28),
-        pageTitle = getOptString(row, 29),
-        pageNamespaceHistorical = getOptInt(row, 30),
-        pageNamespaceIsContentHistorical = getOptBoolean(row, 31),
-        pageNamespace = getOptInt(row, 32),
-        pageNamespaceIsContent = getOptBoolean(row, 33),
-        pageIsRedirect = getOptBoolean(row, 34),
-        pageIsDeleted = getOptBoolean(row, 35),
-        pageCreationTimestamp = getOptTimestamp(row, 36),
-        pageFirstEditTimestamp = getOptTimestamp(row, 37),
-        pageRevisionCount = getOptLong(row, 38),
-        pageSecondsSincePreviousRevision = getOptLong(row, 39)
+        pageId = getOptLong(row, "page_id"),
+        pageArtificialId = getOptString(row, "page_artificial_id"),
+        pageTitleHistorical = getOptString(row, "page_title_historical"),
+        pageTitle = getOptString(row, "page_title"),
+        pageNamespaceHistorical = getOptInt(row, "page_namespace_historical"),
+        pageNamespaceIsContentHistorical = getOptBoolean(row, "page_namespace_is_content_historical"),
+        pageNamespace = getOptInt(row, "page_namespace"),
+        pageNamespaceIsContent = getOptBoolean(row, "page_namespace_is_content"),
+        pageIsRedirect = getOptBoolean(row, "page_is_redirect"),
+        pageIsDeleted = getOptBoolean(row, "page_is_deleted"),
+        pageCreationTimestamp = getOptTimestamp(row, "page_creation_timestamp"),
+        pageFirstEditTimestamp = getOptTimestamp(row, "page_first_edit_timestamp"),
+        pageRevisionCount = getOptLong(row, "page_revision_count"),
+        pageSecondsSincePreviousRevision = getOptLong(row, "page_seconds_since_previous_revision")
       ),
       userDetails = new MediawikiEventUserDetails(
-        userId = getOptLong(row, 40),
-        userCentralId = getOptLong(row, 41),
-        userTextHistorical = getOptString(row, 42),
-        userText = getOptString(row, 43),
-        userBlocksHistorical = getOptSeq[String](row, 44),
-        userBlocks = getOptSeq[String](row, 45),
-        userGroupsHistorical = getOptSeq[String](row, 46),
-        userGroups = getOptSeq[String](row, 47),
-        userIsBotByHistorical = getOptSeq[String](row, 48),
-        userIsBotBy = getOptSeq[String](row, 49),
-        userIsCreatedBySelf = getOptBoolean(row, 50),
-        userIsCreatedBySystem = getOptBoolean(row, 51),
-        userIsCreatedByPeer = getOptBoolean(row, 52),
-        userIsAnonymous = getOptBoolean(row, 53),
-        userIsTemporary = getOptBoolean(row, 54),
-        userIsPermanent = getOptBoolean(row, 55),
-        userRegistrationTimestamp = getOptTimestamp(row, 56),
-        userCreationTimestamp = getOptTimestamp(row, 57),
-        userFirstEditTimestamp = getOptTimestamp(row, 58)
+        userId = getOptLong(row, "user_id"),
+        userCentralId = getOptLong(row, "user_central_id"),
+        userTextHistorical = getOptString(row, "user_text_historical"),
+        userText = getOptString(row, "user_text"),
+        userBlocksHistorical = getOptSeq[String](row, "user_blocks_historical"),
+        userBlocks = getOptSeq[String](row, "user_blocks"),
+        userGroupsHistorical = getOptSeq[String](row, "user_groups_historical"),
+        userGroups = getOptSeq[String](row, "user_groups"),
+        userIsBotByHistorical = getOptSeq[String](row, "user_is_bot_by_historical"),
+        userIsBotBy = getOptSeq[String](row, "user_is_bot_by"),
+        userIsCreatedBySelf = getOptBoolean(row, "user_is_created_by_self"),
+        userIsCreatedBySystem = getOptBoolean(row, "user_is_created_by_system"),
+        userIsCreatedByPeer = getOptBoolean(row, "user_is_created_by_peer"),
+        userIsAnonymous = getOptBoolean(row, "user_is_anonymous"),
+        userIsTemporary = getOptBoolean(row, "user_is_temporary"),
+        userIsPermanent = getOptBoolean(row, "user_is_permanent"),
+        userRegistrationTimestamp = getOptTimestamp(row, "user_registration_timestamp"),
+        userCreationTimestamp = getOptTimestamp(row, "user_creation_timestamp"),
+        userFirstEditTimestamp = getOptTimestamp(row, "user_first_edit_timestamp")
         // userRevisionCount -- Not relevant, user events only
-        // userSecondsSincePreviousRevision -- ie
+        // userSecondsSincePreviousRevision -- Not relevant, user events only
       ),
       revisionDetails = new MediawikiEventRevisionDetails(
-        revId = getOptLong(row, 59),
-        revParentId = getOptLong(row, 60),
-        revMinorEdit = getOptBoolean(row, 61),
-        revDeletedParts = getOptSeq[String](row, 62),
-        revDeletedPartsAreSuppressed = getOptBoolean(row, 63),
-        revTextBytes = getOptLong(row, 64),
-        revTextBytesDiff = getOptLong(row, 65),
-        revTextSha1 = getOptString(row, 66),
-        revContentModel = getOptString(row, 67),
-        revContentFormat = getOptString(row, 68),
-        revIsDeletedByPageDeletion = getOptBoolean(row, 69),
-        revDeletedByPageDeletionTimestamp = getOptTimestamp(row, 70),
-        revIsIdentityReverted = getOptBoolean(row, 71),
-        revFirstIdentityRevertingRevisionId = getOptLong(row, 72),
-        revSecondsToIdentityRevert = getOptLong(row, 73),
-        revIsIdentityRevert = getOptBoolean(row, 74),
-        revIsFromBeforePageCreation = getOptBoolean(row, 75),
-        revTags = getOptSeq[String](row, 76)
+        revId = getOptLong(row, "revision_id"),
+        revParentId = getOptLong(row, "revision_parent_id"),
+        revMinorEdit = getOptBoolean(row, "revision_minor_edit"),
+        revDeletedParts = getOptSeq[String](row, "revision_deleted_parts"),
+        revDeletedPartsAreSuppressed = getOptBoolean(row, "revision_deleted_parts_are_suppressed"),
+        revTextBytes = getOptLong(row, "revision_text_bytes"),
+        revTextBytesDiff = getOptLong(row, "revision_text_bytes_diff"),
+        revTextSha1 = getOptString(row, "revision_text_sha1"),
+        revContentModel = getOptString(row, "revision_content_model"),
+        revContentFormat = getOptString(row, "revision_content_format"),
+        revIsDeletedByPageDeletion = getOptBoolean(row, "revision_is_deleted_by_page_deletion"),
+        revDeletedByPageDeletionTimestamp = getOptTimestamp(row, "revision_deleted_by_page_deletion_timestamp"),
+        revIsIdentityReverted = getOptBoolean(row, "revision_is_identity_reverted"),
+        revFirstIdentityRevertingRevisionId = getOptLong(row, "revision_first_identity_reverting_revision_id"),
+        revSecondsToIdentityRevert = getOptLong(row, "revision_seconds_to_identity_revert"),
+        revIsIdentityRevert = getOptBoolean(row, "revision_is_identity_revert"),
+        revIsFromBeforePageCreation = getOptBoolean(row, "revision_is_from_before_page_creation"),
+        revTags = getOptSeq[String](row, "revision_tags")
       )
     )
   }
 
-  /* select like this and then map this function:
-   *   0  wiki_db,
-   *   1  rev_timestamp,
-   *   2  comment_text,
-   *   3  actor_user,
-   *   4  actor_name,
-   *   5  actor_is_anon,
-   *   6  rev_page,
-   *   7  rev_id,
-   *   8  rev_parent_id,
-   *   9  rev_minor_edit,
-   *  10  rev_deleted,
-   *  11  rev_len,
-   *  12  rev_sha1,
-   *  13  rev_content_model,
-   *  14  rev_content_format,
-   *  15  rev_tags
-   *
-   *  NOTE: actor_name is not nullable, so it's only null when the join failed
-   *          row.isNullAt(4) means the join failed
+  /*  NOTE: actor_name is not nullable, so it's only null when the join failed
+   *          getOptString(row, "actor_name").isEmpty means the join failed
    *        actor_user is null when actor is anon
-   *          row.isNullAt(3) and the join succeeded (not row.isNullAt(4))
+   *          getOptLong(row, "actor_user").isEmpty and the join succeeded (actor_name is not empty)
    */
   def fromRevisionRow(row: Row): MediawikiEvent = {
-    val actorUser = if (row.isNullAt(3) || row.isNullAt(4)) None else Some(row.getLong(3))
-    val actorName = getOptString(row, 4)
-    val actorIsAnon = getOptBoolean(row, 5)
-    val textBytes = getOptLong(row, 11)
-    val revDeletedFlag = getOptInt(row, 10)
+    // actor_name is non-nullable; None here means the join to the actor table failed
+    val actorName = getOptString(row, "actor_name")
+    val actorIsAnon = getOptBoolean(row, "actor_is_anon")
+    val actorUser = if (actorName.isEmpty) None else getOptLong(row, "actor_user")
+    val textBytes = getOptLong(row, "rev_len")
+    val revDeletedFlag = getOptInt(row, "rev_deleted")
     new MediawikiEvent(
-      wikiDb = row.getString(0),
+      wikiDb = row.getAs[String]("wiki_db"),
       eventEntity = "revision",
       eventType = "create",
-      eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(1)),
-      eventComment = getOptString(row, 2),
+      eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getAs[String]("rev_timestamp")),
+      eventComment = getOptString(row, "comment_text"),
       eventUserDetails = new MediawikiEventUserDetails(
         userId = actorUser,
         // userText should be the same as historical if user is anonymous
@@ -615,7 +592,7 @@ object MediawikiEvent {
         userIsBotByHistorical = Some(UserEventBuilder.isBotBy(actorName, Seq.empty))
       ),
       pageDetails = new MediawikiEventPageDetails(
-        pageId = getOptLong(row, 6)
+        pageId = getOptLong(row, "rev_page")
         // pageTitleHistorical: need page history
         // pageTitle: need page history
         // pageNamespaceHistorical: need page history
@@ -625,7 +602,7 @@ object MediawikiEvent {
       userDetails = new MediawikiEventUserDetails(
         // userId: Not Applicable (not a user centered event)
         // userTextHistorical: Not Applicable (not a user centered event)
-        // userText = Not Applicable (not a user centered event)
+        // userText: Not Applicable (not a user centered event)
         // userBlocksHistorical: need user history
         // userBlocks: need user history
         // userGroupsHistorical: need user history
@@ -633,69 +610,45 @@ object MediawikiEvent {
         // userCreationTimestamp: need user history
       ),
       revisionDetails = new MediawikiEventRevisionDetails(
-        revId = getOptLong(row, 7),
-        revParentId = getOptLong(row, 8),
-        revMinorEdit = getOptBoolean(row, 9),
-        revDeletedParts = revDeletedFlag.map(
-          MediawikiEventRevisionDetails.getRevDeletedParts),
-        revDeletedPartsAreSuppressed = revDeletedFlag.map(
-          MediawikiEventRevisionDetails.getRevDeletedPartsAreSuppressed),
+        revId = getOptLong(row, "rev_id"),
+        revParentId = getOptLong(row, "rev_parent_id"),
+        revMinorEdit = getOptBoolean(row, "rev_minor_edit"),
+        revDeletedParts = revDeletedFlag.map(MediawikiEventRevisionDetails.getRevDeletedParts),
+        revDeletedPartsAreSuppressed = revDeletedFlag.map(MediawikiEventRevisionDetails.getRevDeletedPartsAreSuppressed),
         revTextBytes = textBytes,
         // Initializing revTextBytesDiff to current textBytes, will be updated later
         revTextBytesDiff = textBytes,
-        revTextSha1 = getOptString(row, 12),
-        revContentModel = getOptString(row, 13),
-        revContentFormat = getOptString(row, 14),
+        revTextSha1 = getOptString(row, "rev_sha1"),
+        revContentModel = getOptString(row, "rev_content_model"),
+        revContentFormat = getOptString(row, "rev_content_format"),
         revIsDeletedByPageDeletion = Some(false),
         revIsIdentityReverted = Some(false),
         revSecondsToIdentityRevert = None,
         revIsIdentityRevert = Some(false),
         revIsFromBeforePageCreation = Some(false),
-        revTags = getOptSeq[String](row, 15)
-        // revDeletedTimestamp: NA
-        // revRevertedTimestamp: need self join,
+        revTags = getOptSeq[String](row, "rev_tags")
       )
     )
   }
 
-  /* select like this and then map this function:
-   *   0  wiki_db,
-   *   1  ar_timestamp,
-   *   2  comment_text,
-   *   3  actor_user,
-   *   4  actor_name,
-   *   5  actor_is_anon,
-   *   6  ar_page_id,
-   *   7  ar_title,
-   *   8  ar_namespace,
-   *   9  ar_namespace_is_content,
-   *  10  ar_rev_id,
-   *  11  ar_parent_id,
-   *  12  ar_minor_edit,
-   *  13  ar_deleted,
-   *  14  ar_len,
-   *  15  ar_sha1,
-   *  16  ar_content_model,
-   *  17  ar_content_format,
-   *  18  ar_tags
-   *
-   *  NOTE: actor_name is not nullable, so it's only null when the join failed
-   *          row.isNullAt(4) means the join failed
+  /*  NOTE: actor_name is not nullable, so it's only null when the join failed
+   *          getOptString(row, "actor_name").isEmpty means the join failed
    *        actor_user is null when actor is anon
-   *          row.isNullAt(3) and the join succeeded (not row.isNullAt(4))
+   *          getOptLong(row, "actor_user").isEmpty and the join succeeded (actor_name is not empty)
    */
   def fromArchiveRow(row: Row): MediawikiEvent = {
-    val actorUser = if (row.isNullAt(3) || row.isNullAt(4)) None else Some(row.getLong(3))
-    val actorName = getOptString(row, 4)
-    val actorIsAnon = getOptBoolean(row, 5)
-    val textBytes = getOptLong(row, 14)
-    val revDeletedFlag = getOptInt(row, 13)
+    // actor_name is non-nullable; None here means the join to the actor table failed
+    val actorName = getOptString(row, "actor_name")
+    val actorIsAnon = getOptBoolean(row, "actor_is_anon")
+    val actorUser = if (actorName.isEmpty) None else getOptLong(row, "actor_user")
+    val textBytes = getOptLong(row, "ar_len")
+    val revDeletedFlag = getOptInt(row, "ar_deleted")
     MediawikiEvent(
-      wikiDb = row.getString(0),
+      wikiDb = row.getAs[String]("wiki_db"),
       eventEntity = "revision",
       eventType = "create",
-      eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getString(1)),
-      eventComment = getOptString(row, 2),
+      eventTimestamp = TimestampHelpers.makeMediawikiTimestampOption(row.getAs[String]("ar_timestamp")),
+      eventComment = getOptString(row, "comment_text"),
       eventUserDetails = new MediawikiEventUserDetails(
         userId = actorUser,
         // Anonymous users have same current and historical userText
@@ -708,15 +661,15 @@ object MediawikiEvent {
         userIsBotByHistorical = Some(UserEventBuilder.isBotBy(actorName, Seq.empty))
       ),
       pageDetails = new MediawikiEventPageDetails(
-        pageId = getOptLong(row, 6),
-        pageTitleHistorical = getOptString(row, 7),
-        pageNamespaceHistorical = getOptInt(row, 8),
-        pageNamespaceIsContentHistorical = getOptBoolean(row, 9)
+        pageId = getOptLong(row, "ar_page_id"),
+        pageTitleHistorical = getOptString(row, "ar_title"),
+        pageNamespaceHistorical = getOptInt(row, "ar_namespace"),
+        pageNamespaceIsContentHistorical = getOptBoolean(row, "ar_namespace_is_content")
       ),
       userDetails = new MediawikiEventUserDetails(
         // userId: NA
         // userTextHistorical: NA
-        // userText = NA
+        // userText: NA
         // userBlocksHistorical: need user history
         // userBlocks: need user history
         // userGroupsHistorical: need user history
@@ -724,27 +677,23 @@ object MediawikiEvent {
         // userCreationTimestamp: need user history
       ),
       revisionDetails = new MediawikiEventRevisionDetails(
-        revId = getOptLong(row, 10),
-        revParentId = getOptLong(row, 11),
-        revMinorEdit = getOptBoolean(row, 12),
-        revDeletedParts = revDeletedFlag.map(
-          MediawikiEventRevisionDetails.getRevDeletedParts),
-        revDeletedPartsAreSuppressed = revDeletedFlag.map(
-          MediawikiEventRevisionDetails.getRevDeletedPartsAreSuppressed),
+        revId = getOptLong(row, "ar_rev_id"),
+        revParentId = getOptLong(row, "ar_parent_id"),
+        revMinorEdit = getOptBoolean(row, "ar_minor_edit"),
+        revDeletedParts = revDeletedFlag.map(MediawikiEventRevisionDetails.getRevDeletedParts),
+        revDeletedPartsAreSuppressed = revDeletedFlag.map(MediawikiEventRevisionDetails.getRevDeletedPartsAreSuppressed),
         revTextBytes = textBytes,
         // Initializing revTextBytesDiff to current textBytes, will be updated later
         revTextBytesDiff = textBytes,
-        revTextSha1 = getOptString(row, 15),
-        revContentModel = getOptString(row, 16),
-        revContentFormat = getOptString(row, 17),
+        revTextSha1 = getOptString(row, "ar_sha1"),
+        revContentModel = getOptString(row, "ar_content_model"),
+        revContentFormat = getOptString(row, "ar_content_format"),
         revIsDeletedByPageDeletion = Some(true),
         revIsIdentityReverted = Some(false),
         revSecondsToIdentityRevert = None,
         revIsIdentityRevert = Some(false),
         revIsFromBeforePageCreation = Some(false),
-        revTags = getOptSeq[String](row, 18)
-        // revRevertedTimestamp: need self join
-
+        revTags = getOptSeq[String](row, "ar_tags")
       )
     )
   }

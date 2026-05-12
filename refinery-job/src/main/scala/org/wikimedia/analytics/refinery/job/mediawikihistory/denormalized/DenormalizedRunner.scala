@@ -167,7 +167,7 @@ class DenormalizedRunner(
         """)
       .rdd
       .map(row => {
-        val wikiDb = row.getString(0)
+        val wikiDb = row.getAs[String]("wiki_db")
         addOptionalStat(s"$wikiDb.$METRIC_INITIAL_LIVE_REVISIONS", 1L)
         MediawikiEvent.fromRevisionRow(row)
       })
@@ -204,7 +204,7 @@ class DenormalizedRunner(
       """)
       .rdd
       .map(row => {
-        val wikiDb = row.getString(0)
+        val wikiDb = row.getAs[String]("wiki_db")
         addOptionalStat(s"$wikiDb.$METRIC_INITIAL_ARCHIVED_REVISIONS", 1L)
         MediawikiEvent.fromArchiveRow(row)
       })

@@ -34,4 +34,32 @@ package object mediawikihistory {
         if (row.isNullAt(idx)) None else Some(row.getMap[T1, T2](idx).toMap)
     }
 
+    def getOptString(row: Row, col: String): Option[String] = {
+        getOptString(row, row.fieldIndex(col))
+    }
+
+    def getOptInt(row: Row, col: String): Option[Int] = {
+        getOptInt(row, row.fieldIndex(col))
+    }
+
+    def getOptLong(row: Row, col: String): Option[Long] = {
+        getOptLong(row, row.fieldIndex(col))
+    }
+
+    def getOptBoolean(row: Row, col: String): Option[Boolean] = {
+        getOptBoolean(row, row.fieldIndex(col))
+    }
+
+    def getOptTimestamp(row: Row, col: String): Option[Timestamp] = {
+        getOptTimestamp(row, row.fieldIndex(col))
+    }
+
+    def getOptSeq[T](row: Row, col: String): Option[Seq[T]] = {
+        getOptSeq[T](row, row.fieldIndex(col))
+    }
+
+    def getOptMap[T1, T2](row: Row, col: String): Option[Map[T1, T2]] = {
+        getOptMap[T1, T2](row, row.fieldIndex(col))
+    }
+
 }
