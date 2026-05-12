@@ -73,6 +73,9 @@ case class MediawikiEventUserDetails(userId: Option[Long] = None,
                                      userRevisionCount: Option[Long] = None,
                                      userSecondsSincePreviousRevision: Option[Long] = None
                                     ) {
+  def userIsCrossWiki: Option[Boolean] =
+    Some(userTextHistorical.exists(_.contains(">")) && userIsAnonymous.getOrElse(false) && !userIsTemporary.getOrElse(false))
+
   def updateWithUserState(userState: UserState) = this.copy(
       userId = Some(userState.userId),
       userCentralId = userState.userCentralId,
@@ -173,6 +176,7 @@ case class MediawikiEvent(
     eventUserDetails.userIsAnonymous.orNull,
     eventUserDetails.userIsTemporary.orNull,
     eventUserDetails.userIsPermanent.orNull,
+    eventUserDetails.userIsCrossWiki.orNull,
     eventUserDetails.userRegistrationTimestamp.map(_.toString).orNull,
     //eventUserDetails.userRegistrationTimestamp.orNull,
     eventUserDetails.userCreationTimestamp.map(_.toString).orNull,
@@ -266,6 +270,7 @@ case class MediawikiEvent(
           eventUserDetails.userIsAnonymous.orNull,
           eventUserDetails.userIsTemporary.orNull,
           eventUserDetails.userIsPermanent.orNull,
+          eventUserDetails.userIsCrossWiki.orNull,
           eventUserDetails.userRegistrationTimestamp.map(_.toString).orNull,
           eventUserDetails.userCreationTimestamp.map(_.toString).orNull,
           eventUserDetails.userFirstEditTimestamp.map(_.toString).orNull,
@@ -399,6 +404,7 @@ object MediawikiEvent {
       StructField("event_user_is_anonymous", BooleanType, nullable = true),
       StructField("event_user_is_temporary", BooleanType, nullable = true),
       StructField("event_user_is_permanent", BooleanType, nullable = true),
+      StructField("event_user_is_cross_wiki", BooleanType, nullable = true),
       StructField("event_user_registration_timestamp", StringType, nullable = true),
       //StructField("event_user_registration_timestamp", TimestampType, nullable = true),
       StructField("event_user_creation_timestamp", StringType, nullable = true),

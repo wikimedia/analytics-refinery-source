@@ -126,6 +126,61 @@ class TestMediawikiEvent extends FlatSpec with Matchers {
     event.eventUserDetails.userTextHistorical should equal(None)
   }
 
+  it should "set userIsCrossWiki to true for an anonymous actor whose name contains '>'" in {
+    val row = new GenericRowWithSchema(
+      Array("enwiki", "20230115120000", null, null, "SomeWiki>CrossUser", true, 100L, 999L, 0L, false, 0, 500L, null, null, null, null),
+      revisionRowSchema
+    )
+    val event = MediawikiEvent.fromRevisionRow(row)
+
+    event.eventUserDetails.userIsCrossWiki should equal(Some(true))
+  }
+
+  "MediawikiEventUserDetails.userIsCrossWiki" should "return Some(true) for a cross-wiki anonymous non-temporary user" in {
+    val details = MediawikiEventUserDetails(
+      userTextHistorical = Some("SomeWiki>CrossWikiUser"),
+      userIsAnonymous = Some(true),
+      userIsTemporary = Some(false)
+    )
+    details.userIsCrossWiki should equal(Some(true))
+  }
+
+  it should "return Some(false) when the username contains no '>'" in {
+    val details = MediawikiEventUserDetails(
+      userTextHistorical = Some("RegularUser"),
+      userIsAnonymous = Some(true),
+      userIsTemporary = Some(false)
+    )
+    details.userIsCrossWiki should equal(Some(false))
+  }
+
+  it should "return Some(false) when the user is not anonymous" in {
+    val details = MediawikiEventUserDetails(
+      userTextHistorical = Some("SomeWiki>User"),
+      userIsAnonymous = Some(false),
+      userIsTemporary = Some(false)
+    )
+    details.userIsCrossWiki should equal(Some(false))
+  }
+
+  it should "return Some(false) when the user is temporary" in {
+    val details = MediawikiEventUserDetails(
+      userTextHistorical = Some("SomeWiki>User"),
+      userIsAnonymous = Some(true),
+      userIsTemporary = Some(true)
+    )
+    details.userIsCrossWiki should equal(Some(false))
+  }
+
+  it should "return Some(false) when userTextHistorical is None" in {
+    val details = MediawikiEventUserDetails(
+      userTextHistorical = None,
+      userIsAnonymous = Some(true),
+      userIsTemporary = Some(false)
+    )
+    details.userIsCrossWiki should equal(Some(false))
+  }
+
   "MediawikiEvent.fromArchiveRow" should "set revIsDeletedByPageDeletion to true and populate page fields" in {
     val row = new GenericRowWithSchema(
       Array("dewiki", "20220301090000", "restore", 7L, "Editor", false, 200L, "SomePage", 0, true, 555L, 554L, false, 0, 800L, "def456", null, null, null),
