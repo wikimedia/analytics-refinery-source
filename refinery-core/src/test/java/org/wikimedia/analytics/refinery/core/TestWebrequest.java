@@ -3,7 +3,6 @@ package org.wikimedia.analytics.refinery.core;
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
@@ -69,7 +68,7 @@ public class TestWebrequest {
         String expected_output,
         String x_analytics_str,
         String param
-    ) throws HiveException {
+    ) {
 
         WebrequestData data = new WebrequestData("uriHost", "uriPath", "uriQuery",
                 "httpStatus", "contentType", "userAgent",

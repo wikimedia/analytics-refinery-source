@@ -17,7 +17,6 @@ package org.wikimedia.analytics.refinery.core;
 import junitparams.FileParameters;
 import junitparams.JUnitParamsRunner;
 import junitparams.mappers.CsvWithHeaderMapper;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.wikimedia.analytics.refinery.core.webrequest.WebrequestData;
@@ -92,7 +91,7 @@ public class TestPageview {
             String content_type,
             String user_agent,
             String x_analytics_header_str
-    ) throws HiveException {
+    ) {
 
         WebrequestData webrequest = new WebrequestData(uri_host,
             uri_path,
@@ -235,7 +234,7 @@ public class TestPageview {
     }
 
     @Test
-    public void testWikipedia15IsNotPageview() throws HiveException {
+    public void testWikipedia15IsNotPageview() {
 
         WebrequestData webrequest = new WebrequestData(
             "15.wikipedia.org",
@@ -250,7 +249,7 @@ public class TestPageview {
     }
 
     @Test
-    public void testWikidataQueryIsNotPageview() throws HiveException {
+    public void testWikidataQueryIsNotPageview() {
 
         WebrequestData webrequest = new WebrequestData(
             "query.wikidata.org",

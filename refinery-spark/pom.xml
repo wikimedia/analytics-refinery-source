@@ -131,8 +131,8 @@
             <artifactId>spark-graphx_${scala.compat.version}</artifactId>
         </dependency>
         <dependency>
-            <groupId>graphframes</groupId>
-            <artifactId>graphframes</artifactId>
+            <groupId>io.graphframes</groupId>
+            <artifactId>graphframes-spark3_${scala.compat.version}</artifactId>
         </dependency>
         <dependency>
             <groupId>com.holdenkarau</groupId>

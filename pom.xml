@@ -197,11 +197,6 @@
                 <version>1.4.1</version>
             </dependency>
             <dependency>
-                <groupId>graphframes</groupId>
-                <artifactId>graphframes</artifactId>
-                <version>0.8.1-spark3.0-s_${scala.compat.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>io.circe</groupId>
                 <artifactId>circe-core_${scala.compat.version}</artifactId>
                 <version>0.13.0</version>
@@ -215,6 +210,11 @@
                 <groupId>io.circe</groupId>
                 <artifactId>circe-generic_${scala.compat.version}</artifactId>
                 <version>0.13.0</version>
+            </dependency>
+            <dependency>
+                <groupId>io.graphframes</groupId>
+                <artifactId>graphframes-spark3_${scala.compat.version}</artifactId>
+                <version>0.11.0</version>
             </dependency>
             <dependency>
                 <groupId>joda-time</groupId>
@@ -474,18 +474,39 @@
     </dependencyManagement>
 
     <repositories>
+        <!--
+            org.pentaho:pentaho-aggdesigner-algorithm:5.1.5-jhyde is a transitive
+            dependency of refinery-hive (via hive-exec -> calcite-core) and is not on
+            Maven Central. Pending migration to the GitLab Package Registry (wmf-packages).
+            TODO: remove once pentaho is in the GitLab registry.
+        -->
         <repository>
-            <id>wmf-mirror-spark</id>
-            <url>https://archiva.wikimedia.org/repository/mirror-spark/</url>
-        </repository>
-        <repository>
-            <id>wmf-mirror-cloudera</id>
-            <url>https://archiva.wikimedia.org/repository/mirror-cloudera/</url>
-        </repository>
-        <!-- Manually uploaded artifacts for analytics -->
-        <repository>
+            <releases>
+                <updatePolicy>never</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
             <id>wmf-analytics-old-uploads</id>
             <url>https://archiva.wikimedia.org/repository/analytics-old-uploads/</url>
+        </repository>
+        <!--
+            Overrides the gitlab-maven repo injected by wmf-jvm-parent-pom.
+            The parent adds it without updatePolicy, causing Maven to poll it for
+            every artifact on each fresh build. When gitlab.wikimedia.org returns
+            5xx instead of 404 for artifacts it does not host, Maven marks those
+            artifacts as unavailable and the build fails.  Setting updatePolicy=never
+            means once an artifact is in the local cache, this repo is not re-checked.
+        -->
+        <repository>
+            <releases>
+                <updatePolicy>never</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>gitlab-maven</id>
+            <url>https://gitlab.wikimedia.org/api/v4/groups/186/-/packages/maven</url>
         </repository>
     </repositories>
 
@@ -558,7 +579,7 @@
                         </filters>
                         <transformers>
                             <!-- The following line is needed for proper reading of raw mediawiki avro files -->
-                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                         </transformers>
                     </configuration>
                 </plugin>
