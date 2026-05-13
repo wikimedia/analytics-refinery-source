@@ -475,22 +475,6 @@
 
     <repositories>
         <!--
-            org.pentaho:pentaho-aggdesigner-algorithm:5.1.5-jhyde is a transitive
-            dependency of refinery-hive (via hive-exec -> calcite-core) and is not on
-            Maven Central. Pending migration to the GitLab Package Registry (wmf-packages).
-            TODO: remove once pentaho is in the GitLab registry.
-        -->
-        <repository>
-            <releases>
-                <updatePolicy>never</updatePolicy>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-            <id>wmf-analytics-old-uploads</id>
-            <url>https://archiva.wikimedia.org/repository/analytics-old-uploads/</url>
-        </repository>
-        <!--
             Overrides the gitlab-maven repo injected by wmf-jvm-parent-pom.
             The parent adds it without updatePolicy, causing Maven to poll it for
             every artifact on each fresh build. When gitlab.wikimedia.org returns
