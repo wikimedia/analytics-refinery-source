@@ -1,3 +1,12 @@
+## v0.3.14
+* Add Sanitizer to clean up wprov value of x-analytics
+* Remove wmf-analytics-old-uploads Archiva repository
+* Add event_log_id to wmf.mediawiki_history
+* Add event_user_is_cross_wiki to wmf.mediawiki_history
+* Upgrade graphframes to 0.11.0 from Maven Central, drop Archiva repos
+* Refactor MediawikiEvent.fromRow to use named column access 
+* Spike: refinery-job-35 submodule compiles against Spark 3.5.8 + Iceberg 1.10.1
+
 ## v0.3.13
 * ProduceCanaryEvents job handle multiple streams
 * Update ProduceCanaryEvents job for comments
