@@ -31,12 +31,14 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     namespacesTable    = "test_namespaces",
     namespacesSnapshot = "2024-12",
     tagsTable          = "test_tags",
+    visibilityTable    = "test_visibility",
     year = 2024, month = 1, day = 15
   )
 
   def incoming()    = spark.sql(MWHistoryDeltaWriter.buildIncomingSQL(params)      + "\nSELECT * FROM incoming")
   def backPatch()   = spark.sql(MWHistoryDeltaWriter.buildBackPatchCteSQL(params)  + "\nSELECT * FROM back_patch")
-  def latestTags()  = spark.sql(MWHistoryDeltaWriter.buildTagsCteSQL(params)       + "\nSELECT * FROM latest_tags")
+  def latestTags()       = spark.sql(MWHistoryDeltaWriter.buildTagsCteSQL(params)        + "\nSELECT * FROM latest_tags")
+  def latestVisibility() = spark.sql(MWHistoryDeltaWriter.buildVisibilityCteSQL(params) + "\nSELECT * FROM latest_visibility")
 
   /** Empty target — only needed for the revert_seed CTE, not for byte diff. */
   def registerEmptyTarget(): Unit =
@@ -80,8 +82,11 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
               'rev_dt',        t.rev_dt,
               'rev_size',      t.rev_size,
               'rev_sha1',      t.rev_sha1,
-              'is_minor_edit', false,
-              'tags',          array(),
+              'is_minor_edit',       false,
+              'is_content_visible',  true,
+              'is_editor_visible',   true,
+              'is_comment_visible',  true,
+              'tags',                array(),
               'editor', named_struct(
                 'user_id',          t.user_id,
                 'user_central_id',  t.user_central_id,
@@ -128,6 +133,27 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           FROM (SELECT * FROM VALUES $rows) AS t(wiki_id, rev_id, tags, meta_dt)"""
     )
 
+  /**
+   * Registers synthetic revision_visibility_change source rows.
+   * Columns: wiki_id (mapped to `database`), rev_id, text_visible, user_visible, comment_visible, meta_dt
+   */
+  def registerVisibilityWith(rows: String): Unit =
+    spark.sql(
+      s"""CREATE OR REPLACE TEMP VIEW test_visibility AS
+          SELECT
+            t.wiki_id AS database,
+            t.rev_id  AS rev_id,
+            named_struct(
+              'text',    t.text_visible,
+              'user',    t.user_visible,
+              'comment', t.comment_visible
+            ) AS visibility,
+            named_struct('dt', t.meta_dt) AS meta,
+            2024 AS year, 1 AS month, 15 AS day
+          FROM (SELECT * FROM VALUES $rows)
+            AS t(wiki_id, rev_id, text_visible, user_visible, comment_visible, meta_dt)"""
+    )
+
   // ---- Argument parsing ----
 
   "MWHistoryDeltaWriter.parseArgs" should "map CLI flags to Params fields" in {
@@ -137,6 +163,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
       "--namespaces_table",   "wmf_raw.mediawiki_project_namespace_map",
       "--namespaces_snapshot", "2024-12",
       "--tags_table",         "event.mediawiki_revision_tags_change",
+      "--visibility_table",   "event.mediawiki_revision_visibility_change",
       "--year",  "2024",
       "--month", "1",
       "--day",   "15"
@@ -146,6 +173,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     p.namespacesTable    shouldEqual "wmf_raw.mediawiki_project_namespace_map"
     p.namespacesSnapshot shouldEqual "2024-12"
     p.tagsTable          shouldEqual "event.mediawiki_revision_tags_change"
+    p.visibilityTable    shouldEqual "event.mediawiki_revision_visibility_change"
     p.year               shouldEqual 2024
     p.month              shouldEqual 1
     p.day                shouldEqual 15
@@ -526,5 +554,84 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     backPatch().count() shouldEqual 0
+  }
+
+  // ---- Visibility CTE ----
+
+  it should "produce one latest_visibility row with content in deleted_parts when text is hidden" in {
+    registerVisibilityWith(
+      """('enwiki', 101L, false, true, true, '2024-01-15T10:00:00Z')"""
+    )
+
+    val rows = latestVisibility().collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[String]("wiki_id")                     shouldEqual "enwiki"
+    rows(0).getAs[Long]("revision_id")                   shouldEqual 101L
+    rows(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
+  }
+
+  it should "set revision_deleted_parts to null when all visibility fields are true (restore)" in {
+    registerVisibilityWith(
+      """('enwiki', 101L, true, true, true, '2024-01-15T10:00:00Z')"""
+    )
+
+    latestVisibility().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldBe null
+  }
+
+  it should "include all three parts when all visibility fields are false" in {
+    registerVisibilityWith(
+      """('enwiki', 101L, false, false, false, '2024-01-15T10:00:00Z')"""
+    )
+
+    val parts = latestVisibility().collect()(0).getAs[Seq[String]]("revision_deleted_parts")
+    parts should contain allOf ("text", "user", "comment")
+  }
+
+  it should "deduplicate visibility events by taking the latest meta.dt for the same revision" in {
+    registerVisibilityWith(
+      """('enwiki', 101L, false, true, true, '2024-01-15T10:00:00Z'),
+         ('enwiki', 101L, true,  true, true, '2024-01-15T11:00:00Z')"""
+    )
+
+    val rows = latestVisibility().collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[Seq[String]]("revision_deleted_parts") shouldBe null
+  }
+
+  // ---- revision_deleted_parts from page_change ----
+
+  it should "derive revision_deleted_parts when content is hidden in page_change" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    spark.sql(
+      """CREATE OR REPLACE TEMP VIEW test_source AS
+         SELECT
+           'enwiki'  AS wiki_id,
+           'edit'    AS page_change_kind,
+           named_struct(
+             'rev_id', 101L, 'rev_parent_id', 100L,
+             'rev_dt', '2024-01-15T10:00:00Z',
+             'rev_size', 500, 'rev_sha1', 'sha-A',
+             'is_minor_edit',      false,
+             'is_content_visible', false,
+             'is_editor_visible',  true,
+             'is_comment_visible', true,
+             'tags', array(),
+             'editor', named_struct(
+               'user_id', 1L, 'user_central_id', CAST(NULL AS BIGINT),
+               'user_text', 'Alice', 'is_temp', false,
+               'groups', array(), 'registration_dt', CAST(NULL AS STRING),
+               'edit_count', CAST(NULL AS BIGINT)
+             )
+           ) AS revision,
+           named_struct(
+             'revision', named_struct('rev_size', 400L, 'rev_sha1', CAST(NULL AS STRING))
+           ) AS prior_state,
+           named_struct('page_id', 1L, 'page_title', 'A', 'namespace_id', 0) AS page,
+           named_struct('dt', '2024-01-15T10:00:01Z') AS meta,
+           2024 AS year, 1 AS month, 15 AS day"""
+    )
+
+    incoming().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
   }
 }

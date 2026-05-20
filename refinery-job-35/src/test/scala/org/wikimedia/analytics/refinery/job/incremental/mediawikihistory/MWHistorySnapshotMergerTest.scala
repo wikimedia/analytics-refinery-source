@@ -54,6 +54,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            revision_tags                                                 ARRAY<STRING>,
            page_namespace_is_content_historical                          BOOLEAN,
            event_user_is_bot_by_historical                               ARRAY<STRING>,
+           revision_deleted_parts                                        ARRAY<STRING>,
            event_user_revision_count                                     BIGINT,
            revision_is_identity_reverted                                 BOOLEAN,
            revision_first_identity_reverting_revision_id                 BIGINT,
@@ -82,6 +83,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST($revisionId AS BIGINT), CAST(NULL AS BIGINT), false,
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
            CAST(NULL AS ARRAY<STRING>), false, CAST(NULL AS ARRAY<STRING>),
+           CAST(NULL AS ARRAY<STRING>),
            CAST(NULL AS BIGINT),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
            false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false
@@ -131,6 +133,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            array('tag1')                     AS revision_tags,
            true                              AS page_namespace_is_content_historical,
            array('name')                     AS event_user_is_bot_by_historical,
+           CAST(NULL AS ARRAY<STRING>)       AS revision_deleted_parts,
            CAST(7 AS BIGINT)                 AS event_user_revision_count,
            false                             AS revision_is_identity_reverted,
            CAST(NULL AS BIGINT)              AS revision_first_identity_reverting_revision_id,
@@ -228,6 +231,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS STRING) AS revision_text_sha1, CAST(NULL AS ARRAY<STRING>) AS revision_tags,
            CAST(NULL AS BOOLEAN) AS page_namespace_is_content_historical,
            CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+           CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts,
            CAST(NULL AS BIGINT) AS event_user_revision_count,
            true                    AS revision_is_identity_reverted,
            CAST(200 AS BIGINT)     AS revision_first_identity_reverting_revision_id,
@@ -263,6 +267,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS STRING) AS revision_text_sha1, CAST(NULL AS ARRAY<STRING>) AS revision_tags,
            CAST(NULL AS BOOLEAN) AS page_namespace_is_content_historical,
            CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+           CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts,
            CAST(NULL AS BIGINT) AS event_user_revision_count,
            true                         AS revision_is_identity_reverted,
            CAST(200 AS BIGINT)          AS revision_first_identity_reverting_revision_id,
@@ -295,7 +300,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN) AS revision_minor_edit, CAST(NULL AS BIGINT) AS revision_text_bytes,
            CAST(NULL AS BIGINT) AS revision_text_bytes_diff, CAST(NULL AS STRING) AS revision_text_sha1,
            CAST(NULL AS ARRAY<STRING>) AS revision_tags, CAST(NULL AS BOOLEAN) AS page_namespace_is_content_historical,
-           CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical, CAST(NULL AS BIGINT) AS event_user_revision_count,
+           CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical, CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts, CAST(NULL AS BIGINT) AS event_user_revision_count,
            true AS revision_is_identity_reverted, CAST(102 AS BIGINT) AS revision_first_identity_reverting_revision_id,
            CAST(3600 AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
            '2024-01' AS snapshot
@@ -307,7 +312,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(1 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
            CAST(102 AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
            CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BOOLEAN),
-           CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT),
+           CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT),
            false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), true,
            '2024-01'"""
     )
@@ -338,6 +343,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS STRING) AS revision_text_sha1, CAST(NULL AS ARRAY<STRING>) AS revision_tags,
                 CAST(NULL AS BOOLEAN) AS page_namespace_is_content_historical,
                 CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+                CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts,
                 CAST(NULL AS BIGINT) AS event_user_revision_count,
                 CAST(NULL AS BOOLEAN) AS revision_is_identity_reverted,
                 CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
@@ -373,6 +379,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS STRING) AS revision_text_sha1, CAST(NULL AS ARRAY<STRING>) AS revision_tags,
                 CAST(NULL AS BOOLEAN) AS page_namespace_is_content_historical,
                 CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+                CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts,
                 CAST(NULL AS BIGINT) AS event_user_revision_count,
                 CAST(NULL AS BOOLEAN) AS revision_is_identity_reverted,
                 CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
@@ -429,5 +436,48 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
   it should "roll the upper bound into the next year for a December snapshot" in {
     val sql = MWHistorySnapshotMerger.buildMergeSQL(params.copy(snapshot = "2024-12"))
     sql should include ("TIMESTAMP '2025-01-01 00:00:00'")
+  }
+
+  // ---- revision_deleted_parts projection ----
+
+  "MWHistorySnapshotMerger" should "project revision_deleted_parts from wmf.mediawiki_history" in {
+    spark.sql(
+      """CREATE OR REPLACE TEMP VIEW test_mwh AS
+         SELECT
+           'enwiki'                          AS wiki_db,
+           'revision'                        AS event_entity,
+           'edit'                            AS event_type,
+           '2024-01-15 10:00:00.0'           AS event_timestamp,
+           CAST(NULL AS BIGINT)              AS event_user_id,
+           CAST(NULL AS BIGINT)              AS event_user_central_id,
+           CAST(NULL AS STRING)              AS event_user_text_historical,
+           CAST(NULL AS BOOLEAN)             AS event_user_is_anonymous,
+           CAST(NULL AS BOOLEAN)             AS event_user_is_temporary,
+           CAST(NULL AS BOOLEAN)             AS event_user_is_permanent,
+           CAST(NULL AS STRING)              AS event_user_registration_timestamp,
+           CAST(NULL AS BOOLEAN)             AS event_user_is_created_by_self,
+           CAST(1 AS BIGINT)                 AS page_id,
+           CAST(NULL AS STRING)              AS page_title_historical,
+           CAST(0 AS INT)                    AS page_namespace_historical,
+           CAST(101 AS BIGINT)               AS revision_id,
+           CAST(NULL AS BIGINT)              AS revision_parent_id,
+           CAST(NULL AS BOOLEAN)             AS revision_minor_edit,
+           CAST(NULL AS BIGINT)              AS revision_text_bytes,
+           CAST(NULL AS BIGINT)              AS revision_text_bytes_diff,
+           CAST(NULL AS STRING)              AS revision_text_sha1,
+           CAST(NULL AS ARRAY<STRING>)       AS revision_tags,
+           CAST(NULL AS BOOLEAN)             AS page_namespace_is_content_historical,
+           CAST(NULL AS ARRAY<STRING>)       AS event_user_is_bot_by_historical,
+           array('text', 'comment')           AS revision_deleted_parts,
+           CAST(NULL AS BIGINT)              AS event_user_revision_count,
+           false                             AS revision_is_identity_reverted,
+           CAST(NULL AS BIGINT)              AS revision_first_identity_reverting_revision_id,
+           CAST(NULL AS BIGINT)              AS revision_seconds_to_identity_revert,
+           false                             AS revision_is_identity_revert,
+           '2024-01'                         AS snapshot"""
+    )
+
+    val row = projected().collect()(0)
+    row.getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text", "comment")
   }
 }

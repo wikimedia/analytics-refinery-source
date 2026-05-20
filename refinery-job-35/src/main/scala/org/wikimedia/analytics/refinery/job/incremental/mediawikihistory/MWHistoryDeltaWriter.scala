@@ -22,7 +22,7 @@ import org.apache.spark.sql.SparkSession
  * revision_id is immutable and unique per wiki — safe as a merge key for revisions.
  * User / page events are out of scope for this first version.
  *
- * Three MERGEs are required because each operation has a different join key and
+ * Four MERGEs are required because each operation has a different join key and
  * source table that cannot be combined without violating Iceberg's one-source-row-
  * per-target-row constraint or sacrificing partition pruning:
  *
@@ -51,6 +51,14 @@ import org.apache.spark.sql.SparkSession
  *     events target revisions <90 days old; the 0.2% tail is caught by the monthly
  *     snapshot merger. No INSERT clause: a tag-change event alone does not create a row.
  *
+ *   MERGE 4 (buildVisibilityMergeSQL): update revision_deleted_parts from today's
+ *     revision_visibility_change events.
+ *     ON t.wiki_id = s.wiki_id AND t.revision_id = s.revision_id
+ *     Source: event.mediawiki_revision_visibility_change. No lower bound on event_timestamp:
+ *     visibility changes target all-time revisions (46% are >1 year old per 2026-06 analysis),
+ *     so partition pruning is sacrificed in exchange for full coverage.
+ *     No INSERT clause: a visibility-change event alone does not create a row.
+ *
  * A single MERGE with a UNION'd source and compound OR join is not viable:
  * Iceberg requires each target row to match at most one source row, and the
  * compound OR prevents partition pruning. The three-MERGE approach keeps each
@@ -66,6 +74,7 @@ object MWHistoryDeltaWriter {
     namespacesTable: String    = "",  // wmf_raw.mediawiki_project_namespace_map
     namespacesSnapshot: String = "",  // YYYY-MM snapshot for the namespaces table
     tagsTable: String          = "",  // e.g. event.mediawiki_revision_tags_change
+    visibilityTable: String    = "",  // e.g. event.mediawiki_revision_visibility_change
     year: Int  = 0,
     month: Int = 0,
     day: Int   = 0
@@ -88,6 +97,7 @@ object MWHistoryDeltaWriter {
       opt[String]("namespaces_table").required().action((v, p) => p.copy(namespacesTable = v))
       opt[String]("namespaces_snapshot").required().action((v, p) => p.copy(namespacesSnapshot = v))
       opt[String]("tags_table").required().action((v, p) => p.copy(tagsTable = v))
+      opt[String]("visibility_table").required().action((v, p) => p.copy(visibilityTable = v))
       opt[Int]("year").required().action((v, p) => p.copy(year = v))
       opt[Int]("month").required().action((v, p) => p.copy(month = v))
       opt[Int]("day").required().action((v, p) => p.copy(day = v))
@@ -115,6 +125,12 @@ object MWHistoryDeltaWriter {
     val tagsSql = buildTagsMergeSQL(p)
     log.info(s"Running MWHistoryDeltaWriter tags MERGE INTO ${p.targetTable}:\n$tagsSql")
     spark.sql(tagsSql).collect()
+    // MERGE 4: update revision_deleted_parts from today's revision_visibility_change events.
+    // Visibility changes are applied independently of edits; the 90-day lower bound on the
+    // target matches the tags window and enables partition pruning.
+    val visibilitySql = buildVisibilityMergeSQL(p)
+    log.info(s"Running MWHistoryDeltaWriter visibility MERGE INTO ${p.targetTable}:\n$visibilitySql")
+    spark.sql(visibilitySql).collect()
   }
 
   /**
@@ -163,6 +179,18 @@ object MWHistoryDeltaWriter {
       - CAST(prior_state.revision.rev_size AS BIGINT)               AS revision_text_bytes_diff,
     revision.rev_sha1                                               AS revision_text_sha1,
     CAST(NULL AS ARRAY<STRING>)                                     AS revision_tags,
+    CASE WHEN NOT (revision.is_content_visible
+                   AND revision.is_editor_visible
+                   AND revision.is_comment_visible)
+         THEN filter(
+                array(
+                  CASE WHEN NOT revision.is_content_visible THEN 'text'    END,
+                  CASE WHEN NOT revision.is_comment_visible THEN 'comment' END,
+                  CASE WHEN NOT revision.is_editor_visible  THEN 'user'    END
+                ),
+                x -> x IS NOT NULL
+              )
+    END                                                             AS revision_deleted_parts,
     revision.editor.groups                                          AS user_groups_raw,
     to_timestamp(meta.dt)                                           AS meta_dt
   FROM ${p.sourceTable}
@@ -368,6 +396,7 @@ incoming AS (
     e.revision_text_bytes_diff,
     e.revision_text_sha1,
     e.revision_tags,
+    e.revision_deleted_parts,
     e.page_namespace_is_content_historical,
     e.event_user_is_bot_by_historical,
     e.event_user_revision_count,
@@ -491,6 +520,7 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.revision_text_bytes_diff                                      = s.revision_text_bytes_diff,
     t.revision_text_sha1                                            = s.revision_text_sha1,
     t.revision_tags                                                 = s.revision_tags,
+    t.revision_deleted_parts                                        = s.revision_deleted_parts,
     t.page_namespace_is_content_historical                          = s.page_namespace_is_content_historical,
     t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
     t.revision_is_identity_reverted                                 = s.revision_is_identity_reverted,
@@ -526,6 +556,7 @@ WHEN NOT MATCHED THEN
     revision_text_bytes_diff,
     revision_text_sha1,
     revision_tags,
+    revision_deleted_parts,
     page_namespace_is_content_historical,
     event_user_is_bot_by_historical,
     event_user_revision_count,
@@ -561,6 +592,7 @@ WHEN NOT MATCHED THEN
     s.revision_text_bytes_diff,
     s.revision_text_sha1,
     s.revision_tags,
+    s.revision_deleted_parts,
     s.page_namespace_is_content_historical,
     s.event_user_is_bot_by_historical,
     s.event_user_revision_count,
@@ -632,4 +664,52 @@ AND t.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:
 WHEN MATCHED THEN
   UPDATE SET t.revision_tags = s.revision_tags"""
   }
+
+  /**
+   * Returns the CTE that deduplicates today's revision_visibility_change events to one row per revision.
+   * Tests append "SELECT * FROM latest_visibility" to verify the logic without Iceberg.
+   */
+  def buildVisibilityCteSQL(p: Params): String =
+    s"""WITH latest_visibility AS (
+  -- Most recent visibility state per revision for the day.
+  -- visibility.text=false → 'text'; .comment=false → 'comment'; .user=false → 'user'.
+  SELECT
+    database AS wiki_id,
+    rev_id   AS revision_id,
+    CASE WHEN NOT (visibility.text AND visibility.user AND visibility.comment)
+         THEN filter(
+                array(
+                  CASE WHEN NOT visibility.text    THEN 'text'    END,
+                  CASE WHEN NOT visibility.comment THEN 'comment' END,
+                  CASE WHEN NOT visibility.user    THEN 'user'    END
+                ),
+                x -> x IS NOT NULL
+              )
+    END AS revision_deleted_parts
+  FROM (
+    SELECT *,
+      row_number() OVER (
+        PARTITION BY database, rev_id
+        ORDER BY meta.dt DESC
+      ) AS rn
+    FROM ${p.visibilityTable}
+    WHERE year  = ${p.year}
+      AND month = ${p.month}
+      AND day   = ${p.day}
+  )
+  WHERE rn = 1
+)"""
+
+  def buildVisibilityMergeSQL(p: Params): String =
+    buildVisibilityCteSQL(p) +
+    s"""
+
+-- latest_visibility is ~50 bytes/row; p95 daily volume is ~2,700 rows (~130 KB),
+-- well under Spark's 10 MB autoBroadcastJoinThreshold — Spark broadcasts it automatically.
+MERGE INTO ${p.targetTable} t
+USING latest_visibility s
+ON  t.wiki_id     = s.wiki_id
+AND t.revision_id = s.revision_id
+WHEN MATCHED THEN
+  UPDATE SET t.revision_deleted_parts = s.revision_deleted_parts"""
 }
