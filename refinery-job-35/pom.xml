@@ -21,14 +21,23 @@
 
     <dependencies>
 
+        <dependency>
+            <groupId>com.github.scopt</groupId>
+            <artifactId>scopt_${scala.compat.version}</artifactId>
+        </dependency>
+
         <!--
             Iceberg runtime for Spark 3.5 — replaces iceberg-spark-runtime-3.1_2.12 used
             by the rest of the repo. Provided because the cluster has it on the classpath.
+
+            Version 1.6.1 is the last Iceberg release compiled for Java 8 (class file
+            version 52). Versions 1.7+ require Java 11. The analytics cluster runs Java 8,
+            so this version must not be bumped until the cluster JVM is upgraded.
         -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-spark-runtime-3.5_${scala.compat.version}</artifactId>
-            <version>1.10.1</version>
+            <version>1.6.1</version>
             <scope>provided</scope>
         </dependency>
 
@@ -48,6 +57,17 @@
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!--
+            Spark 3.5 requires jackson-databind >= 2.14 (LookupCache API).
+            The parent pom pins it at 2.10.0; override here for this module only.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.15.2</version>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
