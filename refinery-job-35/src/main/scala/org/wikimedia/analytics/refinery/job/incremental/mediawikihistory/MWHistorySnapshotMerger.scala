@@ -14,9 +14,9 @@ import org.apache.spark.sql.SparkSession
  *   WHEN NOT MATCHED BY SOURCE AND t.source = 'snapshot' → DELETE (rows dropped by monthly rebuild)
  *   WHEN NOT MATCHED BY SOURCE AND t.source = 'events'   → DELETE (events rows before snapshot month-end)
  *
- * The DELETE clause removes rows that were dropped by the monthly rebuild anywhere
- * in history (graph-lineage heuristics can mutate past events). The t.source guard
- * ensures source='events' rows are never touched.
+ * The first DELETE removes snapshot rows dropped by the monthly rebuild anywhere
+ * in history (graph-lineage heuristics can mutate past events). The second DELETE
+ * removes stale events rows from prior months that the snapshot now supersedes.
  *
  * Bounded revert tier (_within_90_days): derived from the monthly authoritative fields.
  *   revision_is_identity_reverted_within_90_days: true when reverted and delay <= 90 days.

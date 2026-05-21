@@ -35,10 +35,11 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     year = 2024, month = 1, day = 15
   )
 
-  def incoming()    = spark.sql(MWHistoryDeltaWriter.buildIncomingSQL(params)      + "\nSELECT * FROM incoming")
-  def backPatch()   = spark.sql(MWHistoryDeltaWriter.buildBackPatchCteSQL(params)  + "\nSELECT * FROM back_patch")
-  def latestTags()       = spark.sql(MWHistoryDeltaWriter.buildTagsCteSQL(params)        + "\nSELECT * FROM latest_tags")
+  def incoming()         = spark.sql(MWHistoryDeltaWriter.buildIncomingSQL(params)      + "\nSELECT * FROM incoming")
+  def backPatch()        = spark.sql(MWHistoryDeltaWriter.buildBackPatchCteSQL(params)  + "\nSELECT * FROM back_patch")
+  def latestTags()       = spark.sql(MWHistoryDeltaWriter.buildTagsCteSQL(params)       + "\nSELECT * FROM latest_tags")
   def latestVisibility() = spark.sql(MWHistoryDeltaWriter.buildVisibilityCteSQL(params) + "\nSELECT * FROM latest_visibility")
+  def pageIncoming()     = spark.sql(MWHistoryDeltaWriter.buildPageIncomingSQL(params)  + "\nSELECT * FROM page_incoming")
 
   /** Empty target — only needed for the revert_seed CTE, not for byte diff. */
   def registerEmptyTarget(): Unit =
@@ -152,6 +153,57 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
             2024 AS year, 1 AS month, 15 AS day
           FROM (SELECT * FROM VALUES $rows)
             AS t(wiki_id, rev_id, text_visible, user_visible, comment_visible, meta_dt)"""
+    )
+
+  /**
+   * Registers synthetic page_change source rows for page events (move, delete, undelete).
+   * The meta struct includes both dt (for ordering) and id (for event_meta_id / MERGE 5 key).
+   * The prior_state.page struct carries the old title/namespace for moves; pass NULL for
+   * prior_page_title and prior_namespace_id for delete/undelete events.
+   *
+   * Columns (positional VALUES):
+   *   wiki_id, page_change_kind, dt (top-level event time), meta_id, meta_dt,
+   *   prior_page_title (NULL for non-moves), prior_namespace_id (NULL for non-moves),
+   *   user_id (NULL for anon), user_central_id, user_text, is_temp, groups,
+   *   registration_dt (string or NULL), page_id, page_title, namespace_id
+   */
+  def registerPageEventWith(rows: String): Unit =
+    spark.sql(
+      s"""CREATE OR REPLACE TEMP VIEW test_source AS
+          SELECT
+            t.wiki_id,
+            t.page_change_kind,
+            t.dt,
+            named_struct(
+              'id', t.meta_id,
+              'dt', t.meta_dt
+            ) AS meta,
+            named_struct(
+              'page', named_struct(
+                'page_title',   t.prior_page_title,
+                'namespace_id', t.prior_namespace_id
+              )
+            ) AS prior_state,
+            named_struct(
+              'user_id',         t.user_id,
+              'user_central_id', t.user_central_id,
+              'user_text',       t.user_text,
+              'is_temp',         t.is_temp,
+              'groups',          t.groups,
+              'registration_dt', t.registration_dt
+            ) AS performer,
+            named_struct(
+              'page_id',      t.page_id,
+              'page_title',   t.page_title,
+              'namespace_id', t.namespace_id
+            ) AS page,
+            2024 AS year, 1 AS month, 15 AS day
+          FROM (
+            SELECT * FROM VALUES $rows
+          ) AS t(wiki_id, page_change_kind, dt, meta_id, meta_dt,
+                 prior_page_title, prior_namespace_id,
+                 user_id, user_central_id, user_text, is_temp, groups, registration_dt,
+                 page_id, page_title, namespace_id)"""
     )
 
   // ---- Argument parsing ----
@@ -596,6 +648,183 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     val rows = latestVisibility().collect()
     rows.length shouldEqual 1
     rows(0).getAs[Seq[String]]("revision_deleted_parts") shouldBe null
+  }
+
+  // ---- Page events (MERGE 5) ----
+
+  "MWHistoryDeltaWriter page events" should "map basic fields from a move event" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-A', '2024-01-15T10:00:01Z',
+          'Old_Title', 0,
+          42L, 999L, 'Alice', false, array('sysop'), '2000-01-01T00:00:00Z',
+          1L, 'New_Title', 0)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[String]("source")                              shouldEqual "events"
+    row.getAs[String]("wiki_id")                             shouldEqual "enwiki"
+    row.getAs[String]("event_meta_id")                       shouldEqual "uuid-A"
+    row.getAs[String]("event_entity")                        shouldEqual "page"
+    row.getAs[String]("event_type")                          shouldEqual "move"
+    row.getAs[String]("page_title_historical")               shouldEqual "New_Title"
+    row.getAs[Int]("page_namespace_historical")              shouldEqual 0
+    row.getAs[Long]("page_id")                               shouldEqual 1L
+    row.getAs[String]("event_user_text_historical")          shouldEqual "Alice"
+    row.getAs[Long]("event_user_id")                         shouldEqual 42L
+    row.getAs[Long]("event_user_central_id")                 shouldEqual 999L
+    row.getAs[Boolean]("event_user_is_anonymous")            shouldEqual false
+    row.getAs[Boolean]("event_user_is_temporary")            shouldEqual false
+    row.getAs[Boolean]("event_user_is_permanent")            shouldEqual true
+    row.getAs[java.lang.Long]("revision_id")                 shouldBe null
+    row.getAs[Boolean]("page_namespace_is_content_historical") shouldEqual true
+  }
+
+  it should "use page.page_title (post-move destination) as historical title for move events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-B', '2024-01-15T10:00:01Z',
+          'Old_Title', 0,
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'New_Title', 4)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[String]("page_title_historical")  shouldEqual "New_Title"
+    row.getAs[Int]("page_namespace_historical") shouldEqual 4
+  }
+
+  it should "strip namespace prefix from page_title_historical for non-main-namespace pages" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-E', '2024-01-15T10:00:01Z',
+          'User:Old_User/sandbox', 2,
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'User:New_User/sandbox', 2)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[String]("page_title_historical")  shouldEqual "New_User/sandbox"
+    row.getAs[Int]("page_namespace_historical") shouldEqual 2
+  }
+
+  it should "fall back to page.page_title as historical title for delete events (no prior_state.page)" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-C', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'Target_Page', 0)"""
+    )
+
+    pageIncoming().collect()(0).getAs[String]("page_title_historical") shouldEqual "Target_Page"
+  }
+
+  it should "map undelete to 'restore' for event_type" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'undelete', '2024-01-15T10:00:00Z', 'uuid-D', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'Some_Page', 0)"""
+    )
+
+    pageIncoming().collect()(0).getAs[String]("event_type") shouldEqual "restore"
+  }
+
+  it should "set all revision and revert fields to null for page events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-E', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'A', 0)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[java.lang.Long]("revision_id")                                           shouldBe null
+    row.getAs[java.lang.Boolean]("revision_is_identity_reverted")                      shouldBe null
+    row.getAs[java.lang.Boolean]("revision_is_identity_revert")                        shouldBe null
+    row.getAs[java.lang.Boolean]("revision_is_identity_reverted_within_90_days")       shouldBe null
+    row.getAs[java.lang.Boolean]("revision_is_identity_revert_within_90_days")         shouldBe null
+    row.getAs[java.lang.Long]("revision_first_identity_reverting_revision_id")         shouldBe null
+    row.getAs[java.lang.Long]("revision_first_identity_reverting_revision_id_within_90_days") shouldBe null
+    row.getAs[java.lang.Long]("event_user_revision_count")                             shouldBe null
+  }
+
+  it should "classify a bot-by-group performer for page events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-F', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'SomeUser', false, array('bot', 'sysop'), CAST(NULL AS STRING),
+          1L, 'A', 0)"""
+    )
+
+    pageIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("group")
+  }
+
+  it should "classify a bot-by-name performer for page events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-G', '2024-01-15T10:00:01Z',
+          'Old', 0,
+          1L, CAST(NULL AS BIGINT), 'ClueBot', false, array(), CAST(NULL AS STRING),
+          1L, 'New', 0)"""
+    )
+
+    pageIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("name")
+  }
+
+  it should "look up namespace content flag for page events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-H', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'Talk:Foo', 1)"""
+    )
+
+    pageIncoming().collect()(0).getAs[Boolean]("page_namespace_is_content_historical") shouldEqual false
+  }
+
+  it should "deduplicate page events on meta.id, keeping the latest meta_dt" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-I', '2024-01-15T10:00:02Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'Page_A', 0),
+         ('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-I', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          2L, CAST(NULL AS BIGINT), 'Bob',   false, array(), CAST(NULL AS STRING),
+          1L, 'Page_B', 0)"""
+    )
+
+    val rows = pageIncoming().collect()
+    rows.length shouldEqual 1
+    // later meta_dt wins: page_id=1, user=Alice
+    rows(0).getAs[String]("event_user_text_historical") shouldEqual "Alice"
+  }
+
+  it should "produce one row per distinct meta.id" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move',   '2024-01-15T10:00:00Z', 'uuid-J', '2024-01-15T10:00:01Z',
+          'Old_A', 0,
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          10L, 'New_A', 0),
+         ('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-K', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
+          20L, 'Page_B', 0),
+         ('dewiki', 'move',   '2024-01-15T10:00:00Z', 'uuid-L', '2024-01-15T10:00:01Z',
+          'Old_C', 0,
+          1L, CAST(NULL AS BIGINT), 'Bob',   false, array(), CAST(NULL AS STRING),
+          30L, 'New_C', 0)"""
+    )
+
+    pageIncoming().count() shouldEqual 3
   }
 
   // ---- revision_deleted_parts from page_change ----

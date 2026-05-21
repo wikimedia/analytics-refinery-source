@@ -18,15 +18,39 @@ import org.apache.spark.sql.SparkSession
  * Field paths are verified against mediawiki.page_change.v1 schema at
  * ~/wmf/gitlab/schemas-event-primary/jsonschema/mediawiki/page/change/latest.yaml
  *
- * Natural key for MERGE: (source='events', wiki_id, revision_id).
- * revision_id is immutable and unique per wiki — safe as a merge key for revisions.
- * User / page events are out of scope for this first version.
+ * Natural key for MERGE:
+ *   Revision events: (wiki_id, revision_id) — immutable and unique per wiki.
+ *   Page events: (wiki_id, event_meta_id) where event_meta_id = meta.id (UUID).
+ *     This key applies only to source='events' rows; event_meta_id is NULL for all
+ *     source='snapshot' rows (see event_meta_id column note below).
+ *     revision_id is NULL for page events in wmf.mediawiki_history (confirmed via
+ *     MediawikiEvent.fromPageState), so revision_id cannot serve as a page-event key.
+ *     The composite timestamp key (wiki_id, page_id, event_type, event_timestamp) was
+ *     ruled out: April 2026 data shows 10 move collisions at second-precision timestamps.
+ *     meta.id has zero repeats across a full month of events (empirically reliable).
+ *     Note: meta.id is a delivery UUID, not a business key — a stream replay could produce
+ *     a new UUID for the same logical event. Empirically this has not been observed;
+ *     control_map['page_update_dt'] guards against stale rewrites on normal reruns.
+ *     TODO: when event_entity='user' is implemented, event_meta_id may be reused there
+ *     with the same meta.id approach.
  *
- * Four MERGEs are required because each operation has a different join key and
+ * Two schema columns support provenance tracking:
+ *   event_meta_id STRING: MERGE key for page events. Populated from meta.id for
+ *     source='events' page rows; NULL for all revision rows and all snapshot rows.
+ *   control_map MAP<STRING,STRING>: per-stream update timestamps for rerun guards.
+ *     Keys: revision_update_dt (MERGE 1), revert_patch_dt (MERGE 2),
+ *           tags_update_dt (MERGE 3), visibility_update_dt (MERGE 4),
+ *           page_meta_id + page_update_dt (MERGE 5).
+ *     Each MERGE's WHEN MATCHED UPDATE uses map_concat to add/overwrite only its own
+ *     key(s), preserving entries written by other MERGEs. Timestamps stored as strings
+ *     (ISO-8601 UTC); lexicographic order equals chronological order.
+ *     TODO (follow-up): convert control_map to a typed struct for better schema enforcement.
+ *
+ * Five MERGEs are required because each operation has a different join key and
  * source table that cannot be combined without violating Iceberg's one-source-row-
  * per-target-row constraint or sacrificing partition pruning:
  *
- *   MERGE 1 (buildMergeSQL): insert/update today's incoming events.
+ *   MERGE 1 (buildMergeSQL): insert/update today's revision events.
  *     ON t.wiki_id = s.wiki_id AND t.revision_id = s.revision_id
  *     WHEN MATCHED AND t.source = 'events' THEN UPDATE
  *     WHEN NOT MATCHED THEN INSERT
@@ -59,9 +83,20 @@ import org.apache.spark.sql.SparkSession
  *     so partition pruning is sacrificed in exchange for full coverage.
  *     No INSERT clause: a visibility-change event alone does not create a row.
  *
+ *   MERGE 5 (buildPageEventMergeSQL): insert/update today's page events (move, delete, undelete).
+ *     ON t.wiki_id = s.wiki_id AND t.event_meta_id = s.event_meta_id
+ *     Actor from performer (not revision.editor). Event timestamp from top-level dt.
+ *     Historical title/namespace from page.* for all event kinds (confirmed by sampling MWH:
+ *     page_title_historical for move events = post-move title, e.g. "Half-life_(physics)").
+ *     Namespace prefix stripped (page_change_v1 includes "User:", "Talk:", etc. in page_title;
+ *     wmf.mediawiki_history stores the bare title with namespace in page_namespace_historical).
+ *     undelete mapped to 'restore' to match wmf.mediawiki_history vocabulary.
+ *     All revision-specific fields (revision_id, revert tiers, etc.) written as NULL.
+ *     visibility_change kind is excluded: those reach the target via MERGE 4's dedicated stream.
+ *
  * A single MERGE with a UNION'd source and compound OR join is not viable:
  * Iceberg requires each target row to match at most one source row, and the
- * compound OR prevents partition pruning. The three-MERGE approach keeps each
+ * compound OR prevents partition pruning. The five-MERGE approach keeps each
  * join key simple and the affected target row sets provably disjoint.
  */
 object MWHistoryDeltaWriter {
@@ -131,6 +166,12 @@ object MWHistoryDeltaWriter {
     val visibilitySql = buildVisibilityMergeSQL(p)
     log.info(s"Running MWHistoryDeltaWriter visibility MERGE INTO ${p.targetTable}:\n$visibilitySql")
     spark.sql(visibilitySql).collect()
+    // MERGE 5: insert/update today's page events (move, delete, undelete).
+    // Keyed on (wiki_id, event_meta_id) where event_meta_id = meta.id. revision_id is NULL
+    // for all page events (matches wmf.mediawiki_history convention).
+    val pageEventSql = buildPageEventMergeSQL(p)
+    log.info(s"Running MWHistoryDeltaWriter page events MERGE INTO ${p.targetTable}:\n$pageEventSql")
+    spark.sql(pageEventSql).collect()
   }
 
   /**
@@ -409,7 +450,8 @@ incoming AS (
     COALESCE(ra.revision_is_identity_reverted_within_90_days,                 FALSE) AS revision_is_identity_reverted_within_90_days,
     ra.revision_first_identity_reverting_revision_id_within_90_days,
     ra.revision_seconds_to_identity_revert_within_90_days,
-    COALESCE(ra.revision_is_identity_revert_within_90_days,                   FALSE) AS revision_is_identity_revert_within_90_days
+    COALESCE(ra.revision_is_identity_revert_within_90_days,                   FALSE) AS revision_is_identity_revert_within_90_days,
+    e.meta_dt
   FROM with_bots e
   LEFT JOIN revert_annotations ra
     ON  e.wiki_id     = ra.wiki_id
@@ -435,10 +477,11 @@ incoming AS (
     s"""WITH incoming_sha1s AS (
   SELECT
     wiki_id,
-    page.page_id                 AS page_id,
-    revision.rev_id              AS revision_id,
-    revision.rev_sha1            AS revision_text_sha1,
-    to_timestamp(revision.rev_dt) AS event_timestamp
+    page.page_id                  AS page_id,
+    revision.rev_id               AS revision_id,
+    revision.rev_sha1             AS revision_text_sha1,
+    to_timestamp(revision.rev_dt) AS event_timestamp,
+    to_timestamp(meta.dt)         AS meta_dt
   FROM ${p.sourceTable}
   WHERE year  = ${p.year}
     AND month = ${p.month}
@@ -448,7 +491,8 @@ incoming AS (
 ),
 
 seed_sha1s AS (
-  SELECT wiki_id, page_id, revision_id, revision_text_sha1, event_timestamp
+  SELECT wiki_id, page_id, revision_id, revision_text_sha1, event_timestamp,
+         CAST(NULL AS TIMESTAMP) AS meta_dt
   FROM ${p.targetTable}
   WHERE revision_text_sha1 IS NOT NULL
     AND event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00' - INTERVAL 90 DAYS
@@ -472,12 +516,14 @@ sha1_ranked AS (
 back_patch AS (
   -- Seed rows (already in target) whose first revert arrived in today's incoming batch.
   -- The back-patch updates both revert tiers on the reverted row regardless of its source.
+  -- meta_dt comes from the reverting (incoming) revision for the control_map update.
   SELECT
     base.wiki_id,
     base.revision_id                                                              AS target_revision_id,
     revert.revision_id                                                            AS first_reverting_rev_id,
     CAST(unix_timestamp(revert.event_timestamp)
-         - unix_timestamp(base.event_timestamp) AS BIGINT)                       AS seconds_to_revert
+         - unix_timestamp(base.event_timestamp) AS BIGINT)                       AS seconds_to_revert,
+    revert.meta_dt                                                                AS meta_dt
   FROM sha1_ranked base
   JOIN sha1_ranked revert
     ON  base.wiki_id            = revert.wiki_id
@@ -530,11 +576,13 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.revision_is_identity_reverted_within_90_days                  = s.revision_is_identity_reverted_within_90_days,
     t.revision_first_identity_reverting_revision_id_within_90_days  = s.revision_first_identity_reverting_revision_id_within_90_days,
     t.revision_seconds_to_identity_revert_within_90_days            = s.revision_seconds_to_identity_revert_within_90_days,
-    t.revision_is_identity_revert_within_90_days                    = s.revision_is_identity_revert_within_90_days
+    t.revision_is_identity_revert_within_90_days                    = s.revision_is_identity_revert_within_90_days,
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', CAST(s.meta_dt AS STRING)))
 WHEN NOT MATCHED THEN
   INSERT (
     source,
     wiki_id,
+    event_meta_id,
     event_entity,
     event_type,
     event_timestamp,
@@ -567,10 +615,12 @@ WHEN NOT MATCHED THEN
     revision_is_identity_reverted_within_90_days,
     revision_first_identity_reverting_revision_id_within_90_days,
     revision_seconds_to_identity_revert_within_90_days,
-    revision_is_identity_revert_within_90_days
+    revision_is_identity_revert_within_90_days,
+    control_map
   ) VALUES (
     s.source,
     s.wiki_id,
+    CAST(NULL AS STRING),
     s.event_entity,
     s.event_type,
     s.event_timestamp,
@@ -603,7 +653,8 @@ WHEN NOT MATCHED THEN
     s.revision_is_identity_reverted_within_90_days,
     s.revision_first_identity_reverting_revision_id_within_90_days,
     s.revision_seconds_to_identity_revert_within_90_days,
-    s.revision_is_identity_revert_within_90_days
+    s.revision_is_identity_revert_within_90_days,
+    map('revision_update_dt', CAST(s.meta_dt AS STRING))
   )"""
 
   def buildBackPatchSQL(p: Params): String =
@@ -621,7 +672,8 @@ WHEN MATCHED THEN
     t.revision_seconds_to_identity_revert                          = s.seconds_to_revert,
     t.revision_is_identity_reverted_within_90_days                 = TRUE,
     t.revision_first_identity_reverting_revision_id_within_90_days = s.first_reverting_rev_id,
-    t.revision_seconds_to_identity_revert_within_90_days           = s.seconds_to_revert"""
+    t.revision_seconds_to_identity_revert_within_90_days           = s.seconds_to_revert,
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revert_patch_dt', CAST(s.meta_dt AS STRING)))"""
 
   /**
    * Returns the CTE that deduplicates today's revision_tags_change events to one row per revision.
@@ -634,7 +686,8 @@ WHEN MATCHED THEN
   SELECT
     database AS wiki_id,
     rev_id   AS revision_id,
-    tags     AS revision_tags
+    tags     AS revision_tags,
+    meta.dt  AS meta_dt
   FROM (
     SELECT *,
       row_number() OVER (
@@ -662,7 +715,9 @@ ON  t.wiki_id         = s.wiki_id
 AND t.revision_id     = s.revision_id
 AND t.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00' - INTERVAL 90 DAYS
 WHEN MATCHED THEN
-  UPDATE SET t.revision_tags = s.revision_tags"""
+  UPDATE SET
+    t.revision_tags = s.revision_tags,
+    t.control_map   = map_concat(COALESCE(t.control_map, map()), map('tags_update_dt', s.meta_dt))"""
   }
 
   /**
@@ -685,7 +740,8 @@ WHEN MATCHED THEN
                 ),
                 x -> x IS NOT NULL
               )
-    END AS revision_deleted_parts
+    END AS revision_deleted_parts,
+    meta.dt AS meta_dt
   FROM (
     SELECT *,
       row_number() OVER (
@@ -711,5 +767,261 @@ USING latest_visibility s
 ON  t.wiki_id     = s.wiki_id
 AND t.revision_id = s.revision_id
 WHEN MATCHED THEN
-  UPDATE SET t.revision_deleted_parts = s.revision_deleted_parts"""
+  UPDATE SET
+    t.revision_deleted_parts = s.revision_deleted_parts,
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('visibility_update_dt', s.meta_dt))"""
+
+  /**
+   * Returns the CTE chain for page events (move, delete, undelete) from page_change_v1.
+   * Tests append "SELECT * FROM page_incoming" to exercise the logic without Iceberg.
+   *
+   * Field source notes (verified against page_change_v1 schema):
+   * (1) dt: top-level event timestamp (action time); revision.rev_dt is the revision's creation time.
+   * (2) performer: actor for page admin events; revision.editor is absent for non-edit events.
+   * (3) page.page_title is used for all event kinds (post-move destination for moves;
+   *     current title for delete/undelete). prior_state.page.page_title (pre-move title) is
+   *     intentionally unused: MWH convention stores the post-move title in page_title_historical
+   *     (verified by sampling wmf.mediawiki_history: "Half-life_(physics)", not "Half-life").
+   *     page.page_title includes the namespace prefix (e.g. "User:Foo") for non-main-namespace
+   *     pages; REGEXP_REPLACE strips the prefix when namespace_id != 0, matching the bare-title
+   *     convention of wmf.mediawiki_history (namespace stored separately in page_namespace_historical).
+   * (4) undelete mapped to 'restore' to match wmf.mediawiki_history vocabulary.
+   * (5) revision_id is NULL — page events have no revision in wmf.mediawiki_history.
+   * (6) All revert tier fields are NULL — not applicable to page-level events.
+   *     Bounded tier is also NULL (not FALSE) unlike revision events.
+   * (7) event_user_is_created_by_self is NULL — not derivable from performer for page events.
+   * (8) visibility_change kind is excluded: those reach the target via MERGE 4's dedicated stream.
+   */
+  def buildPageIncomingSQL(p: Params): String = {
+    s"""WITH raw_page_events AS (
+  SELECT
+    wiki_id,
+    meta.id                                                             AS meta_id,
+    to_timestamp(meta.dt)                                               AS meta_dt,
+    'page'                                                              AS event_entity,
+    CASE WHEN page_change_kind = 'undelete' THEN 'restore'
+         ELSE page_change_kind END                                      AS event_type,
+    to_timestamp(dt)                                                    AS event_timestamp,
+    performer.user_id                                                   AS event_user_id,
+    performer.user_central_id                                           AS event_user_central_id,
+    performer.user_text                                                 AS event_user_text_historical,
+    (performer.user_id IS NULL)                                         AS event_user_is_anonymous,
+    performer.is_temp                                                   AS event_user_is_temporary,
+    (performer.user_id IS NOT NULL
+     AND NOT performer.is_temp)                                         AS event_user_is_permanent,
+    to_timestamp(performer.registration_dt)                             AS event_user_registration_timestamp,
+    CAST(NULL AS BOOLEAN)                                               AS event_user_is_created_by_self,
+    page.page_id                                                        AS page_id,
+    CASE WHEN page.namespace_id = 0 THEN page.page_title
+         ELSE REGEXP_REPLACE(page.page_title, '^[^:]+:', '')
+    END                                                                  AS page_title_historical,
+    page.namespace_id                                                    AS page_namespace_historical,
+    CAST(NULL AS BIGINT)                                                AS revision_id,
+    CAST(NULL AS BIGINT)                                                AS revision_parent_id,
+    CAST(NULL AS BOOLEAN)                                               AS revision_minor_edit,
+    CAST(NULL AS BIGINT)                                                AS revision_text_bytes,
+    CAST(NULL AS BIGINT)                                                AS revision_text_bytes_diff,
+    CAST(NULL AS STRING)                                                AS revision_text_sha1,
+    CAST(NULL AS ARRAY<STRING>)                                         AS revision_tags,
+    CAST(NULL AS ARRAY<STRING>)                                         AS revision_deleted_parts,
+    performer.groups                                                    AS user_groups_raw
+  FROM ${p.sourceTable}
+  WHERE year  = ${p.year}
+    AND month = ${p.month}
+    AND day   = ${p.day}
+    AND page_change_kind IN ('move', 'delete', 'undelete')
+),
+
+deduplicated_page AS (
+  -- Deduplicate on meta.id (the MERGE 5 join key). Empirically meta.id has zero repeats
+  -- in a full month of events (April 2026); this guard handles partition re-reads on reruns.
+  -- The composite key (wiki_id, page_id, event_type, event_timestamp) is NOT used for dedup:
+  -- move events show 10 second-precision collisions in April 2026 data alone.
+  SELECT * FROM (
+    SELECT
+      *,
+      row_number() OVER (
+        PARTITION BY wiki_id, meta_id
+        ORDER BY meta_dt DESC
+      ) AS rn
+    FROM raw_page_events
+  )
+  WHERE rn = 1
+),
+
+page_with_namespace AS (
+  SELECT
+    e.*,
+    (ns.namespace_is_content = 1) AS page_namespace_is_content_historical
+  FROM deduplicated_page e
+  LEFT JOIN ${p.namespacesTable} ns
+    ON  e.wiki_id                   = ns.dbname
+    AND e.page_namespace_historical = ns.namespace
+    AND ns.snapshot                 = '${p.namespacesSnapshot}'
+),
+
+page_with_bots AS (
+  SELECT
+    e.*,
+    filter(
+      array(
+        CASE WHEN lower(e.event_user_text_historical) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
+             THEN 'name' END,
+        CASE WHEN array_contains(e.user_groups_raw, 'bot')
+             THEN 'group' END
+      ),
+      x -> x IS NOT NULL
+    ) AS event_user_is_bot_by_historical
+  FROM page_with_namespace e
+),
+
+page_incoming AS (
+  SELECT
+    'events'                                                            AS source,
+    e.wiki_id,
+    e.meta_id                                                           AS event_meta_id,
+    e.event_entity,
+    e.event_type,
+    e.event_timestamp,
+    e.event_user_id,
+    e.event_user_central_id,
+    e.event_user_text_historical,
+    e.event_user_is_anonymous,
+    e.event_user_is_temporary,
+    e.event_user_is_permanent,
+    e.event_user_registration_timestamp,
+    e.event_user_is_created_by_self,
+    e.page_id,
+    e.page_title_historical,
+    e.page_namespace_historical,
+    e.revision_id,
+    e.revision_parent_id,
+    e.revision_minor_edit,
+    e.revision_text_bytes,
+    e.revision_text_bytes_diff,
+    e.revision_text_sha1,
+    e.revision_tags,
+    e.revision_deleted_parts,
+    e.page_namespace_is_content_historical,
+    e.event_user_is_bot_by_historical,
+    CAST(NULL AS BIGINT)                                                AS event_user_revision_count,
+    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_reverted,
+    CAST(NULL AS BIGINT)                                                AS revision_first_identity_reverting_revision_id,
+    CAST(NULL AS BIGINT)                                                AS revision_seconds_to_identity_revert,
+    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_revert,
+    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_reverted_within_90_days,
+    CAST(NULL AS BIGINT)                                                AS revision_first_identity_reverting_revision_id_within_90_days,
+    CAST(NULL AS BIGINT)                                                AS revision_seconds_to_identity_revert_within_90_days,
+    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_revert_within_90_days,
+    e.meta_dt
+  FROM page_with_bots e
+)"""
+  }
+
+  def buildPageEventMergeSQL(p: Params): String =
+    buildPageIncomingSQL(p) +
+    s"""
+
+MERGE INTO ${p.targetTable} t
+USING page_incoming s
+ON  t.wiki_id       = s.wiki_id
+AND t.event_meta_id = s.event_meta_id
+WHEN MATCHED AND t.source = 'events' THEN
+  UPDATE SET
+    t.event_type                                                    = s.event_type,
+    t.event_timestamp                                               = s.event_timestamp,
+    t.event_user_id                                                 = s.event_user_id,
+    t.event_user_central_id                                         = s.event_user_central_id,
+    t.event_user_text_historical                                    = s.event_user_text_historical,
+    t.event_user_is_anonymous                                       = s.event_user_is_anonymous,
+    t.event_user_is_temporary                                       = s.event_user_is_temporary,
+    t.event_user_is_permanent                                       = s.event_user_is_permanent,
+    t.event_user_registration_timestamp                             = s.event_user_registration_timestamp,
+    t.event_user_is_created_by_self                                 = s.event_user_is_created_by_self,
+    t.page_title_historical                                         = s.page_title_historical,
+    t.page_namespace_historical                                     = s.page_namespace_historical,
+    t.page_namespace_is_content_historical                          = s.page_namespace_is_content_historical,
+    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
+    t.control_map = map_concat(COALESCE(t.control_map, map()),
+                               map('page_meta_id',    s.event_meta_id,
+                                   'page_update_dt',  CAST(s.meta_dt AS STRING)))
+WHEN NOT MATCHED THEN
+  INSERT (
+    source,
+    wiki_id,
+    event_meta_id,
+    event_entity,
+    event_type,
+    event_timestamp,
+    event_user_id,
+    event_user_central_id,
+    event_user_text_historical,
+    event_user_is_anonymous,
+    event_user_is_temporary,
+    event_user_is_permanent,
+    event_user_registration_timestamp,
+    event_user_is_created_by_self,
+    page_id,
+    page_title_historical,
+    page_namespace_historical,
+    revision_id,
+    revision_parent_id,
+    revision_minor_edit,
+    revision_text_bytes,
+    revision_text_bytes_diff,
+    revision_text_sha1,
+    revision_tags,
+    revision_deleted_parts,
+    page_namespace_is_content_historical,
+    event_user_is_bot_by_historical,
+    event_user_revision_count,
+    revision_is_identity_reverted,
+    revision_first_identity_reverting_revision_id,
+    revision_seconds_to_identity_revert,
+    revision_is_identity_revert,
+    revision_is_identity_reverted_within_90_days,
+    revision_first_identity_reverting_revision_id_within_90_days,
+    revision_seconds_to_identity_revert_within_90_days,
+    revision_is_identity_revert_within_90_days,
+    control_map
+  ) VALUES (
+    s.source,
+    s.wiki_id,
+    s.event_meta_id,
+    s.event_entity,
+    s.event_type,
+    s.event_timestamp,
+    s.event_user_id,
+    s.event_user_central_id,
+    s.event_user_text_historical,
+    s.event_user_is_anonymous,
+    s.event_user_is_temporary,
+    s.event_user_is_permanent,
+    s.event_user_registration_timestamp,
+    s.event_user_is_created_by_self,
+    s.page_id,
+    s.page_title_historical,
+    s.page_namespace_historical,
+    s.revision_id,
+    s.revision_parent_id,
+    s.revision_minor_edit,
+    s.revision_text_bytes,
+    s.revision_text_bytes_diff,
+    s.revision_text_sha1,
+    s.revision_tags,
+    s.revision_deleted_parts,
+    s.page_namespace_is_content_historical,
+    s.event_user_is_bot_by_historical,
+    s.event_user_revision_count,
+    s.revision_is_identity_reverted,
+    s.revision_first_identity_reverting_revision_id,
+    s.revision_seconds_to_identity_revert,
+    s.revision_is_identity_revert,
+    s.revision_is_identity_reverted_within_90_days,
+    s.revision_first_identity_reverting_revision_id_within_90_days,
+    s.revision_seconds_to_identity_revert_within_90_days,
+    s.revision_is_identity_revert_within_90_days,
+    map('page_meta_id',   s.event_meta_id,
+        'page_update_dt', CAST(s.meta_dt AS STRING))
+  )"""
 }
