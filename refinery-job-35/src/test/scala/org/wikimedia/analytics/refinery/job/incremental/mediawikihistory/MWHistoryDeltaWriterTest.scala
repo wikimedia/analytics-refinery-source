@@ -32,6 +32,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     namespacesSnapshot = "2024-12",
     tagsTable          = "test_tags",
     visibilityTable    = "test_visibility",
+    userChangeTable    = "test_user_source",
     year = 2024, month = 1, day = 15
   )
 
@@ -40,6 +41,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
   def latestTags()       = spark.sql(MWHistoryDeltaWriter.buildTagsCteSQL(params)       + "\nSELECT * FROM latest_tags")
   def latestVisibility() = spark.sql(MWHistoryDeltaWriter.buildVisibilityCteSQL(params) + "\nSELECT * FROM latest_visibility")
   def pageIncoming()     = spark.sql(MWHistoryDeltaWriter.buildPageIncomingSQL(params)  + "\nSELECT * FROM page_incoming")
+  def userIncoming()     = spark.sql(MWHistoryDeltaWriter.buildUserIncomingSQL(params)  + "\nSELECT * FROM user_incoming")
 
   /** Empty target — only needed for the revert_seed CTE, not for byte diff. */
   def registerEmptyTarget(): Unit =
@@ -206,6 +208,58 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
                  page_id, page_title, namespace_id)"""
     )
 
+  def registerUserEventWith(rows: String): Unit =
+    spark.sql(
+      s"""CREATE OR REPLACE TEMP VIEW test_user_source AS
+          SELECT
+            t.wiki_id,
+            t.user_change_kind,
+            CAST(t.dt AS STRING)      AS dt,
+            named_struct(
+              'id', t.meta_id,
+              'dt', t.meta_dt
+            ) AS meta,
+            t.is_autocreate,
+            named_struct(
+              'user_id',         t.user_id,
+              'user_central_id', t.user_central_id,
+              'user_text',       t.user_text,
+              'is_temp',         t.is_temp,
+              'edit_count',      t.edit_count,
+              'groups',          t.groups,
+              'registration_dt', t.registration_dt
+            ) AS user,
+            named_struct(
+              'user', named_struct(
+                'user_id',         t.prior_user_id,
+                'user_central_id', t.user_central_id,
+                'user_text',       t.prior_user_text,
+                'is_temp',         t.prior_is_temp,
+                'edit_count',      t.edit_count,
+                'groups',          t.prior_groups,
+                'registration_dt', t.registration_dt
+              )
+            ) AS prior_state,
+            named_struct(
+              'user_id',         t.performer_user_id,
+              'user_central_id', t.performer_user_central_id,
+              'user_text',       t.performer_user_text,
+              'is_temp',         t.performer_is_temp,
+              'registration_dt', t.performer_registration_dt,
+              'groups',          t.performer_groups
+            ) AS performer,
+            ${params.year} AS year, ${params.month} AS month, ${params.day} AS day
+          FROM (
+            SELECT * FROM VALUES $rows
+          ) AS t(wiki_id, user_change_kind, dt, meta_id, meta_dt,
+                 is_autocreate,
+                 user_id, user_central_id, user_text, is_temp, edit_count,
+                 groups, registration_dt,
+                 prior_user_id, prior_user_text, prior_groups, prior_is_temp,
+                 performer_user_id, performer_user_central_id, performer_user_text,
+                 performer_is_temp, performer_registration_dt, performer_groups)"""
+    )
+
   // ---- Argument parsing ----
 
   "MWHistoryDeltaWriter.parseArgs" should "map CLI flags to Params fields" in {
@@ -216,6 +270,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
       "--namespaces_snapshot", "2024-12",
       "--tags_table",         "event.mediawiki_revision_tags_change",
       "--visibility_table",   "event.mediawiki_revision_visibility_change",
+      "--user_change_table",  "event.mediawiki_user_change",
       "--year",  "2024",
       "--month", "1",
       "--day",   "15"
@@ -226,6 +281,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     p.namespacesSnapshot shouldEqual "2024-12"
     p.tagsTable          shouldEqual "event.mediawiki_revision_tags_change"
     p.visibilityTable    shouldEqual "event.mediawiki_revision_visibility_change"
+    p.userChangeTable    shouldEqual "event.mediawiki_user_change"
     p.year               shouldEqual 2024
     p.month              shouldEqual 1
     p.day                shouldEqual 15
@@ -862,5 +918,259 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     incoming().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
+  }
+
+  // ---- User events (MERGE 6) ----
+  // Positional VALUES: wiki_id, user_change_kind, dt, meta_id, meta_dt,
+  //   is_autocreate, user_id, user_central_id, user_text, is_temp, edit_count,
+  //   groups, registration_dt, prior_user_id, prior_user_text, prior_groups, prior_is_temp,
+  //   performer_user_id, performer_user_central_id, performer_user_text,
+  //   performer_is_temp, performer_registration_dt, performer_groups
+
+  "MWHistoryDeltaWriter user events" should "map basic create fields to the target schema" in {
+    // Self-registration: performer == user being created
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U1', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 7L, array(), '2020-01-01T00:00:00Z',
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, 99L, 'Alice', false, '2020-01-01T00:00:00Z', array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[String]("event_entity")                 shouldEqual "user"
+    row.getAs[String]("event_type")                   shouldEqual "create"
+    row.getAs[String]("wiki_id")                      shouldEqual "enwiki"
+    // event_user_* = performer (Alice registering herself)
+    row.getAs[Long]("event_user_id")                  shouldEqual 42L
+    row.getAs[Long]("event_user_central_id")          shouldEqual 99L
+    row.getAs[String]("event_user_text_historical")   shouldEqual "Alice"
+    // user_* = the user being created
+    row.getAs[Long]("user_id")                        shouldEqual 42L
+    row.getAs[String]("user_text_historical")         shouldEqual "Alice"
+    row.getAs[java.sql.Timestamp]("event_timestamp")  should not be null
+  }
+
+  it should "use user.user_text as user_text_historical (post-rename name, not prior name)" in {
+    registerUserEventWith(
+      """('enwiki', 'rename', '2024-01-15T10:00:00Z', 'uuid-U2', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'NewName', false, 100L, array(), '2020-01-01T00:00:00Z',
+          42L, 'OldName', array(), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[String]("user_text_historical")       shouldEqual "NewName"
+    row.getAs[String]("event_user_text_historical") shouldEqual "Admin"
+  }
+
+  it should "map groups_change to event_type='altergroups'" in {
+    registerUserEventWith(
+      """('enwiki', 'groups_change', '2024-01-15T10:00:00Z', 'uuid-U3', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 50L, array('sysop'), '2020-01-01T00:00:00Z',
+          42L, 'Alice', array(), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
+    )
+
+    userIncoming().collect()(0).getAs[String]("event_type") shouldEqual "altergroups"
+  }
+
+  it should "set user_is_created_by_self=true for self-registration" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U5', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, CAST(NULL AS BIGINT), 'Alice', false, CAST(NULL AS STRING), array())"""
+    )
+
+    userIncoming().collect()(0).getAs[Boolean]("user_is_created_by_self") shouldEqual true
+  }
+
+  it should "set user_is_created_by_self=false when performer_user_id is null (system creation)" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U6b', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING), false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Boolean]("user_is_created_by_self")   shouldEqual false
+    row.getAs[Boolean]("user_is_created_by_system") shouldEqual false
+  }
+
+  it should "set user_is_created_by_peer=true when an admin creates the account" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U6', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Boolean]("user_is_created_by_self") shouldEqual false
+    row.getAs[Boolean]("user_is_created_by_peer") shouldEqual true
+  }
+
+  it should "set user_is_created_by_system=true for autocreate events" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U6c', '2024-01-15T10:00:01Z',
+          true,
+          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING), false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Boolean]("user_is_created_by_system") shouldEqual true
+    row.getAs[Boolean]("user_is_created_by_self")   shouldEqual false
+    row.getAs[Boolean]("user_is_created_by_peer")   shouldEqual false
+  }
+
+  it should "set user_is_temporary and user_is_permanent from the changed user" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U8', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, '~2024-TempUser', true, 0L, array('*'), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), true,
+          42L, CAST(NULL AS BIGINT), '~2024-TempUser', false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Boolean]("user_is_temporary")        shouldEqual true
+    row.getAs[Boolean]("user_is_permanent")        shouldEqual false
+    row.getAs[Boolean]("event_user_is_temporary")  shouldEqual false
+    row.getAs[Boolean]("event_user_is_permanent")  shouldEqual true
+  }
+
+  it should "classify performer as bot by group membership for event_user_is_bot_by_historical" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-U9', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          1L, CAST(NULL AS BIGINT), 'ImportBot', false, CAST(NULL AS STRING), array('bot'))"""
+    )
+
+    userIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") should contain("group")
+  }
+
+  it should "classify changed user as bot by user_groups for user_is_bot_by_historical on groups_change" in {
+    registerUserEventWith(
+      """('enwiki', 'groups_change', '2024-01-15T10:00:00Z', 'uuid-UA', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'MyBot', false, 200L, array('bot'), '2020-01-01T00:00:00Z',
+          42L, 'MyBot', array(), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
+    )
+
+    userIncoming().collect()(0).getAs[Seq[String]]("user_is_bot_by_historical") should contain("group")
+  }
+
+  it should "set event_user_revision_count to null (performer edit_count not in stream)" in {
+    registerUserEventWith(
+      """('enwiki', 'rename', '2024-01-15T10:00:00Z', 'uuid-UB', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 1337L, array(), '2020-01-01T00:00:00Z',
+          42L, 'OldAlice', array(), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
+    )
+
+    userIncoming().collect()(0).isNullAt(
+      userIncoming().schema.fieldIndex("event_user_revision_count")
+    ) shouldEqual true
+  }
+
+  it should "set all page, revision, and revert fields to null" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-UC', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, CAST(NULL AS BIGINT), 'Alice', false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row    = userIncoming().collect()(0)
+    val schema = userIncoming().schema
+    Seq("page_id", "page_title_historical", "page_namespace_historical",
+        "revision_id", "revision_text_bytes",
+        "revision_is_identity_reverted", "revision_is_identity_reverted_within_90_days"
+    ).foreach { col =>
+      row.isNullAt(schema.fieldIndex(col)) shouldEqual true
+    }
+  }
+
+  it should "deduplicate rows with the same meta_id keeping the latest meta_dt" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-UD', '2024-01-15T10:00:02Z',
+          false,
+          42L, 99L, 'Alice_v2', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, CAST(NULL AS BIGINT), 'Alice_v2', false, CAST(NULL AS STRING), array()),
+         ('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-UD', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice_v1', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, CAST(NULL AS BIGINT), 'Alice_v1', false, CAST(NULL AS STRING), array())"""
+    )
+
+    val rows = userIncoming().collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[String]("event_user_text_historical") shouldEqual "Alice_v2"
+  }
+
+  it should "pass through multiple rows with distinct meta_ids" in {
+    registerUserEventWith(
+      """('enwiki',  'create',        '2024-01-15T10:00:00Z', 'uuid-UE1', '2024-01-15T10:00:01Z',
+          false,
+          10L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          10L, CAST(NULL AS BIGINT), 'Alice', false, CAST(NULL AS STRING), array()),
+         ('enwiki',  'rename',        '2024-01-15T11:00:00Z', 'uuid-UE2', '2024-01-15T11:00:01Z',
+          false,
+          20L, 88L, 'NewBob', false, 5L, array(), '2019-01-01T00:00:00Z',
+          20L, 'OldBob', array(), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array()),
+         ('dewiki',  'groups_change', '2024-01-15T12:00:00Z', 'uuid-UE3', '2024-01-15T12:00:01Z',
+          false,
+          30L, 77L, 'Carol', false, 50L, array('sysop'), '2018-06-01T00:00:00Z',
+          30L, 'Carol', array(), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
+    )
+
+    userIncoming().count() shouldEqual 3
+  }
+
+  it should "populate user_groups_historical with post-event groups for altergroups events" in {
+    registerUserEventWith(
+      """('enwiki', 'groups_change', '2024-01-15T10:00:00Z', 'uuid-UF1', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 50L, array('sysop', 'bot'), '2020-01-01T00:00:00Z',
+          42L, 'Alice', array('bot'), false,
+          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array('sysop'))"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Seq[String]]("user_groups_historical")        shouldEqual Seq("sysop", "bot")
+    row.getAs[Seq[String]]("event_user_groups_historical")  shouldEqual Seq("sysop")
+  }
+
+  it should "populate user_groups_historical from user_groups for create events (no prior state)" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-UF2', '2024-01-15T10:00:01Z',
+          false,
+          42L, 99L, 'Alice', false, 0L, array('confirmed'), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, CAST(NULL AS BIGINT), 'Alice', false, CAST(NULL AS STRING), array('confirmed'))"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Seq[String]]("user_groups_historical")        shouldEqual Seq("confirmed")
+    row.getAs[Seq[String]]("event_user_groups_historical")  shouldEqual Seq("confirmed")
   }
 }
