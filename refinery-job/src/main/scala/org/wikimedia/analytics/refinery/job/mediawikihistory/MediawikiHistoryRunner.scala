@@ -213,8 +213,6 @@ object MediawikiHistoryRunner {
         val archiveDataPath = baseDataPath + "/archive" + snapshotPartition
         val changeTagDataPath = baseDataPath + "/change_tag" + snapshotPartition
         val changeTagDefDataPath = baseDataPath + "/change_tag_def" + snapshotPartition
-        // Note: The content tables doesn't contain wikitext, only metadata related to content (sha1, size etc)
-        val contentDataPath = baseDataPath + "/content" + snapshotPartition
         val loggingDataPath = baseDataPath + "/logging" + snapshotPartition
         val pageDataPath = baseDataPath +  "/page" + snapshotPartition
         val revisionDataPath = baseDataPath + "/revision" + snapshotPartition
@@ -227,6 +225,8 @@ object MediawikiHistoryRunner {
 
         val actorPrivateDataPath = basePrivateDataPath + "/actor" + snapshotPartition
         val commentPrivateDataPath = basePrivateDataPath + "/comment" + snapshotPartition
+        // Note: The content tables doesn't contain wikitext, only metadata related to content (sha1, size etc)
+        val contentPrivateDataPath = basePrivateDataPath + "/content" + snapshotPartition
 
         val denormalizedHistoryPath = outputBasePath + "/history" + snapshotPartition
         val pageHistoryPath = outputBasePath + "/page_history" + snapshotPartition
@@ -327,7 +327,7 @@ object MediawikiHistoryRunner {
           changeTagDataPath,
           changeTagDefDataPath,
           commentPrivateDataPath,
-          contentDataPath,
+          contentPrivateDataPath,
           loggingDataPath,
           pageDataPath,
           revisionDataPath,
