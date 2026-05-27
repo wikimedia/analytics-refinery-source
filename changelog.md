@@ -1,3 +1,6 @@
+## v0.3.15
+Change mediawiki_content from public to private
+
 ## v0.3.14
 * Add Sanitizer to clean up wprov value of x-analytics
 * Remove wmf-analytics-old-uploads Archiva repository
