@@ -70,11 +70,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            revision_is_identity_reverted                                 BOOLEAN,
            revision_first_identity_reverting_revision_id                 BIGINT,
            revision_seconds_to_identity_revert                           BIGINT,
-           revision_is_identity_revert                                   BOOLEAN,
-           revision_is_identity_reverted_within_90_days                  BOOLEAN,
-           revision_first_identity_reverting_revision_id_within_90_days  BIGINT,
-           revision_seconds_to_identity_revert_within_90_days            BIGINT,
-           revision_is_identity_revert_within_90_days                    BOOLEAN
+           revision_is_identity_revert                                   BOOLEAN
          ) USING iceberg
          PARTITIONED BY (source, days(event_timestamp))"""
     )
@@ -82,7 +78,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
 
   override def afterAll(): Unit = spark.stop()
 
-  /** Inserts a minimal source='events' row into the Iceberg target at the given timestamp. */
+  /** Inserts a minimal source='events' revision row into the Iceberg target. */
   def insertEventsRow(revisionId: Long, eventTimestamp: String): Unit =
     spark.sql(
       s"""INSERT INTO local.db.test_target VALUES (
@@ -101,8 +97,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
-           CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
-           false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN)
          )"""
     )
 
@@ -228,16 +223,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
   }
 
-  it should "set bounded revert fields to false when revision is not reverted" in {
-    registerSource()
-    val row = projected().collect()(0)
-    row.getAs[Boolean]("revision_is_identity_reverted_within_90_days") shouldEqual false
-    row.getAs[Boolean]("revision_is_identity_revert_within_90_days")   shouldEqual false
-    row.getAs[java.lang.Long]("revision_first_identity_reverting_revision_id_within_90_days") shouldBe null
-    row.getAs[java.lang.Long]("revision_seconds_to_identity_revert_within_90_days")           shouldBe null
-  }
-
-  it should "set revision_is_identity_reverted_within_90_days true when reverted within 90d" in {
+  it should "pass through revision_is_identity_reverted=true from wmf.mediawiki_history" in {
     spark.sql(
       """CREATE OR REPLACE TEMP VIEW test_mwh AS
          SELECT
@@ -279,12 +265,12 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     )
 
     val row = projected().collect()(0)
-    row.getAs[Boolean]("revision_is_identity_reverted_within_90_days")               shouldEqual true
-    row.getAs[Long]("revision_first_identity_reverting_revision_id_within_90_days")  shouldEqual 200L
-    row.getAs[Long]("revision_seconds_to_identity_revert_within_90_days")            shouldEqual 3600L
+    row.getAs[Boolean]("revision_is_identity_reverted")                               shouldEqual true
+    row.getAs[Long]("revision_first_identity_reverting_revision_id")                  shouldEqual 200L
+    row.getAs[Long]("revision_seconds_to_identity_revert")                            shouldEqual 3600L
   }
 
-  it should "set revision_is_identity_reverted_within_90_days false when reverted outside 90d" in {
+  it should "set revision_is_identity_reverted=false when reverted outside any window" in {
     spark.sql(
       """CREATE OR REPLACE TEMP VIEW test_mwh AS
          SELECT
@@ -326,12 +312,12 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     )
 
     val row = projected().collect()(0)
-    row.getAs[Boolean]("revision_is_identity_reverted_within_90_days")               shouldEqual false
-    row.getAs[java.lang.Long]("revision_first_identity_reverting_revision_id_within_90_days") shouldBe null
-    row.getAs[java.lang.Long]("revision_seconds_to_identity_revert_within_90_days")           shouldBe null
+    row.getAs[Boolean]("revision_is_identity_reverted")                               shouldEqual true
+    row.getAs[Long]("revision_first_identity_reverting_revision_id")                  shouldEqual 200L
+    row.getAs[Long]("revision_seconds_to_identity_revert")                            shouldEqual (91 * 86400).toLong
   }
 
-  it should "set revision_is_identity_revert_within_90_days true when the reverting delay is within 90d" in {
+  it should "pass through revision_is_identity_revert=true from wmf.mediawiki_history" in {
     // rev 102 (is_identity_revert=true) reverted rev 101 which was reverted in 3600s (<= 90d).
     spark.sql(
       """CREATE OR REPLACE TEMP VIEW test_mwh AS
@@ -383,8 +369,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     )
 
     val rows = projected().collect().sortBy(_.getAs[Long]("revision_id"))
-    rows(1).getAs[Long]("revision_id")                                      shouldEqual 102L
-    rows(1).getAs[Boolean]("revision_is_identity_revert_within_90_days")    shouldEqual true
+    rows(1).getAs[Long]("revision_id")                     shouldEqual 102L
+    rows(1).getAs[Boolean]("revision_is_identity_revert")  shouldEqual true
   }
 
   it should "exclude rows from other snapshots" in {

@@ -18,12 +18,6 @@ import org.apache.spark.sql.SparkSession
  * in history (graph-lineage heuristics can mutate past events). The second DELETE
  * removes stale events rows from prior months that the snapshot now supersedes.
  *
- * Bounded revert tier (_within_90_days): derived from the monthly authoritative fields.
- *   revision_is_identity_reverted_within_90_days: true when reverted and delay <= 90 days.
- *   revision_is_identity_revert_within_90_days: true when this revision IS a revert
- *     and the original was reverted within 90 days (requires a self-join on
- *     revision_first_identity_reverting_revision_id).
- *
  * One run per snapshot is sufficient: wmf.mediawiki_history always covers all of
  * history for the given snapshot month.
  */
@@ -69,23 +63,7 @@ object MWHistorySnapshotMerger {
    */
   def buildProjectionSQL(p: Params): String = {
     val monthEnd = java.time.YearMonth.parse(p.snapshot).plusMonths(1).atDay(1)
-    s"""WITH revert_seconds AS (
-  -- For each reverting revision, look up the delay from the original to the revert.
-  -- Used to derive revision_is_identity_revert_within_90_days on the reverting row.
-  SELECT
-    wiki_db,
-    revision_first_identity_reverting_revision_id AS reverting_rev_id,
-    revision_seconds_to_identity_revert
-  FROM ${p.sourceTable}
-  WHERE snapshot                                    = '${p.snapshot}'
-    AND event_entity                                = 'revision'
-    AND revision_is_identity_reverted               = true
-    AND revision_first_identity_reverting_revision_id IS NOT NULL
-    AND revision_seconds_to_identity_revert         IS NOT NULL
-    AND CAST(event_timestamp AS TIMESTAMP)          < TIMESTAMP '${monthEnd} 00:00:00'
-),
-
-projected_monthly AS (
+    s"""WITH projected_monthly AS (
   -- Project the 67-column monthly Parquet table to the narrow schema.
   -- event_timestamp and event_user_registration_timestamp are stored as STRING
   -- in wmf.mediawiki_history in 'yyyy-MM-dd HH:mm:ss.S' format; cast to TIMESTAMP.
@@ -132,28 +110,8 @@ projected_monthly AS (
     s.revision_is_identity_reverted,
     s.revision_first_identity_reverting_revision_id,
     s.revision_seconds_to_identity_revert,
-    s.revision_is_identity_revert,
-    -- Bounded tier: derived from authoritative fields using the 90d threshold.
-    (s.revision_is_identity_reverted = true
-     AND s.revision_seconds_to_identity_revert IS NOT NULL
-     AND s.revision_seconds_to_identity_revert <= 90 * 86400)            AS revision_is_identity_reverted_within_90_days,
-    CASE WHEN s.revision_is_identity_reverted = true
-              AND s.revision_seconds_to_identity_revert IS NOT NULL
-              AND s.revision_seconds_to_identity_revert <= 90 * 86400
-         THEN s.revision_first_identity_reverting_revision_id
-    END                                                                   AS revision_first_identity_reverting_revision_id_within_90_days,
-    CASE WHEN s.revision_is_identity_reverted = true
-              AND s.revision_seconds_to_identity_revert IS NOT NULL
-              AND s.revision_seconds_to_identity_revert <= 90 * 86400
-         THEN s.revision_seconds_to_identity_revert
-    END                                                                   AS revision_seconds_to_identity_revert_within_90_days,
-    (s.revision_is_identity_revert = true
-     AND rs.revision_seconds_to_identity_revert IS NOT NULL
-     AND rs.revision_seconds_to_identity_revert <= 90 * 86400)           AS revision_is_identity_revert_within_90_days
+    s.revision_is_identity_revert
   FROM ${p.sourceTable} s
-  LEFT JOIN revert_seconds rs
-    ON  s.wiki_db      = rs.wiki_db
-    AND s.revision_id  = rs.reverting_rev_id
   -- Revision rows only. Page and user entities lack a stable natural key for MERGE;
   -- extend this filter when those entity types are wired up.
   -- wmf.mediawiki_history is rebuilt from sqoop dumps that can include rows beyond the
@@ -217,11 +175,7 @@ WHEN MATCHED THEN
     t.revision_is_identity_reverted                                 = s.revision_is_identity_reverted,
     t.revision_first_identity_reverting_revision_id                 = s.revision_first_identity_reverting_revision_id,
     t.revision_seconds_to_identity_revert                           = s.revision_seconds_to_identity_revert,
-    t.revision_is_identity_revert                                   = s.revision_is_identity_revert,
-    t.revision_is_identity_reverted_within_90_days                  = s.revision_is_identity_reverted_within_90_days,
-    t.revision_first_identity_reverting_revision_id_within_90_days  = s.revision_first_identity_reverting_revision_id_within_90_days,
-    t.revision_seconds_to_identity_revert_within_90_days            = s.revision_seconds_to_identity_revert_within_90_days,
-    t.revision_is_identity_revert_within_90_days                    = s.revision_is_identity_revert_within_90_days
+    t.revision_is_identity_revert                                   = s.revision_is_identity_revert
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -265,11 +219,7 @@ WHEN NOT MATCHED THEN
     revision_is_identity_reverted,
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
-    revision_is_identity_revert,
-    revision_is_identity_reverted_within_90_days,
-    revision_first_identity_reverting_revision_id_within_90_days,
-    revision_seconds_to_identity_revert_within_90_days,
-    revision_is_identity_revert_within_90_days
+    revision_is_identity_revert
   ) VALUES (
     s.source,
     s.wiki_id,
@@ -312,21 +262,23 @@ WHEN NOT MATCHED THEN
     s.revision_is_identity_reverted,
     s.revision_first_identity_reverting_revision_id,
     s.revision_seconds_to_identity_revert,
-    s.revision_is_identity_revert,
-    s.revision_is_identity_reverted_within_90_days,
-    s.revision_first_identity_reverting_revision_id_within_90_days,
-    s.revision_seconds_to_identity_revert_within_90_days,
-    s.revision_is_identity_revert_within_90_days
+    s.revision_is_identity_revert
   )
 WHEN NOT MATCHED BY SOURCE AND t.source = 'snapshot' THEN
   DELETE
--- The source CTE contains only source='snapshot' rows, so every source='events' row
+-- The source CTE contains only revision rows, so every source='events' revision row
 -- is unconditionally "not matched by source". The upper bound is critical: the snapshot
 -- for month M lands ~3 days into month M+1, meaning M+1 events rows are already in the
 -- table and must not be deleted. No lower bound: stale events rows from prior months
 -- (e.g. from a previously failed run) are cleaned up for free.
+-- event_entity = 'revision' is required: page and user event rows are never projected
+-- by this merger (no stable natural key in wmf.mediawiki_history), so they must be
+-- preserved as source='events' rows and must not be deleted here.
+-- TODO: extend this merger to reconcile page and user entities once a key strategy
+-- is agreed (composite timestamp key vs. delete-then-insert). See T427328.
 WHEN NOT MATCHED BY SOURCE
   AND t.source          = 'events'
+  AND t.event_entity    = 'revision'
   AND t.event_timestamp <  TIMESTAMP '${monthEnd} 00:00:00' THEN
   DELETE"""
   }
