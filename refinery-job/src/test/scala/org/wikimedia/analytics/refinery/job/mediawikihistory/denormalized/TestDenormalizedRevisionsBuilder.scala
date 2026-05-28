@@ -290,30 +290,39 @@ class TestDenormalizedRevisionsBuilder
   "prepareReverts" should "properly prepare reverts and gather stats" in {
     val revs = sc.parallelize(
       revisionMwEventSet()(
-        "db       time       revId pageId sha1",
-        "w1  20100101000000    1      1     s1",
-        "w1  20100102000000    2      1     s2",
-        "w1  20100103000000    3      1     s3",
-        "w1  20100104000000    4      1     s2",
-        "w1  20100105000000    5      1     s5",
-        "w1  20100106000000    6      1     s1",
-        "w1  20100107000000    7      1     s7",
-        "w1  20100108000000    8      1     s5",
-        "w1  20100109000000    12     1     s1",
-        "w1  20100110000000    14     1     s14",
-        "w1  20100103000000    9      2     s9",
-        "w1  20100104000000    10     2     s10",
-        "w1  20110101000000    11     2     s9",
-        "w2  20100101000000    1      1     s1",
-        "w2  20100102000000    2      1     s2",
-        "w2  20100103000000    3      1     s1"
+        "db       time       revId  pageId  sha1  parentId",
+        "w1  20100101000000    1      1      s1      0",
+        "w1  20100102000000    2      1      s2      0",
+        "w1  20100103000000    3      1      s3      0",
+        "w1  20100104000000    4      1      s2      0",
+        "w1  20100105000000    5      1      s5      0",
+        "w1  20100106000000    6      1      s1      0",
+        "w1  20100107000000    7      1      s7      0",
+        "w1  20100108000000    8      1      s5      0",
+        "w1  20100109000000    12     1      s1      0",
+        "w1  20100110000000    14     1     s14      0",
+        "w1  20100103000000    9      2      s9      0",
+        "w1  20100104000000    10     2     s10      0",
+        "w1  20110101000000    11     2      s9      0",
+        // The nextrevert is a no-op revision, having its revParentId referencing the previous
+        // same sha1 revisionId. It should NOT show up in the revert list.
+        "w1  20110101000000    12     2      s9      11",
+
+        "w2  20100101000000    1      1      s1      0",
+        "w2  20100102000000    2      1      s2      0",
+        "w2  20100103000000    3      1      s1      0",
+
+        // The next rows should NOT create reverts in the list as their sha1 are None
+        "w3  20100101000000    1      1     None     0",
+        "w3  20100102000000    2      1     s1       0",
+        "w3  20100103000000    3      1     None     0",
+
       ))
 
     val results = denormalizedRevisionsBuilder.prepareRevertsLists(revs).collect.sortBy(_._1)
 
     val partw1p1 = PartitionKey("w1", 1L)
-    val partw1p2_2010 = PartitionKey("w1", 2L)
-    val partw1p2_2011 = PartitionKey("w1", 2L)
+    val partw1p2 = PartitionKey("w1", 2L)
     val partw2p1 = PartitionKey("w2", 1L)
     val expectedResults = Seq(
       (MediawikiEventKey(partw1p1, TimestampHelpers.makeMediawikiTimestampOption("20100101000000"), Some(1L)),
@@ -322,7 +331,7 @@ class TestDenormalizedRevisionsBuilder
         Vector((TimestampHelpers.makeMediawikiTimestampOption("20100104000000"), Some(4L)))),
       (MediawikiEventKey(partw1p1, TimestampHelpers.makeMediawikiTimestampOption("20100105000000"), Some(5L)),
         Vector((TimestampHelpers.makeMediawikiTimestampOption("20100108000000"), Some(8L)))),
-      (MediawikiEventKey(partw1p2_2010, TimestampHelpers.makeMediawikiTimestampOption("20100103000000"), Some(9L)),
+      (MediawikiEventKey(partw1p2, TimestampHelpers.makeMediawikiTimestampOption("20100103000000"), Some(9L)),
         Vector((TimestampHelpers.makeMediawikiTimestampOption("20110101000000"), Some(11L)))),
       (MediawikiEventKey(partw2p1, TimestampHelpers.makeMediawikiTimestampOption("20100101000000"), Some(1L)),
         Vector((TimestampHelpers.makeMediawikiTimestampOption("20100103000000"), Some(3L))))
@@ -427,7 +436,7 @@ class TestDenormalizedRevisionsBuilder
   }
 
 
-  it should "update MW Event and endReverts - isRevert and isReverted case (different wider revert)" in {
+  it should "update MW Event and endReverts - isRevert and isReverted case (different wider revert - simple)" in {
     val revs = revisionMwEventSet()(
       "db        time       revId pageId sha1 revert reverted",
       "w1   19700101000000    3      1     s1  false   false"
@@ -450,7 +459,29 @@ class TestDenormalizedRevisionsBuilder
     stats.get("w1.denormalize.revision.revertInfo.revertAndReverted") should equal(1)
   }
 
+  it should "update MW Event and endReverts - isRevert and isReverted case (different wider revert - complex)" in {
+    val revs = revisionMwEventSet()(
+      "db        time       revId pageId sha1 revert reverted",
+      "w1   19700101000000    3      1     s1  false   false"
+    )
 
+    val endReverts = new scala.collection.mutable.TreeSet[((Option[Timestamp], Option[Long]), Option[Long])]
+    endReverts.add((TimestampHelpers.makeMediawikiTimestampOption("19700101000000"), Some(3L)), Some(2L))
+    endReverts.add((TimestampHelpers.makeMediawikiTimestampOption("19700101000000"), Some(4L)), Some(2L))
+    endReverts.add((TimestampHelpers.makeMediawikiTimestampOption("19700101100000"), Some(5L)), Some(1L))
+
+    revs.foreach(r => {
+      val res = denormalizedRevisionsBuilder.updateRevisionAndReverts(r, endReverts)
+      res.revisionDetails.revIsIdentityRevert should equal(Some(true))
+      res.revisionDetails.revIsIdentityReverted should equal(Some(true))
+      res.revisionDetails.revFirstIdentityRevertingRevisionId should equal(Some(5L))
+      res.revisionDetails.revSecondsToIdentityRevert should equal(Some(36000))
+    })
+    endReverts.size should equal(2)
+    val stats = statsAccumulator.get.value
+    stats.size() should equal(1)
+    stats.get("w1.denormalize.revision.revertInfo.revertAndReverted") should equal(1)
+  }
 
   /**
     * Tests for iterateSortedRevisionsAndRevertsLists function

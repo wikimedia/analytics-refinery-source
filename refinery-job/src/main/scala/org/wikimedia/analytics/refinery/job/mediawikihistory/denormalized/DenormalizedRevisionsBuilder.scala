@@ -214,12 +214,13 @@ class DenormalizedRevisionsBuilder(
                            revisions: RDD[MediawikiEvent]
                          ): RDD[(MediawikiEventKey, Vector[(Option[Timestamp], Option[Long])])] = {
     revisions
-      .filter(_.pageDetails.pageId.getOrElse(-1L) > 0L) // remove invalid pageIds
+        // remove invalid pageIds and sha1s
+      .filter(e => (e.pageDetails.pageId.getOrElse(-1L) > 0L) && e.revisionDetails.revTextSha1.isDefined)
       .map(r =>
           // Key: ((wikiDb, pageId), revSha1)
           (RevertKey(DenormalizedKeysHelper.pageMediawikiEventKey(r).partitionKey, r.revisionDetails.revTextSha1),
-          // Value: (revTimestamp, revId)
-          (r.eventTimestamp, r.revisionDetails.revId)))
+          // Value: (revTimestamp, revId, revParentId)
+          (r.eventTimestamp, r.revisionDetails.revId, r.revisionDetails.revParentId)))
       .groupByKey() // Same pageId and sha1
       .flatMap {
         // revInfoIterator contains all revisions (timestamp, id) for any given pageId sha1
@@ -228,7 +229,17 @@ class DenormalizedRevisionsBuilder(
           val (baseRevision, reverts) = {
             // We assume there will not be so many reverting events per page for this sort to fail
             val sortedSha1s = revInfoIterator.toVector.sorted // sort by timestamp, revId
-            (sortedSha1s.head, sortedSha1s.tail)
+            // We remove revisions whose parentRevId is the previous same-sha1 revision (no-op revision)
+            // https://phabricator.wikimedia.org/T266374#11554271
+            val filteredNoOpsSortedSha1 = sortedSha1s
+              .foldLeft(Vector.empty[(Option[Timestamp], Option[Long], Option[Long])])((acc, elem) => {
+                if ((acc.isEmpty) || (elem._3 != acc.last._2)) {
+                  acc :+ elem
+                } else {
+                  acc
+                }
+              }).map(e => (e._1, e._2))
+            (filteredNoOpsSortedSha1.head, filteredNoOpsSortedSha1.tail)
           }
           if (reverts.isEmpty) Seq() // No reverts, no work
           else {
@@ -255,33 +266,39 @@ class DenormalizedRevisionsBuilder(
     if (reverts.isEmpty) { // No revert after this revision, no update
       addOptionalStat(s"${revision.wikiDb}.$METRIC_NO_REVERT_COUNT", 1)
       revision
-    } else if (reverts.head._1 == (revision.eventTimestamp, revision.revisionDetails.revId)) {
-      // Worked revision is a reverting one (head of reverts)
-
-      // keep revertBaseId for DIFFERENT wider revert check
-      val revertingBaseId = reverts.head._2
-      // Remove first revert from the list since reached
-      reverts.remove(reverts.head)
-
-      if (reverts.isEmpty || (reverts.head._2 == revertingBaseId)) {
-        // Worked revision is not reverted as part of a different wider revert
-        addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERT_COUNT", 1)
-        revision.isIdentityRevert
-      } else {
-        // Worked revision is reverting and also reverted as part of a different wider revert
-        val revertingTimestamp = reverts.head._1._1
-        val revertingRevisionId = reverts.head._1._2
-        val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
-        addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERT_REVERTED_COUNT", 1)
-        revision.isIdentityRevert.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
-      }
-    } else {
+    } else if (reverts.head._1 != (revision.eventTimestamp, revision.revisionDetails.revId)) {
       // Worked revision is reverted
       val revertingTimestamp = reverts.head._1._1
       val revertingRevisionId = reverts.head._1._2
       val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
       addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERTED_COUNT", 1)
       revision.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
+    } else {
+      // Worked revision is a reverting one (head of reverts)
+      val revToReturn = revision.isIdentityRevert
+
+      // We also need to check if this worked revision is reverted by a wider revert
+
+      // keep revertBaseId for wider revert check
+      val revertingBaseId = reverts.head._2
+      // Remove first revert from the list since reached
+      reverts.remove(reverts.head)
+
+      // Worked revision is reverted if the revertsList contains a revertingBaseId
+      // that is not the same as current-revision one
+      val firstRevertWithNewBaseId = reverts.filterNot(_._2 == revertingBaseId).headOption
+      if (firstRevertWithNewBaseId.isEmpty) {
+        // Worked revision is not reverted as part of a different wider revert
+        addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERT_COUNT", 1)
+        revToReturn
+      } else {
+        // Worked revision is reverted as part of a different wider revert
+        val revertingTimestamp = firstRevertWithNewBaseId.get._1._1
+        val revertingRevisionId = firstRevertWithNewBaseId.get._1._2
+        val revisionTimeToRevert = TimestampHelpers.getTimestampDifference(revertingTimestamp, revision.eventTimestamp)
+        addOptionalStat(s"${revision.wikiDb}.$METRIC_REVERT_REVERTED_COUNT", 1)
+        revToReturn.isIdentityReverted(revertingRevisionId, revisionTimeToRevert)
+      }
     }
   }
 
