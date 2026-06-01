@@ -1,5 +1,9 @@
+## v0.3.16
+* Add MWHistoryDeltaWriter and MWHistorySnapshotMerger to refinery-job-35
+* Fix mediawiki-history revert algorithm
+
 ## v0.3.15
-Change mediawiki_content from public to private
+* Change mediawiki_content from public to private
 
 ## v0.3.14
 * Add Sanitizer to clean up wprov value of x-analytics
