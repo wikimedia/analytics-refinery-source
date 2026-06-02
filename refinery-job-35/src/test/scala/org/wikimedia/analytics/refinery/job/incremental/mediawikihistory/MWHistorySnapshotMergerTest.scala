@@ -7,7 +7,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
  * Tests for MWHistorySnapshotMerger.
  *
  * Projection tests run against a synthetic temp view, without Iceberg.
- * MERGE tests run against a local Hadoop-catalog Iceberg table to verify the
+ * Iceberg tests run against a local Hadoop-catalog Iceberg table to verify the
  * three-clause merge behavior, including the event-row cleanup timestamp bounds.
  */
 class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndAfterAll {
@@ -70,7 +70,9 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            revision_is_identity_reverted                                 BOOLEAN,
            revision_first_identity_reverting_revision_id                 BIGINT,
            revision_seconds_to_identity_revert                           BIGINT,
-           revision_is_identity_revert                                   BOOLEAN
+           revision_is_identity_revert                                   BOOLEAN,
+           event_meta_id                                                 STRING,
+           control_map                                                   MAP<STRING,STRING>
          ) USING iceberg
          PARTITIONED BY (source, days(event_timestamp))"""
     )
@@ -97,7 +99,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
-           CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN)
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>)
          )"""
     )
 
@@ -113,7 +116,42 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     snapshot    = "2024-01"
   )
 
-  def projected() = spark.sql(MWHistorySnapshotMerger.buildProjectionSQL(params) + "\nSELECT * FROM projected_monthly")
+  def projected() = spark.sql(MWHistorySnapshotMerger.buildRevisionSelectSQL(params))
+  def pageUserInserted() = spark.sql(MWHistorySnapshotMerger.buildPageUserInsertSQL(params))
+
+  /** Helper: register a synthetic page or user row in test_mwh. */
+  def registerPageUserSource(entity: String, eventType: String, pageId: Long,
+                              eventTimestamp: String, logId: Long): Unit =
+    spark.sql(
+      s"""CREATE OR REPLACE TEMP VIEW test_mwh AS
+          SELECT 'enwiki' AS wiki_db, '$entity' AS event_entity, '$eventType' AS event_type,
+                 '$eventTimestamp' AS event_timestamp,
+                 CAST(42 AS BIGINT) AS event_user_id, CAST(NULL AS BIGINT) AS event_user_central_id,
+                 'Alice' AS event_user_text_historical,
+                 false AS event_user_is_anonymous, false AS event_user_is_temporary,
+                 true AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
+                 false AS event_user_is_created_by_self,
+                 CAST($pageId AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
+                 CAST(0 AS INT) AS page_namespace_historical,
+                 CAST(NULL AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
+                 false AS revision_minor_edit, CAST(NULL AS BIGINT) AS revision_text_bytes,
+                 CAST(NULL AS BIGINT) AS revision_text_bytes_diff, CAST(NULL AS STRING) AS revision_text_sha1,
+                 CAST(NULL AS ARRAY<STRING>) AS revision_tags, false AS page_namespace_is_content_historical,
+                 CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+                 CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts,
+                 CAST(NULL AS BIGINT) AS event_user_revision_count,
+                 CAST(NULL AS ARRAY<STRING>) AS event_user_groups_historical,
+                 CAST(NULL AS BIGINT) AS user_id, CAST(NULL AS STRING) AS user_text_historical,
+                 CAST(NULL AS BOOLEAN) AS user_is_anonymous, CAST(NULL AS BOOLEAN) AS user_is_temporary,
+                 CAST(NULL AS BOOLEAN) AS user_is_permanent,
+                 CAST(NULL AS ARRAY<STRING>) AS user_groups_historical, CAST(NULL AS ARRAY<STRING>) AS user_is_bot_by_historical,
+                 CAST(NULL AS BOOLEAN) AS user_is_created_by_self, CAST(NULL AS BOOLEAN) AS user_is_created_by_system,
+                 CAST(NULL AS BOOLEAN) AS user_is_created_by_peer,
+                 false AS revision_is_identity_reverted, CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
+                 CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
+                 CAST($logId AS BIGINT) AS event_log_id,
+                 '2024-01' AS snapshot"""
+    )
 
   /** One row matching the relevant columns of wmf.mediawiki_history. */
   def registerSource(): Unit =
@@ -463,17 +501,66 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     projected().count() shouldEqual 0
   }
 
+  it should "deduplicate source rows with the same (wiki_id, revision_id), keeping latest event_timestamp" in {
+    spark.sql(
+      """CREATE OR REPLACE TEMP VIEW test_mwh AS
+         SELECT 'enwiki' AS wiki_db, 'revision' AS event_entity, 'edit' AS event_type,
+                '2024-01-16 12:00:00.0' AS event_timestamp,
+                CAST(42 AS BIGINT) AS event_user_id, CAST(NULL AS BIGINT) AS event_user_central_id,
+                'Alice' AS event_user_text_historical,
+                false AS event_user_is_anonymous, false AS event_user_is_temporary,
+                true AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
+                false AS event_user_is_created_by_self,
+                CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
+                CAST(0 AS INT) AS page_namespace_historical,
+                CAST(101 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
+                false AS revision_minor_edit, CAST(NULL AS BIGINT) AS revision_text_bytes,
+                CAST(NULL AS BIGINT) AS revision_text_bytes_diff, CAST(NULL AS STRING) AS revision_text_sha1,
+                CAST(NULL AS ARRAY<STRING>) AS revision_tags, false AS page_namespace_is_content_historical,
+                CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+                CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts,
+                CAST(NULL AS BIGINT) AS event_user_revision_count,
+                CAST(NULL AS ARRAY<STRING>) AS event_user_groups_historical,
+                CAST(NULL AS BIGINT) AS user_id, CAST(NULL AS STRING) AS user_text_historical,
+                CAST(NULL AS BOOLEAN) AS user_is_anonymous, CAST(NULL AS BOOLEAN) AS user_is_temporary,
+                CAST(NULL AS BOOLEAN) AS user_is_permanent,
+                CAST(NULL AS ARRAY<STRING>) AS user_groups_historical, CAST(NULL AS ARRAY<STRING>) AS user_is_bot_by_historical,
+                CAST(NULL AS BOOLEAN) AS user_is_created_by_self, CAST(NULL AS BOOLEAN) AS user_is_created_by_system,
+                CAST(NULL AS BOOLEAN) AS user_is_created_by_peer,
+                false AS revision_is_identity_reverted, CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
+                CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
+                '2024-01' AS snapshot
+         UNION ALL
+         SELECT 'enwiki', 'revision', 'edit', '2024-01-15 10:00:00.0',
+                CAST(42 AS BIGINT), CAST(NULL AS BIGINT), 'Alice',
+                false, false, true, CAST(NULL AS STRING), false,
+                CAST(1 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
+                CAST(101 AS BIGINT), CAST(NULL AS BIGINT), false, CAST(NULL AS BIGINT),
+                CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+                CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT),
+                CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
+                CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
+                CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
+                CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
+                false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false,
+                '2024-01'"""
+    )
+    val rows = projected().collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[Long]("revision_id") shouldEqual 101L
+    rows(0).getAs[java.sql.Timestamp]("event_timestamp").toString should startWith("2024-01-16")
+  }
+
   // ---- MERGE execution — event-row cleanup bounds ----
   //
   // The snapshot for month M lands ~3 days into month M+1. At merge time, M+1 events rows
   // are already in the table. The upper bound (< monthEnd) guards those in-flight rows
   // from being deleted.
 
-  "MWHistorySnapshotMerger MERGE" should "delete source='events' rows within the snapshot month" in {
+  "MWHistorySnapshotMerger cleanup" should "delete source='events' rows within the snapshot month" in {
     spark.sql("DELETE FROM local.db.test_target WHERE true")
     insertEventsRow(revisionId = 201L, eventTimestamp = "2024-01-15 10:00:00")
-    registerSource()
-    spark.sql(MWHistorySnapshotMerger.buildMergeSQL(mergeParams))
+    spark.sql(MWHistorySnapshotMerger.buildCleanupSQL(mergeParams))
     spark.sql("SELECT * FROM local.db.test_target WHERE source = 'events' AND revision_id = 201")
       .count() shouldEqual 0
   }
@@ -482,10 +569,36 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     spark.sql("DELETE FROM local.db.test_target WHERE true")
     // Simulates 3 days of Feb dailies already written when the Jan snapshot lands
     insertEventsRow(revisionId = 301L, eventTimestamp = "2024-02-03 10:00:00")
-    registerSource()
-    spark.sql(MWHistorySnapshotMerger.buildMergeSQL(mergeParams))
+    spark.sql(MWHistorySnapshotMerger.buildCleanupSQL(mergeParams))
     spark.sql("SELECT * FROM local.db.test_target WHERE source = 'events' AND revision_id = 301")
       .count() shouldEqual 1
+  }
+
+  it should "delete source='events' page events within the snapshot month" in {
+    spark.sql("DELETE FROM local.db.test_target WHERE true")
+    spark.sql(
+      """INSERT INTO local.db.test_target VALUES (
+           'events', 'enwiki', 'page', 'move',
+           TIMESTAMP '2024-01-10 08:00:00',
+           CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING), false, false, false,
+           CAST(NULL AS TIMESTAMP), false,
+           CAST(42 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
+           CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false,
+           CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
+           CAST(NULL AS ARRAY<STRING>), false, CAST(NULL AS ARRAY<STRING>),
+           CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT),
+           CAST(NULL AS ARRAY<STRING>),
+           CAST(NULL AS BIGINT), CAST(NULL AS STRING),
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>)
+         )"""
+    )
+    spark.sql(MWHistorySnapshotMerger.buildCleanupSQL(mergeParams))
+    spark.sql("SELECT * FROM local.db.test_target WHERE source = 'events' AND event_entity = 'page'")
+      .count() shouldEqual 0
   }
 
   // ---- MERGE SQL — event-row cleanup upper bound ----
@@ -494,20 +607,20 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
   // guards M+1 in-flight events from being deleted. No lower bound: stale events rows
   // from prior months are cleaned up for free.
 
-  "MWHistorySnapshotMerger.buildMergeSQL" should "include the next-month upper bound to protect in-flight events" in {
+  "MWHistorySnapshotMerger.buildCleanupSQL" should "include the next-month upper bound to protect in-flight events" in {
     // Without this bound, Feb events rows already in the table when the Jan snapshot merger
     // runs would be deleted.
-    val sql = MWHistorySnapshotMerger.buildMergeSQL(params)
+    val sql = MWHistorySnapshotMerger.buildCleanupSQL(params)
     sql should include ("TIMESTAMP '2024-02-01 00:00:00'")
   }
 
   it should "not include a lower bound so stale events rows from prior months are also cleaned up" in {
-    val sql = MWHistorySnapshotMerger.buildMergeSQL(params)
+    val sql = MWHistorySnapshotMerger.buildCleanupSQL(params)
     sql should not include "TIMESTAMP '2024-01-01 00:00:00'"
   }
 
   it should "roll the upper bound into the next year for a December snapshot" in {
-    val sql = MWHistorySnapshotMerger.buildMergeSQL(params.copy(snapshot = "2024-12"))
+    val sql = MWHistorySnapshotMerger.buildCleanupSQL(params.copy(snapshot = "2024-12"))
     sql should include ("TIMESTAMP '2025-01-01 00:00:00'")
   }
 
@@ -563,5 +676,90 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
 
     val row = projected().collect()(0)
     row.getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text", "comment")
+  }
+
+  // ---- page/user INSERT ----
+
+  "MWHistorySnapshotMerger.buildPageUserInsertSQL" should "return SQL that selects page and user rows" in {
+    val sql = MWHistorySnapshotMerger.buildPageUserInsertSQL(params)
+    sql should include ("event_entity IN ('page', 'user')")
+    sql should include ("TIMESTAMP '2024-02-01 00:00:00'")
+  }
+
+  "MWHistorySnapshotMerger page/user projection" should "project a page event row from wmf.mediawiki_history" in {
+    registerPageUserSource(entity = "page", eventType = "move", pageId = 10L,
+                           eventTimestamp = "2024-01-15 12:00:00.0", logId = 9001L)
+    // pageUserInserted() runs the INSERT; we verify by selecting from test_target
+    // For the projection test we wrap the INSERT SELECT as a plain SELECT
+    val sql = MWHistorySnapshotMerger.buildPageUserInsertSQL(params)
+    // Extract the SELECT part (everything after the INSERT ... column list)
+    val selectSql = sql.substring(sql.indexOf("\nSELECT\n"))
+    val rows = spark.sql(selectSql).collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[String]("event_entity")  shouldEqual "page"
+    rows(0).getAs[String]("event_type")    shouldEqual "move"
+    rows(0).getAs[Long]("page_id")         shouldEqual 10L
+    rows(0).getAs[String]("source")        shouldEqual "snapshot"
+  }
+
+  it should "pass through all page rows without deduplication (upstream quality issue, not our concern)" in {
+    spark.sql(
+      """CREATE OR REPLACE TEMP VIEW test_mwh AS
+         SELECT 'enwiki' AS wiki_db, 'page' AS event_entity, 'move' AS event_type,
+                '2024-01-16 08:00:00.0' AS event_timestamp,
+                CAST(42 AS BIGINT) AS event_user_id, CAST(NULL AS BIGINT) AS event_user_central_id,
+                'Alice' AS event_user_text_historical,
+                false AS event_user_is_anonymous, false AS event_user_is_temporary,
+                true AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
+                false AS event_user_is_created_by_self,
+                CAST(10 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
+                CAST(0 AS INT) AS page_namespace_historical,
+                CAST(NULL AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
+                false AS revision_minor_edit, CAST(NULL AS BIGINT) AS revision_text_bytes,
+                CAST(NULL AS BIGINT) AS revision_text_bytes_diff, CAST(NULL AS STRING) AS revision_text_sha1,
+                CAST(NULL AS ARRAY<STRING>) AS revision_tags, false AS page_namespace_is_content_historical,
+                CAST(NULL AS ARRAY<STRING>) AS event_user_is_bot_by_historical,
+                CAST(NULL AS ARRAY<STRING>) AS revision_deleted_parts, CAST(NULL AS BIGINT) AS event_user_revision_count,
+                CAST(NULL AS ARRAY<STRING>) AS event_user_groups_historical,
+                CAST(NULL AS BIGINT) AS user_id, CAST(NULL AS STRING) AS user_text_historical,
+                CAST(NULL AS BOOLEAN) AS user_is_anonymous, CAST(NULL AS BOOLEAN) AS user_is_temporary,
+                CAST(NULL AS BOOLEAN) AS user_is_permanent,
+                CAST(NULL AS ARRAY<STRING>) AS user_groups_historical, CAST(NULL AS ARRAY<STRING>) AS user_is_bot_by_historical,
+                CAST(NULL AS BOOLEAN) AS user_is_created_by_self, CAST(NULL AS BOOLEAN) AS user_is_created_by_system,
+                CAST(NULL AS BOOLEAN) AS user_is_created_by_peer,
+                false AS revision_is_identity_reverted, CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
+                CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
+                CAST(9001 AS BIGINT) AS event_log_id, '2024-01' AS snapshot
+         UNION ALL
+         SELECT 'enwiki', 'page', 'move', '2024-01-15 06:00:00.0',
+                CAST(42 AS BIGINT), CAST(NULL AS BIGINT), 'Alice',
+                false, false, true, CAST(NULL AS STRING), false,
+                CAST(10 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
+                CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false, CAST(NULL AS BIGINT),
+                CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+                CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT),
+                CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
+                CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
+                CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
+                CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
+                false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false,
+                CAST(9001 AS BIGINT), '2024-01'"""
+    )
+    val sql = MWHistorySnapshotMerger.buildPageUserInsertSQL(params)
+    val selectSql = sql.substring(sql.indexOf("\nSELECT\n"))
+    val rows = spark.sql(selectSql).collect()
+    rows.length shouldEqual 2
+  }
+
+  "MWHistorySnapshotMerger MERGE" should "insert page events from wmf.mediawiki_history into the Iceberg target" in {
+    spark.sql("DELETE FROM local.db.test_target WHERE true")
+    registerPageUserSource(entity = "page", eventType = "move", pageId = 10L,
+                           eventTimestamp = "2024-01-15 12:00:00.0", logId = 9001L)
+    spark.sql(MWHistorySnapshotMerger.buildPageUserInsertSQL(mergeParams))
+    val rows = spark.sql("SELECT * FROM local.db.test_target WHERE event_entity = 'page'").collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[String]("source")       shouldEqual "snapshot"
+    rows(0).getAs[String]("event_entity") shouldEqual "page"
+    rows(0).getAs[Long]("page_id")        shouldEqual 10L
   }
 }
