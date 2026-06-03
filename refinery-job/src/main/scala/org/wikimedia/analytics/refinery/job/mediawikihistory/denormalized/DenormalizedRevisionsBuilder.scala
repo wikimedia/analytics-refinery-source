@@ -231,14 +231,20 @@ class DenormalizedRevisionsBuilder(
             val sortedSha1s = revInfoIterator.toVector.sorted // sort by timestamp, revId
             // We remove revisions whose parentRevId is the previous same-sha1 revision (no-op revision)
             // https://phabricator.wikimedia.org/T266374#11554271
+            val accumulator =(
+                Vector.empty[(Option[Timestamp], Option[Long], Option[Long])], // The filtered list of reverts to keep
+                None.asInstanceOf[Option[Long]] // The previous in list revisionId - we need this value to prevent
+                                                // using the accumulator's list last element, which would not be
+                                                // correct when an item has just been removed.
+            )
             val filteredNoOpsSortedSha1 = sortedSha1s
-              .foldLeft(Vector.empty[(Option[Timestamp], Option[Long], Option[Long])])((acc, elem) => {
-                if ((acc.isEmpty) || (elem._3 != acc.last._2)) {
-                  acc :+ elem
+              .foldLeft(accumulator)((acc, elem) => {
+                if ((acc._1.isEmpty) || (elem._3 != acc._2)) {
+                  (acc._1 :+ elem, elem._2)
                 } else {
-                  acc
+                  (acc._1, elem._2)
                 }
-              }).map(e => (e._1, e._2))
+              })._1.map(e => (e._1, e._2))
             (filteredNoOpsSortedSha1.head, filteredNoOpsSortedSha1.tail)
           }
           if (reverts.isEmpty) Seq() // No reverts, no work

@@ -304,9 +304,11 @@ class TestDenormalizedRevisionsBuilder
         "w1  20100103000000    9      2      s9      0",
         "w1  20100104000000    10     2     s10      0",
         "w1  20110101000000    11     2      s9      0",
-        // The nextrevert is a no-op revision, having its revParentId referencing the previous
-        // same sha1 revisionId. It should NOT show up in the revert list.
+        // The three next reverts are no-op revisions, having their revParentId referencing
+        // the previous same sha1 revisionId. They should NOT show up in the revert list.
         "w1  20110101000000    12     2      s9      11",
+        "w1  20110101000000    13     2      s9      12",
+        "w1  20110101000000    14     2      s9      13",
 
         "w2  20100101000000    1      1      s1      0",
         "w2  20100102000000    2      1      s2      0",
