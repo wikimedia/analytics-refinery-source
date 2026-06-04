@@ -106,7 +106,7 @@ WHERE source = 'snapshot'
   s.event_user_is_temporary,
   s.event_user_is_permanent,
   CAST(s.event_user_registration_timestamp AS TIMESTAMP)                AS event_user_registration_timestamp,
-  s.event_user_is_created_by_self,
+
   s.page_id,
   s.page_title_historical,
   s.page_namespace_historical,
@@ -136,6 +136,10 @@ WHERE source = 'snapshot'
   s.revision_first_identity_reverting_revision_id,
   s.revision_seconds_to_identity_revert,
   s.revision_is_identity_revert,
+  s.event_user_is_cross_wiki,
+  s.page_is_deleted,
+  s.revision_is_deleted_by_page_deletion,
+  CAST(NULL AS BIGINT)                                                          AS user_central_id,
   CAST(NULL AS STRING)                                                          AS event_meta_id,
   CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map
 FROM (
@@ -169,7 +173,7 @@ WHERE s._rn = 1"""
   event_user_is_temporary,
   event_user_is_permanent,
   event_user_registration_timestamp,
-  event_user_is_created_by_self,
+
   page_id,
   page_title_historical,
   page_namespace_historical,
@@ -199,6 +203,10 @@ WHERE s._rn = 1"""
   revision_first_identity_reverting_revision_id,
   revision_seconds_to_identity_revert,
   revision_is_identity_revert,
+  event_user_is_cross_wiki,
+  page_is_deleted,
+  revision_is_deleted_by_page_deletion,
+  user_central_id,
   event_meta_id,
   control_map
 )
@@ -235,7 +243,7 @@ ${buildRevisionSelectSQL(p)}"""
   event_user_is_temporary,
   event_user_is_permanent,
   event_user_registration_timestamp,
-  event_user_is_created_by_self,
+
   page_id,
   page_title_historical,
   page_namespace_historical,
@@ -265,6 +273,10 @@ ${buildRevisionSelectSQL(p)}"""
   revision_first_identity_reverting_revision_id,
   revision_seconds_to_identity_revert,
   revision_is_identity_revert,
+  event_user_is_cross_wiki,
+  page_is_deleted,
+  revision_is_deleted_by_page_deletion,
+  user_central_id,
   event_meta_id,
   control_map
 )
@@ -281,7 +293,7 @@ SELECT
   s.event_user_is_temporary,
   s.event_user_is_permanent,
   CAST(s.event_user_registration_timestamp AS TIMESTAMP)                AS event_user_registration_timestamp,
-  s.event_user_is_created_by_self,
+
   s.page_id,
   s.page_title_historical,
   s.page_namespace_historical,
@@ -311,6 +323,10 @@ SELECT
   s.revision_first_identity_reverting_revision_id,
   s.revision_seconds_to_identity_revert,
   s.revision_is_identity_revert,
+  s.event_user_is_cross_wiki,
+  s.page_is_deleted,
+  s.revision_is_deleted_by_page_deletion,
+  s.user_central_id,
   CAST(NULL AS STRING)                                                          AS event_meta_id,
   CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map
 FROM ${p.sourceTable} s

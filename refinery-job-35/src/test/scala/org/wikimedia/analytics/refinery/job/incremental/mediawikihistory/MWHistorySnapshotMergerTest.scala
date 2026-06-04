@@ -41,7 +41,6 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            event_user_is_temporary                                       BOOLEAN,
            event_user_is_permanent                                       BOOLEAN,
            event_user_registration_timestamp                             TIMESTAMP,
-           event_user_is_created_by_self                                 BOOLEAN,
            page_id                                                       BIGINT,
            page_title_historical                                         STRING,
            page_namespace_historical                                     INT,
@@ -71,6 +70,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            revision_first_identity_reverting_revision_id                 BIGINT,
            revision_seconds_to_identity_revert                           BIGINT,
            revision_is_identity_revert                                   BOOLEAN,
+           event_user_is_cross_wiki                                      BOOLEAN,
+           page_is_deleted                                               BOOLEAN,
+           revision_is_deleted_by_page_deletion                          BOOLEAN,
+           user_central_id                                               BIGINT,
            event_meta_id                                                 STRING,
            control_map                                                   MAP<STRING,STRING>
          ) USING iceberg
@@ -87,7 +90,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            'events', 'enwiki', 'revision', 'edit',
            TIMESTAMP '$eventTimestamp',
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING), false, false, false,
-           CAST(NULL AS TIMESTAMP), false,
+           CAST(NULL AS TIMESTAMP),
            CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
            CAST($revisionId AS BIGINT), CAST(NULL AS BIGINT), false,
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
@@ -100,6 +103,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
            CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>)
          )"""
     )
@@ -130,7 +134,6 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                  'Alice' AS event_user_text_historical,
                  false AS event_user_is_anonymous, false AS event_user_is_temporary,
                  true AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
-                 false AS event_user_is_created_by_self,
                  CAST($pageId AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
                  CAST(0 AS INT) AS page_namespace_historical,
                  CAST(NULL AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -150,6 +153,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                  false AS revision_is_identity_reverted, CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
                  CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
                  CAST($logId AS BIGINT) AS event_log_id,
+                 CAST(NULL AS BOOLEAN) AS event_user_is_cross_wiki, CAST(NULL AS BOOLEAN) AS page_is_deleted,
+                 CAST(NULL AS BOOLEAN) AS revision_is_deleted_by_page_deletion, CAST(NULL AS BIGINT) AS user_central_id,
                  '2024-01' AS snapshot"""
     )
 
@@ -169,7 +174,6 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            false                             AS event_user_is_temporary,
            true                              AS event_user_is_permanent,
            '2000-01-01 00:00:00.0'           AS event_user_registration_timestamp,
-           true                              AS event_user_is_created_by_self,
            CAST(1 AS BIGINT)                 AS page_id,
            'Main_Page'                       AS page_title_historical,
            CAST(0 AS INT)                    AS page_namespace_historical,
@@ -199,6 +203,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BIGINT)              AS revision_first_identity_reverting_revision_id,
            CAST(NULL AS BIGINT)              AS revision_seconds_to_identity_revert,
            false                             AS revision_is_identity_revert,
+           CAST(NULL AS BOOLEAN)             AS event_user_is_cross_wiki,
+           CAST(NULL AS BOOLEAN)             AS page_is_deleted,
+           CAST(NULL AS BOOLEAN)             AS revision_is_deleted_by_page_deletion,
+           CAST(NULL AS BIGINT)              AS user_central_id,
            '2024-01'                         AS snapshot"""
     )
 
@@ -232,7 +240,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     row.getAs[String]("event_user_text_historical") shouldEqual "Alice"
     row.getAs[Boolean]("event_user_is_anonymous")   shouldEqual false
     row.getAs[Boolean]("event_user_is_permanent")   shouldEqual true
-    row.getAs[Boolean]("event_user_is_created_by_self") shouldEqual true
+
     row.getAs[Long]("revision_id")                  shouldEqual 101L
     row.getAs[Long]("revision_text_bytes")          shouldEqual 500L
     row.getAs[Long]("revision_text_bytes_diff")     shouldEqual 200L
@@ -273,7 +281,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN) AS event_user_is_temporary,
            CAST(NULL AS BOOLEAN) AS event_user_is_permanent,
            CAST(NULL AS STRING) AS event_user_registration_timestamp,
-           CAST(NULL AS BOOLEAN) AS event_user_is_created_by_self,
+
            CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
            CAST(0 AS INT) AS page_namespace_historical,
            CAST(101 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -299,6 +307,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(200 AS BIGINT)     AS revision_first_identity_reverting_revision_id,
            CAST(3600 AS BIGINT)    AS revision_seconds_to_identity_revert,
            false                   AS revision_is_identity_revert,
+           CAST(NULL AS BOOLEAN)   AS event_user_is_cross_wiki,
+           CAST(NULL AS BOOLEAN)   AS page_is_deleted,
+           CAST(NULL AS BOOLEAN)   AS revision_is_deleted_by_page_deletion,
+           CAST(NULL AS BIGINT)    AS user_central_id,
            '2024-01' AS snapshot"""
     )
 
@@ -320,7 +332,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN) AS event_user_is_temporary,
            CAST(NULL AS BOOLEAN) AS event_user_is_permanent,
            CAST(NULL AS STRING) AS event_user_registration_timestamp,
-           CAST(NULL AS BOOLEAN) AS event_user_is_created_by_self,
+
            CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
            CAST(0 AS INT) AS page_namespace_historical,
            CAST(101 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -346,6 +358,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(200 AS BIGINT)          AS revision_first_identity_reverting_revision_id,
            CAST(91 * 86400 AS BIGINT)   AS revision_seconds_to_identity_revert,
            false                        AS revision_is_identity_revert,
+           CAST(NULL AS BOOLEAN)        AS event_user_is_cross_wiki,
+           CAST(NULL AS BOOLEAN)        AS page_is_deleted,
+           CAST(NULL AS BOOLEAN)        AS revision_is_deleted_by_page_deletion,
+           CAST(NULL AS BIGINT)         AS user_central_id,
            '2024-01' AS snapshot"""
     )
 
@@ -366,7 +382,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS STRING) AS event_user_text_historical,
            CAST(NULL AS BOOLEAN) AS event_user_is_anonymous, CAST(NULL AS BOOLEAN) AS event_user_is_temporary,
            CAST(NULL AS BOOLEAN) AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
-           CAST(NULL AS BOOLEAN) AS event_user_is_created_by_self,
+
            CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
            CAST(0 AS INT) AS page_namespace_historical,
            CAST(101 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -387,12 +403,14 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN)             AS user_is_created_by_peer,
            true AS revision_is_identity_reverted, CAST(102 AS BIGINT) AS revision_first_identity_reverting_revision_id,
            CAST(3600 AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
+           CAST(NULL AS BOOLEAN) AS event_user_is_cross_wiki, CAST(NULL AS BOOLEAN) AS page_is_deleted,
+           CAST(NULL AS BOOLEAN) AS revision_is_deleted_by_page_deletion, CAST(NULL AS BIGINT) AS user_central_id,
            '2024-01' AS snapshot
          UNION ALL
          SELECT
            'enwiki', 'revision', 'edit', '2024-01-15 11:00:00.0',
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
-           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS STRING), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS STRING),
            CAST(1 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
            CAST(102 AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
            CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), CAST(NULL AS BOOLEAN),
@@ -403,6 +421,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), true,
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
            '2024-01'"""
     )
 
@@ -423,7 +442,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS BOOLEAN) AS event_user_is_temporary,
                 CAST(NULL AS BOOLEAN) AS event_user_is_permanent,
                 CAST(NULL AS STRING) AS event_user_registration_timestamp,
-                CAST(NULL AS BOOLEAN) AS event_user_is_created_by_self,
+     
                 CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
                 CAST(0 AS INT) AS page_namespace_historical,
                 CAST(101 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -449,6 +468,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
                 CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert,
                 CAST(NULL AS BOOLEAN) AS revision_is_identity_revert,
+                CAST(NULL AS BOOLEAN) AS event_user_is_cross_wiki,
+                CAST(NULL AS BOOLEAN) AS page_is_deleted,
+                CAST(NULL AS BOOLEAN) AS revision_is_deleted_by_page_deletion,
+                CAST(NULL AS BIGINT)  AS user_central_id,
                 '2023-12' AS snapshot"""
     )
 
@@ -470,7 +493,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS BOOLEAN) AS event_user_is_temporary,
                 CAST(NULL AS BOOLEAN) AS event_user_is_permanent,
                 CAST(NULL AS STRING) AS event_user_registration_timestamp,
-                CAST(NULL AS BOOLEAN) AS event_user_is_created_by_self,
+     
                 CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
                 CAST(0 AS INT) AS page_namespace_historical,
                 CAST(999 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -496,6 +519,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
                 CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert,
                 CAST(NULL AS BOOLEAN) AS revision_is_identity_revert,
+                CAST(NULL AS BOOLEAN) AS event_user_is_cross_wiki,
+                CAST(NULL AS BOOLEAN) AS page_is_deleted,
+                CAST(NULL AS BOOLEAN) AS revision_is_deleted_by_page_deletion,
+                CAST(NULL AS BIGINT)  AS user_central_id,
                 '2024-01' AS snapshot"""
     )
     projected().count() shouldEqual 0
@@ -510,7 +537,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 'Alice' AS event_user_text_historical,
                 false AS event_user_is_anonymous, false AS event_user_is_temporary,
                 true AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
-                false AS event_user_is_created_by_self,
+
                 CAST(1 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
                 CAST(0 AS INT) AS page_namespace_historical,
                 CAST(101 AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -529,11 +556,13 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS BOOLEAN) AS user_is_created_by_peer,
                 false AS revision_is_identity_reverted, CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
                 CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
+                CAST(NULL AS BOOLEAN) AS event_user_is_cross_wiki, CAST(NULL AS BOOLEAN) AS page_is_deleted,
+                CAST(NULL AS BOOLEAN) AS revision_is_deleted_by_page_deletion, CAST(NULL AS BIGINT) AS user_central_id,
                 '2024-01' AS snapshot
          UNION ALL
          SELECT 'enwiki', 'revision', 'edit', '2024-01-15 10:00:00.0',
                 CAST(42 AS BIGINT), CAST(NULL AS BIGINT), 'Alice',
-                false, false, true, CAST(NULL AS STRING), false,
+                false, false, true, CAST(NULL AS STRING),
                 CAST(1 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
                 CAST(101 AS BIGINT), CAST(NULL AS BIGINT), false, CAST(NULL AS BIGINT),
                 CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
@@ -543,6 +572,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
                 CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
                 false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false,
+                CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
                 '2024-01'"""
     )
     val rows = projected().collect()
@@ -581,7 +611,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            'events', 'enwiki', 'page', 'move',
            TIMESTAMP '2024-01-10 08:00:00',
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING), false, false, false,
-           CAST(NULL AS TIMESTAMP), false,
+           CAST(NULL AS TIMESTAMP),
            CAST(42 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false,
            CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS STRING),
@@ -593,6 +623,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
+           CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
            CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>)
          )"""
     )
@@ -641,7 +672,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN)             AS event_user_is_temporary,
            CAST(NULL AS BOOLEAN)             AS event_user_is_permanent,
            CAST(NULL AS STRING)              AS event_user_registration_timestamp,
-           CAST(NULL AS BOOLEAN)             AS event_user_is_created_by_self,
+
            CAST(1 AS BIGINT)                 AS page_id,
            CAST(NULL AS STRING)              AS page_title_historical,
            CAST(0 AS INT)                    AS page_namespace_historical,
@@ -671,6 +702,10 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BIGINT)              AS revision_first_identity_reverting_revision_id,
            CAST(NULL AS BIGINT)              AS revision_seconds_to_identity_revert,
            false                             AS revision_is_identity_revert,
+           CAST(NULL AS BOOLEAN)             AS event_user_is_cross_wiki,
+           CAST(NULL AS BOOLEAN)             AS page_is_deleted,
+           CAST(NULL AS BOOLEAN)             AS revision_is_deleted_by_page_deletion,
+           CAST(NULL AS BIGINT)              AS user_central_id,
            '2024-01'                         AS snapshot"""
     )
 
@@ -711,7 +746,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 'Alice' AS event_user_text_historical,
                 false AS event_user_is_anonymous, false AS event_user_is_temporary,
                 true AS event_user_is_permanent, CAST(NULL AS STRING) AS event_user_registration_timestamp,
-                false AS event_user_is_created_by_self,
+
                 CAST(10 AS BIGINT) AS page_id, CAST(NULL AS STRING) AS page_title_historical,
                 CAST(0 AS INT) AS page_namespace_historical,
                 CAST(NULL AS BIGINT) AS revision_id, CAST(NULL AS BIGINT) AS revision_parent_id,
@@ -729,11 +764,13 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS BOOLEAN) AS user_is_created_by_peer,
                 false AS revision_is_identity_reverted, CAST(NULL AS BIGINT) AS revision_first_identity_reverting_revision_id,
                 CAST(NULL AS BIGINT) AS revision_seconds_to_identity_revert, false AS revision_is_identity_revert,
+                CAST(NULL AS BOOLEAN) AS event_user_is_cross_wiki, CAST(NULL AS BOOLEAN) AS page_is_deleted,
+                CAST(NULL AS BOOLEAN) AS revision_is_deleted_by_page_deletion, CAST(NULL AS BIGINT) AS user_central_id,
                 CAST(9001 AS BIGINT) AS event_log_id, '2024-01' AS snapshot
          UNION ALL
          SELECT 'enwiki', 'page', 'move', '2024-01-15 06:00:00.0',
                 CAST(42 AS BIGINT), CAST(NULL AS BIGINT), 'Alice',
-                false, false, true, CAST(NULL AS STRING), false,
+                false, false, true, CAST(NULL AS STRING),
                 CAST(10 AS BIGINT), CAST(NULL AS STRING), CAST(0 AS INT),
                 CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false, CAST(NULL AS BIGINT),
                 CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
@@ -743,6 +780,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
                 CAST(NULL AS ARRAY<STRING>), CAST(NULL AS ARRAY<STRING>),
                 CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
                 false, CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), false,
+                CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
                 CAST(9001 AS BIGINT), '2024-01'"""
     )
     val sql = MWHistorySnapshotMerger.buildPageUserInsertSQL(params)

@@ -20,6 +20,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     .master("local")
     .appName("MWHistoryDeltaWriterTest")
     .config("spark.sql.shuffle.partitions", "2")
+    .config("spark.sql.session.timeZone", "UTC")
     .getOrCreate()
 
   override def afterAll(): Unit = spark.stop()
@@ -515,19 +516,19 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
     val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
-    // R101 (sha-X base): not annotated. Its own reverters aren't pending at its processing.
-    rows(0).getAs[java.lang.Boolean]("revision_is_identity_reverted")    shouldBe null
-    rows(0).getAs[java.lang.Boolean]("revision_is_identity_revert")      shouldBe null
+    // R101 (sha-X base): fresh revision with sha1, no reverter in batch → FALSE (not null).
+    rows(0).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual false
+    rows(0).getAs[Boolean]("revision_is_identity_revert")                shouldEqual false
 
     // R102 (sha-Y intermediate): reverted by R103 — head of pending reverters at R102's processing.
     rows(1).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual true
     rows(1).getAs[Long]("revision_first_identity_reverting_revision_id") shouldEqual 103L
     rows(1).getAs[Long]("revision_seconds_to_identity_revert")           shouldEqual 1800L
-    rows(1).getAs[java.lang.Boolean]("revision_is_identity_revert")      shouldBe null
+    rows(1).getAs[Boolean]("revision_is_identity_revert")                shouldEqual false
 
     // R103 (sha-X reverter): is_revert. No different-base window contains it → not reverted.
     rows(2).getAs[Boolean]("revision_is_identity_revert")                shouldEqual true
-    rows(2).getAs[java.lang.Boolean]("revision_is_identity_reverted")    shouldBe null
+    rows(2).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual false
   }
 
   it should "leave same-sha compound rank>=2 reverters as is_revert only (no wider revert applies)" in {
@@ -545,17 +546,17 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
     val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
-    // R101 (rank=1, base): not annotated.
-    rows(0).getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
-    rows(0).getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldBe null
+    // R101 (rank=1, base): fresh, sha1 present, no reverter → FALSE.
+    rows(0).getAs[Boolean]("revision_is_identity_reverted")           shouldEqual false
+    rows(0).getAs[Boolean]("revision_is_identity_revert")             shouldEqual false
 
-    // R105 (rank=2, same-sha next head): is_revert only.
+    // R105 (rank=2, same-sha next head): is_revert=TRUE; fresh with sha1 so reverted=FALSE.
     rows(1).getAs[Boolean]("revision_is_identity_revert")             shouldEqual true
-    rows(1).getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
+    rows(1).getAs[Boolean]("revision_is_identity_reverted")           shouldEqual false
 
     // R107 (rank=3, no further reverter): is_revert only.
     rows(2).getAs[Boolean]("revision_is_identity_revert")             shouldEqual true
-    rows(2).getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
+    rows(2).getAs[Boolean]("revision_is_identity_reverted")           shouldEqual false
   }
 
   it should "mark a reverter as is_revert AND is_reverted when the next head has a different base" in {
@@ -575,8 +576,8 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
     val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
-    rows(0).getAs[java.lang.Boolean]("revision_is_identity_reverted")  shouldBe null
-    rows(0).getAs[java.lang.Boolean]("revision_is_identity_revert")    shouldBe null
+    rows(0).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual false
+    rows(0).getAs[Boolean]("revision_is_identity_revert")                shouldEqual false
 
     rows(1).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual true
     rows(1).getAs[Long]("revision_first_identity_reverting_revision_id") shouldEqual 203L
@@ -586,7 +587,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     rows(2).getAs[Long]("revision_first_identity_reverting_revision_id") shouldEqual 204L
 
     rows(3).getAs[Boolean]("revision_is_identity_revert")                shouldEqual true
-    rows(3).getAs[java.lang.Boolean]("revision_is_identity_reverted")    shouldBe null
+    rows(3).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual false
   }
 
   // Canonical integration test: ported directly from
@@ -638,15 +639,16 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     //   rev7: reverted by rev8, 1 hour.
     //   rev8: is_revert (no further reverter).
     //   rev9: no annotation.
-    check(0, None,       None,       None,    None)
-    check(1, None,       Some(true), Some(6L), Some(4 * 3600L))
-    check(2, None,       Some(true), Some(4L), Some(1 * 3600L))
-    check(3, Some(true), Some(true), Some(6L), Some(2 * 3600L))
-    check(4, None,       Some(true), Some(6L), Some(1 * 3600L))
-    check(5, Some(true), Some(true), Some(8L), Some(2 * 3600L))
-    check(6, None,       Some(true), Some(8L), Some(1 * 3600L))
-    check(7, Some(true), None,       None,    None)
-    check(8, None,       None,       None,    None)
+    // Fresh revisions with sha1 and no reverter detected get FALSE (not null).
+    check(0, Some(false), Some(false), None,    None)
+    check(1, Some(false), Some(true),  Some(6L), Some(4 * 3600L))
+    check(2, Some(false), Some(true),  Some(4L), Some(1 * 3600L))
+    check(3, Some(true),  Some(true),  Some(6L), Some(2 * 3600L))
+    check(4, Some(false), Some(true),  Some(6L), Some(1 * 3600L))
+    check(5, Some(true),  Some(true),  Some(8L), Some(2 * 3600L))
+    check(6, Some(false), Some(true),  Some(8L), Some(1 * 3600L))
+    check(7, Some(true),  Some(false), None,    None)
+    check(8, Some(false), Some(false), None,    None)
   }
 
   it should "detect a revert even when the seed sha1 is more than 90 days old" in {
@@ -685,8 +687,8 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     val row = incoming().collect()(0)
     // The incoming revision repeats the sha1 of a seed row — it IS a revert
     row.getAs[Boolean]("revision_is_identity_revert")    shouldEqual true
-    // It has not itself been reverted in this batch
-    row.getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
+    // It has not itself been reverted in this batch; fresh with sha1 → FALSE
+    row.getAs[Boolean]("revision_is_identity_reverted")  shouldEqual false
   }
 
   it should "not self-revert a revision that is already in the target with the same sha1 (rerun safety)" in {
@@ -707,11 +709,11 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     val row = incoming().collect()(0)
-    row.getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
-    row.getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldBe null
+    row.getAs[Boolean]("revision_is_identity_reverted") shouldEqual false
+    row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
   }
 
-  it should "set authoritative revert fields to null when sha1 is present but no revert detected" in {
+  it should "set revert fields to false for fresh revisions with sha1 when no revert detected" in {
     registerEmptyTarget()
     registerNamespaces()
     registerSourceWith(
@@ -721,8 +723,8 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     val row = incoming().collect()(0)
-    row.getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
-    row.getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldBe null
+    row.getAs[Boolean]("revision_is_identity_reverted") shouldEqual false
+    row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
   }
 
   // ---- Back-patch CTE ----
@@ -913,9 +915,9 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     // reverters_with_base entirely, so there's no candidate to flag R99.
     backPatch().count() shouldEqual 0
     val row = incoming().collect()(0)
-    // R100 is also not flagged as a revert (is_real_reverter = FALSE).
-    row.getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
-    row.getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldBe null
+    // R100 is also not flagged as a revert (is_real_reverter = FALSE); fresh + sha1 → FALSE.
+    row.getAs[Boolean]("revision_is_identity_reverted") shouldEqual false
+    row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
   }
 
   it should "exclude NULL revision_text_sha1 rows from revert detection (monthly-bug workaround)" in {
@@ -1286,7 +1288,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     incoming().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
   }
 
-  // ---- User events (MERGE 6) ----
+  // ---- User events (MERGE 7) ----
   // Positional VALUES: wiki_id, user_change_kind, dt, meta_id, meta_dt,
   //   is_autocreate, user_id, user_central_id, user_text, is_temp, edit_count,
   //   groups, registration_dt, prior_user_id, prior_user_text, prior_groups, prior_is_temp,
@@ -1538,5 +1540,151 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     val row = userIncoming().collect()(0)
     row.getAs[Seq[String]]("user_groups_historical")        shouldEqual Seq("confirmed")
     row.getAs[Seq[String]]("event_user_groups_historical")  shouldEqual Seq("confirmed")
+  }
+
+  // ---- user_central_id (MERGE 7) ----
+
+  it should "populate user_central_id from user.user_central_id for user events" in {
+    registerUserEventWith(
+      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-UC1', '2024-01-15T10:00:01Z',
+          false,
+          42L, 12345L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
+          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
+          42L, CAST(NULL AS BIGINT), 'Alice', false, CAST(NULL AS STRING), array())"""
+    )
+
+    val row = userIncoming().collect()(0)
+    row.getAs[Long]("user_central_id") shouldEqual 12345L
+  }
+
+  // ---- event_user_is_cross_wiki ----
+
+  "MWHistoryDeltaWriter revision events" should "set event_user_is_cross_wiki=false for regular named users" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 0L, '2024-01-15T10:00:00Z', 100, 'sha',
+          CAST(NULL AS BIGINT), 42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING), 7L,
+          0, 1L, 'Page', '2024-01-15T10:00:01Z')"""
+    )
+
+    val row = incoming().collect()(0)
+    row.getAs[Boolean]("event_user_is_cross_wiki") shouldEqual false
+  }
+
+  it should "set event_user_is_cross_wiki=true for anon users with >-format username" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 0L, '2024-01-15T10:00:00Z', 100, 'sha',
+          CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), '192.0.2.1>ExampleUser', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT),
+          0, 1L, 'Page', '2024-01-15T10:00:01Z')"""
+    )
+
+    val row = incoming().collect()(0)
+    row.getAs[Boolean]("event_user_is_cross_wiki") shouldEqual true
+  }
+
+  "MWHistoryDeltaWriter page events" should "set event_user_is_cross_wiki=false for regular named users" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-CW1', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'New_Title', 0)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[Boolean]("event_user_is_cross_wiki") shouldEqual false
+  }
+
+  // ---- page_is_deleted (MERGE 5) ----
+
+  it should "set page_is_deleted=true for delete events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-PD1', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'Page', 0)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[Boolean]("page_is_deleted") shouldEqual true
+  }
+
+  it should "set page_is_deleted=false for undelete events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'undelete', '2024-01-15T10:00:00Z', 'uuid-PD2', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'Page', 0)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[Boolean]("page_is_deleted") shouldEqual false
+  }
+
+  it should "set page_is_deleted=false for move events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-PD3', '2024-01-15T10:00:01Z',
+          'Old_Title', 0,
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          1L, 'New_Title', 0)"""
+    )
+
+    val row = pageIncoming().collect()(0)
+    row.getAs[Boolean]("page_is_deleted") shouldEqual false
+  }
+
+  // ---- M6: page-deletion back-patch (buildPageDeletionBackpatchSQL) ----
+
+  "MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL" should "include delete events in page_deletion_events with is_delete=true" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-M6A', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          77L, 'Page', 0)"""
+    )
+
+    val sql = MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params)
+    val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
+    val rows = spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[Long]("page_id")       shouldEqual 77L
+    rows(0).getAs[Boolean]("is_delete")  shouldEqual true
+  }
+
+  it should "include undelete events in page_deletion_events with is_delete=false" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'undelete', '2024-01-15T10:00:00Z', 'uuid-M6B', '2024-01-15T10:00:01Z',
+          CAST(NULL AS STRING), CAST(NULL AS INT),
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          77L, 'Page', 0)"""
+    )
+
+    val sql = MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params)
+    val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
+    val rows = spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[Boolean]("is_delete") shouldEqual false
+  }
+
+  it should "exclude move events from page_deletion_events" in {
+    registerNamespaces()
+    registerPageEventWith(
+      """('enwiki', 'move', '2024-01-15T10:00:00Z', 'uuid-M6C', '2024-01-15T10:00:01Z',
+          'Old', 0,
+          42L, 999L, 'Alice', false, array(), CAST(NULL AS STRING),
+          77L, 'New', 0)"""
+    )
+
+    val sql = MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params)
+    val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
+    spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").count() shouldEqual 0
   }
 }

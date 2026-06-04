@@ -25,18 +25,22 @@ import org.apache.spark.sql.SparkSession
  *   control_map MAP<STRING,STRING>: per-stream rerun guards (one timestamp key per MERGE).
  *     TODO: convert to a typed struct for better schema enforcement.
  *
- * Six MERGEs — each with a different join key or source, which cannot be unified without
+ * Seven MERGEs — each with a different join key or source, which cannot be unified without
  * violating Iceberg's one-source-row-per-target-row constraint or losing partition pruning:
- *   MERGE 1 (buildMergeSQL):        revision events — keyed on (wiki_id, revision_id).
+ *   MERGE 1 (buildMergeSQL):              revision events — keyed on (wiki_id, revision_id).
  *     source='snapshot' rows matched by ON are skipped (no WHEN MATCHED fires), preventing
  *     duplicates when a revision already exists from MWHistorySnapshotMerger.
- *   MERGE 2 (buildBackPatchSQL):    back-patch seed rows whose first reverter arrived today.
+ *   MERGE 2 (buildBackPatchSQL):          back-patch seed rows whose first reverter arrived today.
  *     Separate MERGE so Iceberg COW can prune by the small back-patch revision_id set.
- *   MERGE 3 (buildTagsMergeSQL):    revision_tags — 90-day target bound for partition pruning.
- *   MERGE 4 (buildVisibilityMergeSQL): revision_deleted_parts — no timestamp bound (visibility
+ *   MERGE 3 (buildTagsMergeSQL):          revision_tags — 90-day target bound for partition pruning.
+ *   MERGE 4 (buildVisibilityMergeSQL):    revision_deleted_parts — no timestamp bound (visibility
  *     changes target all-time revisions; 46% are >1 year old).
- *   MERGE 5 (buildPageEventMergeSQL):  page events — keyed on (wiki_id, event_meta_id).
- *   MERGE 6 (buildUserEventMergeSQL):  user events — keyed on (wiki_id, event_meta_id).
+ *   MERGE 5 (buildPageEventMergeSQL):     page events — keyed on (wiki_id, event_meta_id).
+ *   MERGE 6 (buildPageDeletionBackpatchSQL): page deletion back-patch — joins on (wiki_id, page_id),
+ *     updates page_is_deleted and revision_is_deleted_by_page_deletion on revision rows.
+ *   MERGE 7 (buildUserEventMergeSQL):     user events — keyed on (wiki_id, event_meta_id).
+ *     MERGE 7b (buildUserCreationProvenanceBackfillSQL): back-fills user_is_created_by_* on
+ *       rename/altergroups rows inserted by MERGE 7.
  */
 object MWHistoryDeltaWriter {
 
@@ -112,13 +116,19 @@ object MWHistoryDeltaWriter {
     val pageEventSql = buildPageEventMergeSQL(p)
     log.info(s"Running MWHistoryDeltaWriter page events MERGE INTO ${p.targetTable}:\n$pageEventSql")
     spark.sql(pageEventSql).collect()
-    // MERGE 6: insert/update today's user events (create, rename, groups_change).
+    // MERGE 6: back-patch page_is_deleted and revision_is_deleted_by_page_deletion on existing
+    // revision rows when today's page events include a delete or undelete. Runs after M5 so
+    // the page_deletion state from today is committed before the revision back-patch reads it.
+    val pageDeletionBackpatchSql = buildPageDeletionBackpatchSQL(p)
+    log.info(s"Running MWHistoryDeltaWriter page deletion back-patch MERGE INTO ${p.targetTable}:\n$pageDeletionBackpatchSql")
+    spark.sql(pageDeletionBackpatchSql).collect()
+    // MERGE 7: insert/update today's user events (create, rename, groups_change).
     // Keyed on (wiki_id, event_meta_id) where event_meta_id = meta.id. revision_id is NULL
     // for all user events (matches wmf.mediawiki_history convention).
     val userEventSql = buildUserEventMergeSQL(p)
     log.info(s"Running MWHistoryDeltaWriter user events MERGE INTO ${p.targetTable}:\n$userEventSql")
     spark.sql(userEventSql).collect()
-    // MERGE 6b: back-fill user_is_created_by_* on today's rename/altergroups rows.
+    // MERGE 7b: back-fill user_is_created_by_* on today's rename/altergroups rows.
     // The stream carries no creation-provenance for non-create events; this joins the
     // newly-inserted rows to the corresponding create-event row already in the target table.
     val userCreationProvenanceSql = buildUserCreationProvenanceBackfillSQL(p)
@@ -522,6 +532,7 @@ incoming AS (
     e.event_user_is_temporary,
     e.event_user_is_permanent,
     e.event_user_registration_timestamp,
+
     e.page_id,
     e.page_title_historical,
     e.page_namespace_historical,
@@ -536,10 +547,29 @@ incoming AS (
     e.page_namespace_is_content_historical,
     e.event_user_is_bot_by_historical,
     e.event_user_revision_count,
-    ra.revision_is_identity_reverted,
+    -- Fresh revisions (rev_dt = today) cannot have been reverted yet; FALSE is safe and
+    -- M2 will update to TRUE if a reverter arrives later. Late revisions (rev_dt < today)
+    -- keep NULL: a reverter may already be in the target from a prior day and M2 won't
+    -- catch it; the monthly snapshot merge provides the correct value.
+    -- NULL-sha1 rows are excluded from revert detection entirely; keep NULL for them.
+    CASE WHEN ra.revision_is_identity_reverted IS TRUE THEN TRUE
+         WHEN e.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00'
+          AND e.revision_text_sha1 IS NOT NULL THEN FALSE
+         ELSE NULL
+    END                                                               AS revision_is_identity_reverted,
     ra.revision_first_identity_reverting_revision_id,
     ra.revision_seconds_to_identity_revert,
-    ra.revision_is_identity_revert,
+    CASE WHEN ra.revision_is_identity_revert IS TRUE THEN TRUE
+         WHEN e.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00'
+          AND e.revision_text_sha1 IS NOT NULL THEN FALSE
+         ELSE NULL
+    END                                                               AS revision_is_identity_revert,
+    (e.event_user_text_historical LIKE '%>%'
+     AND e.event_user_is_anonymous
+     AND NOT COALESCE(e.event_user_is_temporary, FALSE))              AS event_user_is_cross_wiki,
+    FALSE                                                              AS page_is_deleted,
+    FALSE                                                              AS revision_is_deleted_by_page_deletion,
+    CAST(NULL AS BIGINT)                                               AS user_central_id,
     e.meta_dt
   FROM with_bots e
   LEFT JOIN revert_annotations ra
@@ -583,6 +613,9 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.revision_first_identity_reverting_revision_id                 = s.revision_first_identity_reverting_revision_id,
     t.revision_seconds_to_identity_revert                           = s.revision_seconds_to_identity_revert,
     t.revision_is_identity_revert                                   = s.revision_is_identity_revert,
+    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
+    t.page_is_deleted                                               = s.page_is_deleted,
+    t.revision_is_deleted_by_page_deletion                          = s.revision_is_deleted_by_page_deletion,
     t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', CAST(s.meta_dt AS STRING)))
 WHEN NOT MATCHED THEN
   INSERT (
@@ -599,6 +632,7 @@ WHEN NOT MATCHED THEN
     event_user_is_temporary,
     event_user_is_permanent,
     event_user_registration_timestamp,
+
     page_id,
     page_title_historical,
     page_namespace_historical,
@@ -628,6 +662,10 @@ WHEN NOT MATCHED THEN
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
     revision_is_identity_revert,
+    event_user_is_cross_wiki,
+    page_is_deleted,
+    revision_is_deleted_by_page_deletion,
+    user_central_id,
     control_map
   ) VALUES (
     s.source,
@@ -672,6 +710,10 @@ WHEN NOT MATCHED THEN
     s.revision_first_identity_reverting_revision_id,
     s.revision_seconds_to_identity_revert,
     s.revision_is_identity_revert,
+    s.event_user_is_cross_wiki,
+    s.page_is_deleted,
+    s.revision_is_deleted_by_page_deletion,
+    s.user_central_id,
     map('revision_update_dt', CAST(s.meta_dt AS STRING))
   )"""
 
@@ -831,7 +873,7 @@ WHEN MATCHED THEN
     (performer.user_id IS NOT NULL
      AND NOT performer.is_temp)                                         AS event_user_is_permanent,
     to_timestamp(performer.registration_dt)                             AS event_user_registration_timestamp,
-    CAST(NULL AS BOOLEAN)                                               AS event_user_is_created_by_self,
+
     page.page_id                                                        AS page_id,
     CASE WHEN page.namespace_id = 0 THEN page.page_title
          ELSE REGEXP_REPLACE(page.page_title, '^[^:]+:', '')
@@ -845,6 +887,7 @@ WHEN MATCHED THEN
     CAST(NULL AS STRING)                                                AS revision_text_sha1,
     CAST(NULL AS ARRAY<STRING>)                                         AS revision_tags,
     CAST(NULL AS ARRAY<STRING>)                                         AS revision_deleted_parts,
+    CASE WHEN page_change_kind = 'delete' THEN TRUE ELSE FALSE END      AS page_is_deleted,
     performer.groups                                                    AS user_groups_raw
   FROM ${p.pageChangeTable}
   WHERE year  = ${p.year}
@@ -912,6 +955,7 @@ page_incoming AS (
     e.event_user_is_temporary,
     e.event_user_is_permanent,
     e.event_user_registration_timestamp,
+
     e.page_id,
     e.page_title_historical,
     e.page_namespace_historical,
@@ -930,6 +974,12 @@ page_incoming AS (
     CAST(NULL AS BIGINT)                                                AS revision_first_identity_reverting_revision_id,
     CAST(NULL AS BIGINT)                                                AS revision_seconds_to_identity_revert,
     CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_revert,
+    (e.event_user_text_historical LIKE '%>%'
+     AND e.event_user_is_anonymous
+     AND NOT COALESCE(e.event_user_is_temporary, FALSE))               AS event_user_is_cross_wiki,
+    e.page_is_deleted,
+    CAST(NULL AS BOOLEAN)                                              AS revision_is_deleted_by_page_deletion,
+    CAST(NULL AS BIGINT)                                               AS user_central_id,
     e.meta_dt
   FROM page_with_bots e
 )"""
@@ -954,11 +1004,13 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.event_user_is_temporary                                       = s.event_user_is_temporary,
     t.event_user_is_permanent                                       = s.event_user_is_permanent,
     t.event_user_registration_timestamp                             = s.event_user_registration_timestamp,
-    t.event_user_is_created_by_self                                 = s.event_user_is_created_by_self,
+
     t.page_title_historical                                         = s.page_title_historical,
     t.page_namespace_historical                                     = s.page_namespace_historical,
     t.page_namespace_is_content_historical                          = s.page_namespace_is_content_historical,
     t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
+    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
+    t.page_is_deleted                                               = s.page_is_deleted,
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('page_meta_id',    s.event_meta_id,
                                    'page_update_dt',  CAST(s.meta_dt AS STRING)))
@@ -977,6 +1029,7 @@ WHEN NOT MATCHED THEN
     event_user_is_temporary,
     event_user_is_permanent,
     event_user_registration_timestamp,
+
     page_id,
     page_title_historical,
     page_namespace_historical,
@@ -1006,6 +1059,10 @@ WHEN NOT MATCHED THEN
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
     revision_is_identity_revert,
+    event_user_is_cross_wiki,
+    page_is_deleted,
+    revision_is_deleted_by_page_deletion,
+    user_central_id,
     control_map
   ) VALUES (
     s.source,
@@ -1021,6 +1078,7 @@ WHEN NOT MATCHED THEN
     s.event_user_is_temporary,
     s.event_user_is_permanent,
     s.event_user_registration_timestamp,
+
     s.page_id,
     s.page_title_historical,
     s.page_namespace_historical,
@@ -1050,6 +1108,10 @@ WHEN NOT MATCHED THEN
     s.revision_first_identity_reverting_revision_id,
     s.revision_seconds_to_identity_revert,
     s.revision_is_identity_revert,
+    s.event_user_is_cross_wiki,
+    s.page_is_deleted,
+    s.revision_is_deleted_by_page_deletion,
+    s.user_central_id,
     map('page_meta_id',   s.event_meta_id,
         'page_update_dt', CAST(s.meta_dt AS STRING))
   )"""
@@ -1163,6 +1225,7 @@ user_incoming AS (
     (e.performer_user_id IS NOT NULL
      AND NOT COALESCE(e.performer_is_temp, FALSE))                      AS event_user_is_permanent,
     to_timestamp(e.performer_registration_dt)                           AS event_user_registration_timestamp,
+
     CAST(NULL AS BIGINT)                                                AS page_id,
     CAST(NULL AS STRING)                                                AS page_title_historical,
     CAST(NULL AS INT)                                                   AS page_namespace_historical,
@@ -1180,6 +1243,7 @@ user_incoming AS (
     e.performer_groups                                                  AS event_user_groups_historical,
     -- user_* = the user being created/renamed/altered (the entity)
     e.user_id                                                           AS user_id,
+    e.user_central_id                                                   AS user_central_id,
     e.user_text                                                         AS user_text_historical,
     (e.user_id IS NULL)                                                 AS user_is_anonymous,
     COALESCE(e.is_temp, FALSE)                                          AS user_is_temporary,
@@ -1205,6 +1269,11 @@ user_incoming AS (
     CAST(NULL AS BIGINT)                                                AS revision_first_identity_reverting_revision_id,
     CAST(NULL AS BIGINT)                                                AS revision_seconds_to_identity_revert,
     CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_revert,
+    (e.performer_user_text LIKE '%>%'
+     AND (e.performer_user_id IS NULL)
+     AND NOT COALESCE(e.performer_is_temp, FALSE))                      AS event_user_is_cross_wiki,
+    CAST(NULL AS BOOLEAN)                                               AS page_is_deleted,
+    CAST(NULL AS BOOLEAN)                                               AS revision_is_deleted_by_page_deletion,
     e.meta_dt
   FROM user_with_bots e
 )"""
@@ -1228,7 +1297,7 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.event_user_is_temporary                                       = s.event_user_is_temporary,
     t.event_user_is_permanent                                       = s.event_user_is_permanent,
     t.event_user_registration_timestamp                             = s.event_user_registration_timestamp,
-    t.event_user_is_created_by_self                                 = s.event_user_is_created_by_self,
+
     t.event_user_revision_count                                     = s.event_user_revision_count,
     t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
     t.event_user_groups_historical                                  = s.event_user_groups_historical,
@@ -1242,6 +1311,8 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.user_is_created_by_self                                       = s.user_is_created_by_self,
     t.user_is_created_by_system                                     = s.user_is_created_by_system,
     t.user_is_created_by_peer                                       = s.user_is_created_by_peer,
+    t.user_central_id                                               = s.user_central_id,
+    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('user_meta_id',   s.event_meta_id,
                                    'user_update_dt', CAST(s.meta_dt AS STRING)))
@@ -1260,6 +1331,7 @@ WHEN NOT MATCHED THEN
     event_user_is_temporary,
     event_user_is_permanent,
     event_user_registration_timestamp,
+
     page_id,
     page_title_historical,
     page_namespace_historical,
@@ -1289,6 +1361,10 @@ WHEN NOT MATCHED THEN
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
     revision_is_identity_revert,
+    event_user_is_cross_wiki,
+    page_is_deleted,
+    revision_is_deleted_by_page_deletion,
+    user_central_id,
     control_map
   ) VALUES (
     s.source,
@@ -1304,6 +1380,7 @@ WHEN NOT MATCHED THEN
     s.event_user_is_temporary,
     s.event_user_is_permanent,
     s.event_user_registration_timestamp,
+
     s.page_id,
     s.page_title_historical,
     s.page_namespace_historical,
@@ -1333,9 +1410,50 @@ WHEN NOT MATCHED THEN
     s.revision_first_identity_reverting_revision_id,
     s.revision_seconds_to_identity_revert,
     s.revision_is_identity_revert,
+    s.event_user_is_cross_wiki,
+    s.page_is_deleted,
+    s.revision_is_deleted_by_page_deletion,
+    s.user_central_id,
     map('user_meta_id',   s.event_meta_id,
         'user_update_dt', CAST(s.meta_dt AS STRING))
   )"""
+
+  /**
+   * MERGE 6: back-patches page_is_deleted and revision_is_deleted_by_page_deletion on existing
+   * revision rows when today's page events include a delete or undelete.
+   * Joins on (wiki_id, page_id) — NOT the partition key — so this scans all monthly partitions.
+   * Fires unconditionally; Spark prunes the MERGE to a no-op when the source CTE is empty.
+   */
+  def buildPageDeletionBackpatchSQL(p: Params): String = {
+    buildPageIncomingSQL(p) +
+    s""",
+
+page_deletion_events AS (
+  -- Last delete/undelete per page for the day; TRUE = page was deleted, FALSE = restored.
+  SELECT wiki_id, page_id, is_delete, meta_dt
+  FROM (
+    SELECT
+      wiki_id,
+      page_id,
+      (event_type = 'delete') AS is_delete,
+      meta_dt,
+      row_number() OVER (PARTITION BY wiki_id, page_id ORDER BY event_timestamp DESC) AS rn
+    FROM page_incoming
+    WHERE event_type IN ('delete', 'restore')
+  )
+  WHERE rn = 1
+)
+
+MERGE INTO ${p.targetTable} t
+USING (SELECT /*+ BROADCAST */ * FROM page_deletion_events) s
+ON  t.wiki_id      = s.wiki_id
+AND t.page_id      = s.page_id
+AND t.event_entity = 'revision'
+WHEN MATCHED THEN UPDATE SET
+  t.page_is_deleted                      = s.is_delete,
+  t.revision_is_deleted_by_page_deletion = s.is_delete,
+  t.control_map = map_concat(COALESCE(t.control_map, map()), map('page_deletion_dt', CAST(s.meta_dt AS STRING)))"""
+  }
 
   /**
    * Returns SQL that back-fills user_is_created_by_* on rename/altergroups rows inserted
