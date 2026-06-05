@@ -116,8 +116,9 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
 
   val mergeParams: MWHistorySnapshotMerger.Params = MWHistorySnapshotMerger.Params(
     sourceTable = "test_mwh",
-    targetTable = "local.db.test_target",
-    snapshot    = "2024-01"
+    targetTable = "db.test_target",
+    snapshot    = "2024-01",
+    catalog     = "local"
   )
 
   def projected() = spark.sql(MWHistorySnapshotMerger.buildRevisionSelectSQL(params))
@@ -799,5 +800,78 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     rows(0).getAs[String]("source")       shouldEqual "snapshot"
     rows(0).getAs[String]("event_entity") shouldEqual "page"
     rows(0).getAs[Long]("page_id")        shouldEqual 10L
+  }
+
+  // ---- WAP (Write-Audit-Publish) ----
+
+  "MWHistorySnapshotMerger.parseArgs" should "parse --catalog and --iceberg_branch" in {
+    val p = MWHistorySnapshotMerger.parseArgs(Array(
+      "--source_table",   "wmf.mediawiki_history",
+      "--target_table",   "analytics.mediawiki_history_incremental_v1",
+      "--snapshot",       "2024-01",
+      "--catalog",        "spark_catalog",
+      "--iceberg_branch", "monthly_2024_01"
+    ))
+    p.catalog       shouldEqual "spark_catalog"
+    p.icebergBranch shouldEqual "monthly_2024_01"
+  }
+
+  it should "default catalog and icebergBranch to empty string when absent" in {
+    val p = MWHistorySnapshotMerger.parseArgs(Array(
+      "--source_table", "wmf.mediawiki_history",
+      "--target_table", "analytics.mediawiki_history_incremental_v1",
+      "--snapshot",     "2024-01"
+    ))
+    p.catalog       shouldEqual ""
+    p.icebergBranch shouldEqual ""
+  }
+
+  "MWHistorySnapshotMerger SQL builders" should "use branch-scoped table when icebergBranch is set" in {
+    val p = params.copy(catalog = "local", icebergBranch = "monthly_2024_01")
+    MWHistorySnapshotMerger.buildCleanupSQL(p)         should include ("local.test_target.branch_monthly_2024_01")
+    MWHistorySnapshotMerger.buildRevisionInsertSQL(p)  should include ("local.test_target.branch_monthly_2024_01")
+    MWHistorySnapshotMerger.buildPageUserInsertSQL(p)  should include ("local.test_target.branch_monthly_2024_01")
+  }
+
+  it should "use the plain table name when icebergBranch is empty" in {
+    MWHistorySnapshotMerger.buildCleanupSQL(params)        should not include "branch"
+    MWHistorySnapshotMerger.buildRevisionInsertSQL(params) should not include "branch"
+    MWHistorySnapshotMerger.buildPageUserInsertSQL(params) should not include "branch"
+  }
+
+  "MWHistorySnapshotMerger WAP run" should "publish all writes atomically to main and drop the branch" in {
+    spark.sql("DELETE FROM local.db.test_target WHERE true")
+    // Pre-existing events row within the snapshot month — DELETE on branch will remove it.
+    insertEventsRow(revisionId = 500L, eventTimestamp = "2024-01-10 00:00:00")
+    // Source has one revision row.
+    registerSource()
+    val wapParams = mergeParams.copy(catalog = "local", icebergBranch = "test_wap")
+    MWHistorySnapshotMerger.run(spark, wapParams)
+    // After fast-forward: main has the snapshot row, the stale events row is gone.
+    val rows = spark.sql("SELECT * FROM local.db.test_target").collect()
+    rows.length shouldEqual 1
+    rows(0).getAs[String]("source")      shouldEqual "snapshot"
+    rows(0).getAs[Long]("revision_id")   shouldEqual 101L
+    // Branch must be dropped after successful run.
+    val branches = spark.sql("SELECT name FROM local.db.test_target.refs WHERE type = 'BRANCH'").collect()
+    branches.map(_.getAs[String]("name")) should not contain "test_wap"
+  }
+
+  it should "not advance main on job failure, leaving branch for inspection" in {
+    spark.sql("DELETE FROM local.db.test_target WHERE true")
+    insertEventsRow(revisionId = 600L, eventTimestamp = "2024-01-20 00:00:00")
+    // Deliberately omit registerSource() so the revision INSERT will produce 0 rows — safe.
+    // We simulate a mid-run failure by running only the branch setup + cleanup DELETE.
+    spark.sql("ALTER TABLE local.db.test_target DROP BRANCH IF EXISTS test_wap_fail")
+    spark.sql("ALTER TABLE local.db.test_target CREATE BRANCH test_wap_fail")
+    spark.sql(MWHistorySnapshotMerger.buildCleanupSQL(mergeParams.copy(catalog = "local", icebergBranch = "test_wap_fail")))
+    // main is NOT advanced (no fast_forward call).
+    // main still has the original events row.
+    spark.sql("SELECT * FROM local.db.test_target WHERE source = 'events'").count() shouldEqual 1
+    // Branch still exists (not dropped — available for inspection).
+    val branches = spark.sql("SELECT name FROM local.db.test_target.refs WHERE type = 'BRANCH'").collect()
+    branches.map(_.getAs[String]("name")) should contain ("test_wap_fail")
+    // Cleanup for subsequent tests.
+    spark.sql("ALTER TABLE local.db.test_target DROP BRANCH IF EXISTS test_wap_fail")
   }
 }

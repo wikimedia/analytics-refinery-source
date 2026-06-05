@@ -54,10 +54,14 @@ object MWHistoryDeltaWriter {
     tagsTable: String          = "",  // e.g. event.mediawiki_revision_tags_change
     visibilityTable: String    = "",  // e.g. event.mediawiki_revision_visibility_change
     userChangeTable: String    = "",  // e.g. event.mediawiki_user_change
-    year: Int  = 0,
-    month: Int = 0,
-    day: Int   = 0
-  )
+    year: Int       = 0,
+    month: Int      = 0,
+    day: Int        = 0,
+    catalog: String       = "",  // Spark catalog (e.g. spark_catalog); required when using icebergBranch
+    icebergBranch: String = ""   // Iceberg branch name for atomic publishing; empty = write directly to main
+  ) {
+    def ref: String = IcebergBranchOps.targetRef(catalog, targetTable, icebergBranch)
+  }
 
   // $COVERAGE-OFF$
   def main(args: Array[String]): Unit = {
@@ -81,9 +85,12 @@ object MWHistoryDeltaWriter {
       opt[Int]("year").required().action((v, p) => p.copy(year = v))
       opt[Int]("month").required().action((v, p) => p.copy(month = v))
       opt[Int]("day").required().action((v, p) => p.copy(day = v))
+      opt[String]("catalog").action((v, p) => p.copy(catalog = v))
+      opt[String]("iceberg_branch").action((v, p) => p.copy(icebergBranch = v))
     }
     parser.parse(args, Params()).getOrElse(sys.exit(1))
   }
+
 
   def run(spark: SparkSession, p: Params): Unit = {
     log.info(s"MWHistoryDeltaWriter params: $p")
@@ -91,49 +98,66 @@ object MWHistoryDeltaWriter {
     // DUPLICATED_MAP_KEY in Spark 3.5's strict mode. LAST_WIN restores the intended
     // semantics: the right-hand map (new value) wins on key conflicts.
     spark.conf.set("spark.sql.mapKeyDedupPolicy", "LAST_WIN")
+    val baseTable = IcebergBranchOps.targetRef(p.catalog, p.targetTable, "")
+    if (p.icebergBranch.nonEmpty) {
+      val dropSql   = s"ALTER TABLE $baseTable DROP BRANCH IF EXISTS ${p.icebergBranch}"
+      val createSql = s"ALTER TABLE $baseTable CREATE BRANCH ${p.icebergBranch}"
+      log.info(s"MWHistoryDeltaWriter WAP: dropping branch if exists:\n$dropSql")
+      spark.sql(dropSql)
+      log.info(s"MWHistoryDeltaWriter WAP: creating branch:\n$createSql")
+      spark.sql(createSql)
+    }
     // MERGE 1: insert/update today's revision events.
     val mergeSql = buildMergeSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter MERGE INTO ${p.targetTable}:\n$mergeSql")
+    log.info(s"Running MWHistoryDeltaWriter MERGE INTO ${p.ref}:\n$mergeSql")
     spark.sql(mergeSql).collect()
     // MERGE 2: back-patch seed rows whose first reverter arrived today.
     val backPatchSql = buildBackPatchSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter back-patch MERGE INTO ${p.targetTable}:\n$backPatchSql")
+    log.info(s"Running MWHistoryDeltaWriter back-patch MERGE INTO ${p.ref}:\n$backPatchSql")
     spark.sql(backPatchSql).collect()
     // MERGE 3: update revision_tags from today's revision_tags_change events.
     // Separate stream from page_change_v1; tags are applied asynchronously after revision creation.
     val tagsSql = buildTagsMergeSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter tags MERGE INTO ${p.targetTable}:\n$tagsSql")
+    log.info(s"Running MWHistoryDeltaWriter tags MERGE INTO ${p.ref}:\n$tagsSql")
     spark.sql(tagsSql).collect()
     // MERGE 4: update revision_deleted_parts from today's revision_visibility_change events.
     // Visibility changes are applied independently of edits; the 90-day lower bound on the
     // target matches the tags window and enables partition pruning.
     val visibilitySql = buildVisibilityMergeSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter visibility MERGE INTO ${p.targetTable}:\n$visibilitySql")
+    log.info(s"Running MWHistoryDeltaWriter visibility MERGE INTO ${p.ref}:\n$visibilitySql")
     spark.sql(visibilitySql).collect()
     // MERGE 5: insert/update today's page events (move, delete, undelete).
     // Keyed on (wiki_id, event_meta_id) where event_meta_id = meta.id. revision_id is NULL
     // for all page events (matches wmf.mediawiki_history convention).
     val pageEventSql = buildPageEventMergeSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter page events MERGE INTO ${p.targetTable}:\n$pageEventSql")
+    log.info(s"Running MWHistoryDeltaWriter page events MERGE INTO ${p.ref}:\n$pageEventSql")
     spark.sql(pageEventSql).collect()
     // MERGE 6: back-patch page_is_deleted and revision_is_deleted_by_page_deletion on existing
     // revision rows when today's page events include a delete or undelete. Runs after M5 so
     // the page_deletion state from today is committed before the revision back-patch reads it.
     val pageDeletionBackpatchSql = buildPageDeletionBackpatchSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter page deletion back-patch MERGE INTO ${p.targetTable}:\n$pageDeletionBackpatchSql")
+    log.info(s"Running MWHistoryDeltaWriter page deletion back-patch MERGE INTO ${p.ref}:\n$pageDeletionBackpatchSql")
     spark.sql(pageDeletionBackpatchSql).collect()
     // MERGE 7: insert/update today's user events (create, rename, groups_change).
     // Keyed on (wiki_id, event_meta_id) where event_meta_id = meta.id. revision_id is NULL
     // for all user events (matches wmf.mediawiki_history convention).
     val userEventSql = buildUserEventMergeSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter user events MERGE INTO ${p.targetTable}:\n$userEventSql")
+    log.info(s"Running MWHistoryDeltaWriter user events MERGE INTO ${p.ref}:\n$userEventSql")
     spark.sql(userEventSql).collect()
     // MERGE 7b: back-fill user_is_created_by_* on today's rename/altergroups rows.
     // The stream carries no creation-provenance for non-create events; this joins the
     // newly-inserted rows to the corresponding create-event row already in the target table.
     val userCreationProvenanceSql = buildUserCreationProvenanceBackfillSQL(p)
-    log.info(s"Running MWHistoryDeltaWriter user creation provenance back-fill MERGE INTO ${p.targetTable}:\n$userCreationProvenanceSql")
+    log.info(s"Running MWHistoryDeltaWriter user creation provenance back-fill MERGE INTO ${p.ref}:\n$userCreationProvenanceSql")
     spark.sql(userCreationProvenanceSql).collect()
+    if (p.icebergBranch.nonEmpty) {
+      val ffSql   = s"CALL ${p.catalog}.system.fast_forward('${p.targetTable}', 'main', '${p.icebergBranch}')"
+      val dropSql = s"ALTER TABLE $baseTable DROP BRANCH IF EXISTS ${p.icebergBranch}"
+      log.info(s"MWHistoryDeltaWriter WAP: fast-forwarding main to branch:\n$ffSql")
+      spark.sql(ffSql)
+      log.info(s"MWHistoryDeltaWriter WAP: dropping branch:\n$dropSql")
+      spark.sql(dropSql)
+    }
   }
 
   /**
@@ -275,7 +299,7 @@ revert_seed AS (
     t.event_timestamp,
     t.revision_is_identity_reverted   AS existing_revision_is_identity_reverted,
     FALSE                             AS is_incoming
-  FROM ${p.targetTable} t
+  FROM ${p.ref} t
   LEFT ANTI JOIN deduplicated d ON t.wiki_id = d.wiki_id AND t.revision_id = d.revision_id
   WHERE t.page_id IN (SELECT page_id FROM deduplicated)
     AND t.revision_text_sha1 IS NOT NULL
@@ -582,7 +606,7 @@ incoming AS (
     buildIncomingSQL(p) +
     s"""
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING incoming s
 ON  t.wiki_id     = s.wiki_id
 AND t.revision_id = s.revision_id
@@ -728,7 +752,7 @@ WHEN NOT MATCHED THEN
     buildIncomingSQL(p) +
     s"""
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING back_patch s
 ON  t.wiki_id     = s.wiki_id
 AND t.revision_id = s.target_revision_id
@@ -773,7 +797,7 @@ WHEN MATCHED THEN
     buildTagsCteSQL(p) +
     s"""
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING latest_tags s
 ON  t.wiki_id         = s.wiki_id
 AND t.revision_id     = s.revision_id
@@ -826,7 +850,7 @@ WHEN MATCHED THEN
 
 -- latest_visibility is ~50 bytes/row; p95 daily volume is ~2,700 rows (~130 KB),
 -- well under Spark's 10 MB autoBroadcastJoinThreshold — Spark broadcasts it automatically.
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING latest_visibility s
 ON  t.wiki_id     = s.wiki_id
 AND t.revision_id = s.revision_id
@@ -989,7 +1013,7 @@ page_incoming AS (
     buildPageIncomingSQL(p) +
     s"""
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING page_incoming s
 ON  t.wiki_id       = s.wiki_id
 AND t.event_meta_id = s.event_meta_id
@@ -1282,7 +1306,7 @@ user_incoming AS (
     buildUserIncomingSQL(p) +
     s"""
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING user_incoming s
 ON  t.wiki_id       = s.wiki_id
 AND t.event_meta_id = s.event_meta_id
@@ -1444,7 +1468,7 @@ page_deletion_events AS (
   WHERE rn = 1
 )
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING (SELECT /*+ BROADCAST */ * FROM page_deletion_events) s
 ON  t.wiki_id      = s.wiki_id
 AND t.page_id      = s.page_id
@@ -1474,13 +1498,13 @@ user_provenance AS (
     MAX(user_is_created_by_self)   AS user_is_created_by_self,
     MAX(user_is_created_by_system) AS user_is_created_by_system,
     MAX(user_is_created_by_peer)   AS user_is_created_by_peer
-  FROM ${p.targetTable}
+  FROM ${p.ref}
   WHERE event_entity = 'user'
     AND event_type   = 'create'
   GROUP BY wiki_id, user_id
 )
 
-MERGE INTO ${p.targetTable} t
+MERGE INTO ${p.ref} t
 USING (
   SELECT
     ui.wiki_id,

@@ -1687,4 +1687,66 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
     spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").count() shouldEqual 0
   }
+
+  // ---- WAP (Write-Audit-Publish) ----
+
+  "MWHistoryDeltaWriter.parseArgs" should "parse --catalog and --iceberg_branch" in {
+    val p = MWHistoryDeltaWriter.parseArgs(Array(
+      "--page_change_table",  "event.mediawiki_page_change",
+      "--target_table",       "wmf_mediawiki.mediawiki_history_incremental_v1",
+      "--namespaces_table",   "wmf_raw.mediawiki_project_namespace_map",
+      "--namespaces_snapshot","2024-12",
+      "--tags_table",         "event.mediawiki_revision_tags_change",
+      "--visibility_table",   "event.mediawiki_revision_visibility_change",
+      "--user_change_table",  "event.mediawiki_user_change",
+      "--year",  "2024", "--month", "1", "--day", "15",
+      "--catalog", "spark_catalog",
+      "--iceberg_branch", "daily_2024_01_15"
+    ))
+    p.catalog       shouldEqual "spark_catalog"
+    p.icebergBranch shouldEqual "daily_2024_01_15"
+  }
+
+  it should "default catalog and icebergBranch to empty string when absent" in {
+    val p = MWHistoryDeltaWriter.parseArgs(Array(
+      "--page_change_table",  "event.mediawiki_page_change",
+      "--target_table",       "wmf_mediawiki.mediawiki_history_incremental_v1",
+      "--namespaces_table",   "wmf_raw.mediawiki_project_namespace_map",
+      "--namespaces_snapshot","2024-12",
+      "--tags_table",         "event.mediawiki_revision_tags_change",
+      "--visibility_table",   "event.mediawiki_revision_visibility_change",
+      "--user_change_table",  "event.mediawiki_user_change",
+      "--year",  "2024", "--month", "1", "--day", "15"
+    ))
+    p.catalog       shouldEqual ""
+    p.icebergBranch shouldEqual ""
+  }
+
+  "MWHistoryDeltaWriter SQL builders" should "use branch-scoped table for MERGE INTO when icebergBranch is set" in {
+    val p = params.copy(catalog = "local", icebergBranch = "daily_2024_01_15")
+    MWHistoryDeltaWriter.buildMergeSQL(p)                           should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildBackPatchSQL(p)                       should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildTagsMergeSQL(p)                       should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildVisibilityMergeSQL(p)                 should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildPageEventMergeSQL(p)                  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(p)           should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildUserEventMergeSQL(p)                  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(p)  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+  }
+
+  it should "use branch-scoped table for the revert_seed FROM clause when icebergBranch is set" in {
+    val p = params.copy(catalog = "local", icebergBranch = "daily_2024_01_15")
+    MWHistoryDeltaWriter.buildIncomingSQL(p) should include ("FROM local.test_target.branch_daily_2024_01_15 t")
+  }
+
+  it should "use branch-scoped table for user_provenance FROM clause when icebergBranch is set" in {
+    val p = params.copy(catalog = "local", icebergBranch = "daily_2024_01_15")
+    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(p) should include ("FROM local.test_target.branch_daily_2024_01_15")
+  }
+
+  it should "use plain table name for all SQL when icebergBranch is empty" in {
+    MWHistoryDeltaWriter.buildMergeSQL(params)                          should not include ".branch_"
+    MWHistoryDeltaWriter.buildIncomingSQL(params)                       should not include ".branch_"
+    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(params) should not include ".branch_"
+  }
 }

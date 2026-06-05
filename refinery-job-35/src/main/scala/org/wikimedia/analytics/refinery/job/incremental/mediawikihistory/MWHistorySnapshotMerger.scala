@@ -24,9 +24,10 @@ import org.apache.spark.sql.SparkSession
  *        MERGE key is not available; delete-then-insert is used instead. Deduplicates
  *        on event_log_id (100% populated for page/user events in wmf.mediawiki_history).
  *
- * NOTE: operations 1–3 are not wrapped in a single Iceberg transaction, so there is
- * a window between DELETE and INSERT where snapshot rows are absent from the table.
- * This will be eliminated by Iceberg WAP (write-audit-publish) branching in a follow-up.
+ * When icebergBranch is provided, all three operations run on that named Iceberg branch
+ * and the branch is fast-forwarded to main atomically on success. Downstream readers
+ * see only the pre-run state or the fully-written state; the intermediate gap between
+ * DELETE and INSERT is not visible on main.
  *
  * One run per snapshot is sufficient: wmf.mediawiki_history always covers all of
  * history for the given snapshot month.
@@ -36,10 +37,14 @@ object MWHistorySnapshotMerger {
   @transient lazy val log: Logger = Logger.getLogger(this.getClass)
 
   case class Params(
-    sourceTable: String = "",  // wmf.mediawiki_history
-    targetTable: String = "",  // mediawiki_history_incremental_v1
-    snapshot: String    = ""   // YYYY-MM
-  )
+    sourceTable: String   = "",  // wmf.mediawiki_history
+    targetTable: String   = "",  // mediawiki_history_incremental_v1 (without catalog prefix)
+    snapshot: String      = "",  // YYYY-MM
+    catalog: String       = "",  // Spark catalog (e.g. spark_catalog); required when using icebergBranch
+    icebergBranch: String = ""   // Iceberg branch name for atomic publishing; empty = write directly to main
+  ) {
+    def ref: String = IcebergBranchOps.targetRef(catalog, targetTable, icebergBranch)
+  }
 
   // $COVERAGE-OFF$
   def main(args: Array[String]): Unit = {
@@ -56,21 +61,41 @@ object MWHistorySnapshotMerger {
       opt[String]("source_table").required().action((v, p) => p.copy(sourceTable = v))
       opt[String]("target_table").required().action((v, p) => p.copy(targetTable = v))
       opt[String]("snapshot").required().action((v, p) => p.copy(snapshot = v))
+      opt[String]("catalog").action((v, p) => p.copy(catalog = v))
+      opt[String]("iceberg_branch").action((v, p) => p.copy(icebergBranch = v))
     }
     parser.parse(args, Params()).getOrElse(sys.exit(1))
   }
 
+
   def run(spark: SparkSession, p: Params): Unit = {
     log.info(s"MWHistorySnapshotMerger params: $p")
+    val baseTable = IcebergBranchOps.targetRef(p.catalog, p.targetTable, "")
+    if (p.icebergBranch.nonEmpty) {
+      val dropSql   = s"ALTER TABLE $baseTable DROP BRANCH IF EXISTS ${p.icebergBranch}"
+      val createSql = s"ALTER TABLE $baseTable CREATE BRANCH ${p.icebergBranch}"
+      log.info(s"MWHistorySnapshotMerger WAP: dropping branch if exists:\n$dropSql")
+      spark.sql(dropSql)
+      log.info(s"MWHistorySnapshotMerger WAP: creating branch:\n$createSql")
+      spark.sql(createSql)
+    }
     val cleanupSql = buildCleanupSQL(p)
-    log.info(s"Running MWHistorySnapshotMerger cleanup DELETE on ${p.targetTable}:\n$cleanupSql")
+    log.info(s"Running MWHistorySnapshotMerger cleanup DELETE on ${p.ref}:\n$cleanupSql")
     spark.sql(cleanupSql).collect()
     val revisionSql = buildRevisionInsertSQL(p)
-    log.info(s"Running MWHistorySnapshotMerger revision INSERT INTO ${p.targetTable}:\n$revisionSql")
+    log.info(s"Running MWHistorySnapshotMerger revision INSERT INTO ${p.ref}:\n$revisionSql")
     spark.sql(revisionSql).collect()
     val pageUserSql = buildPageUserInsertSQL(p)
-    log.info(s"Running MWHistorySnapshotMerger page/user INSERT INTO ${p.targetTable}:\n$pageUserSql")
+    log.info(s"Running MWHistorySnapshotMerger page/user INSERT INTO ${p.ref}:\n$pageUserSql")
     spark.sql(pageUserSql).collect()
+    if (p.icebergBranch.nonEmpty) {
+      val ffSql   = s"CALL ${p.catalog}.system.fast_forward('${p.targetTable}', 'main', '${p.icebergBranch}')"
+      val dropSql = s"ALTER TABLE $baseTable DROP BRANCH IF EXISTS ${p.icebergBranch}"
+      log.info(s"MWHistorySnapshotMerger WAP: fast-forwarding main to branch:\n$ffSql")
+      spark.sql(ffSql)
+      log.info(s"MWHistorySnapshotMerger WAP: dropping branch:\n$dropSql")
+      spark.sql(dropSql)
+    }
   }
 
   /**
@@ -81,7 +106,7 @@ object MWHistorySnapshotMerger {
    */
   def buildCleanupSQL(p: Params): String = {
     val monthEnd = java.time.YearMonth.parse(p.snapshot).plusMonths(1).atDay(1)
-    s"""DELETE FROM ${p.targetTable}
+    s"""DELETE FROM ${p.ref}
 WHERE source = 'snapshot'
    OR (source = 'events' AND event_timestamp < TIMESTAMP '${monthEnd} 00:00:00')"""
   }
@@ -160,7 +185,7 @@ WHERE s._rn = 1"""
   }
 
   def buildRevisionInsertSQL(p: Params): String =
-    s"""INSERT INTO ${p.targetTable} (
+    s"""INSERT INTO ${p.ref} (
   source,
   wiki_id,
   event_entity,
@@ -230,7 +255,7 @@ ${buildRevisionSelectSQL(p)}"""
    */
   def buildPageUserInsertSQL(p: Params): String = {
     val monthEnd = java.time.YearMonth.parse(p.snapshot).plusMonths(1).atDay(1)
-    s"""INSERT INTO ${p.targetTable} (
+    s"""INSERT INTO ${p.ref} (
   source,
   wiki_id,
   event_entity,
