@@ -640,7 +640,7 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
     t.page_is_deleted                                               = s.page_is_deleted,
     t.revision_is_deleted_by_page_deletion                          = s.revision_is_deleted_by_page_deletion,
-    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', CAST(s.meta_dt AS STRING)))
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -761,7 +761,7 @@ WHEN MATCHED THEN
     t.revision_is_identity_reverted                                = TRUE,
     t.revision_first_identity_reverting_revision_id                = s.first_reverting_rev_id,
     t.revision_seconds_to_identity_revert                          = s.seconds_to_revert,
-    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revert_patch_dt', CAST(s.reverter_meta_dt AS STRING)))"""
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revert_patch_dt', date_format(s.reverter_meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
 
   /**
    * Returns the CTE that deduplicates today's revision_tags_change events to one row per revision.
@@ -805,7 +805,7 @@ AND t.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:
 WHEN MATCHED THEN
   UPDATE SET
     t.revision_tags = s.revision_tags,
-    t.control_map   = map_concat(COALESCE(t.control_map, map()), map('tags_update_dt', s.meta_dt))"""
+    t.control_map   = map_concat(COALESCE(t.control_map, map()), map('tags_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
   }
 
   /**
@@ -857,7 +857,7 @@ AND t.revision_id = s.revision_id
 WHEN MATCHED THEN
   UPDATE SET
     t.revision_deleted_parts = s.revision_deleted_parts,
-    t.control_map = map_concat(COALESCE(t.control_map, map()), map('visibility_update_dt', s.meta_dt))"""
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('visibility_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
 
   /**
    * Returns the CTE chain for page events (move, delete, undelete) from page_change_v1.
@@ -1037,7 +1037,7 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.page_is_deleted                                               = s.page_is_deleted,
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('page_meta_id',    s.event_meta_id,
-                                   'page_update_dt',  CAST(s.meta_dt AS STRING)))
+                                   'page_update_dt',  date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -1137,7 +1137,7 @@ WHEN NOT MATCHED THEN
     s.revision_is_deleted_by_page_deletion,
     s.user_central_id,
     map('page_meta_id',   s.event_meta_id,
-        'page_update_dt', CAST(s.meta_dt AS STRING))
+        'page_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
   )"""
 
   /**
@@ -1339,7 +1339,7 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('user_meta_id',   s.event_meta_id,
-                                   'user_update_dt', CAST(s.meta_dt AS STRING)))
+                                   'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -1439,7 +1439,7 @@ WHEN NOT MATCHED THEN
     s.revision_is_deleted_by_page_deletion,
     s.user_central_id,
     map('user_meta_id',   s.event_meta_id,
-        'user_update_dt', CAST(s.meta_dt AS STRING))
+        'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
   )"""
 
   /**
@@ -1476,7 +1476,7 @@ AND t.event_entity = 'revision'
 WHEN MATCHED THEN UPDATE SET
   t.page_is_deleted                      = s.is_delete,
   t.revision_is_deleted_by_page_deletion = s.is_delete,
-  t.control_map = map_concat(COALESCE(t.control_map, map()), map('page_deletion_dt', CAST(s.meta_dt AS STRING)))"""
+  t.control_map = map_concat(COALESCE(t.control_map, map()), map('page_deletion_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
   }
 
   /**
