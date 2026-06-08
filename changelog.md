@@ -1,3 +1,12 @@
+## v0.3.17
+* Fix MWH revert algorithm
+* Add event_user_is_cross_wiki, page_is_deleted, revision_is_deleted_by_page_deletion, user_central_id
+* Fix MWHistorySnapshotMerger: DELETE+INSERT replaces MERGE, add page/user reconcile
+* Daily revert detection: align with monthly DenormalizedRevisionsBuilder
+* Add event_entity='user' to MWHistoryDeltaWriter (MERGE 6)
+* Add event_entity='page' to MWHistoryDeltaWriter (MERGE 5)
+* Ingest revision_visibility_change to populate revision_deleted_parts
+
 ## v0.3.16
 * Add MWHistoryDeltaWriter and MWHistorySnapshotMerger to refinery-job-35
 * Fix mediawiki-history revert algorithm
