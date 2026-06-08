@@ -75,7 +75,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            revision_is_deleted_by_page_deletion                          BOOLEAN,
            user_central_id                                               BIGINT,
            event_meta_id                                                 STRING,
-           control_map                                                   MAP<STRING,STRING>
+           control_map                                                   MAP<STRING,STRING>,
+           row_update_dt                                                 TIMESTAMP
          ) USING iceberg
          PARTITIONED BY (source, days(event_timestamp))"""
     )
@@ -104,7 +105,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
-           CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>)
+           CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>),
+           CAST(NULL AS TIMESTAMP)
          )"""
     )
 
@@ -229,6 +231,11 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
   "MWHistorySnapshotMerger" should "set source to 'snapshot'" in {
     registerSource()
     projected().collect()(0).getAs[String]("source") shouldEqual "snapshot"
+  }
+
+  it should "null out row_update_dt on reconcile (re-baseline, not an incremental update)" in {
+    registerSource()
+    projected().collect()(0).getAs[java.sql.Timestamp]("row_update_dt") shouldBe null
   }
 
   it should "pass through scalar columns unchanged" in {
@@ -625,7 +632,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT), CAST(NULL AS BIGINT), CAST(NULL AS BOOLEAN),
            CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BOOLEAN), CAST(NULL AS BIGINT),
-           CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>)
+           CAST(NULL AS STRING), CAST(NULL AS MAP<STRING,STRING>),
+           CAST(NULL AS TIMESTAMP)
          )"""
     )
     spark.sql(MWHistorySnapshotMerger.buildCleanupSQL(mergeParams))
@@ -800,6 +808,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     rows(0).getAs[String]("source")       shouldEqual "snapshot"
     rows(0).getAs[String]("event_entity") shouldEqual "page"
     rows(0).getAs[Long]("page_id")        shouldEqual 10L
+    rows(0).getAs[java.sql.Timestamp]("row_update_dt") shouldBe null
   }
 
   // ---- WAP (Write-Audit-Publish) ----
@@ -852,6 +861,7 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     rows.length shouldEqual 1
     rows(0).getAs[String]("source")      shouldEqual "snapshot"
     rows(0).getAs[Long]("revision_id")   shouldEqual 101L
+    rows(0).getAs[java.sql.Timestamp]("row_update_dt") shouldBe null
     // Branch must be dropped after successful run.
     val branches = spark.sql("SELECT name FROM local.db.test_target.refs WHERE type = 'BRANCH'").collect()
     branches.map(_.getAs[String]("name")) should not contain "test_wap"

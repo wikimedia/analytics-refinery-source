@@ -166,7 +166,8 @@ WHERE source = 'snapshot'
   s.revision_is_deleted_by_page_deletion,
   CAST(NULL AS BIGINT)                                                          AS user_central_id,
   CAST(NULL AS STRING)                                                          AS event_meta_id,
-  CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map
+  CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map,
+  CAST(NULL AS TIMESTAMP)                                                       AS row_update_dt
 FROM (
   SELECT
     *,
@@ -233,7 +234,8 @@ WHERE s._rn = 1"""
   revision_is_deleted_by_page_deletion,
   user_central_id,
   event_meta_id,
-  control_map
+  control_map,
+  row_update_dt
 )
 ${buildRevisionSelectSQL(p)}"""
 
@@ -251,7 +253,9 @@ ${buildRevisionSelectSQL(p)}"""
    * key would be opaque and hard to reason about. If upstream duplicates appear for
    * page/user events they should be investigated and fixed in wmf.mediawiki_history directly.
    *
-   * event_meta_id and control_map are NULL for all snapshot rows (no rerun guards needed).
+   * event_meta_id, control_map, and row_update_dt are NULL for all snapshot rows. The reconcile
+   * is a delete-and-rebuild (a re-baseline), not an incremental update, so it does not advance the
+   * row_update_dt watermark; consumers pick up reconciled data via a full reload, not the watermark.
    */
   def buildPageUserInsertSQL(p: Params): String = {
     val monthEnd = java.time.YearMonth.parse(p.snapshot).plusMonths(1).atDay(1)
@@ -303,7 +307,8 @@ ${buildRevisionSelectSQL(p)}"""
   revision_is_deleted_by_page_deletion,
   user_central_id,
   event_meta_id,
-  control_map
+  control_map,
+  row_update_dt
 )
 SELECT
   'snapshot'                                                            AS source,
@@ -353,7 +358,8 @@ SELECT
   s.revision_is_deleted_by_page_deletion,
   s.user_central_id,
   CAST(NULL AS STRING)                                                          AS event_meta_id,
-  CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map
+  CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map,
+  CAST(NULL AS TIMESTAMP)                                                       AS row_update_dt
 FROM ${p.sourceTable} s
 WHERE s.snapshot     = '${p.snapshot}'
   AND s.event_entity IN ('page', 'user')

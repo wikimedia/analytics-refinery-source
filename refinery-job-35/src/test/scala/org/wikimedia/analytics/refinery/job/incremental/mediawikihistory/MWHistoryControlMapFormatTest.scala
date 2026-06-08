@@ -41,14 +41,16 @@ class MWHistoryControlMapFormatTest extends FlatSpec with Matchers with BeforeAn
            revision_id     BIGINT,
            event_timestamp TIMESTAMP,
            revision_tags   ARRAY<STRING>,
-           control_map     MAP<STRING,STRING>
+           control_map     MAP<STRING,STRING>,
+           row_update_dt   TIMESTAMP
          ) USING iceberg"""
     )
     spark.sql(
       """INSERT INTO local.db.cm_format_target VALUES (
            'enwiki', 101L, TIMESTAMP '2024-01-15 10:00:00',
            CAST(NULL AS ARRAY<STRING>),
-           CAST(NULL AS MAP<STRING,STRING>)
+           CAST(NULL AS MAP<STRING,STRING>),
+           CAST(NULL AS TIMESTAMP)
          )"""
     )
   }

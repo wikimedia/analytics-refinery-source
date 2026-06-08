@@ -61,6 +61,15 @@ object MWHistoryDeltaWriter {
     icebergBranch: String = ""   // Iceberg branch name for atomic publishing; empty = write directly to main
   ) {
     def ref: String = IcebergBranchOps.targetRef(catalog, targetTable, icebergBranch)
+
+    // Airflow data_interval_end for this daily run = logical_date (year/month/day) + 1 day at
+    // UTC midnight. Stamped into row_update_dt at every write site so downstream consumers can
+    // read incrementally via `WHERE row_update_dt >= watermark`. Derived from the partition day
+    // (single source of truth), so it is deterministic and rerun-stable. Requires the session
+    // to run in UTC (the TIMESTAMP literal is interpreted in spark.sql.session.timeZone).
+    def rowUpdateDt: String =
+      java.time.LocalDate.of(year, month, day).plusDays(1).atStartOfDay()
+        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
   }
 
   // $COVERAGE-OFF$
@@ -640,7 +649,8 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
     t.page_is_deleted                                               = s.page_is_deleted,
     t.revision_is_deleted_by_page_deletion                          = s.revision_is_deleted_by_page_deletion,
-    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+    t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -690,7 +700,8 @@ WHEN NOT MATCHED THEN
     page_is_deleted,
     revision_is_deleted_by_page_deletion,
     user_central_id,
-    control_map
+    control_map,
+    row_update_dt
   ) VALUES (
     s.source,
     s.wiki_id,
@@ -738,7 +749,8 @@ WHEN NOT MATCHED THEN
     s.page_is_deleted,
     s.revision_is_deleted_by_page_deletion,
     s.user_central_id,
-    map('revision_update_dt', CAST(s.meta_dt AS STRING))
+    map('revision_update_dt', CAST(s.meta_dt AS STRING)),
+    TIMESTAMP '${p.rowUpdateDt}'
   )"""
 
   /**
@@ -761,7 +773,8 @@ WHEN MATCHED THEN
     t.revision_is_identity_reverted                                = TRUE,
     t.revision_first_identity_reverting_revision_id                = s.first_reverting_rev_id,
     t.revision_seconds_to_identity_revert                          = s.seconds_to_revert,
-    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revert_patch_dt', date_format(s.reverter_meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('revert_patch_dt', date_format(s.reverter_meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+    t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')"""
 
   /**
    * Returns the CTE that deduplicates today's revision_tags_change events to one row per revision.
@@ -805,7 +818,8 @@ AND t.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:
 WHEN MATCHED THEN
   UPDATE SET
     t.revision_tags = s.revision_tags,
-    t.control_map   = map_concat(COALESCE(t.control_map, map()), map('tags_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
+    t.control_map   = map_concat(COALESCE(t.control_map, map()), map('tags_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+    t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')"""
   }
 
   /**
@@ -857,7 +871,8 @@ AND t.revision_id = s.revision_id
 WHEN MATCHED THEN
   UPDATE SET
     t.revision_deleted_parts = s.revision_deleted_parts,
-    t.control_map = map_concat(COALESCE(t.control_map, map()), map('visibility_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
+    t.control_map = map_concat(COALESCE(t.control_map, map()), map('visibility_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+    t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')"""
 
   /**
    * Returns the CTE chain for page events (move, delete, undelete) from page_change_v1.
@@ -1037,7 +1052,8 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.page_is_deleted                                               = s.page_is_deleted,
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('page_meta_id',    s.event_meta_id,
-                                   'page_update_dt',  date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))
+                                   'page_update_dt',  date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+    t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -1087,7 +1103,8 @@ WHEN NOT MATCHED THEN
     page_is_deleted,
     revision_is_deleted_by_page_deletion,
     user_central_id,
-    control_map
+    control_map,
+    row_update_dt
   ) VALUES (
     s.source,
     s.wiki_id,
@@ -1137,7 +1154,8 @@ WHEN NOT MATCHED THEN
     s.revision_is_deleted_by_page_deletion,
     s.user_central_id,
     map('page_meta_id',   s.event_meta_id,
-        'page_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
+        'page_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
+    TIMESTAMP '${p.rowUpdateDt}'
   )"""
 
   /**
@@ -1155,7 +1173,7 @@ WHEN NOT MATCHED THEN
    *     created (self-registration).
    *     user_is_created_by_system: true for autocreate events (SSO/CentralAuth).
    *     user_is_created_by_peer: true when a distinct admin creates the account.
-   *     All three are NULL for non-create events; back-filled by MERGE 6b for rename/altergroups.
+   *     All three are NULL for non-create events; back-filled by MERGE 7b for rename/altergroups.
    * (4) groups_change mapped to 'altergroups' to match wmf.mediawiki_history vocabulary.
    */
   def buildUserIncomingSQL(p: Params): String =
@@ -1190,7 +1208,7 @@ raw_user_events AS (
 ),
 
 deduplicated_user AS (
-  -- Deduplicate on meta.id (the MERGE 6 join key). meta.id is a delivery UUID with no
+  -- Deduplicate on meta.id (the MERGE 7 join key). meta.id is a delivery UUID with no
   -- repeats within a single day; this guard handles partition re-reads on reruns.
   SELECT * FROM (
     SELECT
@@ -1339,7 +1357,8 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('user_meta_id',   s.event_meta_id,
-                                   'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))
+                                   'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+    t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')
 WHEN NOT MATCHED THEN
   INSERT (
     source,
@@ -1389,7 +1408,8 @@ WHEN NOT MATCHED THEN
     page_is_deleted,
     revision_is_deleted_by_page_deletion,
     user_central_id,
-    control_map
+    control_map,
+    row_update_dt
   ) VALUES (
     s.source,
     s.wiki_id,
@@ -1439,7 +1459,8 @@ WHEN NOT MATCHED THEN
     s.revision_is_deleted_by_page_deletion,
     s.user_central_id,
     map('user_meta_id',   s.event_meta_id,
-        'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))
+        'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
+    TIMESTAMP '${p.rowUpdateDt}'
   )"""
 
   /**
@@ -1476,13 +1497,14 @@ AND t.event_entity = 'revision'
 WHEN MATCHED THEN UPDATE SET
   t.page_is_deleted                      = s.is_delete,
   t.revision_is_deleted_by_page_deletion = s.is_delete,
-  t.control_map = map_concat(COALESCE(t.control_map, map()), map('page_deletion_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")))"""
+  t.control_map = map_concat(COALESCE(t.control_map, map()), map('page_deletion_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
+  t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')"""
   }
 
   /**
    * Returns SQL that back-fills user_is_created_by_* on rename/altergroups rows inserted
-   * by MERGE 6, by joining them to the corresponding create-event row already in the target
-   * table. Runs as a separate MERGE so it can read the target after MERGE 6 has committed.
+   * by MERGE 7, by joining them to the corresponding create-event row already in the target
+   * table. Runs as a separate MERGE so it can read the target after MERGE 7 has committed.
    */
   def buildUserCreationProvenanceBackfillSQL(p: Params): String =
     buildUserIncomingSQL(p) +

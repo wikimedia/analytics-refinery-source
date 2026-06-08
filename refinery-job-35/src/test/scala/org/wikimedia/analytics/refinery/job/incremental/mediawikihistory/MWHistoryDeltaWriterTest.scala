@@ -1749,4 +1749,24 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     MWHistoryDeltaWriter.buildIncomingSQL(params)                       should not include ".branch_"
     MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(params) should not include ".branch_"
   }
+
+  // Guard against silently dropping the row_update_dt stamp from a write site (params is the
+  // 2024-01-15 run, so data_interval_end = 2024-01-16 00:00:00). Every control_map-writing MERGE
+  // must stamp row_update_dt with a GREATEST guard on the UPDATE branch.
+  "Every daily MERGE that writes control_map" should "also stamp row_update_dt with a GREATEST guard" in {
+    val guard = "row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '2024-01-16 00:00:00')"
+    Map(
+      "buildMergeSQL"                 -> MWHistoryDeltaWriter.buildMergeSQL(params),
+      "buildBackPatchSQL"             -> MWHistoryDeltaWriter.buildBackPatchSQL(params),
+      "buildTagsMergeSQL"             -> MWHistoryDeltaWriter.buildTagsMergeSQL(params),
+      "buildVisibilityMergeSQL"       -> MWHistoryDeltaWriter.buildVisibilityMergeSQL(params),
+      "buildPageEventMergeSQL"        -> MWHistoryDeltaWriter.buildPageEventMergeSQL(params),
+      "buildPageDeletionBackpatchSQL" -> MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params),
+      "buildUserEventMergeSQL"        -> MWHistoryDeltaWriter.buildUserEventMergeSQL(params)
+    ).foreach { case (name, sql) => withClue(s"$name: ") { sql should include (guard) } }
+  }
+
+  it should "not stamp row_update_dt in the provenance back-fill (MERGE 7 already stamped those rows this run)" in {
+    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(params) should not include "row_update_dt"
+  }
 }
