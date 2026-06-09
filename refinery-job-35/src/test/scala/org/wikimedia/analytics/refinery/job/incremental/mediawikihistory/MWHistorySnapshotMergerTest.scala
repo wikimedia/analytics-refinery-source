@@ -233,9 +233,17 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     projected().collect()(0).getAs[String]("source") shouldEqual "snapshot"
   }
 
-  it should "null out row_update_dt on reconcile (re-baseline, not an incremental update)" in {
+  it should "stamp row_update_dt = last second of the snapshot month on reconcile" in {
     registerSource()
-    projected().collect()(0).getAs[java.sql.Timestamp]("row_update_dt") shouldBe null
+    // date_format reads in the session timezone so the wall-clock literal round-trips regardless
+    // of the JVM-local zone (java.sql.Timestamp.toString would not).
+    projected().selectExpr("date_format(row_update_dt, 'yyyy-MM-dd HH:mm:ss') AS d")
+      .collect()(0).getString(0) shouldEqual "2024-01-31 23:59:59"
+  }
+
+  "Params.rowUpdateDt" should "be the last second of the snapshot month (one second before the reconcile data_interval_end)" in {
+    MWHistorySnapshotMerger.Params(snapshot = "2024-01").rowUpdateDt shouldEqual "2024-01-31 23:59:59"
+    MWHistorySnapshotMerger.Params(snapshot = "2024-02").rowUpdateDt shouldEqual "2024-02-29 23:59:59" // leap year
   }
 
   it should "pass through scalar columns unchanged" in {
@@ -808,7 +816,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     rows(0).getAs[String]("source")       shouldEqual "snapshot"
     rows(0).getAs[String]("event_entity") shouldEqual "page"
     rows(0).getAs[Long]("page_id")        shouldEqual 10L
-    rows(0).getAs[java.sql.Timestamp]("row_update_dt") shouldBe null
+    spark.sql("SELECT date_format(row_update_dt, 'yyyy-MM-dd HH:mm:ss') AS d FROM local.db.test_target WHERE event_entity = 'page'")
+      .collect()(0).getString(0) shouldEqual "2024-01-31 23:59:59"
   }
 
   // ---- WAP (Write-Audit-Publish) ----
@@ -861,7 +870,8 @@ class MWHistorySnapshotMergerTest extends FlatSpec with Matchers with BeforeAndA
     rows.length shouldEqual 1
     rows(0).getAs[String]("source")      shouldEqual "snapshot"
     rows(0).getAs[Long]("revision_id")   shouldEqual 101L
-    rows(0).getAs[java.sql.Timestamp]("row_update_dt") shouldBe null
+    spark.sql("SELECT date_format(row_update_dt, 'yyyy-MM-dd HH:mm:ss') AS d FROM local.db.test_target")
+      .collect()(0).getString(0) shouldEqual "2024-01-31 23:59:59"
     // Branch must be dropped after successful run.
     val branches = spark.sql("SELECT name FROM local.db.test_target.refs WHERE type = 'BRANCH'").collect()
     branches.map(_.getAs[String]("name")) should not contain "test_wap"

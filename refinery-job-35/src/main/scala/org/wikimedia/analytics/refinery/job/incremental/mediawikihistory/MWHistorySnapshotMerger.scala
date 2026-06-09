@@ -44,6 +44,16 @@ object MWHistorySnapshotMerger {
     icebergBranch: String = ""   // Iceberg branch name for atomic publishing; empty = write directly to main
   ) {
     def ref: String = IcebergBranchOps.targetRef(catalog, targetTable, icebergBranch)
+
+    // row_update_dt stamped on every reconciled (source='snapshot') row: the last second of the
+    // snapshot month, i.e. one second before the monthly reconcile's data_interval_end (first of
+    // the next month). The daily pipeline blocks on the 1st until the reconcile lands, so this
+    // value orders the reconcile strictly after every daily run of the snapshot month and strictly
+    // before the first daily of the next month — making the monthly authoritative refresh a single,
+    // monotonic, in-order event on the row_update_dt watermark.
+    def rowUpdateDt: String =
+      java.time.YearMonth.parse(snapshot).atEndOfMonth().atTime(23, 59, 59)
+        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
   }
 
   // $COVERAGE-OFF$
@@ -167,7 +177,7 @@ WHERE source = 'snapshot'
   CAST(NULL AS BIGINT)                                                          AS user_central_id,
   CAST(NULL AS STRING)                                                          AS event_meta_id,
   CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map,
-  CAST(NULL AS TIMESTAMP)                                                       AS row_update_dt
+  TIMESTAMP '${p.rowUpdateDt}'                                                  AS row_update_dt
 FROM (
   SELECT
     *,
@@ -253,9 +263,10 @@ ${buildRevisionSelectSQL(p)}"""
    * key would be opaque and hard to reason about. If upstream duplicates appear for
    * page/user events they should be investigated and fixed in wmf.mediawiki_history directly.
    *
-   * event_meta_id, control_map, and row_update_dt are NULL for all snapshot rows. The reconcile
-   * is a delete-and-rebuild (a re-baseline), not an incremental update, so it does not advance the
-   * row_update_dt watermark; consumers pick up reconciled data via a full reload, not the watermark.
+   * event_meta_id and control_map are NULL for all snapshot rows (no rerun guards needed).
+   * row_update_dt is set to p.rowUpdateDt (the last second of the snapshot month) so the monthly
+   * authoritative refresh is delivered to consumers as an in-order event on the watermark; see the
+   * Params.rowUpdateDt comment for the ordering guarantee.
    */
   def buildPageUserInsertSQL(p: Params): String = {
     val monthEnd = java.time.YearMonth.parse(p.snapshot).plusMonths(1).atDay(1)
@@ -359,7 +370,7 @@ SELECT
   s.user_central_id,
   CAST(NULL AS STRING)                                                          AS event_meta_id,
   CAST(NULL AS MAP<STRING,STRING>)                                              AS control_map,
-  CAST(NULL AS TIMESTAMP)                                                       AS row_update_dt
+  TIMESTAMP '${p.rowUpdateDt}'                                                  AS row_update_dt
 FROM ${p.sourceTable} s
 WHERE s.snapshot     = '${p.snapshot}'
   AND s.event_entity IN ('page', 'user')
