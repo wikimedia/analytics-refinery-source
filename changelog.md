@@ -1,3 +1,9 @@
+## v0.3.18
+* Populate row_update_dt on monthly reconcile instead of NULL
+* Add row_update_dt incremental watermark to MWHistoryDeltaWriter
+* Fix control_map timestamps: use ISO-8601 UTC format (yyyy-MM-dd'T'HH:mm:ss.SSS'Z') uniformly
+* Add Iceberg WAP branching to MWHistoryDeltaWriter and MWHistorySnapshotMerger
+
 ## v0.3.17
 * Fix MWH revert algorithm
 * Add event_user_is_cross_wiki, page_is_deleted, revision_is_deleted_by_page_deletion, user_central_id
