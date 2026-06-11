@@ -130,8 +130,8 @@ object MWHistoryDeltaWriter {
     log.info(s"Running MWHistoryDeltaWriter tags MERGE INTO ${p.ref}:\n$tagsSql")
     spark.sql(tagsSql).collect()
     // MERGE 4: update revision_deleted_parts from today's revision_visibility_change events.
-    // Visibility changes are applied independently of edits; the 90-day lower bound on the
-    // target matches the tags window and enables partition pruning.
+    // Visibility changes are applied independently of edits and can affect revisions of any age.
+    // The source (~2,700 rows/day) broadcasts automatically; no partition-pruning bound needed.
     val visibilitySql = buildVisibilityMergeSQL(p)
     log.info(s"Running MWHistoryDeltaWriter visibility MERGE INTO ${p.ref}:\n$visibilitySql")
     spark.sql(visibilitySql).collect()
@@ -749,7 +749,7 @@ WHEN NOT MATCHED THEN
     s.page_is_deleted,
     s.revision_is_deleted_by_page_deletion,
     s.user_central_id,
-    map('revision_update_dt', CAST(s.meta_dt AS STRING)),
+    map('revision_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
     TIMESTAMP '${p.rowUpdateDt}'
   )"""
 
