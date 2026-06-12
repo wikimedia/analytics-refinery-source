@@ -1,0 +1,55 @@
+// ---- A render of this diagram lives at https://wikitech.wikimedia.org/wiki/Data_Platform/Data_Lake/Edits/Mediawiki_history_incremental_v1  ----
+digraph mwh_incremental_pipeline {
+  rankdir=TB;
+  graph [fontname="Helvetica", fontsize=12, labelloc="t",
+         label="mediawiki_history_incremental_v1 — ingestion pipeline"];
+  node  [fontname="Helvetica", fontsize=10, shape=box,
+         style="rounded,filled", fillcolor="white", color="#555555"];
+  edge  [fontname="Helvetica", fontsize=9, color="#555555"];
+
+  // ---- Daily lane: source = 'events' ----
+  subgraph cluster_daily {
+    label="Daily   (source = 'events',  best-effort, fresh)";
+    labeljust="l";
+    style="rounded,filled"; fillcolor="#eef6fb"; color="#3a7ca5";
+
+    streams [label="Event streams\nmediawiki.page_change.v1\nrevision_tags_change\nrevision_visibility_change\nuser_change",
+             fillcolor="#d6eaf6"];
+    kafka       [label="Kafka  (eventgate)"];
+    hive_events [label="Hive event tables\n(Hadoop Event Ingestion)"];
+    delta       [label="Daily Spark job\nMWHistoryDeltaWriter\nDAG: merge_events_to_mw_incremental_history_daily",
+                 fillcolor="#bcdff1"];
+
+    streams -> kafka -> hive_events -> delta;
+  }
+
+  // ---- Monthly lane: source = 'snapshot' ----
+  subgraph cluster_monthly {
+    label="Monthly   (source = 'snapshot',  authoritative baseline)";
+    labeljust="l";
+    style="rounded,filled"; fillcolor="#fbf3e6"; color="#c08a2e";
+
+    mwh    [label="wmf.mediawiki_history\n(monthly snapshot)", fillcolor="#f6e3c1"];
+    merger [label="Monthly Spark job\nMWHistorySnapshotMerger\nDAG: merge_mw_history_to_mw_incremental_history_monthly",
+            fillcolor="#f0d49a"];
+
+    mwh -> merger;
+  }
+
+  // ---- Target table ----
+  target [label="wmf_mediawiki.mediawiki_history_incremental_v1\n(Iceberg)",
+          shape=cylinder, fillcolor="#e8f8e8", color="#2e7d32"];
+
+  delta  -> target [label="MERGE: insert 'events' rows;\nin-place patch (incl. 'snapshot' rows) for\nvisibility / page-delete / reverts / tags"];
+  merger -> target [label="DELETE prior 'snapshot' rows +\nsuperseded 'events' rows, then\nINSERT fresh 'snapshot' rows"];
+
+  // ---- Gating between lanes ----
+  merger -> delta [style=dashed, constraint=false,
+                   label="daily for month M gated on\nmonthly reconcile of M-1"];
+
+  // ---- Operational note ----
+  note [shape=note, fillcolor="#fffde7", color="#b0a020",
+        label="Both jobs:\n• write via a per-run Iceberg branch,\n  fast-forwarded to main on success (WAP) —\n  readers never see a half-written state\n• serialized through a 1-slot mutex pool\n  (both MERGE the same table)"];
+  // Park the note in the empty top-right area, stacked above the monthly lane.
+  note -> mwh [style=invis];
+}
