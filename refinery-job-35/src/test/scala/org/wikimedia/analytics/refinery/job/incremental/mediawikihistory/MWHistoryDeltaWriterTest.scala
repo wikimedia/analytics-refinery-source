@@ -1103,7 +1103,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     row.getAs[Boolean]("event_user_is_anonymous")            shouldEqual false
     row.getAs[Boolean]("event_user_is_temporary")            shouldEqual false
     row.getAs[Boolean]("event_user_is_permanent")            shouldEqual true
-    row.getAs[java.lang.Long]("revision_id")                 shouldBe null
+    row.getAs[Seq[String]]("event_user_groups_historical")   shouldEqual Seq("sysop")
     row.getAs[Boolean]("page_namespace_is_content_historical") shouldEqual true
   }
 
@@ -1157,23 +1157,6 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     pageIncoming().collect()(0).getAs[String]("event_type") shouldEqual "restore"
-  }
-
-  it should "set all revision and revert fields to null for page events" in {
-    registerNamespaces()
-    registerPageEventWith(
-      """('enwiki', 'delete', '2024-01-15T10:00:00Z', 'uuid-E', '2024-01-15T10:00:01Z',
-          CAST(NULL AS STRING), CAST(NULL AS INT),
-          1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING),
-          1L, 'A', 0)"""
-    )
-
-    val row = pageIncoming().collect()(0)
-    row.getAs[java.lang.Long]("revision_id")                                           shouldBe null
-    row.getAs[java.lang.Boolean]("revision_is_identity_reverted")                      shouldBe null
-    row.getAs[java.lang.Boolean]("revision_is_identity_revert")                        shouldBe null
-    row.getAs[java.lang.Long]("revision_first_identity_reverting_revision_id")         shouldBe null
-    row.getAs[java.lang.Long]("event_user_revision_count")                             shouldBe null
   }
 
   it should "classify a bot-by-group performer for page events" in {
@@ -1438,39 +1421,6 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     userIncoming().collect()(0).getAs[Seq[String]]("user_is_bot_by_historical") should contain("group")
-  }
-
-  it should "set event_user_revision_count to null (performer edit_count not in stream)" in {
-    registerUserEventWith(
-      """('enwiki', 'rename', '2024-01-15T10:00:00Z', 'uuid-UB', '2024-01-15T10:00:01Z',
-          false,
-          42L, 99L, 'Alice', false, 1337L, array(), '2020-01-01T00:00:00Z',
-          42L, 'OldAlice', array(), false,
-          1L, CAST(NULL AS BIGINT), 'Admin', false, CAST(NULL AS STRING), array())"""
-    )
-
-    userIncoming().collect()(0).isNullAt(
-      userIncoming().schema.fieldIndex("event_user_revision_count")
-    ) shouldEqual true
-  }
-
-  it should "set all page, revision, and revert fields to null" in {
-    registerUserEventWith(
-      """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-UC', '2024-01-15T10:00:01Z',
-          false,
-          42L, 99L, 'Alice', false, 0L, array(), CAST(NULL AS STRING),
-          CAST(NULL AS BIGINT), CAST(NULL AS STRING), CAST(NULL AS ARRAY<STRING>), false,
-          42L, CAST(NULL AS BIGINT), 'Alice', false, CAST(NULL AS STRING), array())"""
-    )
-
-    val row    = userIncoming().collect()(0)
-    val schema = userIncoming().schema
-    Seq("page_id", "page_title_historical", "page_namespace_historical",
-        "revision_id", "revision_text_bytes",
-        "revision_is_identity_reverted", "revision_is_identity_revert"
-    ).foreach { col =>
-      row.isNullAt(schema.fieldIndex(col)) shouldEqual true
-    }
   }
 
   it should "deduplicate rows with the same meta_id keeping the latest meta_dt" in {

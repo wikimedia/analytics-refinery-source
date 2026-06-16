@@ -203,6 +203,8 @@ object MWHistoryDeltaWriter {
      AND NOT revision.editor.is_temp)                               AS event_user_is_permanent,
     to_timestamp(revision.editor.registration_dt)                   AS event_user_registration_timestamp,
     revision.editor.edit_count                                      AS event_user_revision_count,
+    revision.editor.groups                                          AS event_user_groups_historical,
+
     page.page_id                                                    AS page_id,
     page.page_title                                                 AS page_title_historical,
     page.namespace_id                                               AS page_namespace_historical,
@@ -226,7 +228,6 @@ object MWHistoryDeltaWriter {
                 x -> x IS NOT NULL
               )
     END                                                             AS revision_deleted_parts,
-    revision.editor.groups                                          AS user_groups_raw,
     to_timestamp(meta.dt)                                           AS meta_dt
   FROM ${p.pageChangeTable}
   WHERE year  = ${p.year}
@@ -276,7 +277,7 @@ with_bots AS (
       array(
         CASE WHEN lower(e.event_user_text_historical) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
              THEN 'name' END,
-        CASE WHEN array_contains(e.user_groups_raw, 'bot')
+        CASE WHEN array_contains(e.event_user_groups_historical, 'bot')
              THEN 'group' END
       ),
       x -> x IS NOT NULL
@@ -558,28 +559,36 @@ incoming AS (
     e.event_entity,
     e.event_type,
     e.event_timestamp,
+
     e.event_user_id,
     e.event_user_central_id,
     e.event_user_text_historical,
+    e.event_user_is_bot_by_historical,
     e.event_user_is_anonymous,
     e.event_user_is_temporary,
     e.event_user_is_permanent,
     e.event_user_registration_timestamp,
+    e.event_user_revision_count,
+    e.event_user_groups_historical,
+    (e.event_user_text_historical LIKE '%>%'
+     AND e.event_user_is_anonymous
+     AND NOT COALESCE(e.event_user_is_temporary, FALSE))                 AS event_user_is_cross_wiki,
+
+     -- No user information
 
     e.page_id,
     e.page_title_historical,
     e.page_namespace_historical,
+    e.page_namespace_is_content_historical,
+    FALSE                                                                AS page_is_deleted,
+
     e.revision_id,
     e.revision_parent_id,
     e.revision_minor_edit,
     e.revision_text_bytes,
     e.revision_text_bytes_diff,
     e.revision_text_sha1,
-    e.revision_tags,
     e.revision_deleted_parts,
-    e.page_namespace_is_content_historical,
-    e.event_user_is_bot_by_historical,
-    e.event_user_revision_count,
     -- Fresh revisions (rev_dt = today) cannot have been reverted yet; FALSE is safe and
     -- M2 will update to TRUE if a reverter arrives later. Late revisions (rev_dt < today)
     -- keep NULL: a reverter may already be in the target from a prior day and M2 won't
@@ -596,13 +605,10 @@ incoming AS (
          WHEN e.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00'
           AND e.revision_text_sha1 IS NOT NULL THEN FALSE
          ELSE NULL
-    END                                                               AS revision_is_identity_revert,
-    (e.event_user_text_historical LIKE '%>%'
-     AND e.event_user_is_anonymous
-     AND NOT COALESCE(e.event_user_is_temporary, FALSE))              AS event_user_is_cross_wiki,
-    FALSE                                                              AS page_is_deleted,
+    END                                                                AS revision_is_identity_revert,
     FALSE                                                              AS revision_is_deleted_by_page_deletion,
-    CAST(NULL AS BIGINT)                                               AS user_central_id,
+    e.revision_tags,
+
     e.meta_dt
   FROM with_bots e
   LEFT JOIN revert_annotations ra
@@ -621,68 +627,68 @@ ON  t.wiki_id     = s.wiki_id
 AND t.revision_id = s.revision_id
 WHEN MATCHED AND t.source = 'events' THEN
   UPDATE SET
+    t.event_entity                                                  = s.event_entity,
     t.event_type                                                    = s.event_type,
     t.event_timestamp                                               = s.event_timestamp,
+
     t.event_user_id                                                 = s.event_user_id,
     t.event_user_central_id                                         = s.event_user_central_id,
     t.event_user_text_historical                                    = s.event_user_text_historical,
+    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
     t.event_user_is_anonymous                                       = s.event_user_is_anonymous,
     t.event_user_is_temporary                                       = s.event_user_is_temporary,
     t.event_user_is_permanent                                       = s.event_user_is_permanent,
     t.event_user_registration_timestamp                             = s.event_user_registration_timestamp,
+    t.event_user_revision_count                                     = s.event_user_revision_count,
+    t.event_user_groups_historical                                  = s.event_user_groups_historical,
+    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
+
+    -- No user fields
+
     t.page_id                                                       = s.page_id,
     t.page_title_historical                                         = s.page_title_historical,
     t.page_namespace_historical                                     = s.page_namespace_historical,
+    t.page_namespace_is_content_historical                          = s.page_namespace_is_content_historical,
+    t.page_is_deleted                                               = s.page_is_deleted,
+
     t.revision_parent_id                                            = s.revision_parent_id,
     t.revision_minor_edit                                           = s.revision_minor_edit,
     t.revision_text_bytes                                           = s.revision_text_bytes,
     t.revision_text_bytes_diff                                      = s.revision_text_bytes_diff,
     t.revision_text_sha1                                            = s.revision_text_sha1,
-    t.revision_tags                                                 = s.revision_tags,
     t.revision_deleted_parts                                        = s.revision_deleted_parts,
-    t.page_namespace_is_content_historical                          = s.page_namespace_is_content_historical,
-    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
     t.revision_is_identity_reverted                                 = s.revision_is_identity_reverted,
     t.revision_first_identity_reverting_revision_id                 = s.revision_first_identity_reverting_revision_id,
     t.revision_seconds_to_identity_revert                           = s.revision_seconds_to_identity_revert,
     t.revision_is_identity_revert                                   = s.revision_is_identity_revert,
-    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
-    t.page_is_deleted                                               = s.page_is_deleted,
     t.revision_is_deleted_by_page_deletion                          = s.revision_is_deleted_by_page_deletion,
+    t.revision_tags                                                 = s.revision_tags,
+
     t.control_map = map_concat(COALESCE(t.control_map, map()), map('revision_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
     t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')
 WHEN NOT MATCHED THEN
   INSERT (
     source,
     wiki_id,
-    event_meta_id,
+
     event_entity,
     event_type,
     event_timestamp,
+
     event_user_id,
     event_user_central_id,
     event_user_text_historical,
+    event_user_is_bot_by_historical,
     event_user_is_anonymous,
     event_user_is_temporary,
     event_user_is_permanent,
     event_user_registration_timestamp,
-
-    page_id,
-    page_title_historical,
-    page_namespace_historical,
-    revision_id,
-    revision_parent_id,
-    revision_minor_edit,
-    revision_text_bytes,
-    revision_text_bytes_diff,
-    revision_text_sha1,
-    revision_tags,
-    revision_deleted_parts,
-    page_namespace_is_content_historical,
-    event_user_is_bot_by_historical,
     event_user_revision_count,
     event_user_groups_historical,
+    event_user_is_cross_wiki,
+
     user_id,
+    user_central_id,
     user_text_historical,
     user_is_anonymous,
     user_is_temporary,
@@ -692,65 +698,85 @@ WHEN NOT MATCHED THEN
     user_is_created_by_self,
     user_is_created_by_system,
     user_is_created_by_peer,
+
+    page_id,
+    page_title_historical,
+    page_namespace_historical,
+    page_namespace_is_content_historical,
+    page_is_deleted,
+
+    revision_id,
+    revision_parent_id,
+    revision_minor_edit,
+    revision_text_bytes,
+    revision_text_bytes_diff,
+    revision_text_sha1,
+    revision_deleted_parts,
     revision_is_identity_reverted,
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
     revision_is_identity_revert,
-    event_user_is_cross_wiki,
-    page_is_deleted,
     revision_is_deleted_by_page_deletion,
-    user_central_id,
+    revision_tags,
+
+    event_meta_id,
     control_map,
     row_update_dt
   ) VALUES (
     s.source,
     s.wiki_id,
-    CAST(NULL AS STRING),
+
     s.event_entity,
     s.event_type,
     s.event_timestamp,
+
     s.event_user_id,
     s.event_user_central_id,
     s.event_user_text_historical,
+    s.event_user_is_bot_by_historical,
     s.event_user_is_anonymous,
     s.event_user_is_temporary,
     s.event_user_is_permanent,
     s.event_user_registration_timestamp,
+    s.event_user_revision_count,
+    s.event_user_groups_historical,
+    s.event_user_is_cross_wiki,
+
+    CAST(NULL AS BIGINT),                   -- user_id
+    CAST(NULL AS BIGINT),                   -- user_central_id
+    CAST(NULL AS STRING),                   -- user_text_historical
+    CAST(NULL AS BOOLEAN),                  -- user_is_anonymous
+    CAST(NULL AS BOOLEAN),                  -- user_is_temporary
+    CAST(NULL AS BOOLEAN),                  -- user_is_permanent
+    CAST(NULL AS ARRAY<STRING>),            -- user_groups_historical
+    CAST(NULL AS ARRAY<STRING>),            -- user_is_bot_by_historical
+    CAST(NULL AS BOOLEAN),                  -- user_is_created_by_self
+    CAST(NULL AS BOOLEAN),                  -- user_is_created_by_system
+    CAST(NULL AS BOOLEAN),                  -- user_is_created_by_peer
+
     s.page_id,
     s.page_title_historical,
     s.page_namespace_historical,
+    s.page_namespace_is_content_historical,
+    s.page_is_deleted,
+
     s.revision_id,
     s.revision_parent_id,
     s.revision_minor_edit,
     s.revision_text_bytes,
     s.revision_text_bytes_diff,
     s.revision_text_sha1,
-    s.revision_tags,
     s.revision_deleted_parts,
-    s.page_namespace_is_content_historical,
-    s.event_user_is_bot_by_historical,
-    s.event_user_revision_count,
-    CAST(NULL AS ARRAY<STRING>),
-    CAST(NULL AS BIGINT),
-    CAST(NULL AS STRING),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS ARRAY<STRING>),
-    CAST(NULL AS ARRAY<STRING>),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
     s.revision_is_identity_reverted,
     s.revision_first_identity_reverting_revision_id,
     s.revision_seconds_to_identity_revert,
     s.revision_is_identity_revert,
-    s.event_user_is_cross_wiki,
-    s.page_is_deleted,
     s.revision_is_deleted_by_page_deletion,
-    s.user_central_id,
+    s.revision_tags,
+
+    CAST(NULL AS STRING),                   -- event_meta_id
     map('revision_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
-    TIMESTAMP '${p.rowUpdateDt}'
+    TIMESTAMP '${p.rowUpdateDt}'            -- row_update_dt
   )"""
 
   /**
@@ -773,6 +799,7 @@ WHEN MATCHED THEN
     t.revision_is_identity_reverted                                = TRUE,
     t.revision_first_identity_reverting_revision_id                = s.first_reverting_rev_id,
     t.revision_seconds_to_identity_revert                          = s.seconds_to_revert,
+
     t.control_map = map_concat(COALESCE(t.control_map, map()), map('revert_patch_dt', date_format(s.reverter_meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
     t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')"""
 
@@ -898,7 +925,7 @@ WHEN MATCHED THEN
     s"""WITH raw_page_events AS (
   SELECT
     wiki_id,
-    meta.id                                                             AS meta_id,
+    meta.id                                                             AS event_meta_id,
     to_timestamp(meta.dt)                                               AS meta_dt,
     'page'                                                              AS event_entity,
     CASE WHEN page_change_kind = 'undelete' THEN 'restore'
@@ -912,22 +939,15 @@ WHEN MATCHED THEN
     (performer.user_id IS NOT NULL
      AND NOT performer.is_temp)                                         AS event_user_is_permanent,
     to_timestamp(performer.registration_dt)                             AS event_user_registration_timestamp,
+    performer.groups                                                    AS event_user_groups_historical,
 
     page.page_id                                                        AS page_id,
     CASE WHEN page.namespace_id = 0 THEN page.page_title
          ELSE REGEXP_REPLACE(page.page_title, '^[^:]+:', '')
-    END                                                                  AS page_title_historical,
-    page.namespace_id                                                    AS page_namespace_historical,
-    CAST(NULL AS BIGINT)                                                AS revision_id,
-    CAST(NULL AS BIGINT)                                                AS revision_parent_id,
-    CAST(NULL AS BOOLEAN)                                               AS revision_minor_edit,
-    CAST(NULL AS BIGINT)                                                AS revision_text_bytes,
-    CAST(NULL AS BIGINT)                                                AS revision_text_bytes_diff,
-    CAST(NULL AS STRING)                                                AS revision_text_sha1,
-    CAST(NULL AS ARRAY<STRING>)                                         AS revision_tags,
-    CAST(NULL AS ARRAY<STRING>)                                         AS revision_deleted_parts,
-    CASE WHEN page_change_kind = 'delete' THEN TRUE ELSE FALSE END      AS page_is_deleted,
-    performer.groups                                                    AS user_groups_raw
+    END                                                                 AS page_title_historical,
+    page.namespace_id                                                   AS page_namespace_historical,
+    CASE WHEN page_change_kind = 'delete' THEN TRUE ELSE FALSE END      AS page_is_deleted
+
   FROM ${p.pageChangeTable}
   WHERE year  = ${p.year}
     AND month = ${p.month}
@@ -944,7 +964,7 @@ deduplicated_page AS (
     SELECT
       *,
       row_number() OVER (
-        PARTITION BY wiki_id, meta_id
+        PARTITION BY wiki_id, event_meta_id
         ORDER BY meta_dt DESC
       ) AS rn
     FROM raw_page_events
@@ -971,7 +991,7 @@ page_with_bots AS (
       array(
         CASE WHEN lower(e.event_user_text_historical) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
              THEN 'name' END,
-        CASE WHEN array_contains(e.user_groups_raw, 'bot')
+        CASE WHEN array_contains(e.event_user_groups_historical, 'bot')
              THEN 'group' END
       ),
       x -> x IS NOT NULL
@@ -983,42 +1003,33 @@ page_incoming AS (
   SELECT
     'events'                                                            AS source,
     e.wiki_id,
-    e.meta_id                                                           AS event_meta_id,
+
     e.event_entity,
     e.event_type,
     e.event_timestamp,
+
     e.event_user_id,
     e.event_user_central_id,
     e.event_user_text_historical,
+    e.event_user_is_bot_by_historical,
     e.event_user_is_anonymous,
     e.event_user_is_temporary,
     e.event_user_is_permanent,
     e.event_user_registration_timestamp,
+    e.event_user_groups_historical,
+    (e.event_user_text_historical LIKE '%>%'
+     AND e.event_user_is_anonymous
+     AND NOT COALESCE(e.event_user_is_temporary, FALSE))               AS event_user_is_cross_wiki,
+
+    -- No user information, page event
 
     e.page_id,
     e.page_title_historical,
     e.page_namespace_historical,
-    e.revision_id,
-    e.revision_parent_id,
-    e.revision_minor_edit,
-    e.revision_text_bytes,
-    e.revision_text_bytes_diff,
-    e.revision_text_sha1,
-    e.revision_tags,
-    e.revision_deleted_parts,
     e.page_namespace_is_content_historical,
-    e.event_user_is_bot_by_historical,
-    CAST(NULL AS BIGINT)                                                AS event_user_revision_count,
-    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_reverted,
-    CAST(NULL AS BIGINT)                                                AS revision_first_identity_reverting_revision_id,
-    CAST(NULL AS BIGINT)                                                AS revision_seconds_to_identity_revert,
-    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_revert,
-    (e.event_user_text_historical LIKE '%>%'
-     AND e.event_user_is_anonymous
-     AND NOT COALESCE(e.event_user_is_temporary, FALSE))               AS event_user_is_cross_wiki,
     e.page_is_deleted,
-    CAST(NULL AS BOOLEAN)                                              AS revision_is_deleted_by_page_deletion,
-    CAST(NULL AS BIGINT)                                               AS user_central_id,
+
+    e.event_meta_id,
     e.meta_dt
   FROM page_with_bots e
 )"""
@@ -1034,22 +1045,28 @@ ON  t.wiki_id       = s.wiki_id
 AND t.event_meta_id = s.event_meta_id
 WHEN MATCHED AND t.source = 'events' THEN
   UPDATE SET
+    t.event_entity                                                  = s.event_entity,
     t.event_type                                                    = s.event_type,
     t.event_timestamp                                               = s.event_timestamp,
+
     t.event_user_id                                                 = s.event_user_id,
     t.event_user_central_id                                         = s.event_user_central_id,
     t.event_user_text_historical                                    = s.event_user_text_historical,
+    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
     t.event_user_is_anonymous                                       = s.event_user_is_anonymous,
     t.event_user_is_temporary                                       = s.event_user_is_temporary,
     t.event_user_is_permanent                                       = s.event_user_is_permanent,
     t.event_user_registration_timestamp                             = s.event_user_registration_timestamp,
+    -- No event_user_revision_count for page events
+    t.event_user_groups_historical                                  = s.event_user_groups_historical,
+    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
 
+    t.page_id                                                       = s.page_id,
     t.page_title_historical                                         = s.page_title_historical,
     t.page_namespace_historical                                     = s.page_namespace_historical,
     t.page_namespace_is_content_historical                          = s.page_namespace_is_content_historical,
-    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
-    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
     t.page_is_deleted                                               = s.page_is_deleted,
+
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('page_meta_id',    s.event_meta_id,
                                    'page_update_dt',  date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
@@ -1058,34 +1075,25 @@ WHEN NOT MATCHED THEN
   INSERT (
     source,
     wiki_id,
-    event_meta_id,
+
     event_entity,
     event_type,
     event_timestamp,
+
     event_user_id,
     event_user_central_id,
     event_user_text_historical,
+    event_user_is_bot_by_historical,
     event_user_is_anonymous,
     event_user_is_temporary,
     event_user_is_permanent,
     event_user_registration_timestamp,
-
-    page_id,
-    page_title_historical,
-    page_namespace_historical,
-    revision_id,
-    revision_parent_id,
-    revision_minor_edit,
-    revision_text_bytes,
-    revision_text_bytes_diff,
-    revision_text_sha1,
-    revision_tags,
-    revision_deleted_parts,
-    page_namespace_is_content_historical,
-    event_user_is_bot_by_historical,
     event_user_revision_count,
     event_user_groups_historical,
+    event_user_is_cross_wiki,
+
     user_id,
+    user_central_id,
     user_text_historical,
     user_is_anonymous,
     user_is_temporary,
@@ -1095,67 +1103,86 @@ WHEN NOT MATCHED THEN
     user_is_created_by_self,
     user_is_created_by_system,
     user_is_created_by_peer,
+
+    page_id,
+    page_title_historical,
+    page_namespace_historical,
+    page_namespace_is_content_historical,
+    page_is_deleted,
+
+    revision_id,
+    revision_parent_id,
+    revision_minor_edit,
+    revision_text_bytes,
+    revision_text_bytes_diff,
+    revision_text_sha1,
+    revision_deleted_parts,
     revision_is_identity_reverted,
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
     revision_is_identity_revert,
-    event_user_is_cross_wiki,
-    page_is_deleted,
     revision_is_deleted_by_page_deletion,
-    user_central_id,
+    revision_tags,
+
+    event_meta_id,
     control_map,
     row_update_dt
   ) VALUES (
     s.source,
     s.wiki_id,
-    s.event_meta_id,
+
     s.event_entity,
     s.event_type,
     s.event_timestamp,
+
     s.event_user_id,
     s.event_user_central_id,
     s.event_user_text_historical,
+    s.event_user_is_bot_by_historical,
     s.event_user_is_anonymous,
     s.event_user_is_temporary,
     s.event_user_is_permanent,
     s.event_user_registration_timestamp,
+    CAST(NULL AS BIGINT),                    -- event_user_revision_count
+    s.event_user_groups_historical,
+    s.event_user_is_cross_wiki,
+
+    CAST(NULL AS BIGINT),                    -- user_id
+    CAST(NULL AS BIGINT),                    -- user_central_id
+    CAST(NULL AS STRING),                    -- user_text_historical
+    CAST(NULL AS BOOLEAN),                   -- user_is_anonymous
+    CAST(NULL AS BOOLEAN),                   -- user_is_temporary
+    CAST(NULL AS BOOLEAN),                   -- user_is_permanent
+    CAST(NULL AS ARRAY<STRING>),             -- user_groups_historical
+    CAST(NULL AS ARRAY<STRING>),             -- user_is_bot_by_historical
+    CAST(NULL AS BOOLEAN),                   -- user_is_created_by_self
+    CAST(NULL AS BOOLEAN),                   -- user_is_created_by_system
+    CAST(NULL AS BOOLEAN),                   -- user_is_created_by_peer
 
     s.page_id,
     s.page_title_historical,
     s.page_namespace_historical,
-    s.revision_id,
-    s.revision_parent_id,
-    s.revision_minor_edit,
-    s.revision_text_bytes,
-    s.revision_text_bytes_diff,
-    s.revision_text_sha1,
-    s.revision_tags,
-    s.revision_deleted_parts,
     s.page_namespace_is_content_historical,
-    s.event_user_is_bot_by_historical,
-    s.event_user_revision_count,
-    CAST(NULL AS ARRAY<STRING>),
-    CAST(NULL AS BIGINT),
-    CAST(NULL AS STRING),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS ARRAY<STRING>),
-    CAST(NULL AS ARRAY<STRING>),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    CAST(NULL AS BOOLEAN),
-    s.revision_is_identity_reverted,
-    s.revision_first_identity_reverting_revision_id,
-    s.revision_seconds_to_identity_revert,
-    s.revision_is_identity_revert,
-    s.event_user_is_cross_wiki,
     s.page_is_deleted,
-    s.revision_is_deleted_by_page_deletion,
-    s.user_central_id,
+
+    CAST(NULL AS BIGINT),                    -- revision_id,
+    CAST(NULL AS BIGINT),                    -- revision_parent_id
+    CAST(NULL AS BOOLEAN),                   -- revision_minor_edit
+    CAST(NULL AS BIGINT),                    -- revision_text_bytes
+    CAST(NULL AS BIGINT),                    -- revision_text_bytes_diff
+    CAST(NULL AS STRING),                    -- revision_text_sha1
+    CAST(NULL AS ARRAY<STRING>),             -- revision_deleted_parts
+    CAST(NULL AS BOOLEAN),                   -- revision_is_identity_reverted
+    CAST(NULL AS BIGINT),                    -- revision_first_identity_reverting_revision_id
+    CAST(NULL AS BIGINT),                    -- revision_seconds_to_identity_revert
+    CAST(NULL AS BOOLEAN),                   -- revision_is_identity_revert
+    CAST(NULL AS BOOLEAN),                   -- revision_is_deleted_by_page_deletion
+    CAST(NULL AS ARRAY<STRING>),             -- revision_tags
+
+    s.event_meta_id,
     map('page_meta_id',   s.event_meta_id,
         'page_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
-    TIMESTAMP '${p.rowUpdateDt}'
+    TIMESTAMP '${p.rowUpdateDt}'             -- row_update_dt
   )"""
 
   /**
@@ -1184,22 +1211,24 @@ raw_user_events AS (
     wiki_id,
     user_change_kind,
     to_timestamp(dt)               AS event_timestamp,
-    meta.id                        AS meta_id,
+    meta.id                        AS event_meta_id,
     to_timestamp(meta.dt)          AS meta_dt,
-    is_autocreate,
+
     user.user_id                   AS user_id,
     user.user_central_id           AS user_central_id,
-    user.user_text                 AS user_text,
-    user.is_temp                   AS is_temp,
-    user.edit_count                AS edit_count,
-    user.groups                    AS user_groups,
-    user.registration_dt           AS registration_dt,
-    performer.user_id              AS performer_user_id,
-    performer.user_central_id      AS performer_user_central_id,
-    performer.user_text            AS performer_user_text,
-    performer.is_temp              AS performer_is_temp,
-    performer.registration_dt      AS performer_registration_dt,
-    performer.groups               AS performer_groups
+    user.user_text                 AS user_text_historical,
+    is_autocreate                  AS user_is_autocreate,
+    user.is_temp                   AS user_is_temp,
+    user.edit_count                AS user_revision_edit_count,
+    user.groups                    AS user_groups_historical,
+    user.registration_dt           AS user_registration_dt,
+
+    performer.user_id              AS event_user_id,
+    performer.user_central_id      AS event_user_central_id,
+    performer.user_text            AS event_user_text_historical,
+    performer.is_temp              AS event_user_is_temp,
+    performer.registration_dt      AS event_user_registration_dt,
+    performer.groups               AS event_user_groups_historical
   FROM ${p.userChangeTable}
   WHERE year  = ${p.year}
     AND month = ${p.month}
@@ -1214,7 +1243,7 @@ deduplicated_user AS (
     SELECT
       *,
       row_number() OVER (
-        PARTITION BY wiki_id, meta_id
+        PARTITION BY wiki_id, event_meta_id
         ORDER BY meta_dt DESC
       ) AS rn
     FROM raw_user_events
@@ -1227,18 +1256,18 @@ user_with_bots AS (
     e.*,
     filter(
       array(
-        CASE WHEN lower(e.performer_user_text) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
+        CASE WHEN lower(e.event_user_text_historical) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
              THEN 'name' END,
-        CASE WHEN array_contains(COALESCE(e.performer_groups, array()), 'bot')
+        CASE WHEN array_contains(COALESCE(e.event_user_groups_historical, array()), 'bot')
              THEN 'group' END
       ),
       x -> x IS NOT NULL
     ) AS event_user_is_bot_by_historical,
     filter(
       array(
-        CASE WHEN lower(e.user_text) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
+        CASE WHEN lower(e.user_text_historical) RLIKE '(?i)^.*bot([^a-z].*$$|$$)'
              THEN 'name' END,
-        CASE WHEN array_contains(COALESCE(e.user_groups, array()), 'bot')
+        CASE WHEN array_contains(COALESCE(e.user_groups_historical, array()), 'bot')
              THEN 'group' END
       ),
       x -> x IS NOT NULL
@@ -1250,7 +1279,7 @@ user_incoming AS (
   SELECT
     'events'                                                            AS source,
     e.wiki_id,
-    e.meta_id                                                           AS event_meta_id,
+
     'user'                                                              AS event_entity,
     CASE e.user_change_kind
       WHEN 'create'        THEN 'create'
@@ -1258,64 +1287,48 @@ user_incoming AS (
       WHEN 'groups_change' THEN 'altergroups'
     END                                                                 AS event_type,
     e.event_timestamp,
-    -- event_user_* = performer (the admin/system performing the change)
-    e.performer_user_id                                                 AS event_user_id,
-    e.performer_user_central_id                                         AS event_user_central_id,
-    e.performer_user_text                                               AS event_user_text_historical,
-    (e.performer_user_id IS NULL)                                       AS event_user_is_anonymous,
-    COALESCE(e.performer_is_temp, FALSE)                                AS event_user_is_temporary,
-    (e.performer_user_id IS NOT NULL
-     AND NOT COALESCE(e.performer_is_temp, FALSE))                      AS event_user_is_permanent,
-    to_timestamp(e.performer_registration_dt)                           AS event_user_registration_timestamp,
 
-    CAST(NULL AS BIGINT)                                                AS page_id,
-    CAST(NULL AS STRING)                                                AS page_title_historical,
-    CAST(NULL AS INT)                                                   AS page_namespace_historical,
-    CAST(NULL AS BIGINT)                                                AS revision_id,
-    CAST(NULL AS BIGINT)                                                AS revision_parent_id,
-    CAST(NULL AS BOOLEAN)                                               AS revision_minor_edit,
-    CAST(NULL AS BIGINT)                                                AS revision_text_bytes,
-    CAST(NULL AS BIGINT)                                                AS revision_text_bytes_diff,
-    CAST(NULL AS STRING)                                                AS revision_text_sha1,
-    CAST(NULL AS ARRAY<STRING>)                                         AS revision_tags,
-    CAST(NULL AS ARRAY<STRING>)                                         AS revision_deleted_parts,
-    CAST(NULL AS BOOLEAN)                                               AS page_namespace_is_content_historical,
+    -- event_user_* = performer (the admin/system performing the change)
+    e.event_user_id,
+    e.event_user_central_id,
+    e.event_user_text_historical,
     e.event_user_is_bot_by_historical,
-    CAST(NULL AS BIGINT)                                                AS event_user_revision_count,
-    e.performer_groups                                                  AS event_user_groups_historical,
+    (e.event_user_id IS NULL)                                           AS event_user_is_anonymous,
+    COALESCE(e.event_user_is_temp, FALSE)                               AS event_user_is_temporary,
+    (e.event_user_id IS NOT NULL
+     AND NOT COALESCE(e.event_user_is_temp, FALSE))                     AS event_user_is_permanent,
+    to_timestamp(e.event_user_registration_dt)                          AS event_user_registration_timestamp,
+    e.event_user_groups_historical,
+
     -- user_* = the user being created/renamed/altered (the entity)
-    e.user_id                                                           AS user_id,
-    e.user_central_id                                                   AS user_central_id,
-    e.user_text                                                         AS user_text_historical,
+    e.user_id,
+    e.user_central_id,
+    e.user_text_historical,
     (e.user_id IS NULL)                                                 AS user_is_anonymous,
-    COALESCE(e.is_temp, FALSE)                                          AS user_is_temporary,
+    COALESCE(e.user_is_temp, FALSE)                                     AS user_is_temporary,
     (e.user_id IS NOT NULL
-     AND NOT COALESCE(e.is_temp, FALSE))                                AS user_is_permanent,
-    e.user_groups                                                       AS user_groups_historical,
+     AND NOT COALESCE(e.user_is_temp, FALSE))                           AS user_is_permanent,
+    e.user_groups_historical,
     e.user_is_bot_by_historical,
     CASE WHEN e.user_change_kind = 'create'
-         THEN (NOT COALESCE(e.is_autocreate, FALSE)
-               AND COALESCE(e.performer_user_id = e.user_id, FALSE))
+         THEN (NOT COALESCE(e.user_is_autocreate, FALSE)
+               AND COALESCE(e.event_user_id = e.user_id, FALSE))
          ELSE NULL
     END                                                                 AS user_is_created_by_self,
     CASE WHEN e.user_change_kind = 'create'
-         THEN COALESCE(e.is_autocreate, FALSE)
+         THEN COALESCE(e.user_is_autocreate, FALSE)
          ELSE NULL
     END                                                                 AS user_is_created_by_system,
     CASE WHEN e.user_change_kind = 'create'
-         THEN (NOT COALESCE(e.is_autocreate, FALSE)
-               AND NOT COALESCE(e.performer_user_id = e.user_id, FALSE))
+         THEN (NOT COALESCE(e.user_is_autocreate, FALSE)
+               AND NOT COALESCE(e.event_user_id = e.user_id, FALSE))
          ELSE NULL
     END                                                                 AS user_is_created_by_peer,
-    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_reverted,
-    CAST(NULL AS BIGINT)                                                AS revision_first_identity_reverting_revision_id,
-    CAST(NULL AS BIGINT)                                                AS revision_seconds_to_identity_revert,
-    CAST(NULL AS BOOLEAN)                                               AS revision_is_identity_revert,
-    (e.performer_user_text LIKE '%>%'
-     AND (e.performer_user_id IS NULL)
-     AND NOT COALESCE(e.performer_is_temp, FALSE))                      AS event_user_is_cross_wiki,
-    CAST(NULL AS BOOLEAN)                                               AS page_is_deleted,
-    CAST(NULL AS BOOLEAN)                                               AS revision_is_deleted_by_page_deletion,
+    (e.event_user_text_historical LIKE '%>%'
+     AND (e.event_user_id IS NULL)
+     AND NOT COALESCE(e.event_user_is_temp, FALSE))                     AS event_user_is_cross_wiki,
+
+    e.event_meta_id,
     e.meta_dt
   FROM user_with_bots e
 )"""
@@ -1330,20 +1343,24 @@ ON  t.wiki_id       = s.wiki_id
 AND t.event_meta_id = s.event_meta_id
 WHEN MATCHED AND t.source = 'events' THEN
   UPDATE SET
+    t.event_entity                                                  = s.event_entity,
     t.event_type                                                    = s.event_type,
     t.event_timestamp                                               = s.event_timestamp,
+
     t.event_user_id                                                 = s.event_user_id,
     t.event_user_central_id                                         = s.event_user_central_id,
     t.event_user_text_historical                                    = s.event_user_text_historical,
+    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
     t.event_user_is_anonymous                                       = s.event_user_is_anonymous,
     t.event_user_is_temporary                                       = s.event_user_is_temporary,
     t.event_user_is_permanent                                       = s.event_user_is_permanent,
     t.event_user_registration_timestamp                             = s.event_user_registration_timestamp,
-
-    t.event_user_revision_count                                     = s.event_user_revision_count,
-    t.event_user_is_bot_by_historical                               = s.event_user_is_bot_by_historical,
+    -- No event_user_revision_count for user events
     t.event_user_groups_historical                                  = s.event_user_groups_historical,
+    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
+
     t.user_id                                                       = s.user_id,
+    t.user_central_id                                               = s.user_central_id,
     t.user_text_historical                                          = s.user_text_historical,
     t.user_is_anonymous                                             = s.user_is_anonymous,
     t.user_is_temporary                                             = s.user_is_temporary,
@@ -1353,8 +1370,7 @@ WHEN MATCHED AND t.source = 'events' THEN
     t.user_is_created_by_self                                       = s.user_is_created_by_self,
     t.user_is_created_by_system                                     = s.user_is_created_by_system,
     t.user_is_created_by_peer                                       = s.user_is_created_by_peer,
-    t.user_central_id                                               = s.user_central_id,
-    t.event_user_is_cross_wiki                                      = s.event_user_is_cross_wiki,
+
     t.control_map = map_concat(COALESCE(t.control_map, map()),
                                map('user_meta_id',   s.event_meta_id,
                                    'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"))),
@@ -1363,34 +1379,25 @@ WHEN NOT MATCHED THEN
   INSERT (
     source,
     wiki_id,
-    event_meta_id,
+
     event_entity,
     event_type,
     event_timestamp,
+
     event_user_id,
     event_user_central_id,
     event_user_text_historical,
+    event_user_is_bot_by_historical,
     event_user_is_anonymous,
     event_user_is_temporary,
     event_user_is_permanent,
     event_user_registration_timestamp,
-
-    page_id,
-    page_title_historical,
-    page_namespace_historical,
-    revision_id,
-    revision_parent_id,
-    revision_minor_edit,
-    revision_text_bytes,
-    revision_text_bytes_diff,
-    revision_text_sha1,
-    revision_tags,
-    revision_deleted_parts,
-    page_namespace_is_content_historical,
-    event_user_is_bot_by_historical,
     event_user_revision_count,
     event_user_groups_historical,
+    event_user_is_cross_wiki,
+
     user_id,
+    user_central_id,
     user_text_historical,
     user_is_anonymous,
     user_is_temporary,
@@ -1400,47 +1407,52 @@ WHEN NOT MATCHED THEN
     user_is_created_by_self,
     user_is_created_by_system,
     user_is_created_by_peer,
+
+    page_id,
+    page_title_historical,
+    page_namespace_historical,
+    page_namespace_is_content_historical,
+    page_is_deleted,
+
+    revision_id,
+    revision_parent_id,
+    revision_minor_edit,
+    revision_text_bytes,
+    revision_text_bytes_diff,
+    revision_text_sha1,
+    revision_deleted_parts,
     revision_is_identity_reverted,
     revision_first_identity_reverting_revision_id,
     revision_seconds_to_identity_revert,
     revision_is_identity_revert,
-    event_user_is_cross_wiki,
-    page_is_deleted,
     revision_is_deleted_by_page_deletion,
-    user_central_id,
+    revision_tags,
+
+    event_meta_id,
     control_map,
     row_update_dt
   ) VALUES (
     s.source,
     s.wiki_id,
-    s.event_meta_id,
+
     s.event_entity,
     s.event_type,
     s.event_timestamp,
+
     s.event_user_id,
     s.event_user_central_id,
     s.event_user_text_historical,
+    s.event_user_is_bot_by_historical,
     s.event_user_is_anonymous,
     s.event_user_is_temporary,
     s.event_user_is_permanent,
     s.event_user_registration_timestamp,
-
-    s.page_id,
-    s.page_title_historical,
-    s.page_namespace_historical,
-    s.revision_id,
-    s.revision_parent_id,
-    s.revision_minor_edit,
-    s.revision_text_bytes,
-    s.revision_text_bytes_diff,
-    s.revision_text_sha1,
-    s.revision_tags,
-    s.revision_deleted_parts,
-    s.page_namespace_is_content_historical,
-    s.event_user_is_bot_by_historical,
-    s.event_user_revision_count,
+    CAST(NULL AS BIGINT),                    -- event_user_revision_count
     s.event_user_groups_historical,
+    s.event_user_is_cross_wiki,
+
     s.user_id,
+    s.user_central_id,
     s.user_text_historical,
     s.user_is_anonymous,
     s.user_is_temporary,
@@ -1450,17 +1462,31 @@ WHEN NOT MATCHED THEN
     s.user_is_created_by_self,
     s.user_is_created_by_system,
     s.user_is_created_by_peer,
-    s.revision_is_identity_reverted,
-    s.revision_first_identity_reverting_revision_id,
-    s.revision_seconds_to_identity_revert,
-    s.revision_is_identity_revert,
-    s.event_user_is_cross_wiki,
-    s.page_is_deleted,
-    s.revision_is_deleted_by_page_deletion,
-    s.user_central_id,
+
+    CAST(NULL AS BIGINT),                    -- page_id
+    CAST(NULL AS STRING),                    -- page_title_historical
+    CAST(NULL AS INT),                       -- page_namespace_historical
+    CAST(NULL AS BOOLEAN),                   -- page_namespace_is_content_historical
+    CAST(NULL AS BOOLEAN),                   -- page_is_deleted
+
+    CAST(NULL AS BIGINT),                    -- revision_id,
+    CAST(NULL AS BIGINT),                    -- revision_parent_id
+    CAST(NULL AS BOOLEAN),                   -- revision_minor_edit
+    CAST(NULL AS BIGINT),                    -- revision_text_bytes
+    CAST(NULL AS BIGINT),                    -- revision_text_bytes_diff
+    CAST(NULL AS STRING),                    -- revision_text_sha1
+    CAST(NULL AS ARRAY<STRING>),             -- revision_deleted_parts
+    CAST(NULL AS BOOLEAN),                   -- revision_is_identity_reverted
+    CAST(NULL AS BIGINT),                    -- revision_first_identity_reverting_revision_id
+    CAST(NULL AS BIGINT),                    -- revision_seconds_to_identity_revert
+    CAST(NULL AS BOOLEAN),                   -- revision_is_identity_revert
+    CAST(NULL AS BOOLEAN),                   -- revision_is_deleted_by_page_deletion
+    CAST(NULL AS ARRAY<STRING>),             -- revision_tags
+
+    s.event_meta_id,
     map('user_meta_id',   s.event_meta_id,
         'user_update_dt', date_format(s.meta_dt, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
-    TIMESTAMP '${p.rowUpdateDt}'
+    TIMESTAMP '${p.rowUpdateDt}'             -- row_update_dt
   )"""
 
   /**
