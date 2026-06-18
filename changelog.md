@@ -1,3 +1,8 @@
+## v0.3.19
+* Update Incremental MWH with a fix
+* incremental mediawiki history: Add ingestion pipeline diagram
+* MWHistoryDeltaWriter: fix CAST format bug and stale comment
+
 ## v0.3.18
 * Populate row_update_dt on monthly reconcile instead of NULL
 * Add row_update_dt incremental watermark to MWHistoryDeltaWriter
