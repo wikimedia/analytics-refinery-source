@@ -192,7 +192,8 @@ object MWHistoryDeltaWriter {
   SELECT
     wiki_id,
     'revision'                                                      AS event_entity,
-    page_change_kind                                                AS event_type,
+    -- Whether from page-create or page-edits, revisions are always of type 'create'
+    'create'                                                        AS event_type,
     to_timestamp(revision.rev_dt)                                   AS event_timestamp,
     revision.editor.user_id                                         AS event_user_id,
     revision.editor.user_central_id                                 AS event_user_central_id,
@@ -902,7 +903,7 @@ WHEN MATCHED THEN
     t.row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '${p.rowUpdateDt}')"""
 
   /**
-   * Returns the CTE chain for page events (move, delete, undelete) from page_change_v1.
+   * Returns the CTE chain for page events (create, move, delete, undelete) from page_change_v1.
    * Tests append "SELECT * FROM page_incoming" to exercise the logic without Iceberg.
    *
    * Field source notes (verified against page_change_v1 schema):
@@ -915,7 +916,7 @@ WHEN MATCHED THEN
    *     page.page_title includes the namespace prefix (e.g. "User:Foo") for non-main-namespace
    *     pages; REGEXP_REPLACE strips the prefix when namespace_id != 0, matching the bare-title
    *     convention of wmf.mediawiki_history (namespace stored separately in page_namespace_historical).
-   * (4) undelete mapped to 'restore' to match wmf.mediawiki_history vocabulary.
+   * (4) undelete mapped to 'restore' and create mapped to 'create-page' to match wmf.mediawiki_history vocabulary.
    * (5) revision_id is NULL — page events have no revision in wmf.mediawiki_history.
    * (6) All revert tier fields are NULL — not applicable to page-level events.
    *     Bounded tier is also NULL (not FALSE) unlike revision events.
@@ -929,6 +930,7 @@ WHEN MATCHED THEN
     to_timestamp(meta.dt)                                               AS meta_dt,
     'page'                                                              AS event_entity,
     CASE WHEN page_change_kind = 'undelete' THEN 'restore'
+         WHEN page_change_kind = 'create' THEN 'create-page'
          ELSE page_change_kind END                                      AS event_type,
     to_timestamp(dt)                                                    AS event_timestamp,
     performer.user_id                                                   AS event_user_id,
@@ -952,7 +954,7 @@ WHEN MATCHED THEN
   WHERE year  = ${p.year}
     AND month = ${p.month}
     AND day   = ${p.day}
-    AND page_change_kind IN ('move', 'delete', 'undelete')
+    AND page_change_kind IN ('create', 'move', 'delete', 'undelete')
 ),
 
 deduplicated_page AS (

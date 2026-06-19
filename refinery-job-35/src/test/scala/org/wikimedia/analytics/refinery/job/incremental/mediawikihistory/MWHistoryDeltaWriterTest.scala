@@ -310,7 +310,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     row.getAs[String]("source")                             shouldEqual "events"
     row.getAs[String]("wiki_id")                            shouldEqual "enwiki"
     row.getAs[String]("event_entity")                       shouldEqual "revision"
-    row.getAs[String]("event_type")                         shouldEqual "edit"
+    row.getAs[String]("event_type")                         shouldEqual "create"
     row.getAs[Long]("revision_id")                          shouldEqual 101L
     row.getAs[Long]("revision_parent_id")                   shouldEqual 100L
     row.getAs[Long]("revision_text_bytes")                  shouldEqual 500L
@@ -1106,6 +1106,34 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     row.getAs[Seq[String]]("event_user_groups_historical")   shouldEqual Seq("sysop")
     row.getAs[Boolean]("page_namespace_is_content_historical") shouldEqual true
   }
+
+  it should "map basic fields from a create event" in {
+        registerNamespaces()
+        registerPageEventWith(
+            """('enwiki', 'create', '2024-01-15T10:00:00Z', 'uuid-A', '2024-01-15T10:00:01Z',
+          'Old_Title', 0,
+          42L, 999L, 'Alice', false, array('sysop'), '2000-01-01T00:00:00Z',
+          1L, 'New_Title', 0)"""
+        )
+
+        val row = pageIncoming().collect()(0)
+        row.getAs[String]("source")                              shouldEqual "events"
+        row.getAs[String]("wiki_id")                             shouldEqual "enwiki"
+        row.getAs[String]("event_meta_id")                       shouldEqual "uuid-A"
+        row.getAs[String]("event_entity")                        shouldEqual "page"
+        row.getAs[String]("event_type")                          shouldEqual "create-page"
+        row.getAs[String]("page_title_historical")               shouldEqual "New_Title"
+        row.getAs[Int]("page_namespace_historical")              shouldEqual 0
+        row.getAs[Long]("page_id")                               shouldEqual 1L
+        row.getAs[String]("event_user_text_historical")          shouldEqual "Alice"
+        row.getAs[Long]("event_user_id")                         shouldEqual 42L
+        row.getAs[Long]("event_user_central_id")                 shouldEqual 999L
+        row.getAs[Boolean]("event_user_is_anonymous")            shouldEqual false
+        row.getAs[Boolean]("event_user_is_temporary")            shouldEqual false
+        row.getAs[Boolean]("event_user_is_permanent")            shouldEqual true
+        row.getAs[Seq[String]]("event_user_groups_historical")   shouldEqual Seq("sysop")
+        row.getAs[Boolean]("page_namespace_is_content_historical") shouldEqual true
+    }
 
   it should "use page.page_title (post-move destination) as historical title for move events" in {
     registerNamespaces()
