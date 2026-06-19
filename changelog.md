@@ -1,3 +1,7 @@
+## v0.3.20
+* Add create-page to Inc-MWH and reorder fields
+* Fix MWH page SQL definition
+
 ## v0.3.19
 * Update Incremental MWH with a fix
 * incremental mediawiki history: Add ingestion pipeline diagram
