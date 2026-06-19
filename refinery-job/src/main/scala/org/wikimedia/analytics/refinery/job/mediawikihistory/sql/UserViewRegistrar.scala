@@ -91,7 +91,7 @@ filtered_user AS (
     uv.user_text,
     uv.user_registration
   FROM prepared_user uv
-  LEFT OUTER JOIN global_user_match gu
+  LEFT JOIN global_user_match gu
   ON gu.wiki_db = uv.wiki_db
      AND gu.user_id = uv.user_id
 ),

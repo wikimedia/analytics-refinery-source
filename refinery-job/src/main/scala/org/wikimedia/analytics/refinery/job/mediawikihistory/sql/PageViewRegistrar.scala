@@ -88,7 +88,7 @@ all_revisions AS (
     rv.actor_name AS page_first_rev_user_text,
     rv.rev_timestamp AS page_first_rev_timestamp
   FROM ${SQLHelper.REVISION_VIEW} rv
-  JOIN global_user_match gu
+  LEFT JOIN global_user_match gu
   ON gu.wiki_db = rv.wiki_db AND gu.user_id = rv.actor_user
 
   UNION ALL
@@ -103,7 +103,7 @@ all_revisions AS (
     av.actor_name AS page_first_rev_user_text,
     av.ar_timestamp AS page_first_rev_timestamp
   FROM ${SQLHelper.ARCHIVE_VIEW} av
-  JOIN global_user_match gu
+  LEFT JOIN global_user_match gu
   ON gu.wiki_db = av.wiki_db AND gu.user_id = av.actor_user
   -- Filter undefined rev_ids and page_ids
   WHERE ar_rev_id IS NOT NULL
@@ -150,6 +150,7 @@ SELECT
   fr.page_first_rev_user_text,
   fr.page_first_rev_timestamp
 FROM filtered_page p
+  -- We remove pages not having a first-revision
   INNER JOIN page_first_revision fr
     ON p.wiki_db = fr.wiki_db
       AND p.page_id = fr.page_id

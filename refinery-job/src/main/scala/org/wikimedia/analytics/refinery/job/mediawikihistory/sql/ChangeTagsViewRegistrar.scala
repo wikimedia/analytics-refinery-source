@@ -76,6 +76,7 @@ SELECT
   ct.ct_rev_id,
   dedup_list(collect_list(ctd_name)) as change_tags
 FROM filtered_ct ct
+  -- Only keep tags having a definition
   INNER JOIN change_tag_def_reduced ctd
     ON ct.wiki_db = ctd.wiki_db
       AND ct.ct_tag_id = ctd.ctd_id
