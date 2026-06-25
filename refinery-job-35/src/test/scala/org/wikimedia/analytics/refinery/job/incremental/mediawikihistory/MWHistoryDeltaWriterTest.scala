@@ -36,12 +36,12 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     year = 2024, month = 1, day = 15
   )
 
-  def incoming()         = spark.sql(MWHistoryDeltaWriter.buildIncomingSQL(params)      + "\nSELECT * FROM incoming")
-  def backPatch()        = spark.sql(MWHistoryDeltaWriter.buildIncomingSQL(params)      + "\nSELECT * FROM back_patch")
-  def latestTags()       = spark.sql(MWHistoryDeltaWriter.buildTagsCteSQL(params)       + "\nSELECT * FROM latest_tags")
-  def latestVisibility() = spark.sql(MWHistoryDeltaWriter.buildVisibilityCteSQL(params) + "\nSELECT * FROM latest_visibility")
-  def pageIncoming()     = spark.sql(MWHistoryDeltaWriter.buildPageIncomingSQL(params)  + "\nSELECT * FROM page_incoming")
-  def userIncoming()     = spark.sql(MWHistoryDeltaWriter.buildUserIncomingSQL(params)  + "\nSELECT * FROM user_incoming")
+  def revisionIncoming() = spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionEventAndBackpatchSQL(params) + "\nSELECT * FROM incoming")
+  def backPatch()        = spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionEventAndBackpatchSQL(params) + "\nSELECT * FROM back_patch")
+  def latestTags()       = spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionTagsSQL(params)              + "\nSELECT * FROM latest_tags")
+  def latestVisibility() = spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionVisibilitySQL(params)        + "\nSELECT * FROM latest_visibility")
+  def pageIncoming()     = spark.sql(MWHistoryDeltaPageSQL.buildPageEventSQL(params)                     + "\nSELECT * FROM page_incoming")
+  def userIncoming()     = spark.sql(MWHistoryDeltaUserSQL.buildUserEventSQL(params)                     + "\nSELECT * FROM user_incoming")
 
   /** Empty target — only needed for the revert_seed CTE. */
   def registerEmptyTarget(): Unit =
@@ -306,7 +306,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'Main_Page', '2024-01-15T10:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[String]("source")                             shouldEqual "events"
     row.getAs[String]("wiki_id")                            shouldEqual "enwiki"
     row.getAs[String]("event_entity")                       shouldEqual "revision"
@@ -338,7 +338,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[Boolean]("event_user_is_anonymous") shouldEqual true
     row.getAs[Boolean]("event_user_is_permanent") shouldEqual false
   }
@@ -354,7 +354,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    val ts = incoming().collect()(0).getAs[java.sql.Timestamp]("event_user_registration_timestamp")
+    val ts = revisionIncoming().collect()(0).getAs[java.sql.Timestamp]("event_user_registration_timestamp")
     ts should not be null
     ts.toString should startWith("2000-06-15")
   }
@@ -368,7 +368,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[java.sql.Timestamp]("event_user_registration_timestamp") shouldBe null
+    revisionIncoming().collect()(0).getAs[java.sql.Timestamp]("event_user_registration_timestamp") shouldBe null
   }
 
   // ---- Byte diff from prior_state ----
@@ -382,7 +382,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[Long]("revision_text_bytes_diff") shouldEqual 200L  // 700 - 500
+    revisionIncoming().collect()(0).getAs[Long]("revision_text_bytes_diff") shouldEqual 200L  // 700 - 500
   }
 
   it should "set byte diff to null for page creates where prior_state has no rev_size" in {
@@ -394,7 +394,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[java.lang.Long]("revision_text_bytes_diff") shouldBe null
+    revisionIncoming().collect()(0).getAs[java.lang.Long]("revision_text_bytes_diff") shouldBe null
   }
 
   // ---- Page-import / old rev_dt filter ----
@@ -409,7 +409,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit',   102L, 101L, '2024-01-15T10:00:00Z', 400, 'sha-new', 300L,                 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:02Z')"""
     )
 
-    val rows = incoming().collect()
+    val rows = revisionIncoming().collect()
     rows.length                             shouldEqual 1
     rows(0).getAs[Long]("revision_id")      shouldEqual 102L
   }
@@ -422,7 +422,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
       """('enwiki', 'edit', 101L, 100L, '2023-10-18T10:00:00Z', 500, 'sha', 400L, 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect().length shouldEqual 1
+    revisionIncoming().collect().length shouldEqual 1
   }
 
   // ---- Deduplication ----
@@ -435,7 +435,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 600, 'sha', 400L, 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    val rows = incoming().collect()
+    val rows = revisionIncoming().collect()
     rows.length                              shouldEqual 1
     rows(0).getAs[Long]("revision_text_bytes") shouldEqual 500L  // later meta_dt row wins
   }
@@ -451,7 +451,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("name")
+    revisionIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("name")
   }
 
   it should "classify a bot-by-group user" in {
@@ -463,7 +463,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("group")
+    revisionIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("group")
   }
 
   it should "classify a user that is both bot-by-name and bot-by-group" in {
@@ -475,7 +475,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("name", "group")
+    revisionIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("name", "group")
   }
 
   it should "not classify a normal user as a bot" in {
@@ -487,7 +487,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    incoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldBe empty
+    revisionIncoming().collect()(0).getAs[Seq[String]]("event_user_is_bot_by_historical") shouldBe empty
   }
 
   // ---- Revert detection (in-batch) ----
@@ -514,7 +514,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit', 103L, 102L, '2024-01-15T11:00:00Z', 500, 'sha-X', 600L,                 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T11:00:01Z')"""
     )
 
-    val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
+    val rows = revisionIncoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
     // R101 (sha-X base): fresh revision with sha1, no reverter in batch → FALSE (not null).
     rows(0).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual false
@@ -544,7 +544,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit', 107L, 106L, '2024-01-15T13:00:00Z', 500, 'sha-X', CAST(NULL AS BIGINT), 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T13:00:01Z')"""
     )
 
-    val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
+    val rows = revisionIncoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
     // R101 (rank=1, base): fresh, sha1 present, no reverter → FALSE.
     rows(0).getAs[Boolean]("revision_is_identity_reverted")           shouldEqual false
@@ -574,7 +574,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit', 204L, 203L, '2024-01-15T12:00:00Z', 600, 'sha-B', 500L,                 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'P', '2024-01-15T12:00:01Z')"""
     )
 
-    val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
+    val rows = revisionIncoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
     rows(0).getAs[Boolean]("revision_is_identity_reverted")              shouldEqual false
     rows(0).getAs[Boolean]("revision_is_identity_revert")                shouldEqual false
@@ -613,7 +613,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit', 9L, 8L, '2024-01-15T09:00:00Z', 100, 's9', 100L,                 1L, CAST(NULL AS BIGINT), 'U', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'P', '2024-01-15T09:00:01Z')"""
     )
 
-    val rows = incoming().collect().sortBy(_.getAs[Long]("revision_id"))
+    val rows = revisionIncoming().collect().sortBy(_.getAs[Long]("revision_id"))
 
     def check(idx: Int, isRevert: Option[Boolean], isReverted: Option[Boolean],
               revertingId: Option[Long], secondsToRevert: Option[Long]): Unit = {
@@ -665,7 +665,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
       """('enwiki', 'edit', 103L, 102L, '2024-01-15T10:00:00Z', 500, 'sha-X', CAST(NULL AS BIGINT), 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:02Z')"""
     )
 
-    val rows = incoming().collect()
+    val rows = revisionIncoming().collect()
     rows.length shouldEqual 1
     // Full-table scan finds the old seed — revert IS detected
     rows(0).getAs[Boolean]("revision_is_identity_revert") shouldEqual true
@@ -684,7 +684,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
       """('enwiki', 'edit', 101L, 100L, '2024-01-15T02:00:00Z', 300, 'sha-X', CAST(NULL AS BIGINT), 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T02:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     // The incoming revision repeats the sha1 of a seed row — it IS a revert
     row.getAs[Boolean]("revision_is_identity_revert")    shouldEqual true
     // It has not itself been reverted in this batch; fresh with sha1 → FALSE
@@ -708,7 +708,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
       """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-X', CAST(NULL AS BIGINT), 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[Boolean]("revision_is_identity_reverted") shouldEqual false
     row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
   }
@@ -722,7 +722,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'A', '2024-01-15T10:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[Boolean]("revision_is_identity_reverted") shouldEqual false
     row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
   }
@@ -914,7 +914,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     // R99 not back-patched: R100 is a no-op (parent = own_base) and is filtered from
     // reverters_with_base entirely, so there's no candidate to flag R99.
     backPatch().count() shouldEqual 0
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     // R100 is also not flagged as a revert (is_real_reverter = FALSE); fresh + sha1 → FALSE.
     row.getAs[Boolean]("revision_is_identity_reverted") shouldEqual false
     row.getAs[Boolean]("revision_is_identity_revert")   shouldEqual false
@@ -938,7 +938,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
     // Seed R99 not back-patched, incoming R100 not flagged.
     backPatch().count() shouldEqual 0
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldBe null
     row.getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldBe null
   }
@@ -960,7 +960,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit',   12L, 11L, '2024-01-10T01:00:00Z', 100, 'sha-A', 100L,                 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'P', '2024-01-10T01:00:01Z')"""
     )
 
-    val byId = incoming().collect().map(r => r.getAs[Long]("revision_id") -> r).toMap
+    val byId = revisionIncoming().collect().map(r => r.getAs[Long]("revision_id") -> r).toMap
 
     byId(11L).getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldEqual true
     byId(12L).getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldBe null
@@ -991,7 +991,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
          ('enwiki', 'edit',   5L, 2L, '2024-01-05T00:00:00Z', 100, 'sha-S1', 200L,                 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'P', '2024-01-05T00:00:01Z')"""
     )
 
-    val byId = incoming().collect().map(r => r.getAs[Long]("revision_id") -> r).toMap
+    val byId = revisionIncoming().collect().map(r => r.getAs[Long]("revision_id") -> r).toMap
 
     byId(3L).getAs[java.lang.Boolean]("revision_is_identity_revert")   shouldEqual true
     byId(3L).getAs[java.lang.Boolean]("revision_is_identity_reverted") shouldEqual true
@@ -1296,7 +1296,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
            2024 AS year, 1 AS month, 15 AS day"""
     )
 
-    incoming().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
+    revisionIncoming().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
   }
 
   // ---- User events (MERGE 7) ----
@@ -1546,7 +1546,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'Page', '2024-01-15T10:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[Boolean]("event_user_is_cross_wiki") shouldEqual false
   }
 
@@ -1559,7 +1559,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           0, 1L, 'Page', '2024-01-15T10:00:01Z')"""
     )
 
-    val row = incoming().collect()(0)
+    val row = revisionIncoming().collect()(0)
     row.getAs[Boolean]("event_user_is_cross_wiki") shouldEqual true
   }
 
@@ -1628,7 +1628,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           77L, 'Page', 0)"""
     )
 
-    val sql = MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params)
+    val sql = MWHistoryDeltaPageSQL.buildPageDeletionBackpatchMergeSQL(params)
     val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
     val rows = spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").collect()
     rows.length shouldEqual 1
@@ -1645,7 +1645,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           77L, 'Page', 0)"""
     )
 
-    val sql = MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params)
+    val sql = MWHistoryDeltaPageSQL.buildPageDeletionBackpatchMergeSQL(params)
     val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
     val rows = spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").collect()
     rows.length shouldEqual 1
@@ -1661,7 +1661,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
           77L, 'New', 0)"""
     )
 
-    val sql = MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params)
+    val sql = MWHistoryDeltaPageSQL.buildPageDeletionBackpatchMergeSQL(params)
     val cteOnly = sql.substring(0, sql.lastIndexOf("MERGE INTO"))
     spark.sql(cteOnly + "\nSELECT * FROM page_deletion_events").count() shouldEqual 0
   }
@@ -1702,30 +1702,35 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
   "MWHistoryDeltaWriter SQL builders" should "use branch-scoped table for MERGE INTO when icebergBranch is set" in {
     val p = params.copy(catalog = "local", icebergBranch = "daily_2024_01_15")
-    MWHistoryDeltaWriter.buildMergeSQL(p)                           should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildBackPatchSQL(p)                       should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildTagsMergeSQL(p)                       should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildVisibilityMergeSQL(p)                 should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildPageEventMergeSQL(p)                  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(p)           should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildUserEventMergeSQL(p)                  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
-    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(p)  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaRevisionSQL.buildRevisionEventMergeSQL(p)              should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaRevisionSQL.buildRevertedRevisionBackpatchMergeSQL(p)  should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaRevisionSQL.buildRevisionTagsMergeSQL(p)               should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaRevisionSQL.buildRevisionVisibilityMergeSQL(p)         should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaPageSQL.buildPageEventMergeSQL(p)                      should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaPageSQL.buildPageDeletionBackpatchMergeSQL(p)          should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaUserSQL.buildUserEventMergeSQL(p)                      should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
+    MWHistoryDeltaUserSQL.buildUserCreationProvenanceBackfillMergeSQL(p) should include ("MERGE INTO local.test_target.branch_daily_2024_01_15")
   }
 
   it should "use branch-scoped table for the revert_seed FROM clause when icebergBranch is set" in {
     val p = params.copy(catalog = "local", icebergBranch = "daily_2024_01_15")
-    MWHistoryDeltaWriter.buildIncomingSQL(p) should include ("FROM local.test_target.branch_daily_2024_01_15 t")
+    MWHistoryDeltaRevisionSQL.buildRevisionEventAndBackpatchSQL(p) should include ("FROM local.test_target.branch_daily_2024_01_15 t")
   }
 
   it should "use branch-scoped table for user_provenance FROM clause when icebergBranch is set" in {
     val p = params.copy(catalog = "local", icebergBranch = "daily_2024_01_15")
-    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(p) should include ("FROM local.test_target.branch_daily_2024_01_15")
+      MWHistoryDeltaUserSQL.buildUserCreationProvenanceBackfillMergeSQL(p) should include ("FROM local.test_target.branch_daily_2024_01_15")
   }
 
   it should "use plain table name for all SQL when icebergBranch is empty" in {
-    MWHistoryDeltaWriter.buildMergeSQL(params)                          should not include ".branch_"
-    MWHistoryDeltaWriter.buildIncomingSQL(params)                       should not include ".branch_"
-    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(params) should not include ".branch_"
+    MWHistoryDeltaRevisionSQL.buildRevisionEventMergeSQL(params)              should not include ".branch_"
+    MWHistoryDeltaRevisionSQL.buildRevertedRevisionBackpatchMergeSQL(params)  should not include ".branch_"
+    MWHistoryDeltaRevisionSQL.buildRevisionTagsMergeSQL(params)               should not include ".branch_"
+    MWHistoryDeltaRevisionSQL.buildRevisionVisibilityMergeSQL(params)         should not include ".branch_"
+    MWHistoryDeltaPageSQL.buildPageEventMergeSQL(params)                      should not include ".branch_"
+    MWHistoryDeltaPageSQL.buildPageDeletionBackpatchMergeSQL(params)          should not include ".branch_"
+    MWHistoryDeltaUserSQL.buildUserEventMergeSQL(params)                      should not include ".branch_"
+    MWHistoryDeltaUserSQL.buildUserCreationProvenanceBackfillMergeSQL(params) should not include ".branch_"
   }
 
   // Guard against silently dropping the row_update_dt stamp from a write site (params is the
@@ -1734,17 +1739,17 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
   "Every daily MERGE that writes control_map" should "also stamp row_update_dt with a GREATEST guard" in {
     val guard = "row_update_dt = GREATEST(t.row_update_dt, TIMESTAMP '2024-01-16 00:00:00')"
     Map(
-      "buildMergeSQL"                 -> MWHistoryDeltaWriter.buildMergeSQL(params),
-      "buildBackPatchSQL"             -> MWHistoryDeltaWriter.buildBackPatchSQL(params),
-      "buildTagsMergeSQL"             -> MWHistoryDeltaWriter.buildTagsMergeSQL(params),
-      "buildVisibilityMergeSQL"       -> MWHistoryDeltaWriter.buildVisibilityMergeSQL(params),
-      "buildPageEventMergeSQL"        -> MWHistoryDeltaWriter.buildPageEventMergeSQL(params),
-      "buildPageDeletionBackpatchSQL" -> MWHistoryDeltaWriter.buildPageDeletionBackpatchSQL(params),
-      "buildUserEventMergeSQL"        -> MWHistoryDeltaWriter.buildUserEventMergeSQL(params)
+      "buildRevisionEventMergeSQL"                  -> MWHistoryDeltaRevisionSQL.buildRevisionEventMergeSQL(params),
+      "buildRevertedRevisionBackpatchMergeSQL"      -> MWHistoryDeltaRevisionSQL.buildRevertedRevisionBackpatchMergeSQL(params),
+      "buildRevisionTagsMergeSQL"                   -> MWHistoryDeltaRevisionSQL.buildRevisionTagsMergeSQL(params),
+      "buildRevisionVisibilityMergeSQL"             -> MWHistoryDeltaRevisionSQL.buildRevisionVisibilityMergeSQL(params),
+      "buildPageEventMergeSQL"                      -> MWHistoryDeltaPageSQL.buildPageEventMergeSQL(params),
+      "buildPageDeletionBackpatchMergeSQL"          -> MWHistoryDeltaPageSQL.buildPageDeletionBackpatchMergeSQL(params),
+      "buildUserEventMergeSQL"                      -> MWHistoryDeltaUserSQL.buildUserEventMergeSQL(params)
     ).foreach { case (name, sql) => withClue(s"$name: ") { sql should include (guard) } }
   }
 
   it should "not stamp row_update_dt in the provenance back-fill (MERGE 7 already stamped those rows this run)" in {
-    MWHistoryDeltaWriter.buildUserCreationProvenanceBackfillSQL(params) should not include "row_update_dt"
+    MWHistoryDeltaUserSQL.buildUserCreationProvenanceBackfillMergeSQL(params) should not include "row_update_dt"
   }
 }

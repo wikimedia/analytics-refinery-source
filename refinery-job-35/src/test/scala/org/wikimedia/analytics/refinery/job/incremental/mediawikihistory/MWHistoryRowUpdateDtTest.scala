@@ -71,7 +71,7 @@ class MWHistoryRowUpdateDtTest extends FlatSpec with Matchers with BeforeAndAfte
       tagsTable = "test_tags", targetTable = "db.rud_target", catalog = "local",
       year = year, month = month, day = day
     )
-    spark.sql(MWHistoryDeltaWriter.buildTagsMergeSQL(p))
+    spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionTagsMergeSQL(p))
   }
 
   // Format Spark-side in the (UTC) session timezone. java.sql.Timestamp.toString renders in the

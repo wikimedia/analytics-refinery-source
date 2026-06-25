@@ -147,7 +147,7 @@ class MWHistoryControlMapFormatTest extends FlatSpec with Matchers with BeforeAn
       catalog     = "local",
       year = 2024, month = 1, day = 15
     )
-    spark.sql(MWHistoryDeltaWriter.buildTagsMergeSQL(p))
+    spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionTagsMergeSQL(p))
     val dt = spark.sql(
       "SELECT control_map['tags_update_dt'] FROM local.db.cm_format_target WHERE wiki_id = 'enwiki' AND revision_id = 101"
     ).collect()(0).getString(0)
@@ -214,7 +214,7 @@ class MWHistoryControlMapFormatTest extends FlatSpec with Matchers with BeforeAn
       catalog            = "local",
       year = 2024, month = 1, day = 15
     )
-    spark.sql(MWHistoryDeltaWriter.buildMergeSQL(p))
+    spark.sql(MWHistoryDeltaRevisionSQL.buildRevisionEventMergeSQL(p))
     val dt = spark.sql(
       "SELECT control_map['revision_update_dt'] FROM local.db.cm_format_m1_target WHERE wiki_id = 'enwiki' AND revision_id = 501"
     ).collect()(0).getString(0)
