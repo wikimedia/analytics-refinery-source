@@ -406,6 +406,18 @@ class DenormalizedRunner(
       log.info(s"Denormalized MW Events errors written")
     })
 
+    //***********************************
+    // Sanity check - Validate there is no duplicate revision
+    //***********************************
+
+    val nbDuplicateRevisions = denormalizedMediawikiEventsDf.
+        where("event_entity = 'revision' AND event_type = 'create'").
+        groupBy("wiki_db", "revision_id").
+        count().
+        where("count > 1").
+        count()
+
+    assert(nbDuplicateRevisions == 0, "The dataset contains duplicate revisions, failing.")
 
     log.info(s"Denormalized MW Events jobs done")
 
