@@ -1,3 +1,8 @@
+## v0.3.21
+* Update Inc-MWH splitting SQL into smaller files, the SQL code for DeltaMerger is now organized in per-entity files.
+* Unified the per-entity inserts into a single, distributed and sorted insert for MWHistorySnapshotMerger
+* Update MWH - fail if duplicated revisions
+
 ## v0.3.20
 * Add create-page to Inc-MWH and reorder fields
 * Fix MWH page SQL definition
