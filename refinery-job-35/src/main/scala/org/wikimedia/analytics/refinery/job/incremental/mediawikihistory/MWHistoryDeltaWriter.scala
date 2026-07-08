@@ -32,7 +32,7 @@ import org.apache.spark.sql.SparkSession
  *     duplicates when a revision already exists from MWHistorySnapshotMerger.
  *   MERGE 2 (buildBackPatchSQL):          back-patch seed rows whose first reverter arrived today.
  *     Separate MERGE so Iceberg COW can prune by the small back-patch revision_id set.
- *   MERGE 3 (buildTagsMergeSQL):          revision_tags — 90-day target bound for partition pruning.
+ *   MERGE 3 (buildTagsMergeSQL):          revision_tags
  *   MERGE 4 (buildVisibilityMergeSQL):    revision_deleted_parts — no timestamp bound (visibility
  *     changes target all-time revisions; 46% are >1 year old).
  *   MERGE 5 (buildPageEventMergeSQL):     page events — keyed on (wiki_id, event_meta_id).

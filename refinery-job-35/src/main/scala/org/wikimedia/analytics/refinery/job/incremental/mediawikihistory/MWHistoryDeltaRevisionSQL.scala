@@ -71,9 +71,6 @@ object MWHistoryDeltaRevisionSQL {
     AND day   = ${p.day}
     AND page_change_kind IN ('create', 'edit')
     -- Exclude page imports and other admin operations that emit 'create'/'edit' events
-    -- for revisions with old rev_dt. Normal edits always have rev_dt ≈ ingestion dt.
-    -- 90-day bound matches the revert and tags windows.
-    AND to_timestamp(revision.rev_dt) >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00' - INTERVAL 90 DAYS
 ),
 
 deduplicated AS (
@@ -678,7 +675,6 @@ MERGE INTO ${p.ref} t
 USING latest_tags s
 ON  t.wiki_id         = s.wiki_id
 AND t.revision_id     = s.revision_id
-AND t.event_timestamp >= TIMESTAMP '${p.year}-${paddedMonth}-${paddedDay} 00:00:00' - INTERVAL 90 DAYS
 WHEN MATCHED THEN
   UPDATE SET
     t.revision_tags = s.revision_tags,

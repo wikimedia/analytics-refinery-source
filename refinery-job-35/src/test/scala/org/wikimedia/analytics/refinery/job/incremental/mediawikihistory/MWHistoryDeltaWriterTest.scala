@@ -399,21 +399,6 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
   // ---- Page-import / old rev_dt filter ----
 
-  it should "exclude events where rev_dt is more than 90 days before the run date (page import pattern)" in {
-    registerEmptyTarget()
-    registerNamespaces()
-    // rev 101: rev_dt from 2006 — a page-import event ingested on the run date; must be excluded.
-    // rev 102: rev_dt from the run date — a normal edit; must be included.
-    registerSourceWith(
-      """('enwiki', 'create', 101L, 0L,   '2006-03-15T10:00:00Z', 300, 'sha-old', CAST(NULL AS BIGINT), 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:01Z'),
-         ('enwiki', 'edit',   102L, 101L, '2024-01-15T10:00:00Z', 400, 'sha-new', 300L,                 1L, CAST(NULL AS BIGINT), 'Alice', false, array(), CAST(NULL AS STRING), CAST(NULL AS BIGINT), 0, 1L, 'A', '2024-01-15T10:00:02Z')"""
-    )
-
-    val rows = revisionIncoming().collect()
-    rows.length                             shouldEqual 1
-    rows(0).getAs[Long]("revision_id")      shouldEqual 102L
-  }
-
   it should "include events where rev_dt is within 90 days of the run date" in {
     registerEmptyTarget()
     registerNamespaces()
