@@ -1,3 +1,6 @@
+## v0.3.22
+* Remove any reference to the windowing of 90 Days.
+
 ## v0.3.21
 * Update Inc-MWH splitting SQL into smaller files, the SQL code for DeltaMerger is now organized in per-entity files.
 * Unified the per-entity inserts into a single, distributed and sorted insert for MWHistorySnapshotMerger
