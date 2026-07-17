@@ -628,20 +628,20 @@
 
     <profiles>
         <profile>
-            <id>jdk17</id>
+            <id>jdk21</id>
             <activation>
-                <jdk>17</jdk>
+                <jdk>21</jdk>
             </activation>
             <dependencyManagement>
                 <!--
-          excludes jdk.tools when building on JDK17
+          excludes jdk.tools when building on JDK21
 
-          JDK17 is used to run sonar analysis and fails as
-          tools.jar has been removed from JDK17. Excluding this
+          JDK21 is used to run sonar analysis and fails as
+          tools.jar has been removed from JDK21. Excluding this
           dependency is a workaround to get the sonar analysis
           working. A proper fix (probably updating hadoop and
           hive versions) will be required before doing a proper
-          migration to JDK17.
+          migration to JDK21.
         -->
                 <dependencies>
 
