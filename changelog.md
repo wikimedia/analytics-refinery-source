@@ -1,3 +1,6 @@
+## v0.3.24
+* Split LogHelper to simplify dependencies
+
 ## v0.3.23
 * Update MW_history to validate before writing 
 
