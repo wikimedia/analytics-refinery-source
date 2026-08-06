@@ -1,3 +1,6 @@
+## v0.3.23
+* Update MW_history to validate before writing 
+
 ## v0.3.22
 * Remove any reference to the windowing of 90 Days.
 
