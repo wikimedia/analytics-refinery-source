@@ -372,11 +372,11 @@ class DenormalizedRunner(
       .union(pageMediawikiEventsWithUserData)
 
     //***********************************
-    // Write results
+    // Make a DataFrame from the RDD
     //***********************************
 
     val denormalizedMediawikiEventsDf = spark.createDataFrame(
-        denormalizedMediawikiEventsRdd
+      denormalizedMediawikiEventsRdd
           // eventErrors should not be filtered out,
           // They would impair global stats correctness
           //.filter(_.eventErrors.isEmpty)
@@ -384,7 +384,25 @@ class DenormalizedRunner(
             addOptionalStat(s"${event.wikiDb}.$METRIC_WRITTEN_ROWS", 1)
             event.toRow
           }),
-        MediawikiEvent.schema)
+      MediawikiEvent.schema)
+
+    //***********************************
+    // Sanity check - Validate there is no duplicate revision
+    //***********************************
+
+    val nbDuplicateRevisions = denormalizedMediawikiEventsDf.
+        where("event_entity = 'revision' AND event_type = 'create'").
+        groupBy("wiki_db", "revision_id").
+        count().
+        where("count > 1").
+        count()
+
+    assert(nbDuplicateRevisions == 0, "The dataset contains duplicate revisions, failing.")
+
+    //***********************************
+    // Write results
+    //***********************************
+
     denormalizedMediawikiEventsDf.repartition(workPartitions).write.mode(SaveMode.Overwrite).parquet(outputPath)
     log.info(s"Denormalized MW Events results written")
 
@@ -405,19 +423,6 @@ class DenormalizedRunner(
       errorDf.repartition(numPartitions / 16).write.mode(SaveMode.Overwrite).format("csv").option("sep", "\t").save(errorsPath)
       log.info(s"Denormalized MW Events errors written")
     })
-
-    //***********************************
-    // Sanity check - Validate there is no duplicate revision
-    //***********************************
-
-    val nbDuplicateRevisions = denormalizedMediawikiEventsDf.
-        where("event_entity = 'revision' AND event_type = 'create'").
-        groupBy("wiki_db", "revision_id").
-        count().
-        where("count > 1").
-        count()
-
-    assert(nbDuplicateRevisions == 0, "The dataset contains duplicate revisions, failing.")
 
     log.info(s"Denormalized MW Events jobs done")
 
