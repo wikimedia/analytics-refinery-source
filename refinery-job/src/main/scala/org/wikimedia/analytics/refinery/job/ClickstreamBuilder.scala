@@ -2,13 +2,13 @@ package org.wikimedia.analytics.refinery.job
 
 import org.apache.spark.sql.functions.{col, desc, lit, sum}
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
-import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.spark.utils.SparkLogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 
 import java.net.URLDecoder
 import scala.collection.immutable.ListMap
 
-object ClickstreamBuilder extends LogHelper with ConfigHelper {
+object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
 
     case class PageInfo(
         wikiDb: String,

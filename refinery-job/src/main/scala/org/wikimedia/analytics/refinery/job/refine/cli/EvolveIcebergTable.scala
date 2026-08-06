@@ -8,7 +8,7 @@ import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFuncti
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
 import org.wikimedia.analytics.refinery.spark.sql.IcebergExtensions.IcebergStructTypeExtensions
 import org.wikimedia.analytics.refinery.spark.sql.TableSchemaManager.IcebergTableSchemaManager
-import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.spark.utils.SparkLogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
@@ -19,7 +19,7 @@ import scala.util.control.Exception.ignoring
 /**
   * A simple CLI tool to manually update or create Iceberg tables from JSONSchema.
   */
-object EvolveIcebergTable extends ConfigHelper with TransformFunctionsConfigHelper with LogHelper {
+object EvolveIcebergTable extends ConfigHelper with TransformFunctionsConfigHelper with SparkLogHelper {
 
     case class Config(
         table: String,
@@ -130,7 +130,7 @@ object EvolveIcebergTable extends ConfigHelper with TransformFunctionsConfigHelp
 class EvolveIcebergTable(
     schemaLoader: EventSchemaLoader,
     spark: SparkSession
-) extends LogHelper with TransformFunctionsConfigHelper {
+) extends SparkLogHelper with TransformFunctionsConfigHelper {
 
     /**
      *

@@ -8,7 +8,7 @@ import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoad
 import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineTarget, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
 import org.wikimedia.analytics.refinery.spark.sql.HiveExtensions._
-import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.spark.utils.SparkLogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 import scala.util.Success
@@ -18,7 +18,7 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
 object RefineHiveDataset
-    extends LogHelper
+    extends SparkLogHelper
         with ConfigHelper
         with TransformFunctionsConfigHelper {
 

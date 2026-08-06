@@ -6,7 +6,7 @@ import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFuncti
 import org.wikimedia.analytics.refinery.job.refine.cli.EvolveHiveTable.DEFAULT_PARTITIONS
 import org.wikimedia.analytics.refinery.job.refine.cli.RefineHiveDataset.SupportedInputFormats
 import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineTarget, SparkEventSchemaLoader, WikimediaEventSparkSchemaLoader}
-import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.spark.utils.SparkLogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 
 import java.net.URI
@@ -14,7 +14,7 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 
 object EvolveAndRefineToHiveTable
-    extends LogHelper
+    extends SparkLogHelper
         with ConfigHelper
         with TransformFunctionsConfigHelper {
 

@@ -7,7 +7,7 @@ import org.wikimedia.analytics.refinery.job.refine.RefineHelper.{TransformFuncti
 import org.wikimedia.analytics.refinery.job.refine.WikimediaEventSparkSchemaLoader.BASE_SCHEMA_URIS_DEFAULT
 import org.wikimedia.analytics.refinery.job.refine.{RawRefineDataReader, RefineHelper, RefineTarget, SparkEventSchemaLoader}
 import org.wikimedia.analytics.refinery.spark.sql.DataFrameToTable
-import org.wikimedia.analytics.refinery.tools.LogHelper
+import org.wikimedia.analytics.refinery.spark.utils.SparkLogHelper
 import org.wikimedia.analytics.refinery.tools.config._
 import org.wikimedia.eventutilities.core.event.EventSchemaLoader
 
@@ -16,7 +16,7 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Success, Try}
 
-object RefineIcebergDataset extends LogHelper with ConfigHelper with TransformFunctionsConfigHelper {
+object RefineIcebergDataset extends SparkLogHelper with ConfigHelper with TransformFunctionsConfigHelper {
 
     val SupportedInputFormats: Set[String] = Set("parquet", "json", "avro")
 
