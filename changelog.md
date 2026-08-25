@@ -1,3 +1,6 @@
+## v0.3.25
+* refinery-job: Add HiveToJdbc job to mirror Hive tables to PostgreSQL
+
 ## v0.3.24
 * Split LogHelper to simplify dependencies
 
