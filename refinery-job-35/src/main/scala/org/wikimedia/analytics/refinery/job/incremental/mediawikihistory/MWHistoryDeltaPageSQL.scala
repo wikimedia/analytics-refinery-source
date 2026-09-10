@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.incremental.mediawikihistory
 
-import org.wikimedia.analytics.refinery.job.incremental.mediawikihistory.MWHistoryDeltaWriter.Params
+import org.wikimedia.analytics.refinery.job.incremental.mediawikihistory.MWHistoryDeltaWriter.{Params, withoutImplicitGroups}
 
 object MWHistoryDeltaPageSQL {
 
@@ -44,7 +44,7 @@ object MWHistoryDeltaPageSQL {
     (performer.user_id IS NOT NULL
      AND NOT performer.is_temp)                                         AS event_user_is_permanent,
     to_timestamp(performer.registration_dt)                             AS event_user_registration_timestamp,
-    performer.groups                                                    AS event_user_groups_historical,
+    ${withoutImplicitGroups("performer.groups")}                        AS event_user_groups_historical,
 
     page.page_id                                                        AS page_id,
     CASE WHEN page.namespace_id = 0 THEN page.page_title

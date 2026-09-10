@@ -72,6 +72,29 @@ object MWHistoryDeltaWriter {
         .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
   }
 
+  /**
+   * Groups that MediaWiki computes for a user. MediaWiki does not store them in the
+   * user_groups table.
+   *
+   * The page_change and user_change streams put these groups in the groups array.
+   * wmf.mediawiki_history reads the user_groups table, so it never has them. Remove
+   * them from the stream values to make the two sources agree.
+   *
+   * A group census over all wikis for snapshot 2026-08 gives this list. Each group
+   * occurs many times on the events side and never on the snapshot side. See T425734.
+   */
+  val ImplicitGroups: Seq[String] =
+    Seq("*", "user", "autoconfirmed", "temp", "autoextendedconfirmed")
+
+  /**
+   * Returns a SQL expression that removes the implicit groups from a groups array.
+   * Use it at every site that reads groups from an event stream.
+   */
+  def withoutImplicitGroups(groupsExpr: String): String = {
+    val quoted = ImplicitGroups.map(g => s"'$g'").mkString(", ")
+    s"array_except($groupsExpr, array($quoted))"
+  }
+
   // $COVERAGE-OFF$
   def main(args: Array[String]): Unit = {
     val params = parseArgs(args)

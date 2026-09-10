@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.incremental.mediawikihistory
 
-import org.wikimedia.analytics.refinery.job.incremental.mediawikihistory.MWHistoryDeltaWriter.Params
+import org.wikimedia.analytics.refinery.job.incremental.mediawikihistory.MWHistoryDeltaWriter.{Params, withoutImplicitGroups}
 
 object MWHistoryDeltaUserSQL {
 
@@ -39,7 +39,8 @@ raw_user_events AS (
     is_autocreate                  AS user_is_autocreate,
     user.is_temp                   AS user_is_temp,
     user.edit_count                AS user_revision_edit_count,
-    user.groups                    AS user_groups_historical,
+    ${withoutImplicitGroups("user.groups")}
+                                   AS user_groups_historical,
     user.registration_dt           AS user_registration_dt,
 
     performer.user_id              AS event_user_id,
@@ -47,7 +48,8 @@ raw_user_events AS (
     performer.user_text            AS event_user_text_historical,
     performer.is_temp              AS event_user_is_temp,
     performer.registration_dt      AS event_user_registration_dt,
-    performer.groups               AS event_user_groups_historical
+    ${withoutImplicitGroups("performer.groups")}
+                                   AS event_user_groups_historical
   FROM ${p.userChangeTable}
   WHERE year  = ${p.year}
     AND month = ${p.month}

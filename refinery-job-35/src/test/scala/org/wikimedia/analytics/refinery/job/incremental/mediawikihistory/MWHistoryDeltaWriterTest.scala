@@ -1034,12 +1034,13 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     rows(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
   }
 
-  it should "set revision_deleted_parts to null when all visibility fields are true (restore)" in {
+  it should "set revision_deleted_parts to an empty array when all visibility fields are true (restore)" in {
     registerVisibilityWith(
       """('enwiki', 101L, true, true, true, '2024-01-15T10:00:00Z')"""
     )
 
-    latestVisibility().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldBe null
+    // Empty, not NULL: wmf.mediawiki_history uses an empty array here. See T425734.
+    latestVisibility().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq.empty[String]
   }
 
   it should "include all three parts when all visibility fields are false" in {
@@ -1059,7 +1060,7 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
 
     val rows = latestVisibility().collect()
     rows.length shouldEqual 1
-    rows(0).getAs[Seq[String]]("revision_deleted_parts") shouldBe null
+    rows(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq.empty[String]
   }
 
   // ---- Page events (MERGE 5) ----
@@ -1282,6 +1283,116 @@ class MWHistoryDeltaWriterTest extends FlatSpec with Matchers with BeforeAndAfte
     )
 
     revisionIncoming().collect()(0).getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq("text")
+  }
+
+  // ---- T425734 field alignment with wmf.mediawiki_history ----
+
+  "MWHistoryDeltaWriter revision field alignment" should
+    "strip the namespace prefix from page_title_historical on revision rows" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          400L, 42L, 999L, 'Alice', false, array('editor'), '2000-01-01T00:00:00Z', 7L,
+          2, 1L, 'User:Alice/sandbox', '2024-01-15T10:00:01Z')"""
+    )
+
+    revisionIncoming().collect()(0).getAs[String]("page_title_historical") shouldEqual "Alice/sandbox"
+  }
+
+  it should "keep the title unchanged on revision rows in the main namespace" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          400L, 42L, 999L, 'Alice', false, array('editor'), '2000-01-01T00:00:00Z', 7L,
+          0, 1L, 'Main_Page', '2024-01-15T10:00:01Z')"""
+    )
+
+    revisionIncoming().collect()(0).getAs[String]("page_title_historical") shouldEqual "Main_Page"
+  }
+
+  it should "remove implicit groups from event_user_groups_historical" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          400L, 42L, 999L, 'Alice', false,
+          array('*', 'user', 'autoconfirmed', 'temp', 'autoextendedconfirmed', 'sysop', 'bot'),
+          '2000-01-01T00:00:00Z', 7L, 0, 1L, 'Main_Page', '2024-01-15T10:00:01Z')"""
+    )
+
+    val row = revisionIncoming().collect()(0)
+    row.getAs[Seq[String]]("event_user_groups_historical") should contain theSameElementsAs Seq("sysop", "bot")
+    // Bot-by-group still works: 'bot' is explicit and survives the filter.
+    row.getAs[Seq[String]]("event_user_is_bot_by_historical") shouldEqual Seq("group")
+  }
+
+  it should "leave a groups array of only explicit groups unchanged" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          400L, 42L, 999L, 'Alice', false, array('sysop'), '2000-01-01T00:00:00Z', 7L,
+          0, 1L, 'Main_Page', '2024-01-15T10:00:01Z')"""
+    )
+
+    revisionIncoming().collect()(0)
+      .getAs[Seq[String]]("event_user_groups_historical") shouldEqual Seq("sysop")
+  }
+
+  it should "produce a revision row for a move event (the null revision)" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'move', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          500L, 42L, 999L, 'Alice', false, array('sysop'), '2000-01-01T00:00:00Z', 7L,
+          0, 1L, 'New_Title', '2024-01-15T10:00:01Z')"""
+    )
+
+    val rows = revisionIncoming().collect()
+    rows.length shouldEqual 1
+    val row = rows(0)
+    row.getAs[String]("event_entity")           shouldEqual "revision"
+    row.getAs[String]("event_type")             shouldEqual "create"
+    row.getAs[Long]("revision_id")              shouldEqual 101L
+    // A null revision keeps the size of its parent, so the diff is 0.
+    row.getAs[Long]("revision_text_bytes_diff") shouldEqual 0L
+    // MWH stores the post-move title. See MWHistoryDeltaPageSQL note (3) and T425734.
+    row.getAs[String]("page_title_historical")  shouldEqual "New_Title"
+  }
+
+  it should "not mark a move null revision as a revert" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    // The null revision (102) repeats the sha1 of its parent (101) on the same page.
+    // The no-op rule must keep it out of revert detection, as the monthly does.
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          400L, 42L, 999L, 'Alice', false, array('sysop'), '2000-01-01T00:00:00Z', 7L,
+          0, 1L, 'Old_Title', '2024-01-15T10:00:01Z'),
+         ('enwiki', 'move', 102L, 101L, '2024-01-15T11:00:00Z', 500, 'sha-A',
+          500L, 42L, 999L, 'Alice', false, array('sysop'), '2000-01-01T00:00:00Z', 7L,
+          0, 1L, 'New_Title', '2024-01-15T11:00:01Z')"""
+    )
+
+    val byId = revisionIncoming().collect().map(r => r.getAs[Long]("revision_id") -> r).toMap
+    byId.size shouldEqual 2
+    byId(102L).getAs[Boolean]("revision_is_identity_revert")   shouldBe false
+    byId(101L).getAs[Boolean]("revision_is_identity_reverted") shouldBe false
+  }
+
+  it should "set revision_deleted_parts to an empty array when all parts stay visible" in {
+    registerEmptyTarget()
+    registerNamespaces()
+    registerSourceWith(
+      """('enwiki', 'edit', 101L, 100L, '2024-01-15T10:00:00Z', 500, 'sha-A',
+          400L, 42L, 999L, 'Alice', false, array('editor'), '2000-01-01T00:00:00Z', 7L,
+          0, 1L, 'Main_Page', '2024-01-15T10:00:01Z')"""
+    )
+
+    revisionIncoming().collect()(0)
+      .getAs[Seq[String]]("revision_deleted_parts") shouldEqual Seq.empty[String]
   }
 
   // ---- User events (MERGE 7) ----

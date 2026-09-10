@@ -1,6 +1,6 @@
 package org.wikimedia.analytics.refinery.job.incremental.mediawikihistory
 
-import org.wikimedia.analytics.refinery.job.incremental.mediawikihistory.MWHistoryDeltaWriter.Params
+import org.wikimedia.analytics.refinery.job.incremental.mediawikihistory.MWHistoryDeltaWriter.{Params, withoutImplicitGroups}
 
 object MWHistoryDeltaRevisionSQL {
 
@@ -14,20 +14,25 @@ object MWHistoryDeltaRevisionSQL {
 
         s"""WITH raw_events AS (
   -- Map page_change fields to the target schema column names.
-  -- Only 'create' and 'edit' produce revision rows; moves/deletes are handled separately.
+  -- 'create', 'edit' and 'move' produce revision rows. Deletes are handled separately.
   --
   -- Field path notes (verified against event.mediawiki_page_change_v1 Hive schema):
   -- (1) is_anonymous: no explicit field — derived as user_id IS NULL.
   -- (2) registration_dt: present in revision.editor.registration_dt.
   -- (3) rev_sha1: use revision.rev_sha1 (all-slots sha1, matches wmf.mediawiki_history).
   -- (4) byte diff: prior_state.revision.rev_size carries parent size — no join needed.
-  --     NULL for page creates where prior_state.revision is absent.
+  --     Page creates have prior_state.revision, but rev_size is NULL, so the diff is NULL.
+  --     Moves carry rev_size, so the diff is 0. This agrees with wmf.mediawiki_history.
   -- (5) bot-by-group: revision.editor.groups is present in the event.
   -- (6) revision_tags: not present in the event schema — written as NULL.
+  -- (7) page_title: the event carries the prefixed title. wmf.mediawiki_history stores the
+  --     bare title and holds the namespace in page_namespace_historical. Strip the prefix,
+  --     the same way MWHistoryDeltaPageSQL does. See T425734.
   SELECT
     wiki_id,
     'revision'                                                      AS event_entity,
-    -- Whether from page-create or page-edits, revisions are always of type 'create'
+    -- Page creates, page edits and page moves all produce a revision. In
+    -- wmf.mediawiki_history every revision row has event_type 'create'.
     'create'                                                        AS event_type,
     to_timestamp(revision.rev_dt)                                   AS event_timestamp,
     revision.editor.user_id                                         AS event_user_id,
@@ -39,10 +44,12 @@ object MWHistoryDeltaRevisionSQL {
      AND NOT revision.editor.is_temp)                               AS event_user_is_permanent,
     to_timestamp(revision.editor.registration_dt)                   AS event_user_registration_timestamp,
     revision.editor.edit_count                                      AS event_user_revision_count,
-    revision.editor.groups                                          AS event_user_groups_historical,
+    ${withoutImplicitGroups("revision.editor.groups")}              AS event_user_groups_historical,
 
     page.page_id                                                    AS page_id,
-    page.page_title                                                 AS page_title_historical,
+    CASE WHEN page.namespace_id = 0 THEN page.page_title
+         ELSE REGEXP_REPLACE(page.page_title, '^[^:]+:', '')
+    END                                                             AS page_title_historical,
     page.namespace_id                                               AS page_namespace_historical,
     revision.rev_id                                                 AS revision_id,
     revision.rev_parent_id                                          AS revision_parent_id,
@@ -52,6 +59,8 @@ object MWHistoryDeltaRevisionSQL {
       - CAST(prior_state.revision.rev_size AS BIGINT)               AS revision_text_bytes_diff,
     revision.rev_sha1                                               AS revision_text_sha1,
     CAST(NULL AS ARRAY<STRING>)                                     AS revision_tags,
+    -- wmf.mediawiki_history writes an empty array when all parts stay visible. Write the
+    -- same value, not NULL, so a consumer gets one type from both sources. See T425734.
     CASE WHEN NOT (revision.is_content_visible
                    AND revision.is_editor_visible
                    AND revision.is_comment_visible)
@@ -63,14 +72,18 @@ object MWHistoryDeltaRevisionSQL {
                 ),
                 x -> x IS NOT NULL
               )
+         ELSE CAST(array() AS ARRAY<STRING>)
     END                                                             AS revision_deleted_parts,
     to_timestamp(meta.dt)                                           AS meta_dt
   FROM ${p.pageChangeTable}
   WHERE year  = ${p.year}
     AND month = ${p.month}
     AND day   = ${p.day}
-    AND page_change_kind IN ('create', 'edit')
-    -- Exclude page imports and other admin operations that emit 'create'/'edit' events
+    -- A move creates a null revision. MediaWiki inserts it in the revision table, so
+    -- wmf.mediawiki_history counts it. Read moves too, or the daily rows stay short.
+    -- The null revision has the sha1 of its parent. The no-op rule in sha1_ranked keeps
+    -- it out of revert detection, the same way the monthly does. See T425734.
+    AND page_change_kind IN ('create', 'edit', 'move')
 ),
 
 deduplicated AS (
@@ -693,6 +706,8 @@ WHEN MATCHED THEN
   SELECT
     database AS wiki_id,
     rev_id   AS revision_id,
+    -- Write an empty array, not NULL, when a change makes all parts visible again.
+    -- This keeps the column type-consistent with wmf.mediawiki_history. See T425734.
     CASE WHEN NOT (visibility.text AND visibility.user AND visibility.comment)
          THEN filter(
                 array(
@@ -702,6 +717,7 @@ WHEN MATCHED THEN
                 ),
                 x -> x IS NOT NULL
               )
+         ELSE CAST(array() AS ARRAY<STRING>)
     END AS revision_deleted_parts,
     meta.dt AS meta_dt
   FROM (
