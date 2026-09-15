@@ -1,3 +1,6 @@
+## v0.3.26
+* MWHistoryDeltaWriter: align fields with mediawiki_history
+
 ## v0.3.25
 * refinery-job: Add HiveToJdbc job to mirror Hive tables to PostgreSQL
 
