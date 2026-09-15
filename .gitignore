@@ -27,3 +27,6 @@ out/
 
 # Maven backups
 *.bak
+
+# Claude
+.claude

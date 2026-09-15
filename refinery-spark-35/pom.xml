@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.wikimedia.analytics.refinery</groupId>
+        <artifactId>refinery</artifactId>
+        <version>0.3.29-SNAPSHOT</version>
+    </parent>
+
+    <groupId>org.wikimedia.analytics.refinery.spark</groupId>
+    <artifactId>refinery-spark-35</artifactId>
+    <packaging>jar</packaging>
+    <name>Wikimedia Analytics Refinery Spark (Spark 3.5)</name>
+    <description>Spark 3.5 libraries. Currently: Spark application metrics aggregation (T297231).</description>
+
+    <!-- Override the repo-wide Spark version for this module only. -->
+    <properties>
+        <spark.version>3.5.8</spark.version>
+    </properties>
+
+    <dependencies>
+
+        <!--
+            For LogHelper. refinery-tools declares no Spark dependency, so it is
+            safe to use from a module built against a different Spark than the
+            rest of the repo.
+        -->
+        <dependency>
+            <groupId>org.wikimedia.analytics.refinery.tools</groupId>
+            <artifactId>refinery-tools</artifactId>
+        </dependency>
+
+        <!--
+            spark-core only. The monitoring package works on listener events and
+            plain values; it touches neither Hive nor Iceberg.
+
+            Hadoop comes with it: Spark 3.5 brings hadoop-client-api 3.3.4, which
+            is what the cluster's Spark 3.5 distribution runs against. Declaring
+            the repo-wide hadoop-common 2.10.1 here instead would compile this
+            module against a Hadoop its runtime will never see.
+        -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_${scala.compat.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!--
+            SparkLogHelper takes a SparkSession, which lives in spark-sql.
+        -->
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-sql_${scala.compat.version}</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+            Spark 3.5 requires jackson-databind >= 2.14 (LookupCache API).
+            The parent pom pins it at 2.10.0; override here for this module only.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.15.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_${scala.compat.version}</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <!--
+                        Spark 3.5 ships its own netty, jersey and logging sets, which
+                        collide with the versions the parent pom pins for Spark 3.1.
+                        They are provided at runtime by the Spark distribution, so the
+                        duplicates never reach a deployed artifact. Same reason this
+                        check is off in refinery-spark and refinery-job-35.
+                    -->
+                    <groupId>org.basepom.maven</groupId>
+                    <artifactId>duplicate-finder-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>duplicate-classes-check</id>
+                            <phase>none</phase>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.scalatest</groupId>
+                <artifactId>scalatest-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

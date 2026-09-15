@@ -12,7 +12,7 @@
     <artifactId>refinery-job-35</artifactId>
     <packaging>jar</packaging>
     <name>Wikimedia Analytics Refinery Jobs (Spark 3.5)</name>
-    <description>Spark 3.5 jobs. Currently: incremental MediaWiki history writers (T424350).</description>
+    <description>Spark 3.5 jobs. Currently: incremental MediaWiki history writers (T424350), Spark event log metrics (T297231).</description>
 
     <!-- Override the repo-wide Spark version for this module only. -->
     <properties>
@@ -22,8 +22,32 @@
     <dependencies>
 
         <dependency>
+            <groupId>com.github.nscala-time</groupId>
+            <artifactId>nscala-time_${scala.compat.version}</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.github.scopt</groupId>
             <artifactId>scopt_${scala.compat.version}</artifactId>
+        </dependency>
+
+        <!--
+            Stage metrics aggregation, built against the same Spark as this module.
+        -->
+        <dependency>
+            <groupId>org.wikimedia.analytics.refinery.spark</groupId>
+            <artifactId>refinery-spark-35</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!--
+            For ConfigHelper and LogHelper. refinery-tools declares no Spark
+            dependency, so it is safe to use from a module built against a
+            different Spark than the rest of the repo.
+        -->
+        <dependency>
+            <groupId>org.wikimedia.analytics.refinery.tools</groupId>
+            <artifactId>refinery-tools</artifactId>
         </dependency>
 
         <!--
@@ -94,6 +118,26 @@
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.compat.version}</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!--
+            For PathUtils, used by the event log metrics tests.
+
+            jackson-dataformat-yaml is excluded: refinery-core brings it at the
+            parent pom's 2.10.0 pin, which would sit on the test classpath next to
+            the 2.15.2 databind Spark 3.5 needs. Nothing here reads YAML, so the
+            simplest fix is not to have the mismatched pair at all.
+        -->
+        <dependency>
+            <groupId>org.wikimedia.analytics.refinery.core</groupId>
+            <artifactId>refinery-core</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.dataformat</groupId>
+                    <artifactId>jackson-dataformat-yaml</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 

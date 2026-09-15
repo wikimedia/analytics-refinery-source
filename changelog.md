@@ -1,3 +1,7 @@
+## v0.3.29
+* refinery-spark-35: New module, the Spark 3.5 counterpart of refinery-spark. Currently holds the Spark stage metrics aggregation
+* refinery-job-35: Add SparkEventLogMetrics, reading Spark event logs into a per-stage metrics table
+
 ## v0.3.28
 * refinery-job: Add HiveToJdbc optional param target_table
 * refinery-job: Sort the XML export partitions in Catalyst
