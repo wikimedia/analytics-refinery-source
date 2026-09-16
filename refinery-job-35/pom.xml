@@ -60,6 +60,26 @@
         </dependency>
 
         <!--
+            LZMA2 codec for MediawikiDumperSevenZipRecompressor.
+
+            commons-compress writes the 7z container but declares this codec optional, so it
+            must be on the classpath separately. Spark 3.5 ships both (commons-compress 1.2x
+            and xz 1.9), hence provided.
+
+            This is the reason the recompressor lives in this module and not in refinery-job.
+            The Spark 3.1 distribution pairs commons-compress 1.20 with xz 1.5, which predates
+            org.tukaani.xz.LZMAOutputStream. commons-compress builds every codec in one static
+            initializer, so Coders fails to initialize there and the whole 7z path is unusable,
+            even though this job only needs LZMA2. Shading a newer xz into the job jar does not
+            help, because parent-first delegation resolves Coders against the Spark jars.
+        -->
+        <dependency>
+            <groupId>org.tukaani</groupId>
+            <artifactId>xz</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
             Spark 3.5 requires jackson-databind >= 2.14 (LookupCache API).
             The parent pom pins it at 2.10.0; override here for this module only.
         -->

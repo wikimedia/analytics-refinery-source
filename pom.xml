@@ -272,6 +272,19 @@
                 <version>3.2.5.RELEASE</version>
             </dependency>
             <dependency>
+                <!--
+                  The LZMA2 codec that commons-compress uses to write 7z.
+                  commons-compress declares it optional, so we declare it here.
+                  Pure Java, so no binary has to be installed on the workers.
+                  Keep this at the version the Spark 3.5 distribution ships, because
+                  refinery-job-35 takes it as provided. The Spark 3.1 distribution ships
+                  1.5, which is too old for the 7z path of commons-compress.
+                -->
+                <groupId>org.tukaani</groupId>
+                <artifactId>xz</artifactId>
+                <version>1.9</version>
+            </dependency>
+            <dependency>
                 <groupId>org.typelevel</groupId>
                 <artifactId>cats-core_${scala.compat.version}</artifactId>
                 <version>2.1.0</version>
