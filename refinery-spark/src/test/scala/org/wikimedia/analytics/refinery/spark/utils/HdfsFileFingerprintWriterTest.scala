@@ -16,7 +16,7 @@ class HdfsFileFingerprintWriterTest extends FlatSpec with Matchers with BeforeAn
 
   override def beforeAll(): Unit = {
     spark = SparkSession.builder()
-      .master("local[1]")
+      .master("local[4]") // more than one thread, so digests really run concurrently
       .appName("HdfsFileFingerprintWriterTest")
       .getOrCreate()
 
@@ -83,9 +83,11 @@ class HdfsFileFingerprintWriterTest extends FlatSpec with Matchers with BeforeAn
   }
 
   it should "create manifest file with correct format" in {
-    // Create test files
-    val file1 = createTestFile("file1.txt", "content1")
-    val file2 = createTestFile("file2.txt", "content2")
+    // Create test files in reverse name order, and on 4 threads, so a task
+    // that finishes early cannot make the manifest come out in task order.
+    (6 to 1 by -1).foreach { i =>
+      createTestFile(s"file$i.txt", s"content$i")
+    }
 
     // Create manifest
     HdfsFileFingerprintWriter.apply(testDir.getPath)
@@ -99,9 +101,21 @@ class HdfsFileFingerprintWriterTest extends FlatSpec with Matchers with BeforeAn
     val reference =
       """d0b425e00e15a0d36b9b361f02bab63563aed6cb4665083905386c55d5b679fa  file1.txt
         |dab741b6289e7dccc1ed42330cae1accc2b755ce8079c2cd5d4b5366c9f769a6  file2.txt
+        |3edb4af0a0f7c03b911f09f72820d409dd0c9d86d183cac8a35848a8fc30a756  file3.txt
+        |b04813d4f04a27cbd8a5d7828344a0c7d206a486343f503cb7e3d53e1d8e95a0  file4.txt
+        |c670ea433ba3699ac54bdae305d751c82c9bbd63fb9abaa08b54f169917a6b07  file5.txt
+        |55d813dbec4fe80eee4a9247e1012cce7f86b13a740f1bc43efcbd37c12b1b30  file6.txt
         |""".stripMargin
 
     manifest should equal (reference)
+  }
+
+  it should "create an empty manifest for a directory with no files" in {
+    HdfsFileFingerprintWriter.apply(testDir.getPath)
+
+    val manifestFile = new File(testDir, "SHA256SUMS")
+    manifestFile.exists() should be(true)
+    Source.fromFile(manifestFile).mkString should equal ("")
   }
 
   it should "handle special characters in filenames" in {
