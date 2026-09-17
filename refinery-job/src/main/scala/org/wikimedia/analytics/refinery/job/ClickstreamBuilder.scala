@@ -50,7 +50,7 @@ object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
       *      Join with page (from and to) to clean and denormalize
       *      Join with redirect to resolve directs
       *      Take distinct instances
-      *  - Get data from pageview_actor:
+      *  - Get data from webrequest_v2:
       *    - (prev[referer/referer_class parsing], curr[page_title], type, count)
       *      - Joint with pages (namespace 0 only)
       *      - Joint with redirect (resolved)
@@ -257,7 +257,7 @@ object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
       */
     def prepareClickstream(
         spark: SparkSession,
-        pageviewActorTable: String,
+        webrequestV2Table: String,
         year: Int,
         month: Int,
         projectToWikiMap: Map[String, String],
@@ -277,55 +277,60 @@ object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
         })
 
         // Prepare 2 udfs needed for data preparation
-        spark.udf.register("project_to_wiki", (project: String) => projectToWikiMap(project))
+        // Note: Even if project_to_wiki() would logically only be applied to filtered rows fulfilling
+        // the where clause, this is not the case in reality. This is so, because Spark transparently
+        // adds a non-null check to each selected field that is later going to be a join key.
+        // Thus, we need to use projectToWikiMap.get(project) instead of projectToWikiMap(project).
+        spark.udf.register("project_to_wiki", (project: String) => projectToWikiMap.get(project))
         spark.udf.register("url_decode", (path: String) => URLDecoder.decode(path, "UTF-8"))
 
         spark.sql(
             s"""
             |SELECT
-            |    project_to_wiki(CONCAT(pageview_info['project'], '.org')) AS wiki_db,
+            |    project_to_wiki(CONCAT(target.wiki, '.org')) AS wiki_db,
             |    CASE
             |        -- empty or malformed referer
-            |        WHEN referer IS NULL THEN 'other-empty'
-            |        WHEN referer == '' THEN 'other-empty'
-            |        WHEN referer == '-' THEN 'other-empty'
-            |        WHEN parse_url(referer,'HOST') is NULL THEN 'other-empty'
+            |        WHEN request.referer IS NULL THEN 'other-empty'
+            |        WHEN request.referer == '' THEN 'other-empty'
+            |        WHEN request.referer == '-' THEN 'other-empty'
+            |        WHEN parse_url(request.referer,'HOST') is NULL THEN 'other-empty'
             |        -- internal referer from the same wikipedia
-            |        WHEN parse_url(referer,'HOST') in (${listToSQLInCondition(domainAndMobileList)})
-            |                AND LENGTH(REGEXP_EXTRACT(parse_url(referer,'PATH'), '/wiki/(.*)', 1)) > 1
-            |            THEN REPLACE(url_decode(REGEXP_EXTRACT(parse_url(referer,'PATH'), '/wiki/(.*)', 1)), ' ', '_')
+            |        WHEN parse_url(request.referer,'HOST') in (${listToSQLInCondition(domainAndMobileList)})
+            |                AND LENGTH(REGEXP_EXTRACT(parse_url(request.referer,'PATH'), '/wiki/(.*)', 1)) > 1
+            |            THEN REPLACE(url_decode(REGEXP_EXTRACT(parse_url(request.referer,'PATH'), '/wiki/(.*)', 1)), ' ', '_')
             |        -- other referers
-            |        WHEN referer_class = 'internal' THEN 'other-internal'
-            |        WHEN referer_class = 'external' THEN 'other-external'
-            |        WHEN referer_class = 'external (search engine)' THEN 'other-search'
+            |        WHEN request.referer_type = 'internal' THEN 'other-internal'
+            |        WHEN request.referer_type = 'external' THEN 'other-external'
+            |        WHEN request.referer_type = 'external (search engine)' THEN 'other-search'
             |        ELSE 'other-other'
             |    END as fromTitle,
-            |    pageview_info['page_title'] as toTitle,
+            |    target.page_title as toTitle,
             |    COUNT(1) as count
-            |FROM $pageviewActorTable
-            |WHERE year = $year AND month = $month
-            |    AND pageview_info['project'] IN (${listToSQLInCondition(projectList)})
-            |    AND is_pageview
-            |    AND agent_type = 'user'
+            |FROM $webrequestV2Table
+            |WHERE dt >= make_timestamp($year, $month, 1, 0, 0, 0)
+            |    AND dt < make_timestamp($year, $month, 1, 0, 0, 0) + INTERVAL 1 MONTH
+            |    AND target.wiki IN (${listToSQLInCondition(projectList)})
+            |    AND request_type = 'pageview'
+            |    AND agent_type = 'human'
             |GROUP BY
-            |    project_to_wiki(CONCAT(pageview_info['project'], '.org')),
+            |    project_to_wiki(CONCAT(target.wiki, '.org')),
             |    CASE
             |        -- empty or malformed referer
-            |        WHEN referer IS NULL THEN 'other-empty'
-            |        WHEN referer == '' THEN 'other-empty'
-            |        WHEN referer == '-' THEN 'other-empty'
-            |        WHEN parse_url(referer,'HOST') is NULL THEN 'other-empty'
+            |        WHEN request.referer IS NULL THEN 'other-empty'
+            |        WHEN request.referer == '' THEN 'other-empty'
+            |        WHEN request.referer == '-' THEN 'other-empty'
+            |        WHEN parse_url(request.referer,'HOST') is NULL THEN 'other-empty'
             |        -- internal referer from the same wikipedia
-            |        WHEN parse_url(referer,'HOST') in (${listToSQLInCondition(domainAndMobileList)})
-            |                AND LENGTH(REGEXP_EXTRACT(parse_url(referer,'PATH'), '/wiki/(.*)', 1)) > 1
-            |            THEN REPLACE(url_decode(REGEXP_EXTRACT(parse_url(referer,'PATH'), '/wiki/(.*)', 1)), ' ', '_')
+            |        WHEN parse_url(request.referer,'HOST') in (${listToSQLInCondition(domainAndMobileList)})
+            |                AND LENGTH(REGEXP_EXTRACT(parse_url(request.referer,'PATH'), '/wiki/(.*)', 1)) > 1
+            |            THEN REPLACE(url_decode(REGEXP_EXTRACT(parse_url(request.referer,'PATH'), '/wiki/(.*)', 1)), ' ', '_')
             |        -- other referers
-            |        WHEN referer_class = 'internal' THEN 'other-internal'
-            |        WHEN referer_class = 'external' THEN 'other-external'
-            |        WHEN referer_class = 'external (search engine)' THEN 'other-search'
+            |        WHEN request.referer_type = 'internal' THEN 'other-internal'
+            |        WHEN request.referer_type = 'external' THEN 'other-external'
+            |        WHEN request.referer_type = 'external (search engine)' THEN 'other-search'
             |        ELSE 'other-other'
             |    END,
-            |    pageview_info['page_title']
+            |    target.page_title
             """.stripMargin
         )
 
@@ -402,7 +407,7 @@ object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
         redirect_table: String = "wmf_raw.mediawiki_redirect",
         pagelinks_table: String = "wmf_raw.mediawiki_pagelinks",
         linktarget_table: String = "wmf_raw.mediawiki_private_linktarget",
-        pageview_actor_table: String = "wmf.pageview_actor",
+        webrequest_v2_table: String = "wmf_traffic.webrequest_v2",
         spark_partitions: Int = 1024,
         output_files_parts: Int = 1,
         minimun_link_count: Int = 10,
@@ -438,8 +443,8 @@ object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
                 s"Fully qualified name of the mediawiki pagelinks table. Default: ${default.pagelinks_table}",
             "linktarget_table" ->
                 s"Fully qualified name of the mediawiki linktarget table. Default: ${default.linktarget_table}",
-            "pageview_actor_table" ->
-                s"Fully qualified name of the pageview_actor table. Default: ${default.pageview_actor_table}",
+            "webrequest_v2_table" ->
+                s"Fully qualified name of the webrequest_v2 table. Default: ${default.webrequest_v2_table}",
             "spark_partitions" ->
                 s"Number of partitions Spark uses to distribute work. Default: ${default.spark_partitions}",
             "output_files_parts" ->
@@ -510,7 +515,7 @@ object ClickstreamBuilder extends SparkLogHelper with ConfigHelper {
 
         prepareClickstream(
             spark,
-            config.pageview_actor_table,
+            config.webrequest_v2_table,
             config.year,
             config.month,
             projectToWikiMap,
