@@ -3,11 +3,13 @@ package org.wikimedia.analytics.refinery.job.mediawikidumper
 import java.io.{
     BufferedInputStream,
     File,
+    FileInputStream,
     IOException,
     ObjectInputStream,
-    ObjectOutputStream
+    ObjectOutputStream,
+    PrintWriter
 }
-import java.security.MessageDigest
+import java.security.{DigestInputStream, MessageDigest}
 import java.util.Collections
 
 import org.apache.commons.compress.archivers.sevenz.{
@@ -43,6 +45,10 @@ import scopt.OptionParser
   *   - in: `.../{wiki}/{date}/xml/bzip2/{wiki}-{date}-{pageRange}.xml.bz2`
   *   - out: `.../{wiki}/{date}/xml/7z/{wiki}-{date}-{pageRange}.xml.7z`
   *
+  * For efficiency in Airflow, this job does many recompression related tasks:
+  * it applies a deny list, clears its own output folder, recompresses the files,
+  * and writes the SHA256SUMS manifest.
+  *
   * Each task is single-threaded on purpose. The 7-Zip `-mmt` option splits the
   * input into blocks and resets the dictionary at every block, which cancels the
   * gain from a large dictionary. The XZ for Java encoder cannot make this
@@ -71,6 +77,9 @@ object MediawikiDumperSevenZipRecompressor {
     /** Suffix of the hidden file that holds an upload in progress. */
     private val InProgressSuffix: String = ".inprogress"
 
+    /** Name of the checksum manifest. The bzip2 export uses the same name. */
+    private val ChecksumManifestName: String = "SHA256SUMS"
+
     /** The result of one file, used to report the job totals.
       *
       * @param name
@@ -83,13 +92,17 @@ object MediawikiDumperSevenZipRecompressor {
       *   size of the 7z output
       * @param elapsedMs
       *   wall time of the task
+      * @param sevenZipSha256
+      *   SHA-256 digest of the 7z output, as lower case hex. The job writes the
+      *   SHA256SUMS manifest from these values.
       */
     case class RecompressResult(
         name: String,
         compressedInputBytes: Long,
         uncompressedBytes: Long,
         compressedOutputBytes: Long,
-        elapsedMs: Long
+        elapsedMs: Long,
+        sevenZipSha256: String
     )
 
     /** Dictionary sizes that 7z can store, in bytes.
@@ -122,6 +135,14 @@ object MediawikiDumperSevenZipRecompressor {
     def apply(params: Params): Unit = {
         validate(params)
 
+        // Since deny lists will typically be small, we apply it here instead of as a task in Airflow.
+        if (params.denyList.contains(params.wikiId)) {
+            log.info(
+              s"${params.wikiId} is on the deny list. This wiki gets no 7z copy."
+            )
+            return
+        }
+
         val hadoopConf = spark.sparkContext.hadoopConfiguration
         val inputFolder = new Path(params.inputFolder)
         val outputFolder = new Path(params.outputFolder)
@@ -138,36 +159,43 @@ object MediawikiDumperSevenZipRecompressor {
              | decoder heap for a reader: about $decoderHeapMB MiB"""
             .stripMargin)
 
+        // Remove the output of an earlier run. A rerun can write a different set of
+        // file names, because the export decides the page ranges. A stale file would
+        // stay in the folder, and the SHA256SUMS manifest would not list it.
+        if (params.clearOutputFolder && fs.exists(outputFolder)) {
+            log.info(s"Clearing ${params.outputFolder}")
+            fs.delete(outputFolder, true)
+        }
+
         if (!fs.exists(outputFolder)) {
             fs.mkdirs(outputFolder)
         }
 
+        // buildWorkList fails when the input folder holds no dump file, so the list
+        // always holds at least one pair here.
         val work = buildWorkList(fs, inputFolder, outputFolder, params)
+        val serializableConf = new SerializableHadoopConfiguration(hadoopConf)
 
-        if (work.isEmpty) {
-            log.info(
-              s"Every output file already exists in ${params.outputFolder}. Nothing to do."
-            )
-        } else {
-            val serializableConf = new SerializableHadoopConfiguration(hadoopConf)
+        // One file per task. Spark then retries one file, not a batch.
+        // A task can run for hours, so this keeps the cost of a retry low.
+        val results = spark
+            .sparkContext
+            .parallelize(work, work.size)
+            .map { case (inputPathString, outputPathString) =>
+                recompressOneFile(
+                  new Path(inputPathString),
+                  new Path(outputPathString),
+                  params,
+                  serializableConf
+                )
+            }
+            .collect()
 
-            // One file per task. Spark then retries one file, not a batch.
-            // A task can run for hours, so this keeps the cost of a retry low.
-            val results = spark
-                .sparkContext
-                .parallelize(work, work.size)
-                .map { case (inputPathString, outputPathString) =>
-                    recompressOneFile(
-                      new Path(inputPathString),
-                      new Path(outputPathString),
-                      params,
-                      serializableConf
-                    )
-                }
-                .collect()
-
-            logSummary(results)
+        if (params.writeChecksums) {
+            writeChecksumManifest(fs, outputFolder, results)
         }
+
+        logSummary(results)
 
         log.info(
           s"Mediawiki Dumper 7z recompressor: Done. Output in ${params.outputFolder}"
@@ -210,6 +238,23 @@ object MediawikiDumperSevenZipRecompressor {
         if (params.inputExtension == params.outputExtension) {
             throw new IllegalArgumentException(
               "input_extension and output_extension must differ"
+            )
+        }
+
+        // A deny list without a wiki id never matches, so the job would run for a
+        // wiki that must get no 7z copy. Fail instead of doing the wrong work.
+        if (params.denyList.nonEmpty && params.wikiId.isEmpty) {
+            throw new IllegalArgumentException(
+              "deny_list needs wiki_id. Pass the wiki that this run recompresses."
+            )
+        }
+
+        // The manifest lists the files of this run. Without a clear, the folder can
+        // hold a file from an earlier run, and the manifest would not list it.
+        if (params.writeChecksums && !params.clearOutputFolder) {
+            throw new IllegalArgumentException(
+              "write_checksums needs clear_output_folder. " +
+                  "The manifest lists the files of this run only."
             )
         }
 
@@ -272,25 +317,14 @@ object MediawikiDumperSevenZipRecompressor {
             )
         }
 
-        val pairs = inputs.map { status =>
-            val outputName = status
-                .getPath
-                .getName
-                .stripSuffix(params.inputExtension) + params.outputExtension
-            (status, new Path(outputFolder, outputName))
-        }
-
-        val (done, todo) = pairs.partition { case (_, outputPath) =>
-            params.skipExisting && fs.exists(outputPath)
-        }
-
-        if (done.nonEmpty) {
-            log.info(
-              s"Skipping ${done.size} of ${pairs.size} files. Their output already exists."
-            )
-        }
-
-        todo
+        inputs
+            .map { status =>
+                val outputName = status
+                    .getPath
+                    .getName
+                    .stripSuffix(params.inputExtension) + params.outputExtension
+                (status, new Path(outputFolder, outputName))
+            }
             // Largest input first, so a slow file does not start in the last wave of
             // tasks and run alone.
             //
@@ -339,8 +373,10 @@ object MediawikiDumperSevenZipRecompressor {
       * archive to container scratch space first, then uploads it.
       *
       * The method uploads to a hidden name and renames it. Rename is one metadata
-      * operation on HDFS, so a reader never sees a partial file, and a retry of
-      * the job can skip the files that are already complete.
+      * operation on HDFS, so a reader never sees a partial file.
+      *
+      * The upload also builds the SHA-256 digest of the archive. The job writes the
+      * SHA256SUMS manifest from these digests, and reads no published file again.
       *
       * @param inputPath
       *   the bz2 file to read
@@ -394,15 +430,13 @@ object MediawikiDumperSevenZipRecompressor {
                 verifyArchive(tempArchive, entryName, sourceDigest)
             }
 
-            fs.copyFromLocalFile(
-              false, // Keep the local file. The finally block removes it.
-              true, // Overwrite a staging file left by a failed attempt.
-              new Path(tempArchive.toURI),
-              stagingPath
-            )
+            // The upload reads every byte of the archive, so it also builds the
+            // SHA-256 that the SHA256SUMS manifest needs. A separate job that reads
+            // the published files again costs a full serial read of the output.
+            val sevenZipSha256 = uploadAndDigest(fs, tempArchive, stagingPath)
 
             // Rename fails when the target exists, which happens when
-            // skip_existing is off and the job reruns.
+            // clear_output_folder is off and the job reruns.
             if (fs.exists(outputPath)) {
                 fs.delete(outputPath, false)
             }
@@ -429,7 +463,8 @@ object MediawikiDumperSevenZipRecompressor {
               compressedInputBytes = compressedInputBytes,
               uncompressedBytes = uncompressedBytes,
               compressedOutputBytes = compressedOutputBytes,
-              elapsedMs = elapsedMs
+              elapsedMs = elapsedMs,
+              sevenZipSha256 = sevenZipSha256
             )
         } finally {
             if (tempArchive.exists() && !tempArchive.delete()) {
@@ -522,6 +557,91 @@ object MediawikiDumperSevenZipRecompressor {
         } finally {
             sevenZOutput.close()
         }
+    }
+
+    /** Uploads the local archive and returns its SHA-256 digest.
+      *
+      * The method streams the file, so it holds only one buffer in memory. The
+      * digest costs almost nothing, because the upload reads every byte anyway.
+      *
+      * @param fs
+      *   the file system of the target
+      * @param tempArchive
+      *   the local 7z file to upload
+      * @param targetPath
+      *   the path to write
+      * @return
+      *   the digest of the archive, as lower case hex
+      */
+    private def uploadAndDigest(
+        fs: FileSystem,
+        tempArchive: File,
+        targetPath: Path
+    ): String = {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val input = new DigestInputStream(
+          new BufferedInputStream(new FileInputStream(tempArchive), IOBufferBytes),
+          digest
+        )
+
+        try {
+            // Overwrite a staging file that a failed attempt left behind.
+            val output = fs.create(targetPath, true)
+
+            try {
+                val buffer = new Array[Byte](IOBufferBytes)
+                var read = input.read(buffer)
+                while (read != -1) {
+                    output.write(buffer, 0, read)
+                    read = input.read(buffer)
+                }
+            } finally {
+                output.close()
+            }
+        } finally {
+            input.close()
+        }
+
+        toHex(digest.digest())
+    }
+
+    /** Writes the SHA256SUMS manifest of the output folder.
+      *
+      * The format and the order match [[HdfsFileFingerprintWriter]], which the
+      * bzip2 export uses, so `sha256sum -c SHA256SUMS` behaves the same for both
+      * formats.
+      *
+      * The digests come from the tasks. The job does not read the published files
+      * again.
+      *
+      * @param fs
+      *   the file system of the output folder
+      * @param outputFolder
+      *   the folder that holds the 7z files
+      * @param results
+      *   the result of every file of this run
+      */
+    def writeChecksumManifest(
+        fs: FileSystem,
+        outputFolder: Path,
+        results: Seq[RecompressResult]
+    ): Unit = {
+        val manifestPath = new Path(outputFolder, ChecksumManifestName)
+        val writer = new PrintWriter(fs.create(manifestPath, true))
+
+        try {
+            results
+                .sortBy(_.name)
+                .foreach(result =>
+                    writer.println(s"${result.sevenZipSha256}  ${result.name}")
+                )
+        } finally {
+            writer.close()
+        }
+
+        log.info(
+          s"Wrote $manifestPath with ${results.size} entries."
+        )
     }
 
     /** Reads the archive back and compares it with the source.
@@ -674,8 +794,11 @@ object MediawikiDumperSevenZipRecompressor {
         niceLength: Int = 64,
         positionBits: Int = 0,
         depthLimit: Int = 0,
-        skipExisting: Boolean = true,
-        verify: Boolean = false
+        verify: Boolean = false,
+        wikiId: String = "",
+        denyList: Seq[String] = Seq.empty,
+        clearOutputFolder: Boolean = true,
+        writeChecksums: Boolean = true
     )
 
     /** Define the command line options parser
@@ -755,13 +878,39 @@ object MediawikiDumperSevenZipRecompressor {
                 |for little gain."""
                     .stripMargin
 
-            opt[Boolean]("skip_existing") optional
-                () valueName "<skip_existing>" action { (x, p) =>
-                    p.copy(skipExisting = x)
+            opt[String]("wiki_id") optional
+                () valueName "<wiki_id>" action { (x, p) =>
+                    p.copy(wikiId = x)
                 } text
-                """Skip a file when its output already exists. Defaults to true.
-                |The job publishes an output file with one rename, so a file that exists is
-                |complete. This makes a rerun cheap."""
+                """The wiki that this run recompresses. Only deny_list reads this.
+                |Set it together with deny_list."""
+                    .stripMargin
+
+            opt[Seq[String]]("deny_list") optional
+                () valueName "<wiki1,wiki2>" action { (x, p) =>
+                    p.copy(denyList = x)
+                } text
+                """Wikis that get no 7z copy. Empty by default.
+                |The job does nothing when wiki_id is on this list."""
+                    .stripMargin
+
+            opt[Boolean]("clear_output_folder") optional
+                () valueName "<clear_output_folder>" action { (x, p) =>
+                    p.copy(clearOutputFolder = x)
+                } text
+                """Delete the output folder before the run. Defaults to true.
+                |A rerun can write a different set of file names, because the export decides
+                |the page ranges. A stale file would stay in the folder, and SHA256SUMS would
+                |not list it."""
+                    .stripMargin
+
+            opt[Boolean]("write_checksums") optional
+                () valueName "<write_checksums>" action { (x, p) =>
+                    p.copy(writeChecksums = x)
+                } text
+                """Write the SHA256SUMS manifest of the output folder. Defaults to true.
+                |The tasks give the digests, so this costs nothing. It needs
+                |clear_output_folder, because the manifest lists the files of this run only."""
                     .stripMargin
 
             opt[Boolean]("verify") optional

@@ -3,6 +3,7 @@ package org.wikimedia.analytics.refinery.job.mediawikidumper
 import java.io.{ByteArrayOutputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.security.MessageDigest
 
 import scala.collection.JavaConverters._
 
@@ -171,6 +172,36 @@ class MediawikiDumperSevenZipRecompressorSpec
         }
     }
 
+    /** The 7z file names in the output folder, sorted. */
+    private def producedArchives: Seq[String] = {
+        outputFolder
+            .listFiles
+            .filter(_.isFile)
+            .map(_.getName)
+            .filter(_.endsWith(".7z"))
+            .sorted
+            .toSeq
+    }
+
+    /** The parsed SHA256SUMS manifest, as digest by file name. */
+    private def readChecksumManifest(): Seq[(String, String)] = {
+        val manifest = new File(outputFolder, "SHA256SUMS")
+        scala.io.Source
+            .fromFile(manifest, "UTF-8")
+            .getLines()
+            .map { line =>
+                val parts = line.split("  ", 2)
+                (parts(1), parts(0))
+            }
+            .toSeq
+    }
+
+    /** The SHA-256 of a file, as lower case hex. */
+    private def sha256Hex(file: File): String = {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.digest(Files.readAllBytes(file.toPath)).map(b => f"${b & 0xff}%02x").mkString
+    }
+
     private def localFileSystem: FileSystem = {
         FileSystem.get(
           new Path(inputFolder.getAbsolutePath).toUri,
@@ -278,8 +309,13 @@ class MediawikiDumperSevenZipRecompressorSpec
         defaults.positionBits should equal(0)
         // 0 lets the encoder derive the depth from the nice length.
         defaults.depthLimit should equal(0)
-        // A rerun must not redo a file that is already complete.
-        defaults.skipExisting shouldBe true
+        // The job owns its output folder, so it clears it and writes the manifest.
+        // These replace two Airflow tasks, which cost ~900 task instances each. See T437454.
+        defaults.clearOutputFolder shouldBe true
+        defaults.writeChecksums shouldBe true
+        // The deny list is empty, so a run with no wiki_id recompresses.
+        defaults.denyList shouldBe empty
+        defaults.wikiId should equal("")
         // The v1 dictionary size. A sweep to 128 MiB shows no knee, and 32 times the
         // dictionary gives only 8% less size. Keeping the v1 size holds the cluster cost
         // down, and keeps the memory a reader needs unchanged.
@@ -380,7 +416,7 @@ class MediawikiDumperSevenZipRecompressorSpec
         }
     }
 
-    "buildWorkList" should "skip a file whose output already exists" in {
+    "buildWorkList" should "include a file whose output already exists" in {
         writeBzip2Input(
           "simplewiki-2023-09-01-p1p1.xml.bz2",
           buildHistoryXML(1, 4)
@@ -393,22 +429,15 @@ class MediawikiDumperSevenZipRecompressorSpec
         new File(outputFolder, "simplewiki-2023-09-01-p1p1.xml.7z")
             .createNewFile()
 
-        val skipping = MediawikiDumperSevenZipRecompressor.buildWorkList(
+        // clear_output_folder removes the earlier output, so the job has no reason to
+        // test each file. A rerun redoes every file.
+        val work = MediawikiDumperSevenZipRecompressor.buildWorkList(
           localFileSystem,
           new Path(inputFolder.getAbsolutePath),
           new Path(outputFolder.getAbsolutePath),
           baseParams
         )
-        skipping.map(_._1) should have size 1
-        skipping.head._1 should endWith("simplewiki-2023-09-01-p2p4.xml.bz2")
-
-        val notSkipping = MediawikiDumperSevenZipRecompressor.buildWorkList(
-          localFileSystem,
-          new Path(inputFolder.getAbsolutePath),
-          new Path(outputFolder.getAbsolutePath),
-          baseParams.copy(skipExisting = false)
-        )
-        notSkipping should have size 2
+        work should have size 2
     }
 
     "buildWorkList" should "fail when the input folder holds no dump file" in {
@@ -443,9 +472,7 @@ class MediawikiDumperSevenZipRecompressorSpec
 
         MediawikiDumperSevenZipRecompressor(baseParams)
 
-        val produced = outputFolder.listFiles.filter(_.isFile)
-
-        produced.map(_.getName).toSeq.sorted should equal(
+        producedArchives should equal(
           expected.keys.map(base => s"$base.xml.7z").toSeq.sorted
         )
 
@@ -475,12 +502,16 @@ class MediawikiDumperSevenZipRecompressorSpec
         val leftovers = outputFolder
             .listFiles
             .map(_.getName)
+            // LocalFileSystem is a ChecksumFileSystem, so it writes a .crc companion for
+            // each file it creates. HDFS keeps its checksums in the NameNode, so these
+            // files appear in this test only, and never in the published output.
+            .filterNot(_.endsWith(".crc"))
             .filter(name => name.startsWith(".") || name.endsWith(".inprogress"))
 
         leftovers shouldBe empty
     }
 
-    "apply" should "do nothing on a rerun when the output already exists" in {
+    "apply" should "replace the output on a rerun" in {
         writeBzip2Input(
           "simplewiki-2023-09-01-p1p1.xml.bz2",
           buildHistoryXML(1, 20)
@@ -490,12 +521,13 @@ class MediawikiDumperSevenZipRecompressorSpec
 
         val archive = new File(outputFolder, "simplewiki-2023-09-01-p1p1.xml.7z")
         val firstRunBytes = Files.readAllBytes(archive.toPath)
-        val firstRunModified = archive.lastModified()
 
         MediawikiDumperSevenZipRecompressor(baseParams)
 
-        archive.lastModified() should equal(firstRunModified)
+        // The output is repeatable, so a rerun gives the same bytes. It does the work
+        // again, because clear_output_folder removed the earlier output.
         Files.readAllBytes(archive.toPath) should equal(firstRunBytes)
+        producedArchives should have size 1
     }
 
     "apply" should "write a repeatable archive" in {
@@ -541,12 +573,137 @@ class MediawikiDumperSevenZipRecompressorSpec
           baseParams.copy(outputExtension = ".history.7z")
         )
 
-        val produced = outputFolder.listFiles.filter(_.isFile).map(_.getName)
-        produced should equal(Array("simplewiki-2023-09-01-p1p1.history.7z"))
+        producedArchives should equal(Seq("simplewiki-2023-09-01-p1p1.history.7z"))
 
         val (entryName, _, _) = readSingleEntry(
           new File(outputFolder, "simplewiki-2023-09-01-p1p1.history.7z")
         )
         entryName should equal("simplewiki-2023-09-01-p1p1.history")
+    }
+
+    "validate" should "reject a deny list without a wiki id" in {
+        // A deny list with no wiki id never matches, so the job would recompress a wiki
+        // that must get no 7z copy.
+        val thrown = intercept[IllegalArgumentException] {
+            MediawikiDumperSevenZipRecompressor.validate(
+              baseParams.copy(denyList = Seq("wikidatawiki"), wikiId = "")
+            )
+        }
+        thrown.getMessage should include("deny_list needs wiki_id")
+    }
+
+    "validate" should "reject checksums without a folder clear" in {
+        // The manifest lists the files of this run. Without a clear, the folder can hold
+        // a file from an earlier run, and the manifest would leave it out.
+        val thrown = intercept[IllegalArgumentException] {
+            MediawikiDumperSevenZipRecompressor.validate(
+              baseParams.copy(writeChecksums = true, clearOutputFolder = false)
+            )
+        }
+        thrown.getMessage should include("write_checksums needs clear_output_folder")
+    }
+
+    "apply" should "do nothing when the wiki is on the deny list" in {
+        writeBzip2Input(
+          "wikidatawiki-2023-09-01-p1p1.xml.bz2",
+          buildHistoryXML(1, 20)
+        )
+
+        MediawikiDumperSevenZipRecompressor(
+          baseParams.copy(wikiId = "wikidatawiki", denyList = Seq("wikidatawiki"))
+        )
+
+        // The job returns before it makes the output folder.
+        outputFolder.exists shouldBe false
+    }
+
+    "apply" should "recompress a wiki that the deny list does not name" in {
+        writeBzip2Input(
+          "enwiki-2023-09-01-p1p1.xml.bz2",
+          buildHistoryXML(1, 20)
+        )
+
+        MediawikiDumperSevenZipRecompressor(
+          baseParams.copy(wikiId = "enwiki", denyList = Seq("wikidatawiki"))
+        )
+
+        producedArchives should equal(Seq("enwiki-2023-09-01-p1p1.xml.7z"))
+    }
+
+    "apply" should "write a SHA256SUMS manifest of the output" in {
+        val names = Seq(
+          "simplewiki-2023-09-01-p1p1",
+          "simplewiki-2023-09-01-p2p4",
+          "simplewiki-2023-09-01-p5r10r90"
+        )
+        // Give each file different content, so the digests differ. Equal digests would let a
+        // manifest that pairs a name with the wrong digest pass this test.
+        names.zipWithIndex.foreach { case (name, index) =>
+            writeBzip2Input(s"$name.xml.bz2", buildHistoryXML(index + 1, 12))
+        }
+
+        MediawikiDumperSevenZipRecompressor(baseParams)
+
+        val manifest = readChecksumManifest()
+
+        // One line for each archive, ordered by name, as HdfsFileFingerprintWriter does
+        // for the bzip2 output.
+        manifest.map(_._1) should equal(names.map(name => s"$name.xml.7z"))
+
+        // The digests come from the tasks, not from a second read of the output. So the
+        // test must confirm that they match the published bytes.
+        manifest.foreach { case (name, digest) =>
+            digest should fullyMatch regex "[0-9a-f]{64}"
+            digest should equal(sha256Hex(new File(outputFolder, name)))
+        }
+    }
+
+    "apply" should "write no manifest when write_checksums is off" in {
+        writeBzip2Input(
+          "simplewiki-2023-09-01-p1p1.xml.bz2",
+          buildHistoryXML(1, 20)
+        )
+
+        MediawikiDumperSevenZipRecompressor(baseParams.copy(writeChecksums = false))
+
+        new File(outputFolder, "SHA256SUMS").exists shouldBe false
+        producedArchives should have size 1
+    }
+
+    "apply" should "remove a stale file from an earlier run" in {
+        // The export decides the page ranges, so a rerun can write other file names. A
+        // stale archive must not stay in the folder, and the manifest must not list it.
+        writeBzip2Input(
+          "simplewiki-2023-09-01-p1p1.xml.bz2",
+          buildHistoryXML(1, 20)
+        )
+        outputFolder.mkdirs()
+        val stale = new File(outputFolder, "simplewiki-2023-09-01-p9p99.xml.7z")
+        stale.createNewFile()
+
+        MediawikiDumperSevenZipRecompressor(baseParams)
+
+        stale.exists shouldBe false
+        producedArchives should equal(Seq("simplewiki-2023-09-01-p1p1.xml.7z"))
+        readChecksumManifest().map(_._1) should equal(
+          Seq("simplewiki-2023-09-01-p1p1.xml.7z")
+        )
+    }
+
+    "apply" should "keep an existing file when clear_output_folder is off" in {
+        writeBzip2Input(
+          "simplewiki-2023-09-01-p1p1.xml.bz2",
+          buildHistoryXML(1, 20)
+        )
+        outputFolder.mkdirs()
+        val other = new File(outputFolder, "keep-me.txt")
+        other.createNewFile()
+
+        MediawikiDumperSevenZipRecompressor(
+          baseParams.copy(clearOutputFolder = false, writeChecksums = false)
+        )
+
+        other.exists shouldBe true
+        producedArchives should equal(Seq("simplewiki-2023-09-01-p1p1.xml.7z"))
     }
 }
