@@ -1,3 +1,7 @@
+## v0.3.27
+* refinery-job-35: Add 7z recompressor for the v2 history dumps
+* refinery-spark: Distribute HdfsFileFingerprintWriter across executors
+
 ## v0.3.26
 * MWHistoryDeltaWriter: align fields with mediawiki_history
 
