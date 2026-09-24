@@ -11,7 +11,6 @@ import org.apache.commons.compress.compressors.gzip.{GzipCompressorOutputStream,
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
 import org.apache.spark.Partitioner
 import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.rdd.RDD.rddToOrderedRDDFunctions
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
@@ -112,10 +111,11 @@ object MediawikiDumper extends LogHelper {
             .createDataFrame(
               df.rdd
                   .map(row => (RowKey(row), row))
-                  .repartitionAndSortWithinPartitions(partitioner)
+                  .partitionBy(partitioner)
                   .map(_._2),
               schema
             )
+            .sortWithinPartitions("pageId", "timestamp", "revisionId")
             .as[Revision]
     }
 

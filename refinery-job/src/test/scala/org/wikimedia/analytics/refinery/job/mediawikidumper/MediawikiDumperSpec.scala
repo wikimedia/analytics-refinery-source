@@ -238,6 +238,24 @@ class MediawikiDumperSpec
         partitionedDF.count() should equal(33)
     }
 
+    "partitionByXMLFileBoundaries" should "sort each partition by page, timestamp and revision" in {
+        val partitioner = MediawikiDumper.createPartitioner(
+          fakeSize(MediawikiDumper.readPartitioningData(simplewikiParams)),
+          maxPartitionSize
+        )
+        // Reverse the input, so that only the sort can put each partition in order.
+        val reversedDF = baseSimplewikiDF.orderBy(col("revisionId").desc)
+        val keysByPartition = MediawikiDumper
+            .partitionByXMLFileBoundaries(reversedDF, partitioner)
+            .rdd
+            .map(r => (r.pageId, r.timestamp.getEpochSecond, r.timestamp.getNano, r.revisionId))
+            .glom()
+            .collect()
+
+        keysByPartition.length should equal(4)
+        keysByPartition.foreach(keys => keys.toSeq should equal(keys.toSeq.sorted))
+    }
+
     def fragmentsWithPageRange(
         overrideBaseDF: DataFrame = baseSimplewikiDF,
         params: MediawikiDumper.Params = simplewikiParams,
