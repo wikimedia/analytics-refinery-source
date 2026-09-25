@@ -12,10 +12,13 @@ import org.wikimedia.analytics.refinery.tools.config._
  * Mirrors a single Hive/Iceberg table into a JDBC database.
  *
  * The `<database>.<table>` given as parameters is read from the Spark catalog and
- * written over JDBC to a target table of the same (unqualified) name. Default write
- * mode is `overwrite` with `truncate=true`: the target table is TRUNCATEd and reloaded,
- * so the table object, its grants and any Superset dataset binding are preserved across
- * runs. If the target table does not exist, Spark's JDBC writer creates it from the
+ * written over JDBC to `<target_schema>.<target_table>`. `target_schema` defaults to the
+ * source `database` and `target_table` defaults to the source `table`, so by default the
+ * target mirrors the source; pass `--target_schema` and/or `--target_table` to write into
+ * a differently-named target (e.g. to keep a renamed source feeding a pre-existing table).
+ * Default write mode is `overwrite` with `truncate=true`: the target table is TRUNCATEd and
+ * reloaded, so the table object, its grants and any Superset dataset binding are preserved
+ * across runs. If the target table does not exist, Spark's JDBC writer creates it from the
  * source schema on the first run.
  *
  */
@@ -29,6 +32,7 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
         db_user          : String = "",
         password_file    : String = "",
         target_schema : String = "", // defaults to the source database (see targetSchema)
+        target_table  : String = "", // defaults to the source table (see targetTable)
         output_mode      : String = "overwrite",
         date_field       : String = "",
         date_value       : String = "",
@@ -42,8 +46,9 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
             """|Mirror a single Hive/Iceberg table into a JDBC database.
                |
                |The <database>.<table> given as parameters is written to the JDBC table
-               |<target_schema>.<table>, where target_schema defaults to the source
-               |schema so the target mirrors the source. The schema must already exist.
+               |<target_schema>.<target_table>, where target_schema defaults to the source
+               |schema and target_table to the source table, so the target mirrors the
+               |source. The schema must already exist.
                |
                |Example for PostgreSQL:
                |The PostgreSQL JDBC driver is NOT bundled in refinery-job, so pass it on the
@@ -67,8 +72,8 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
                |   --password_file    file://$PWD/pg.txt \
                |   --output_mode      overwrite
                |
-               |target_schema defaults to --database (here database);
-               |pass --target_schema to override it.
+               |target_schema defaults to --database (here database) and target_table to
+               |--table; pass --target_schema and/or --target_table to override them.
                |"""
 
         val propertiesDoc = ListMap(
@@ -78,7 +83,8 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
             "database" ->
                 "Input Hive database (schema) name. Mandatory.",
             "table" ->
-                "Input Hive table name; also the target JDBC table name. Mandatory.",
+                """Input Hive table name; also the default target JDBC table name
+                  |(override with --target_table). Mandatory.""",
             "jdbc_url" ->
                 "JDBC URL of the target database. Mandatory.",
             "jdbc_driver" ->
@@ -91,6 +97,10 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
             "target_schema" ->
                 """JDBC schema the target table is written to (it must already exist).
                   |Default: the source schema given in --database.""",
+            "target_table" ->
+                """JDBC table the source is written to. Use it to feed a renamed/relocated
+                  |source into a pre-existing target (preserving its grants and Superset
+                  |dataset binding). Default: the source table given in --table.""",
             "output_mode" ->
                 s"""Write mode (overwrite|append). overwrite => TRUNCATE + reload, which
                    |preserves the target table object, its grants and any Superset dataset
@@ -120,8 +130,9 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
 
         val success = try {
             val sourceTable = s"${config.database}.${config.table}"
+            val targetTableFqn = s"${targetSchema(config)}.${targetTable(config)}"
             val password = readHdfsFile(spark, config.password_file).trim
-            log.info(s"Mirroring $sourceTable -> ${config.table} (mode=${config.output_mode}) into ${config.jdbc_url}")
+            log.info(s"Mirroring $sourceTable -> $targetTableFqn (mode=${config.output_mode}) into ${config.jdbc_url}")
 
             val (options, saveMode) = jdbcOptions(config, password)
             selectSource(spark.table(sourceTable), config).write
@@ -130,7 +141,7 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
                 .mode(saveMode)
                 .save()
 
-            log.info(s"Finished mirroring $sourceTable -> ${config.table}.")
+            log.info(s"Finished mirroring $sourceTable -> $targetTableFqn.")
             true
         } catch {
             case e: Exception =>
@@ -187,6 +198,13 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
         if (config.target_schema.nonEmpty) config.target_schema else config.database
 
     /**
+     * JDBC table the source is written to: the explicit --target_table if given,
+     * otherwise the source table (so the target mirrors the source).
+     */
+    def targetTable(config: Config): String =
+        if (config.target_table.nonEmpty) config.target_table else config.table
+
+    /**
      * Resolve the JDBC writer options + SaveMode for a config. Pure (no Spark/DB) so it
      * is unit-testable. On overwrite we set truncate=true so the write TRUNCATEs instead
      * of DROP+CREATE, preserving the target table object, its grants and Superset's
@@ -196,7 +214,7 @@ object HiveToJdbc extends LogHelper with ConfigHelper {
         val saveMode = if (config.output_mode == "append") SaveMode.Append else SaveMode.Overwrite
         var options = Map(
             "url"        -> config.jdbc_url,
-            "dbtable"    -> s"${targetSchema(config)}.${config.table}",
+            "dbtable"    -> s"${targetSchema(config)}.${targetTable(config)}",
             "user"       -> config.db_user,
             "password"   -> password,
             "driver"     -> config.jdbc_driver,

@@ -117,12 +117,31 @@ class TestHiveToJdbc extends FlatSpec with Matchers with DataFrameSuiteBase {
         opts("dbtable") shouldBe s"custom_schema.${overwriteConfig.table}"
     }
 
+    it should "override the target table when target_table is set" in {
+        val (opts, _) = HiveToJdbc.jdbcOptions(overwriteConfig.copy(target_table = "custom_table"), "s3cr3t")
+        opts("dbtable") shouldBe s"${overwriteConfig.database}.custom_table"
+    }
+
+    it should "override both schema and table when target_schema and target_table are set" in {
+        val (opts, _) = HiveToJdbc.jdbcOptions(
+            overwriteConfig.copy(target_schema = "custom_schema", target_table = "custom_table"), "s3cr3t")
+        opts("dbtable") shouldBe "custom_schema.custom_table"
+    }
+
     "targetSchema" should "fall back to the source schema when target_schema is empty" in {
         HiveToJdbc.targetSchema(overwriteConfig) shouldBe overwriteConfig.database
     }
 
     it should "use target_schema when it is set" in {
         HiveToJdbc.targetSchema(overwriteConfig.copy(target_schema = "custom_schema")) shouldBe "custom_schema"
+    }
+
+    "targetTable" should "fall back to the source table when target_table is empty" in {
+        HiveToJdbc.targetTable(overwriteConfig) shouldBe overwriteConfig.table
+    }
+
+    it should "use target_table when it is set" in {
+        HiveToJdbc.targetTable(overwriteConfig.copy(target_table = "custom_table")) shouldBe "custom_table"
     }
 
     // ------------------------------------------------------------- selectSource

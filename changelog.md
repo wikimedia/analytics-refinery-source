@@ -1,3 +1,6 @@
+## v0.3.28
+* refinery-job: Add HiveToJdbc optional param target_table
+
 ## v0.3.27
 * refinery-job-35: Add 7z recompressor for the v2 history dumps
 * refinery-spark: Distribute HdfsFileFingerprintWriter across executors
