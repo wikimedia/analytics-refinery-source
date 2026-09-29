@@ -1,5 +1,6 @@
 ## v0.3.28
 * refinery-job: Add HiveToJdbc optional param target_table
+* refinery-job: Sort the XML export partitions in Catalyst
 
 ## v0.3.27
 * refinery-job-35: Add 7z recompressor for the v2 history dumps
@@ -15,7 +16,7 @@
 * Split LogHelper to simplify dependencies
 
 ## v0.3.23
-* Update MW_history to validate before writing 
+* Update MW_history to validate before writing
 
 ## v0.3.22
 * Remove any reference to the windowing of 90 Days.
@@ -62,7 +63,7 @@
 * Add event_log_id to wmf.mediawiki_history
 * Add event_user_is_cross_wiki to wmf.mediawiki_history
 * Upgrade graphframes to 0.11.0 from Maven Central, drop Archiva repos
-* Refactor MediawikiEvent.fromRow to use named column access 
+* Refactor MediawikiEvent.fromRow to use named column access
 * Spike: refinery-job-35 submodule compiles against Spark 3.5.8 + Iceberg 1.10.1
 
 ## v0.3.13
