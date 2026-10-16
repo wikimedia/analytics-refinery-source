@@ -2,17 +2,21 @@ package org.wikimedia.analytics.refinery.job.mediawikidumper
 
 import java.io._
 import java.nio.file.{Files, StandardCopyOption}
+import java.security.MessageDigest
 
+import scala.collection.JavaConverters
 import scala.language.postfixOps
 
 import com.holdenkarau.spark.testing.DataFrameSuiteBase
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream
+import org.apache.commons.codec.binary.Hex
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{DataFrame, Dataset, Row}
 import org.apache.spark.sql.functions.{col, lit, when}
 import org.apache.spark.sql.types._
+import org.apache.spark.util.CollectionAccumulator
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import org.wikimedia.analytics.refinery.job.mediawikidumper.MediawikiDumperSpec.assertSinglePartitionForRevision
 import org.wikimedia.analytics.refinery.tools.LogHelper
@@ -259,6 +263,7 @@ class MediawikiDumperSpec
     def fragmentsWithPageRange(
         overrideBaseDF: DataFrame = baseSimplewikiDF,
         params: MediawikiDumper.Params = simplewikiParams,
+        fileChecksums: CollectionAccumulator[(String, String)] = newFileChecksums()
     ): Dataset[Row] = {
         val partitioner: RangeLookupPartitioner[RowKey, Long] = MediawikiDumper
             .createPartitioner(overrideBaseDF, maxPartitionSize)
@@ -266,9 +271,13 @@ class MediawikiDumperSpec
           MediawikiDumper
               .partitionByXMLFileBoundaries(overrideBaseDF, partitioner),
           MediawikiDumper.getSiteInfo(params),
-          params
+          params,
+          fileChecksums
         )
     }
+
+    def newFileChecksums(): CollectionAccumulator[(String, String)] =
+        spark.sparkContext.collectionAccumulator[(String, String)]("fileChecksums")
 
     "buildXMLFragments" should "build all fragments" in {
         val df = fragmentsWithPageRange()
@@ -365,6 +374,39 @@ class MediawikiDumperSpec
 
     private def removeLineWithTag(str: String, tag: String): String = {
       str.split("\n").filterNot(_.contains(tag)).mkString("\n")
+    }
+
+    "writeChecksumManifest" should "list the SHA-256 of each output file" in {
+        val p: MediawikiDumper.Params = simplewikiParams.copy(compressionAlgorithm = "bzip2")
+        val fileChecksums = newFileChecksums()
+        writeXML(p, fragmentsWithPageRange(fakeSize(baseSimplewikiDF), p, fileChecksums))
+        MediawikiDumper.writeChecksumManifest(p, JavaConverters.asScalaBuffer(fileChecksums.value).toSeq)
+
+        val files = new File(outputFolder.toString)
+            .listFiles
+            .filter(_.getName.endsWith(".xml.bz2"))
+            .sortBy(_.getName)
+        files.length should be > 1
+        val expected = files
+            .map { file =>
+                val digest = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file.toPath))
+                s"${Hex.encodeHexString(digest)}  ${file.getName}"
+            }
+            .mkString("", "\n", "\n")
+
+        val source = scala.io.Source.fromFile(s"$outputFolder/SHA256SUMS")
+        val manifest = try source.mkString finally source.close()
+        manifest should equal(expected)
+    }
+
+    "writeChecksumManifest" should "fail when an output file has no digest" in {
+        val p: MediawikiDumper.Params = simplewikiParams.copy(compressionAlgorithm = "bzip2")
+        val fileChecksums = newFileChecksums()
+        writeXML(p, fragmentsWithPageRange(fakeSize(baseSimplewikiDF), p, fileChecksums))
+        val checksums = JavaConverters.asScalaBuffer(fileChecksums.value).toSeq
+
+        an[IllegalArgumentException] should be thrownBy
+            MediawikiDumper.writeChecksumManifest(p, checksums.drop(1))
     }
 
     "writeXMLFiles" should "build a BZIP2 compressed XML file for simplewiki" in {

@@ -646,8 +646,7 @@ class MediawikiDumperSevenZipRecompressorSpec
 
         val manifest = readChecksumManifest()
 
-        // One line for each archive, ordered by name, as HdfsFileFingerprintWriter does
-        // for the bzip2 output.
+        // One line for each archive, ordered by name, as the bzip2 export does.
         manifest.map(_._1) should equal(names.map(name => s"$name.xml.7z"))
 
         // The digests come from the tasks, not from a second read of the output. So the

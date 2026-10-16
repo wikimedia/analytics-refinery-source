@@ -2,6 +2,7 @@ package org.wikimedia.analytics.refinery.job.mediawikidumper
 
 import java.io.OutputStream
 import java.io.PrintWriter
+import java.security.{DigestOutputStream, MessageDigest}
 import java.sql.Timestamp
 
 import scala.collection.JavaConverters
@@ -9,6 +10,8 @@ import scala.collection.JavaConverters
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
 import org.apache.commons.compress.compressors.gzip.{GzipCompressorOutputStream, GzipParameters}
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream
+import org.apache.commons.codec.binary.Hex
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.Partitioner
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql._
@@ -17,6 +20,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DataTypes, StructField, StructType}
+import org.apache.spark.util.CollectionAccumulator
 import org.wikimedia.analytics.refinery.core.ChunkedByteArrayOutputStream
 import org.wikimedia.analytics.refinery.tools.LogHelper
 import scopt.OptionParser
@@ -71,6 +75,8 @@ object MediawikiDumper extends LogHelper {
           calculateMaxPartitionSize(params)
         )
 
+        val fileChecksums = spark.sparkContext.collectionAccumulator[(String, String)]("fileChecksums")
+
         writeXMLFiles(
           buildXMLFragmentChunks(
             partitionByXMLFileBoundaries(
@@ -78,10 +84,13 @@ object MediawikiDumper extends LogHelper {
               partitioner
             ),
             siteInfo,
-            params
+            params,
+            fileChecksums
           ),
           params
         )
+
+        writeChecksumManifest(params, JavaConverters.asScalaBuffer(fileChecksums.value).toSeq)
 
         log.info(s"Mediawiki Dumper: Done. Output in ${params.outputFolder}")
     }
@@ -265,7 +274,6 @@ object MediawikiDumper extends LogHelper {
 
     private val COL_VALUE = "value"
     private val COL_PARTITION_ID = "partition_id"
-    private val COL_PARTITION_CHECKSUM = "partition_checksum"
 
     private val FRAGMENT_SCHEMA = StructType(
       List(
@@ -274,12 +282,8 @@ object MediawikiDumper extends LogHelper {
           DataTypes.createArrayType(DataTypes.ByteType),
           nullable = false
         ),
-        StructField(COL_PARTITION_ID, DataTypes.StringType, nullable = false),
-        StructField(
-          COL_PARTITION_CHECKSUM,
-          DataTypes.LongType,
-          nullable = false
-        )
+        // wmf-binary does not write this column. It puts the value in the file name. See writeXMLFiles.
+        StructField(COL_PARTITION_ID, DataTypes.StringType, nullable = false)
       )
     )
 
@@ -336,13 +340,18 @@ object MediawikiDumper extends LogHelper {
       *   the sorted and partitioned revisions
       * @param params
       *   the job parameters
+      * @param fileChecksums
+      *   gets the file name and the SHA-256 digest of the compressed bytes of
+      *   each partition. Spark applies the updates of a task once only when the
+      *   task runs in the stage that writes the files.
       * @return
       *   An RDD of XML fragments
       */
     def buildXMLFragmentChunks(
         sortedAndPartitionedRevisions: Dataset[Revision],
         siteInfo: Broadcast[SiteInfo],
-        params: Params
+        params: Params,
+        fileChecksums: CollectionAccumulator[(String, String)]
     ): Dataset[Row] = {
 
         val pageFooterFragment = XMLFragment.pageFooter().getXML
@@ -353,8 +362,13 @@ object MediawikiDumper extends LogHelper {
                     val outputStream = {
                         new ChunkedByteArrayOutputStream(params.outputChunkSize)
                     }
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    val outputDigestStream = {
+                        // The digest sees the same bytes as the output file.
+                        new DigestOutputStream(outputStream, digest)
+                    }
                     val outputCompressorStream = {
-                        getCompressorStream(outputStream, params.compressionAlgorithm, params.compressionLevel)
+                        getCompressorStream(outputDigestStream, params.compressionAlgorithm, params.compressionLevel)
                     }
                     val outputStreamCompressorWriter = {
                         // aggressively flush with autoFlush = true
@@ -433,7 +447,11 @@ object MediawikiDumper extends LogHelper {
                             .println(XMLFragment.xmlFooter().getXML)
                         outputStreamCompressorWriter.close()
                         outputCompressorStream.close()
+                        outputDigestStream.close()
                         outputStream.close()
+                        fileChecksums.add(
+                          (outputFileName(params, partitionId), Hex.encodeHexString(digest.digest()))
+                        )
                         // keep things as iterable to avoid further conversion costs.
                         val chunkIterator = {
                           JavaConverters.iterableAsScalaIterable(outputStream.getChunks)
@@ -441,8 +459,7 @@ object MediawikiDumper extends LogHelper {
                               new GenericRowWithSchema(
                                 Array[Any](
                                   chunk,
-                                  partitionId,
-                                  outputStream.getChecksum
+                                  partitionId
                                 ),
                                 FRAGMENT_SCHEMA
                               )
@@ -454,6 +471,7 @@ object MediawikiDumper extends LogHelper {
                     } finally {
                         outputStreamCompressorWriter.close()
                         outputCompressorStream.close()
+                        outputDigestStream.close()
                         outputStream.close()
                     }
                 } else {
@@ -478,22 +496,102 @@ object MediawikiDumper extends LogHelper {
         params: Params,
         outputFolderSuffix: String = ""
     ): Unit = {
+        fragments
+            .write
+            .mode(SaveMode.Overwrite)
+            .format("wmf-binary")
+            // The name has the placeholder "${partition_id}". wmf-binary writes one file per partition and
+            // replaces the placeholder with the partition_id of that partition.
+            .option(
+              "filename-replacement",
+              outputFileName(params, s"$${$COL_PARTITION_ID}")
+            )
+            .save(params.outputFolder + outputFolderSuffix)
+    }
+
+    /** Returns the name of the output file of a partition.
+      *
+      * The output file and its SHA256SUMS line get their name from this function, so the names are the same.
+      *
+      * @param params
+      *   the job parameters
+      * @param partitionId
+      *   the page range of the partition, or a placeholder for it
+      */
+    def outputFileName(params: Params, partitionId: String): String = {
         val extension = params.compressionAlgorithm match {
             case "bzip2" => ".bz2"
             case "gzip" => ".gz"
             case "zstd" => ".zst"
             case _ => "" // none, that is, plain XML
         }
+        s"${params.wikiId}-${params.publishUntil}-$partitionId.xml$extension"
+    }
 
-        fragments
-            .write
-            .mode(SaveMode.Overwrite)
-            .format("wmf-binary")
-            .option(
-              "filename-replacement",
-              s"${params.wikiId}-${params.publishUntil}-$${$COL_PARTITION_ID}.xml$extension"
-            )
-            .save(params.outputFolder + outputFolderSuffix)
+    /** Name of the checksum manifest of the output folder. */
+    private val ChecksumManifestName: String = "SHA256SUMS"
+
+    /** Writes the SHA256SUMS manifest of the output folder.
+      *
+      * One line for each file, ordered by name, in the format of `sha256sum`. A
+      * consumer can verify the files with `sha256sum -c SHA256SUMS`.
+      *
+      * The digests come from the write tasks, so the job reads no output file
+      * again. The job fails if a file has no digest, if a digest has no file, or
+      * if a file has two different digests.
+      *
+      * @param params
+      *   the job parameters
+      * @param fileChecksums
+      *   the file name and the SHA-256 digest of each output file
+      */
+    def writeChecksumManifest(
+        params: Params,
+        fileChecksums: Seq[(String, String)]
+    ): Unit = {
+        val outputFolder = new Path(params.outputFolder)
+        val fs = outputFolder.getFileSystem(spark.sparkContext.hadoopConfiguration)
+
+        val checksums = fileChecksums.distinct
+        val names = checksums.map(_._1)
+        val namesWithTwoDigests = names.diff(names.distinct).distinct
+        require(
+          namesWithTwoDigests.isEmpty,
+          s"Files with two different digests: ${namesWithTwoDigests.mkString(", ")}"
+        )
+
+        val files = listOutputFiles(fs, outputFolder)
+        val filesWithoutDigest = files.diff(names)
+        val digestsWithoutFile = names.diff(files)
+        require(
+          filesWithoutDigest.isEmpty && digestsWithoutFile.isEmpty,
+          s"Files without a digest: ${filesWithoutDigest.mkString(", ")}. " +
+              s"Digests without a file: ${digestsWithoutFile.mkString(", ")}."
+        )
+
+        val manifestPath = new Path(outputFolder, ChecksumManifestName)
+        val writer = new PrintWriter(fs.create(manifestPath, true))
+        try {
+            checksums.sortBy(_._1).foreach { case (name, hash) =>
+                writer.println(s"$hash  $name")
+            }
+        } finally {
+            writer.close()
+        }
+        log.info(s"Wrote $manifestPath with ${checksums.size} entries.")
+    }
+
+    /** Lists the names of the output files in a folder.
+      *
+      * Hidden files, files like _SUCCESS, the manifest and subfolders are not
+      * listed.
+      */
+    private def listOutputFiles(fs: FileSystem, folder: Path): Seq[String] = {
+        fs.listStatus(folder)
+            .filter(_.isFile)
+            .map(_.getPath.getName)
+            .filterNot(name => name.startsWith("_") || name.startsWith(".") || name == ChecksumManifestName)
+            .toSeq
     }
 
     case class Params(

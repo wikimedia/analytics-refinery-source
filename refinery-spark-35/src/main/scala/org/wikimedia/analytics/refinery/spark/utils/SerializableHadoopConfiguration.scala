@@ -11,11 +11,6 @@ import org.apache.hadoop.conf.Configuration
   *
   * The class is top level on purpose. A class inside an `object` can hold a
   * reference to that object.
-  *
-  * Spark 3.5 twin of the class declared in refinery-spark's
-  * `HdfsFileFingerprintWriter.scala`. refinery-spark is compiled against Spark
-  * 3.1, so this module cannot depend on it; keep the two in step if either
-  * changes.
   */
 class SerializableHadoopConfiguration(
   @transient private var conf: Configuration

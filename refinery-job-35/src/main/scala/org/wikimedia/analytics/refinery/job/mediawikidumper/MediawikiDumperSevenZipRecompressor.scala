@@ -607,8 +607,8 @@ object MediawikiDumperSevenZipRecompressor {
 
     /** Writes the SHA256SUMS manifest of the output folder.
       *
-      * The format and the order match [[HdfsFileFingerprintWriter]], which the
-      * bzip2 export uses, so `sha256sum -c SHA256SUMS` behaves the same for both
+      * The format and the order match the manifest of the bzip2 export
+      * (MediawikiDumper), so `sha256sum -c SHA256SUMS` behaves the same for both
       * formats.
       *
       * The digests come from the tasks. The job does not read the published files
