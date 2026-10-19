@@ -1,3 +1,6 @@
+## v0.3.30
+* refinery-spark: Quote TBLPROPERTIES keys in Iceberg DDL to support hyphenated property names
+
 ## v0.3.29
 * refinery-spark-35: New module, the Spark 3.5 counterpart of refinery-spark. Currently holds the Spark stage metrics aggregation
 * refinery-job-35: Add SparkEventLogMetrics, reading Spark event logs into a per-stage metrics table

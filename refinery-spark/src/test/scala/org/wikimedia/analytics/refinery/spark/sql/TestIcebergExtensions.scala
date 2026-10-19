@@ -54,11 +54,23 @@ class TestIcebergExtensions extends FlatSpec with Matchers {
               |USING iceberg
               |PARTITIONED BY (a,
               |year(b.ts))
-              |TBLPROPERTIES(key = 'value')
+              |TBLPROPERTIES('key' = 'value')
               |LOCATION 'hdfs:///test/location'
               |""".stripMargin
 
         createStatement should equal(expectedCreateStatement)
+    }
+
+    it should "single-quote hyphenated table property keys in TBLPROPERTIES" in {
+        val schema = StructType(Seq(StructField("a", StringType, nullable = true)))
+        val createStatement = schema.icebergCreateDDL(
+            "db.table",
+            None,
+            Seq.empty,
+            Map("write.parquet.compression-codec" -> "snappy", "write.delete.mode" -> "copy-on-write")
+        )
+        createStatement should include ("'write.parquet.compression-codec' = 'snappy'")
+        createStatement should include ("'write.delete.mode' = 'copy-on-write'")
     }
 
     it should "fail to generate an Iceberg CREATE TABLE statement if a partition column is not found" in {

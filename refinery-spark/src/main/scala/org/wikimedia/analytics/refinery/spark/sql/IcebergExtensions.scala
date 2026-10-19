@@ -120,7 +120,7 @@ object IcebergExtensions extends LogHelper {
                 }
 
             val tablePropertiesClause = if (tableProperties.isEmpty) "-- No table properties provided" else {
-                s"TBLPROPERTIES(${tableProperties.map(t => s"${t._1} = '${t._2}'").mkString(", ")})"
+                s"TBLPROPERTIES(${tableProperties.map(t => s"'${t._1}' = '${t._2}'").mkString(", ")})"
             }
 
             val locationClause = if (locationPath.getOrElse("").nonEmpty) s"LOCATION '${locationPath.get}'" else ""

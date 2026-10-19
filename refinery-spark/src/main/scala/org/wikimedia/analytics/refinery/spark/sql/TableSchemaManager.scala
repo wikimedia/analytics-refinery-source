@@ -292,7 +292,7 @@ object TableSchemaManager {
             }
             val formattedPropertiesToSet = (propertiesToAdd++propertiesToUpdate)
                 .toList.sortBy(_._1)
-                .map{ case (k, v) => s"$k = '$v'" }
+                .map{ case (k, v) => s"'$k' = '$v'" }
             val setStatements = if (formattedPropertiesToSet.isEmpty) { Seq.empty } else {
                 Seq(s"SET TBLPROPERTIES (${formattedPropertiesToSet.mkString(", ")})")
             }

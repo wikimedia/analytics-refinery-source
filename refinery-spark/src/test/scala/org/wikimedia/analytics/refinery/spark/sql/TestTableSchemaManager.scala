@@ -54,7 +54,7 @@ class TestTableSchemaManager extends FlatSpec
         )
         val expectedDDLs: Seq[String] = Seq(
             "ALTER TABLE db.table UNSET TBLPROPERTIES (k3);",
-            "ALTER TABLE db.table SET TBLPROPERTIES (k1 = 'v1b', k4 = 'v4');",
+            "ALTER TABLE db.table SET TBLPROPERTIES ('k1' = 'v1b', 'k4' = 'v4');",
         )
         val ddls = IcebergTableSchemaManager.icebergGetTablePropertiesAlterDDLs(spark, "db.table", updates)
         ddls should equal(expectedDDLs)
@@ -66,7 +66,7 @@ class TestTableSchemaManager extends FlatSpec
             "k3" -> "v3",  // Untouched
         )
         val expectedDDLsWithoutUnset: Seq[String] = Seq(
-            "ALTER TABLE db.table SET TBLPROPERTIES (k1 = 'v1b');",
+            "ALTER TABLE db.table SET TBLPROPERTIES ('k1' = 'v1b');",
         )
         val notUnsetDDLs = IcebergTableSchemaManager
             .icebergGetTablePropertiesAlterDDLs(spark, "db.table", updatesNoUnset)
@@ -146,7 +146,7 @@ class TestTableSchemaManager extends FlatSpec
               |)
               |USING iceberg
               |PARTITIONED BY (meta.dt)
-              |TBLPROPERTIES(key = 'value')
+              |TBLPROPERTIES('key' = 'value')
               |LOCATION 'location'
               |""".stripMargin
         ))
