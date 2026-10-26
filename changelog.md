@@ -1,3 +1,7 @@
+## v0.3.31
+* refinery-job: Write SHA256SUMS in the XML export job
+* Switch Clickstream to use webrequest_v2 instead of pageview_actor
+
 ## v0.3.30
 * refinery-spark: Quote TBLPROPERTIES keys in Iceberg DDL to support hyphenated property names
 
