@@ -1,9 +1,12 @@
 package org.wikimedia.analytics.refinery.job
 
-import org.apache.spark.sql.{DataFrame, Row, RuntimeConfig, SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, Row, RuntimeConfig, SparkSession}
 import org.apache.spark.sql.expressions.UserDefinedFunction
 
+import java.sql.Date
+import java.time.LocalDate
 import javax.xml.stream.XMLStreamConstants
+import scala.util.Try
 import scala.collection.mutable.ListBuffer
 import scopt.OptionParser
 import org.apache.hadoop.io.{LongWritable, Text}
@@ -22,7 +25,7 @@ import org.wikimedia.analytics.refinery.tools.LogHelper
 
 /**
  * Class providing a converter from an XML formatted HDFS FsImage
- * to an Hive table partition easier to query.
+ * to an Iceberg table easier to query.
  *
  * The input is a large XML files stored on HDFS. To read it:
  *   - We are reading the file in parallel as an Hadoop file
@@ -33,7 +36,7 @@ import org.wikimedia.analytics.refinery.tools.LogHelper
  *   - rebuild inodes absolute paths with a fixed point algorithm (mainly performing joins recursively)
  *   - Build a dataframe from the previous RDD
  *   - Aggregate the data by directory for an easier consumption through some large explodes
- *   - create or replace an Hive table partition
+ *   - replace the rows of one day in an Iceberg table
  *
  * Notice: The job parallelization level is computed from the main spark parameters:
  *   - maximum number of executors
@@ -348,13 +351,13 @@ object HdfsXMLFsImageConverter extends LogHelper {
 
         cachedInodesWithPath.unpersist()  // Removing RDD from cache after use (in the last `count`).
 
+        // Replace the rows of this day only. A rerun does not duplicate them.
+        // The table sort order and distribution mode set the file layout.
         aggregateAndPrepareResult(params, inodesDf)
-            .coalesce(params.maxOutputFiles)
-            .write
-            .mode(SaveMode.Overwrite)
-            .insertInto(params.outputTable)
+            .writeTo(params.outputTable)
+            .overwrite(col("day") === lit(Date.valueOf(params.day)))
 
-        log.info(s"Inodes with aggregated sizes saved as parquet in ${params.outputTable}/${params.snapshot}.")
+        log.info(s"Inodes with aggregated sizes saved in ${params.outputTable} for day ${params.day}.")
     }
 
     /**
@@ -692,7 +695,7 @@ object HdfsXMLFsImageConverter extends LogHelper {
             .withColumn("group", expr("split_permission[1]"))
             .withColumn("permission", expr("split_permission[2]"))
             .drop("split_permission")
-            .withColumn("snapshot", lit(params.snapshot))
+            .withColumn("day", lit(Date.valueOf(params.day)))
     }
 
     /**
@@ -742,15 +745,10 @@ object HdfsXMLFsImageConverter extends LogHelper {
     case class Params(
         fsImageXMLPath: String = "", // Parameter required
         outputTable: String = "", // Parameter required
-        snapshot: String = "", // Parameter required
+        day: String = "", // Parameter required, YYYY-MM-DD
         // Maximum number of joins to perform between inodes and parent when rebuilding the paths.
         // Most directories have less than 40 parent directories recursively.
         maxDirectoryRecursionDepth: Integer = 40,
-        // Maximum numbers of parquet files produced.
-        // Used in DF.coalesce before writing.
-        // Currently the dataset is ~10GB. Producing 20 files means each weights ~500MB.
-        // Warning: lowering this value needs more workers memory to retrieve the partition before storing it.
-        maxOutputFiles: Integer = 20,
         // We use checkpointing when rebuilding the inodes paths recursively in order:
         //   * to clean the RDD dependencies tree
         //   * to avoid the whole re-computation in case of errors
@@ -776,15 +774,13 @@ object HdfsXMLFsImageConverter extends LogHelper {
 
         opt[String]('o', "output_table") required() valueName ("<output_table>") action { (x, p) =>
             p.copy(outputTable = x)
-        } text ("The name of the Hive table to store the result.")
+        } text ("The name of the Iceberg table to store the result.")
 
-        opt[String]('s', "snapshot") required() valueName ("<snapshot>") action { (x, p) =>
-            p.copy(snapshot = x)
-        } text ("The name of the Hive partition to replace.")
-
-        opt[Int]('f', "max_output_files") optional() valueName ("<max_output_files>") action { (x, p) =>
-            p.copy(maxOutputFiles = x)
-        } text ("Maximum numbers of parquet files produced.")
+        opt[String]("day") required() valueName ("<YYYY-MM-DD>") validate { x =>
+            if (Try(LocalDate.parse(x)).isSuccess) success else failure(s"Invalid day: $x")
+        } action { (x, p) =>
+            p.copy(day = x)
+        } text ("The day of the fsimage. The job replaces the rows of this day.")
 
         opt[Int]('m', "max_directory_recursion_depth") optional() valueName ("<max_directory_recursion_depth>") action { (x, p) =>
             p.copy(maxDirectoryRecursionDepth = x)

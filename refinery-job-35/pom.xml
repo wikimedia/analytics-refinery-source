@@ -12,7 +12,7 @@
     <artifactId>refinery-job-35</artifactId>
     <packaging>jar</packaging>
     <name>Wikimedia Analytics Refinery Jobs (Spark 3.5)</name>
-    <description>Spark 3.5 jobs. Currently: incremental MediaWiki history writers (T424350), Spark event log metrics (T297231).</description>
+    <description>Spark 3.5 jobs. Currently: incremental MediaWiki history writers (T424350), Spark event log metrics (T297231), HDFS fsimage converter (T438056).</description>
 
     <!-- Override the repo-wide Spark version for this module only. -->
     <properties>
@@ -20,6 +20,16 @@
     </properties>
 
     <dependencies>
+
+        <!--
+            StAX parser for HdfsXMLFsImageConverter. The shaded Hadoop client of Spark 3.5
+            relocates Woodstox, so the job jar includes it. 5.4.0 matches Hadoop 3.3.
+        -->
+        <dependency>
+            <groupId>com.fasterxml.woodstox</groupId>
+            <artifactId>woodstox-core</artifactId>
+            <version>5.4.0</version>
+        </dependency>
 
         <dependency>
             <groupId>com.github.nscala-time</groupId>
