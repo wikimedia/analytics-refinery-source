@@ -1,3 +1,8 @@
+## v0.3.32
+* refinery-job-35: Move HdfsXMLFsImageConverter to Spark 3.5 and Iceberg
+* refinery-job: Remove MediawikiXMLDumpsConverter
+* refinery-job-35: Add PageChangeCompletenessSlo job
+
 ## v0.3.31
 * refinery-job: Write SHA256SUMS in the XML export job
 * Switch Clickstream to use webrequest_v2 instead of pageview_actor
